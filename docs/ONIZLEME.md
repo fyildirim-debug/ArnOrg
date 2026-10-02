@@ -123,6 +123,23 @@ siparis-paneli/
 - Birleştirme kuyruğu işleri sırayla main'e alır, testleri yeniden çalıştırır.
 - Mesaj, olay ve maliyet kayıtları uygulamanın SQLite veritabanında.
 
+## Kod editörü
+
+ArnOrg'un içinde tam bir kod editörü olur. Her ajanın çalışma alanı ayrı açılır; ajanın yazdığı satırlar anında görünür, testleri terminalde akar, hata işaretleri hem kullanıcıya hem ajana gider.
+
+- **Dosya gezgini ve sekmeler:** worktree başına; ajanın değiştirdiği (M) ve eklediği (A) dosyalar işaretli.
+- **Canlı ajan düzenlemesi:** ajanın yazdığı satır imleciyle görünür; satır başı işareti satırı kimin, hangi görevde değiştirdiğini gösterir.
+- **Fark ve inceleme:** main ile fark, yan yana ya da satır içi; satır yorumu ajana gider; parça parça kabul/ret.
+- **Dil desteği:** renklendirme, otomatik tamamlama, tanıma git, yeniden adlandırma, hata işaretleri (LSP).
+- **Terminal:** her çalışma alanında gerçek terminal (xterm.js + node-pty, Windows'ta ConPTY); ajan komutları ayrı sekmede.
+- **Arama ve değiştirme:** proje geneli ripgrep araması, düzenli ifade, toplu değiştirme.
+- **Git paneli:** dallar, worktree'ler, commit geçmişi, birleştirme kuyruğu, çakışma çözme.
+- **Uygulama önizlemesi:** geliştirme sunucusu gömülü tarayıcıda; ajan ekran görüntüsüyle kendi işini kontrol eder.
+- **Çakışma koruması:** ajanın düzenlediği dosya kullanıcıya salt okunur; "duraklat ve düzenle" ile kontrol kullanıcıya geçer, kaydedince ajana değişiklik notu gider.
+- **Dış editör:** tek tıkla VSCodium, VS Code ya da Cursor'da açma; çalışma alanları sıradan klasörlerdir.
+
+Editör bileşeni (Monaco ya da CodeMirror 6) ve ArnOrg editörünün Claude Code'a IDE olarak bağlanması araştırılıyor; sonuç karar bölümüne eklenecek.
+
 ## Mimari
 
 - **Stüdyo:** React arayüz; Electron penceresinde ya da tarayıcıda.

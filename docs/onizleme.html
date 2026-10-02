@@ -25,6 +25,9 @@
   --ok: oklch(0.8 0.12 155);
   --warn: oklch(0.84 0.13 85);
   --sil: oklch(0.74 0.15 22);
+  --kod-dize: oklch(0.83 0.09 135);
+  --kod-tur: oklch(0.82 0.07 230);
+  --kod-etiket: oklch(0.8 0.1 60);
   --sil-zemin: rgba(255, 90, 70, .08);
   --ekle-zemin: rgba(110, 220, 150, .07);
   --font-display: "Anton", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
@@ -387,6 +390,81 @@ code { font-family: var(--font-mono); font-size: .95em; }
 .mud-btn { margin-top: .75rem; }
 .arac-ret { color: var(--sil); }
 
+/* kod editörü */
+.studio[data-genis] .studio-govde { grid-template-columns: 11.5rem minmax(0, 1fr); height: auto; }
+.studio[data-genis] .studio-ray { display: none; }
+.e-cubuk { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.e-alan { width: auto; max-width: 100%; }
+.e-kip { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; }
+.e-kip button { font: inherit; font-size: var(--t-xs); padding: .4375rem .75rem; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.e-kip button + button { border-left: 1px solid var(--line-strong); }
+.e-kip .e-kip-aktif { background: var(--ink-3); color: var(--paper); }
+.e-kucuk { padding: .375rem .625rem; font-size: .6875rem; }
+.e-cubuk .e-kucuk { margin-left: auto; }
+.editor { display: grid; grid-template-columns: 13rem minmax(0, 1fr); border: 1px solid var(--line); border-radius: 4px; background: var(--ink); min-height: 26rem; }
+.e-agac { border-right: 1px solid var(--line); padding: .5rem 0; min-width: 0; overflow: auto; font-size: var(--t-xs); }
+.e-agac-baslik { margin: 0 .75rem .5rem; color: var(--coral); font-size: .6875rem; overflow-wrap: anywhere; }
+.e-agac ul { list-style: none; margin: 0; padding: 0; }
+.a-klasor { padding: .1875rem .75rem .1875rem calc(.75rem + var(--d) * .875rem); color: var(--muted); }
+.a-dosya { display: flex; align-items: center; justify-content: space-between; gap: .375rem; width: 100%; padding: .1875rem .75rem .1875rem calc(.75rem + var(--d) * .875rem); border: 0; background: none; color: var(--paper); font: inherit; font-size: var(--t-xs); text-align: left; cursor: pointer; }
+.a-dosya span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a-dosya:hover { background: var(--ink-3); }
+.a-aktif { background: var(--ink-3); box-shadow: inset 2px 0 0 var(--coral); }
+.a-durum { flex: none; font-size: .625rem; font-weight: 600; }
+.a-ekle { color: var(--ok); }
+.a-degis { color: var(--warn); }
+.e-ana { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; min-width: 0; }
+.e-sekmeler { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--ink-2); }
+.e-sekme { display: inline-flex; align-items: center; gap: .375rem; padding: .5rem .875rem; border: 0; border-right: 1px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: var(--t-xs); white-space: nowrap; cursor: pointer; }
+.e-sekme-aktif { background: var(--ink); color: var(--paper); box-shadow: inset 0 2px 0 var(--coral); }
+.e-canli-nokta { width: .4375rem; height: .4375rem; border-radius: 50%; background: var(--ok); animation: nabiz 1.4s ease-in-out infinite; }
+.e-govde { overflow: auto; padding: .5rem 0; font-size: .75rem; line-height: 1.65; max-height: 21rem; }
+.e-satir { display: grid; grid-template-columns: 2.75rem 3px minmax(0, 1fr); gap: 0 .75rem; min-width: max-content; }
+.e-no { text-align: right; color: var(--ink-4); font-variant-numeric: tabular-nums; user-select: none; }
+.e-isaret-ekle { background: var(--ok); }
+.e-isaret-degis { background: var(--warn); }
+.e-kod { font-family: var(--font-mono); white-space: pre; color: var(--paper); padding-right: 1.5rem; }
+.e-hata .e-kod { text-decoration: underline wavy var(--sil); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.e-hata .e-no { color: var(--sil); }
+.e-canli { background: rgba(110, 220, 150, .06); }
+.e-vurgu { background: rgba(242, 240, 236, .07); }
+.ajan-imlec { position: relative; display: inline-block; width: 2px; height: 1.15em; margin-left: 1px; vertical-align: text-bottom; background: var(--ok); animation: nabiz 1s steps(2) infinite; }
+.ajan-imlec::after { content: attr(data-ad); position: absolute; left: 6px; top: 0; padding: 0 .3125rem; border-radius: 2px; background: var(--ok); color: var(--ink); font-size: .625rem; font-weight: 600; white-space: nowrap; line-height: 1.5; }
+.k-anahtar { color: var(--coral); }
+.k-dize { color: var(--kod-dize); }
+.k-tur { color: var(--kod-tur); }
+.k-etiket { color: var(--kod-etiket); }
+.k-yorum { color: var(--muted); font-style: italic; }
+.k-sayi { color: var(--warn); }
+.e-fark .f-ekle { background: var(--ekle-zemin); }
+.e-fark .f-ekle .e-no { color: var(--ok); }
+.e-fark .f-sil { background: var(--sil-zemin); }
+.e-fark .f-sil .e-no { color: var(--sil); }
+.e-fark .f-sil .e-kod { text-decoration: line-through; text-decoration-color: rgba(255, 120, 100, .5); }
+.e-yorum { margin: .375rem .75rem .375rem 4.25rem; padding: .5rem .75rem; border: 1px solid var(--coral); border-radius: 4px; color: var(--paper); font-size: var(--t-xs); line-height: 1.6; max-width: 60ch; }
+.e-durum { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .75rem; padding: .375rem .75rem; border-top: 1px solid var(--line); background: var(--ink-2); font-size: .6875rem; color: var(--muted); }
+.e-kilit { color: var(--warn); }
+.e-kilit-acik { color: var(--ok); }
+.e-durum-sag { margin-left: auto; }
+.e-alt { border-top: 1px solid var(--line); }
+.e-alt-sekmeler { display: flex; gap: 1rem; padding: .375rem .75rem 0; }
+.e-alt-sekmeler button { font: inherit; font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; padding: .25rem 0 .375rem; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.e-alt-sekmeler .e-alt-aktif { color: var(--paper); box-shadow: inset 0 -1px 0 var(--coral); }
+.e-alt-sekmeler b { color: var(--sil); font-weight: 600; }
+.e-alt-sekmeler b.sifir { color: var(--muted); }
+.e-terminal { margin: 0; padding: .5rem .75rem .75rem; font-size: .6875rem; line-height: 1.6; color: var(--paper); white-space: pre; overflow-x: auto; max-height: 9.5rem; }
+.t-istem { color: var(--ok); }
+.t-yol { color: var(--kod-tur); }
+.t-dal { color: var(--coral); }
+.t-ok { color: var(--ok); }
+.t-hata { color: var(--sil); }
+.t-imlec { display: inline-block; width: .5rem; height: 1em; vertical-align: text-bottom; background: var(--paper); animation: nabiz 1s steps(2) infinite; }
+.e-sorunlar { list-style: none; margin: 0; padding: .375rem .375rem .75rem; }
+.e-sorunlar button { display: grid; gap: .125rem; width: 100%; text-align: left; border: 0; background: none; color: var(--paper); font: inherit; font-size: var(--t-xs); padding: .375rem; border-radius: 3px; cursor: pointer; }
+.e-sorunlar button:hover { background: var(--ink-3); }
+.e-sorunlar small { color: var(--muted); font-size: .6875rem; padding-left: 1rem; }
+.e-bos { margin: 0; padding: .75rem; color: var(--muted); font-size: var(--t-xs); }
+
 /* onaylar */
 .onay-liste { list-style: none; margin: 0; padding: 0; }
 .onay { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
@@ -399,7 +477,14 @@ code { font-family: var(--font-mono); font-size: .95em; }
   .studio-govde { grid-template-columns: 11rem minmax(0, 1fr); grid-template-rows: 36rem 15rem; height: auto; }
   .studio-ray { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
 }
+@media (max-width: 1100px) {
+  .studio[data-genis] .studio-govde { grid-template-rows: auto; }
+}
 @media (max-width: 760px) {
+  .studio[data-genis] .studio-govde { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
+  .editor { grid-template-columns: minmax(0, 1fr); }
+  .e-agac { border-right: 0; border-bottom: 1px solid var(--line); max-height: 9rem; }
+  .e-cubuk .e-kucuk { margin-left: 0; }
   .studio-govde { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 34rem 14rem; }
   .studio-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .nav-btn { width: auto; white-space: nowrap; }
@@ -639,6 +724,26 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
       </div>
     </div>
   </section>
+
+  <section class="bolum" id="editor">
+    <header><h2>Kod editörü</h2><p>Ajanların çalıştığı kodu aynı pencerede okuyun, düzenleyin, inceleyin</p></header>
+    <div class="bolum-ic">
+      <p>ArnOrg'un içinde tam bir kod editörü var. Her ajanın çalışma alanı ayrı açılır; ajanın yazdığı satırlar editörde anında görünür, testleri terminalde akar, hata işaretleri hem size hem ajana gider. Bir dosyaya müdahale etmek istediğinizde ajanı duraklatır, düzenler, kaydedersiniz; ajan değişikliğinizi okuyarak devam eder.</p>
+      <div class="izgara izgara-2">
+        <div><b>Dosya gezgini ve sekmeler</b><p>Her ajanın worktree'si ayrı açılır. Ajanın değiştirdiği ve eklediği dosyalar ağaçta işaretlidir.</p></div>
+        <div><b>Canlı ajan düzenlemesi</b><p>Ajanın yazdığı satır imleciyle birlikte görünür. Satır başındaki işaret o satırı kimin, hangi görevde değiştirdiğini gösterir.</p></div>
+        <div><b>Fark ve inceleme</b><p>main ile fark, yan yana ya da satır içi. Satıra yazdığınız yorum ajana gider; değişiklikler parça parça kabul ya da reddedilir.</p></div>
+        <div><b>Dil desteği</b><p>Renklendirme, otomatik tamamlama, tanıma git, yeniden adlandırma ve hata işaretleri dil sunucularıyla (LSP) gelir.</p></div>
+        <div><b>Terminal</b><p>Her çalışma alanında gerçek terminal; Windows'ta ConPTY. Ajanın çalıştırdığı komutlar ve çıktıları ayrı sekmede izlenir.</p></div>
+        <div><b>Arama ve değiştirme</b><p>Tüm projede ripgrep hızında arama; düzenli ifade, dosya filtresi, toplu değiştirme.</p></div>
+        <div><b>Git paneli</b><p>Dallar, worktree'ler, commit geçmişi, birleştirme kuyruğu ve çakışma çözme ekranı.</p></div>
+        <div><b>Uygulama önizlemesi</b><p>Geliştirme sunucusu gömülü tarayıcıda açılır. Ajan ekran görüntüsü alıp kendi işini kontrol edebilir.</p></div>
+        <div><b>Çakışma koruması</b><p>Ajanın düzenlediği dosya size salt okunur görünür. "Duraklat ve düzenle" ile kontrol size geçer; kaydettiğinizde ajana değişiklik notu gider.</p></div>
+        <div><b>Dış editör</b><p>Tek tıkla VSCodium, VS Code ya da Cursor'da açma. Çalışma alanları sıradan klasörlerdir; dışarıda yaptığınız değişikliği ajanlar görür.</p></div>
+      </div>
+    </div>
+  </section>
+
   <section class="bolum" id="mimari">
     <header><h2>Mimari</h2><p>Ajan döngüsünü yeniden yazmıyoruz, etrafına şirketi kuruyoruz</p></header>
     <div class="bolum-ic">
@@ -982,27 +1087,229 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     );
   };
 
+  // ---------- kod editörü ----------
+  var calismaAlanlari = [
+    { dal: "arnorg/ece/T-26", ajan: "ece", not: "Sipariş listesi ekranı" },
+    { dal: "arnorg/deniz/T-24", ajan: "deniz", not: "Sipariş API uç noktaları" },
+    { dal: "arnorg/ece/T-19", ajan: "ece", not: "Oturum açma akışı · değişiklik istendi" },
+    { dal: "main", ajan: null, not: "Birleştirilmiş kod" }
+  ];
+  var dosyaAgaci = [
+    ["d", "src", 0], ["d", "ekranlar", 1], ["f", "src/ekranlar/SiparisListesi.tsx", 2, "M", "ece"], ["f", "src/ekranlar/SiparisDetay.tsx", 2],
+    ["d", "bilesenler", 1], ["f", "src/bilesenler/Tablo.tsx", 2], ["f", "src/bilesenler/Rozet.tsx", 2, "A", "ece"],
+    ["d", "auth", 1], ["f", "src/auth/oturum.ts", 2, "M", "ece"],
+    ["d", "tests", 0], ["f", "tests/liste.test.tsx", 1, "A", "ece"],
+    ["f", "package.json", 0], ["f", ".arnorg/notlar/kararlar/ADR-005-imlec-sayfalama.md", 0]
+  ];
+  var CANLI_SATIR = '        { ad: "Tutar", alan: "tutar", hizala: "sag" },';
+  var dosyaIcerik = {
+    "src/ekranlar/SiparisListesi.tsx": {
+      dil: "TypeScript React",
+      satirlar: [
+        'import { useState } from "react";',
+        'import { Tablo } from "../bilesenler/Tablo";',
+        'import { Rozet } from "../bilesenler/Rozet";',
+        'import { siparisleriGetir, type Siparis } from "../api/istemci";',
+        "",
+        "const SAYFA_BOYUTU = 25;",
+        "",
+        "export function SiparisListesi() {",
+        "  const [imlec, setImlec] = useState<string | null>(null);",
+        "  const { veri, yukleniyor, hata } = siparisleriGetir({ imlec, limit: SAYFA_BOYUTU });",
+        "",
+        '  if (hata) return <HataKutusu mesaj="Siparişler yüklenemedi." />;',
+        "",
+        "  return (",
+        "    <Tablo",
+        "      satirlar={veri?.siparisler ?? []}",
+        "      yukleniyor={yukleniyor}",
+        "      sutunlar={[",
+        '        { ad: "No", alan: "no" },',
+        '        { ad: "Müşteri", alan: "musteri" },',
+        '        { ad: "Durum", alan: "durum", hucre: (s: Siparis) => <Rozet durum={s.durum} /> },',
+        "",
+        "      ]}",
+        "      sonraki={() => setImlec(veri.sonrakiImlec)}",
+        "    />",
+        "  );",
+        "}"
+      ],
+      degisen: { 3: "+", 6: "~", 21: "+", 22: "+" },
+      hatalar: { 12: "TS2304 · 'HataKutusu' adı bulunamadı.", 24: "TS18048 · 'veri' tanımsız olabilir." },
+      canliSatir: 22,
+      fark: [
+        [" ", 'import { Tablo } from "../bilesenler/Tablo";'],
+        ["+", 'import { Rozet } from "../bilesenler/Rozet";'],
+        ["-", "const SAYFA_BOYUTU = 20;"],
+        ["+", "const SAYFA_BOYUTU = 25;"],
+        [" ", '        { ad: "Müşteri", alan: "musteri" },'],
+        ["+", '        { ad: "Durum", alan: "durum", hucre: (s: Siparis) => <Rozet durum={s.durum} /> },'],
+        ["+", CANLI_SATIR]
+      ]
+    },
+    "src/auth/oturum.ts": {
+      dil: "TypeScript",
+      satirlar: [
+        'import { ayarlar } from "../ayarlar";',
+        'import { jetonDeposu } from "./jetonDeposu";',
+        'import type { ApiIstemci } from "../api/istemci";',
+        "",
+        "// ADR-004: yenileme tek kilit üzerinden yapılır",
+        "let yenileniyor: Promise<void> | null = null;",
+        "",
+        "export async function oturumuYenile(istemci: ApiIstemci) {",
+        "  const sure = ayarlar.oturumSuresiSn;",
+        "  const jeton = jetonDeposu.yenilemeJetonu();",
+        '  const yanit = await istemci.post("/oturum/yenile", { jeton });',
+        "  jetonDeposu.yaz(yanit.erisim, yanit.yenileme, sure);",
+        "}"
+      ],
+      degisen: { 5: "+", 6: "+", 9: "~" },
+      hatalar: {},
+      fark: [
+        [" ", "export async function oturumuYenile(istemci: ApiIstemci) {"],
+        ["-", "  const sure = 3600;"],
+        ["+", "  const sure = ayarlar.oturumSuresiSn;"],
+        [" ", '  const yanit = await istemci.post("/oturum/yenile", { jeton });'],
+        ["!", "Onur · Kod inceleme: İki sekme aynı anda bu satıra gelirse aynı yenileme jetonu iki kez gönderiliyor. ADR-004'teki istemci kilidini (yenileniyor) burada kullanın."]
+      ]
+    },
+    "tests/liste.test.tsx": {
+      dil: "TypeScript React",
+      satirlar: [
+        'import { render, screen } from "@testing-library/react";',
+        'import { SiparisListesi } from "../src/ekranlar/SiparisListesi";',
+        "",
+        'test("hata durumunda uyarı kutusu", async () => {',
+        "  sunucuHatasiVer(500);",
+        "  render(<SiparisListesi />);",
+        '  expect(await screen.findByText("Siparişler yüklenemedi.")).toBeVisible();',
+        "});"
+      ],
+      degisen: { 1: "+", 2: "+", 3: "+", 4: "+", 5: "+", 6: "+", 7: "+", 8: "+" },
+      hatalar: {},
+      fark: [["+", 'test("hata durumunda uyarı kutusu", async () => {'], ["+", "  sunucuHatasiVer(500);"]]
+    }
+  };
+  var acikSekmeler = ["src/ekranlar/SiparisListesi.tsx", "src/auth/oturum.ts", "tests/liste.test.tsx"];
+  var aktifDosya = "src/ekranlar/SiparisListesi.tsx";
+  var secilenAlanNo = 0;
+  var editorKip = "duzenle";
+  var altPanel = "terminal";
+  var canli = { konum: 0, bitti: false, zamanlayici: null };
+  var vurguSatir = null;
+  var ajanDuraklatildi = false;
+
+  var KOD_DESEN = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[^`]*`)|(\b(?:import|from|export|const|let|function|return|async|await|type|interface|if|else|new|null|true|false|test|expect)\b)|(<\/?[A-Z][A-Za-z]*)|(\b[A-Z][A-Za-z0-9]+\b)|(\b\d+\b)/g;
+  function renklendir(satir) {
+    var cikti = "", son = 0, m;
+    KOD_DESEN.lastIndex = 0;
+    while ((m = KOD_DESEN.exec(satir))) {
+      cikti += kacis(satir.slice(son, m.index));
+      var sinif = m[1] ? "k-yorum" : m[2] ? "k-dize" : m[3] ? "k-anahtar" : m[4] ? "k-etiket" : m[5] ? "k-tur" : "k-sayi";
+      cikti += '<span class="' + sinif + '">' + kacis(m[0]) + "</span>";
+      son = m.index + m[0].length;
+      if (m[0].length === 0) KOD_DESEN.lastIndex++;
+    }
+    return cikti + kacis(satir.slice(son));
+  }
+
+  function satirHtml(d, i, metin) {
+    var no = i + 1;
+    var deg = d.degisen[no];
+    var hata = d.hatalar[no];
+    var canliMi = d.canliSatir === no && aktifDosya === "src/ekranlar/SiparisListesi.tsx";
+    var sinif = "e-satir" + (hata ? " e-hata" : "") + (canliMi && !canli.bitti ? " e-canli" : "") + (vurguSatir === no ? " e-vurgu" : "");
+    var imlec = canliMi && !canli.bitti ? '<span class="ajan-imlec" data-ad="Ece · Edit"></span>' : "";
+    return '<div class="' + sinif + '"' + (canliMi ? ' id="canli-satir"' : "") + (hata ? ' title="' + kacis(hata) + '"' : "") + '><span class="e-no">' + no + '</span><span class="e-isaret e-isaret-' + (deg === "+" ? "ekle" : deg === "~" ? "degis" : "yok") + '"></span><code class="e-kod">' + renklendir(metin) + imlec + "</code></div>";
+  }
+
+  function canliMetin() {
+    return canli.bitti ? CANLI_SATIR : CANLI_SATIR.slice(0, canli.konum);
+  }
+
   gorunumler.kod = function () {
-    var agaclar = [
-      ["arnorg/deniz/T-24", "Deniz", "+214 −12", "Testler geçti", "ok"],
-      ["arnorg/ece/T-26", "Ece", "+388 −40", "Testler çalışıyor", "calisiyor"],
-      ["arnorg/ece/T-19", "Ece", "+96 −31", "Değişiklik istendi", "uyari"],
-      ["arnorg/kerem/T-21", "Kerem", "+42 −0", "Taslak", "bosta"]
-    ].map(function (r) {
-      return "<tr><td><code>" + r[0] + "</code></td><td>" + r[1] + '</td><td class="sayi">' + r[2] + '</td><td><span class="pill pill-' + r[4] + '"><i></i>' + r[3] + "</span></td></tr>";
+    var alan = calismaAlanlari[secilenAlanNo];
+    var alanSecim = calismaAlanlari.map(function (c, i) {
+      return '<option value="' + i + '">' + kacis(c.dal + (c.ajan ? " · " + ajan(c.ajan).ad : "")) + "</option>";
     }).join("");
+    var agac = dosyaAgaci.map(function (d) {
+      if (d[0] === "d") return '<li class="a-klasor" style="--d:' + d[2] + '">' + kacis(d[1]) + "/</li>";
+      var ad = d[1].split("/").pop();
+      var kim = d[4] ? ajan(d[4]) : null;
+      return '<li><button class="a-dosya' + (d[1] === aktifDosya ? " a-aktif" : "") + '" style="--d:' + d[2] + '" data-dosya="' + d[1] + '"><span>' + kacis(ad) + "</span>" +
+        (d[3] ? '<span class="a-durum a-' + (d[3] === "A" ? "ekle" : "degis") + '" title="' + (d[3] === "A" ? "Eklendi" : "Değişti") + (kim ? " · " + kim.ad : "") + '">' + d[3] + "</span>" : "") + "</button></li>";
+    }).join("");
+    var sekmeler = acikSekmeler.map(function (f) {
+      var ad = f.split("/").pop();
+      var canliSekme = f === "src/ekranlar/SiparisListesi.tsx" && !canli.bitti && !ajanDuraklatildi;
+      return '<button class="e-sekme' + (f === aktifDosya ? " e-sekme-aktif" : "") + '" data-dosya="' + f + '">' + kacis(ad) + (canliSekme ? '<i class="e-canli-nokta" title="Ece yazıyor"></i>' : "") + "</button>";
+    }).join("");
+    var d = dosyaIcerik[aktifDosya] || dosyaIcerik["src/ekranlar/SiparisListesi.tsx"];
+    var govde;
+    if (editorKip === "fark") {
+      govde = '<div class="e-govde e-fark">' + d.fark.map(function (r) {
+        if (r[0] === "!") return '<div class="e-yorum">' + kacis(r[1]) + "</div>";
+        var sinif = r[0] === "+" ? "f-ekle" : r[0] === "-" ? "f-sil" : "f-baglam";
+        return '<div class="e-satir ' + sinif + '"><span class="e-no">' + (r[0] === " " ? "" : r[0]) + '</span><span class="e-isaret e-isaret-yok"></span><code class="e-kod">' + renklendir(r[1]) + "</code></div>";
+      }).join("") + "</div>";
+    } else {
+      govde = '<div class="e-govde">' + d.satirlar.map(function (metin, i) {
+        var no = i + 1;
+        if (aktifDosya === "src/ekranlar/SiparisListesi.tsx" && no === d.canliSatir) metin = canliMetin();
+        return satirHtml(d, i, metin);
+      }).join("") + "</div>";
+    }
+    var hataListesi = Object.keys(d.hatalar);
+    var paneller = {
+      terminal: '<pre class="e-terminal"><span class="t-istem">ece@arnorg</span> <span class="t-yol">~/calisma/siparis-paneli/ece-T-26</span> <span class="t-dal">(arnorg/ece/T-26)</span>\n$ pnpm vitest run liste\n <span class="t-ok">✓</span> tests/liste.test.tsx &gt; boş liste mesajı\n <span class="t-ok">✓</span> tests/liste.test.tsx &gt; imleçle sonraki sayfa\n <span class="t-ok">✓</span> tests/liste.test.tsx &gt; durum rozeti\n <span class="t-hata">×</span> tests/liste.test.tsx &gt; hata durumunda uyarı kutusu\n\n Test Files  <span class="t-hata">1 failed</span> (1)\n      Tests  <span class="t-hata">1 failed</span> | <span class="t-ok">3 passed</span> (4)\n$ <span class="t-imlec"></span></pre>',
+      sorunlar: hataListesi.length
+        ? '<ul class="e-sorunlar">' + hataListesi.map(function (no) { return '<li><button data-satir="' + no + '"><span class="t-hata">●</span> ' + kacis(d.hatalar[no]) + "<small>" + kacis(aktifDosya.split("/").pop()) + " · satır " + no + "</small></button></li>"; }).join("") + "</ul>"
+        : '<p class="e-bos">Bu dosyada sorun yok.</p>',
+      cikti: '<pre class="e-terminal">[10:31:02] typescript-language-server hazır · TypeScript 5.9\n[10:31:02] eslint-language-server hazır\n[10:34:18] Ece · Edit src/ekranlar/SiparisListesi.tsx (+2 satır)\n[10:34:19] Tanılama güncellendi: 2 sorun</pre>'
+    };
+    var kilit = d === dosyaIcerik["src/ekranlar/SiparisListesi.tsx"] && !ajanDuraklatildi
+      ? '<span class="e-kilit">Ece bu dosyayı düzenliyor · salt okunur</span><button class="btn-ghost e-kucuk" data-editor="duraklat">Ece\'yi duraklat, ben düzenleyeyim</button>'
+      : ajanDuraklatildi && d === dosyaIcerik["src/ekranlar/SiparisListesi.tsx"]
+        ? '<span class="e-kilit e-kilit-acik">Ece duraklatıldı · düzenleme sizde. Kaydettiğinizde Ece\'ye değişiklik notu gider.</span><button class="btn-ghost e-kucuk" data-editor="devam">Ece devam etsin</button>'
+        : "";
     return (
-      '<div class="v-baslik"><h3>Kod</h3><p>Her ajan kendi git çalışma alanında (worktree) çalışır · main\'e yalnız onaylı iş girer</p></div>' +
-      '<div class="tablo-sar"><table class="tablo"><thead><tr><th>Çalışma alanı</th><th>Ajan</th><th>Fark</th><th>Durum</th></tr></thead><tbody>' + agaclar + "</tbody></table></div>" +
-      '<h4 class="ara-baslik">T-19 · src/auth/oturum.ts <small>Onur\'un incelemesi</small></h4>' +
-      '<div class="diff-sar"><pre class="diff"><span class="d-baglam">  export async function oturumuYenile(istemci: ApiIstemci) {</span>' +
-      '<span class="d-sil">-   const sure = 3600;</span>' +
-      '<span class="d-ekle">+   const sure = ayarlar.oturumSuresiSn;</span>' +
-      '<span class="d-baglam">    const yanit = await istemci.post("/oturum/yenile", { jeton });</span>' +
-      '<span class="d-yorum">  Onur · Kod inceleme\n  İki sekme aynı anda bu satıra gelirse aynı yenileme jetonu iki kez gönderiliyor.\n  ADR-004\'teki istemci kilidini burada kullanın.</span>' +
-      '<span class="d-baglam">    jetonDeposu.yaz(yanit.erisim, yanit.yenileme);</span></pre></div>'
+      '<div class="v-baslik"><h3>Kod</h3><p>Yerleşik editör · her ajanın çalışma alanı ayrı · ajan düzenlemeleri canlı</p></div>' +
+      '<div class="e-cubuk"><label class="gizli" for="e-alan">Çalışma alanı</label><select id="e-alan" class="secim e-alan">' + alanSecim + "</select>" +
+      '<div class="e-kip" role="group" aria-label="Görünüm"><button class="' + (editorKip === "duzenle" ? "e-kip-aktif" : "") + '" data-editor="duzenle">Düzenle</button><button class="' + (editorKip === "fark" ? "e-kip-aktif" : "") + '" data-editor="fark">main ile fark</button></div>' +
+      '<button class="btn-ghost e-kucuk" data-editor="dis">VSCodium\'da aç</button></div>' +
+      '<div class="editor"><nav class="e-agac" aria-label="Dosyalar"><p class="e-agac-baslik">' + kacis(alan.dal) + '</p><ul>' + agac + "</ul></nav>" +
+      '<div class="e-ana"><div class="e-sekmeler">' + sekmeler + "</div>" + govde +
+      '<div class="e-durum">' + kilit + '<span class="e-durum-sag">' + kacis(d.dil) + " · UTF-8 · LF · LSP hazır</span></div>" +
+      '<div class="e-alt"><div class="e-alt-sekmeler"><button class="' + (altPanel === "terminal" ? "e-alt-aktif" : "") + '" data-panel="terminal">Terminal</button><button class="' + (altPanel === "sorunlar" ? "e-alt-aktif" : "") + '" data-panel="sorunlar">Sorunlar <b' + (hataListesi.length ? "" : ' class="sifir"') + ">" + hataListesi.length + '</b></button><button class="' + (altPanel === "cikti" ? "e-alt-aktif" : "") + '" data-panel="cikti">Çıktı</button></div>' + paneller[altPanel] + "</div></div></div>"
     );
   };
+
+  function canliYazimBaslat() {
+    if (canli.zamanlayici || canli.bitti) return;
+    if (hareketAz) { canli.bitti = true; return; }
+    canli.zamanlayici = setInterval(function () {
+      if (aktifGorunum !== "kod" || ajanDuraklatildi || !mesaide || document.hidden) return;
+      canli.konum += 2;
+      if (canli.konum >= CANLI_SATIR.length) {
+        canli.bitti = true;
+        clearInterval(canli.zamanlayici);
+        canli.zamanlayici = null;
+        olayEkle(["ece", "Edit", "src/ekranlar/SiparisListesi.tsx · +1 satır", 0.02]);
+        if (aktifGorunum === "kod") ciz();
+        return;
+      }
+      var el = $("#canli-satir .e-kod");
+      if (el && editorKip === "duzenle" && aktifDosya === "src/ekranlar/SiparisListesi.tsx") el.innerHTML = renklendir(canliMetin()) + '<span class="ajan-imlec" data-ad="Ece · Edit"></span>';
+    }, 140);
+  }
+
+  function editorEylem(e) {
+    if (e === "duzenle" || e === "fark") editorKip = e;
+    if (e === "duraklat") { ajanDuraklatildi = true; olayEkle(["ece", "interrupt", "Yönetim kurulu düzenlemek için duraklattı", 0]); }
+    if (e === "devam") { ajanDuraklatildi = false; olayEkle(["ece", "araya_gir", "SiparisListesi.tsx elle düzenlendi, değişiklikleri oku", 0]); }
+    if (e === "dis") olayEkle(["ece", "codium", "~/calisma/siparis-paneli/ece-T-26", 0]);
+  }
 
   gorunumler.onaylar = function () {
     var satirlar = onaylar.map(function (o) {
@@ -1134,7 +1441,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   }
 
   // ---------- canlı akış ----------
-  var aracSinif = { Edit: "yaz", Write: "yaz", Bash: "kabuk", Read: "oku", Grep: "oku", reddedildi: "ret", interrupt: "ret", izin_verildi: "mcp", araya_gir: "yaz", set_permission_mode: "kabuk", set_model: "kabuk" };
+  var aracSinif = { codium: "mcp", Edit: "yaz", Write: "yaz", Bash: "kabuk", Read: "oku", Grep: "oku", reddedildi: "ret", interrupt: "ret", izin_verildi: "mcp", araya_gir: "yaz", set_permission_mode: "kabuk", set_model: "kabuk" };
   function olayEkle(o) {
     var a = ajan(o[0]);
     akis.unshift({ ajan: a, arac: o[1], hedef: o[2], saat: saatSimdi(true), yeni: true });
@@ -1174,6 +1481,16 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     });
     var m = $("#mesajlar");
     if (m) m.scrollTop = m.scrollHeight;
+    var st = $(".studio");
+    if (st) st.toggleAttribute("data-genis", aktifGorunum === "kod");
+    if (aktifGorunum === "kod") {
+      canliYazimBaslat();
+      var hedefSatir = $("#canli-satir") || $(".e-vurgu");
+      var kap = $(".e-govde");
+      if (hedefSatir && kap) kap.scrollTop = Math.max(0, hedefSatir.offsetTop - kap.offsetTop - kap.clientHeight / 2);
+    }
+    var ea = $("#e-alan");
+    if (ea) ea.value = String(secilenAlanNo);
   }
 
   function git(v) {
@@ -1193,6 +1510,10 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     else if (t.hasAttribute("data-kanal")) { aktifKanal = t.getAttribute("data-kanal"); ciz(); }
     else if (t.hasAttribute("data-git-kanal")) { aktifKanal = t.getAttribute("data-git-kanal"); ciz(); }
     else if (t.hasAttribute("data-not")) { secilenNot = t.getAttribute("data-not"); ciz(); }
+    else if (t.hasAttribute("data-dosya")) { aktifDosya = dosyaIcerik[t.getAttribute("data-dosya")] ? t.getAttribute("data-dosya") : aktifDosya; if (acikSekmeler.indexOf(aktifDosya) < 0) acikSekmeler.push(aktifDosya); vurguSatir = null; ciz(); }
+    else if (t.hasAttribute("data-editor")) { editorEylem(t.getAttribute("data-editor")); ciz(); }
+    else if (t.hasAttribute("data-panel")) { altPanel = t.getAttribute("data-panel"); ciz(); }
+    else if (t.hasAttribute("data-satir")) { vurguSatir = +t.getAttribute("data-satir"); editorKip = "duzenle"; ciz(); }
     else if (t.hasAttribute("data-cagri")) { cagriKarari(t.getAttribute("data-cagri")); ciz(); }
     else if (t.hasAttribute("data-mud")) { mudahale(t.getAttribute("data-mud")); ciz(); }
     else if (t.id === "btn-mesai") {
@@ -1205,6 +1526,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   });
 
   document.addEventListener("change", function (e) {
+    if (e.target.id === "e-alan") { secilenAlanNo = +e.target.value; ciz(); return; }
     if (e.target.id !== "mud-ajan") return;
     secilenAjan = e.target.value;
     ciz();
