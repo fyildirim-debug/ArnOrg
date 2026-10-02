@@ -7,11 +7,23 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
 - Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
-- Yerleşik kod editörü ve terminal
+- Yerleşik kod editörü (Monaco), çalışma alanı başına terminal, main ile fark
+- Tıkanma koruması: ilerlemeyen görev önce sorumluya hatırlatılır, sonra yöneticiye ve kurula iletilir
+- Dönem raporu: biten, süren, tıkanan işler, harcama ve denetim özeti notlara yazılır
+- Ajan commit'leri makinedeki git kimliğinizle atılır; Claude imzası (Co-Authored-By) eklenmez, elle yazılırsa denetim kapısı siler
+
+![Karargâh](docs/gorseller/karargah.png)
 
 ## Durum
 
-Faz 0–2 çalışıyor: çekirdek, canlı denetim, CEO döngüsü (brief → işe alım teklifi → onay → görev → çalışan → inceleme → birleştirme onayı → main). Stüdyo arayüzü ve Electron kabuğu geliştiriliyor.
+Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: Stüdyo'dan proje açılır, brief verilir, CEO işe alım teklif eder, onaylanınca görev açılıp çalışan başlar, çalışan kendi worktree'sinde kodu yazıp test eder, CEO farkı inceleyip birleştirme ister, kurul onaylayınca iş main'e girer. Gerçek bir Claude Code oturumuyla (haiku) bu döngü yaklaşık iki dakika ve $0,25 tuttu.
+
+| Ekran | |
+|---|---|
+| Ekip ve ajan paneli | ![Ekip](docs/gorseller/ekip.png) |
+| Kanallar | ![Kanallar](docs/gorseller/kanallar.png) |
+| Denetim | ![Denetim](docs/gorseller/denetim.png) |
+| Kod | ![Kod](docs/gorseller/kod.png) |
 
 ## Çalıştırma
 
@@ -23,11 +35,21 @@ npm run build          # Stüdyo + çekirdek
 npm run serve          # http://127.0.0.1:47820 — terminale erişim anahtarlı bağlantı yazılır
 ```
 
+Masaüstü uygulaması:
+
+```bash
+npm run build && npm run masaustu    # Electron içinde çekirdek + Stüdyo
+npm run paketle                      # bulunduğunuz platformun paketleri (Linux: AppImage, deb, rpm; Windows: NSIS, MSI)
+```
+
+Sürüm paketleri `v*` etiketinde GitHub Actions'ta Windows ve Linux için üretilir; ayrıntı [`paketler/masaustu/README.md`](paketler/masaustu/README.md).
+
 Geliştirme:
 
 ```bash
 npm run dev            # çekirdek, değişiklikte yeniden başlar
 npm run dev:studyo     # arayüz (Vite), /api ve /ws çekirdeğe yönlenir
+npm run sahte -w @arnorg/studyo   # Claude'suz sahte çekirdek, arayüz geliştirmek için
 npm test               # birim ve entegrasyon testleri (Claude çağırmaz)
 ```
 

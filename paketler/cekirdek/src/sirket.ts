@@ -35,7 +35,7 @@ import { arnorgAraclari } from "./arnorg-araclari.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
 import type { OlayYolu } from "./olaylar.js";
-import { degerlendir, girdiOzeti, varsayilanKurallar } from "./politika.js";
+import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./politika.js";
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
@@ -375,7 +375,7 @@ export class Sirket {
       "- Yönetim kuruluna soru gerekiyorsa mcp__arnorg__kurula_sor kullan.",
       "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
       "- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister.",
-      "- Kodu commit'le; mesajlar Türkçe ve ne değiştiğini söyler.",
+      "- Kodu commit'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, \"Generated with Claude Code\" ya da başka bir Claude imzası ekleme.",
       ajan.talimatEki ? `\n## Ek talimat\n${ajan.talimatEki}` : "",
     ].join("\n");
   }
@@ -636,11 +636,22 @@ export class Sirket {
       this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", "Yönetim kurulu", k.not, aracKimligi);
       if (!k.izin) return this.ret(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`);
       this.yazmaKaydet(ajanId, cwd, arac, girdi);
-      return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Yönetim kurulu onayladı" } };
+      return this.imzasiz(ajan, arac, girdi, aracKimligi) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Yönetim kurulu onayladı" } };
     }
     this.yazmaKaydet(ajanId, cwd, arac, girdi);
+    const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi);
+    if (imzasiz) return imzasiz;
     if (!SESSIZ_ARACLAR.has(arac)) this.denetimKaydet(ajan, arac, girdi, "izin", null, null, aracKimligi);
     return {};
+  }
+
+  /** Commit komutundaki Claude imzasını siler ve çağrıyı değiştirilmiş girdiyle geçirir */
+  private imzasiz(ajan: Ajan, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): HookJSONOutput | null {
+    const yeni = imzaAyikla(arac, girdi);
+    if (!yeni) return null;
+    const neden = "Commit mesajındaki Claude imzası çıkarıldı.";
+    this.denetimKaydet(ajan, arac, yeni, "degisti", "İmzasız commit", neden, aracKimligi);
+    return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: `ArnOrg: ${neden}`, updatedInput: yeni } };
   }
 
   private yazmaKaydet(ajanId: string, cwd: string, arac: string, girdi: Record<string, unknown>): void {

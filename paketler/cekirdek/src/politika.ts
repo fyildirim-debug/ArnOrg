@@ -302,6 +302,26 @@ function alanDisiSilme(parca: string, b: PolitikaBaglami): string | null {
   return null;
 }
 
+/** Commit mesajındaki Claude imzası: satır başı trailer'ları ve ayrı -m ile verilenler */
+const IMZA_SATIRLARI = [
+  /^[ \t]*Co-Authored-By:[^\n]*(?:claude|anthropic)[^\n]*(?:\r?\n|$)/gim,
+  /^[ \t]*(?:\u{1F916}[ \t]*)?Generated with \[?Claude Code\]?[^\n]*(?:\r?\n|$)/gimu,
+  /^[ \t]*Claude-Session:[^\n]*(?:\r?\n|$)/gim,
+];
+const IMZA_SECENEGI = /[ \t]+-m[ \t]*(["'])\s*Co-Authored-By:[^"'\n]*(?:claude|anthropic)[^"'\n]*\1/gi;
+
+/**
+ * git commit komutundaki Claude imzasını siler; değişiklik yoksa null döner.
+ * Claude Code ayarıyla imza zaten kapalıdır; bu, modelin elle yazdığı imzaya karşı yedektir.
+ */
+export function imzaAyikla(arac: string, girdi: Record<string, unknown>): Record<string, unknown> | null {
+  const komut = komutMetni(arac, girdi);
+  if (!komut || !/\bgit\b[\s\S]*\bcommit\b/.test(komut) || !/(claude|anthropic)/i.test(komut)) return null;
+  let yeni = komut.replace(IMZA_SECENEGI, "");
+  for (const d of IMZA_SATIRLARI) yeni = yeni.replace(d, "");
+  return yeni === komut ? null : { ...girdi, command: yeni };
+}
+
 function komutMetni(arac: string, girdi: Record<string, unknown>): string | null {
   if (!KOMUT_ARACLARI.has(arac)) return null;
   const k = girdi.command;

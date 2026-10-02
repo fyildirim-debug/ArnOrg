@@ -111,3 +111,22 @@ describe("emoji ayıklama ve Monitor", () => {
     expect(degerlendir(kurallar, "Monitor", { command: "rm -rf /" }, b).karar).toBe("ret");
   });
 });
+
+describe("imzasız commit", () => {
+  it("heredoc, satır içi ve -m ile verilen Claude imzasını siler", async () => {
+    const { imzaAyikla } = await import("./politika.js");
+    const heredoc = `git commit -m "$(cat <<'EOF'\nHesap makinesi eklendi\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n)"`;
+    expect(imzaAyikla("Bash", { command: heredoc })?.command).toBe(`git commit -m "$(cat <<'EOF'\nHesap makinesi eklendi\n\nEOF\n)"`);
+    const ayri = `git commit -m "Testler eklendi" -m "Co-Authored-By: Claude <noreply@anthropic.com>"`;
+    expect(imzaAyikla("Bash", { command: ayri })?.command).toBe(`git commit -m "Testler eklendi"`);
+    const robot = "git commit -m \"Düzeltme\n\n\u{1F916} Generated with [Claude Code](https://claude.com/claude-code)\n\"";
+    expect(imzaAyikla("Bash", { command: robot })?.command).toBe('git commit -m "Düzeltme\n\n"');
+  });
+
+  it("imzasız ya da commit olmayan komuta dokunmaz", async () => {
+    const { imzaAyikla } = await import("./politika.js");
+    expect(imzaAyikla("Bash", { command: 'git commit -m "Claude Code SDK sürümü yükseltildi"' })).toBeNull();
+    expect(imzaAyikla("Bash", { command: "echo Co-Authored-By: Claude" })).toBeNull();
+    expect(imzaAyikla("Write", { file_path: "a", content: "Co-Authored-By: Claude" })).toBeNull();
+  });
+});

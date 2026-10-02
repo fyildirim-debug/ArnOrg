@@ -131,6 +131,8 @@ export class AjanOturumu {
         }),
         systemPrompt: { type: "preset", preset: "claude_code", append: this.b.talimat() },
         settingSources: ["project"],
+        // Commit ve PR'lara Claude imzası (Co-Authored-By, oturum bağlantısı) eklenmez; repo sahibinin adı kalır
+        settings: { attribution: { commit: "", pr: "", sessionUrl: false }, includeCoAuthoredBy: false },
         mcpServers: { arnorg: this.b.araclar() },
         disallowedTools: ["AskUserQuestion", ...this.b.yasakAraclar()],
         hooks: {
