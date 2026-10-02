@@ -1,0 +1,157 @@
+// Görev ayrıntısı: düzenlenebilir alanlar ve izin verilen durum geçişleri
+import { GOREV_DURUM_ADLARI, GOREV_GECISLERI, type Gorev, type GorevDurumu } from "@arnorg/ortak";
+import { useEffect, useState } from "react";
+import { api } from "../../api/uclar";
+import { ajanaGit, bildir } from "../../durum/arayuz";
+import { gorevUygula, useVeri } from "../../durum/veri";
+import { akilliZaman, tarih } from "../../yardimcilar/bicim";
+import { useIslem } from "../../yardimcilar/kancalar";
+import { Cekmece } from "../Cekmece";
+import { HataKutu } from "../Durumlar";
+import { GorevAlanlari, taslakOlustur, type GorevTaslagi } from "./GorevAlanlari";
+import { acikBagimliliklar } from "./gorevYardimcilari";
+
+function ayniMi(a: GorevTaslagi, b: GorevTaslagi) {
+  return (
+    a.baslik === b.baslik &&
+    a.aciklama === b.aciklama &&
+    a.kabulOlcutu === b.kabulOlcutu &&
+    a.etiket === b.etiket &&
+    a.atananId === b.atananId &&
+    a.bagimliliklar.join() === b.bagimliliklar.join()
+  );
+}
+
+export function GorevCekmecesi({ gorev, kapat }: { gorev: Gorev; kapat: () => void }) {
+  const ajanlar = useVeri((d) => d.ajanlar);
+  const gorevler = useVeri((d) => d.gorevler);
+  const [taslak, setTaslak] = useState(() => taslakOlustur(gorev));
+  const [denendi, setDenendi] = useState(false);
+  const { suruyor, hata, setHata, calistir } = useIslem();
+  const ilk = taslakOlustur(gorev);
+  const kirli = !ayniMi(taslak, ilk);
+
+  // Görev başka yerden güncellenince ve kullanıcı bir şey değiştirmemişse taslağı tazele
+  useEffect(() => {
+    if (!kirli) setTaslak(taslakOlustur(gorev));
+  }, [gorev.guncelleme]);
+
+  const olusturan = ajanlar.find((a) => a.id === gorev.olusturanId);
+  const atanan = ajanlar.find((a) => a.id === gorev.atananId);
+  const bagli = acikBagimliliklar(gorev, gorevler);
+  const bagimlilar = gorevler.filter((g) => g.bagimliliklar.includes(gorev.id));
+
+  const tasi = (durum: GorevDurumu) =>
+    calistir(
+      `tasi-${durum}`,
+      async () => {
+        gorevUygula(await api.gorevGuncelle(gorev.id, { durum }));
+        bildir("basari", `${gorev.kod} → ${GOREV_DURUM_ADLARI[durum]}`);
+      },
+      true,
+    );
+
+  const kaydet = () => {
+    setDenendi(true);
+    if (!taslak.baslik.trim()) return;
+    void calistir(
+      "kaydet",
+      async () => {
+        gorevUygula(
+          await api.gorevGuncelle(gorev.id, {
+            baslik: taslak.baslik.trim(),
+            aciklama: taslak.aciklama,
+            kabulOlcutu: taslak.kabulOlcutu,
+            etiket: taslak.etiket.trim(),
+            atananId: taslak.atananId || null,
+            bagimliliklar: taslak.bagimliliklar,
+          }),
+        );
+        bildir("basari", `${gorev.kod} kaydedildi.`);
+      },
+      true,
+    );
+  };
+
+  return (
+    <Cekmece
+      baslik={
+        <>
+          <code className="cekmece-kod">{gorev.kod}</code> {gorev.baslik}
+        </>
+      }
+      kapat={kapat}
+      alt={
+        <>
+          <button type="button" className="dugme dugme-ana" onClick={kaydet} disabled={!kirli || suruyor !== null}>
+            {suruyor === "kaydet" ? <span className="doner" aria-hidden="true" /> : null}
+            Kaydet
+          </button>
+          {kirli ? (
+            <button
+              type="button"
+              className="dugme dugme-sessiz"
+              onClick={() => {
+                setTaslak(ilk);
+                setHata(null);
+              }}
+            >
+              Değişiklikleri geri al
+            </button>
+          ) : null}
+          <span className="alan-ipucu itele">Güncellendi {akilliZaman(gorev.guncelleme)}</span>
+        </>
+      }
+    >
+      <section className="gorev-durum-bolum" aria-label="Durum">
+        <div className="gorev-durum-ust">
+          <span className={`gd gd-${gorev.durum}`}>{GOREV_DURUM_ADLARI[gorev.durum]}</span>
+          {atanan ? (
+            <button type="button" className="metin-dugme" onClick={() => ajanaGit(atanan.id)}>
+              {atanan.ad} · {atanan.rolAdi}
+            </button>
+          ) : (
+            <span className="soluk">Atanmadı</span>
+          )}
+        </div>
+        <div className="dugme-satir">
+          {GOREV_GECISLERI[gorev.durum].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`dugme dugme-kucuk${d === "iptal" ? " dugme-tehlike" : ""}`}
+              onClick={() => void tasi(d)}
+              disabled={suruyor !== null}
+              title={d === "calisiliyor" && bagli.length ? `Bağımlılıklar bitmedi: ${bagli.map((b) => b.kod).join(", ")}` : undefined}
+            >
+              {suruyor === `tasi-${d}` ? <span className="doner" aria-hidden="true" /> : null}
+              {GOREV_DURUM_ADLARI[d]}
+              {d === "iptal" ? null : " →"}
+            </button>
+          ))}
+        </div>
+        {bagli.length ? (
+          <p className="bilet-not">
+            Bağlı: {bagli.map((b) => `${b.kod} (${GOREV_DURUM_ADLARI[b.durum]})`).join(", ")}. Bunlar bitmeden Çalışılıyor'a geçilemez.
+          </p>
+        ) : null}
+        {hata ? <HataKutu baslik="İşlem yapılamadı" metin={hata} /> : null}
+      </section>
+
+      <GorevAlanlari taslak={taslak} degistir={(t) => setTaslak((o) => ({ ...o, ...t }))} gorevId={gorev.id} denendi={denendi} />
+
+      <dl className="kv gorev-kunye">
+        <dt>Oluşturan</dt>
+        <dd>{olusturan ? `${olusturan.ad} · ${olusturan.rolAdi}` : "Yönetim kurulu"}</dd>
+        <dt>Oluşturma</dt>
+        <dd>{tarih(gorev.olusturma)}</dd>
+        {bagimlilar.length ? (
+          <>
+            <dt>Bunu bekleyen</dt>
+            <dd>{bagimlilar.map((b) => b.kod).join(", ")}</dd>
+          </>
+        ) : null}
+      </dl>
+    </Cekmece>
+  );
+}
