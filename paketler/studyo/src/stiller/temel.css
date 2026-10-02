@@ -1048,6 +1048,38 @@ details > summary::-webkit-details-marker {
   max-width: 100%;
 }
 
+/* kanal mesajlarında hafif markdown */
+.zengin {
+  text-wrap: pretty;
+}
+.zengin > * + * {
+  margin-top: 0.4em;
+}
+.zengin ul,
+.zengin ol {
+  padding-left: 1.25rem;
+}
+.zengin li + li {
+  margin-top: 0.15em;
+}
+.zengin li::marker {
+  color: var(--coral);
+}
+.zengin strong,
+.zengin-baslik {
+  color: var(--bone);
+  font-weight: 600;
+}
+.zengin pre {
+  padding: 0.5rem 0.75rem;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  overflow-x: auto;
+  font-size: var(--t-xs);
+  line-height: 1.6;
+}
+
 /* metin içi anma ve görev kodu */
 .anma {
   color: var(--coral);

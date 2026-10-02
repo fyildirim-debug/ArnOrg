@@ -236,3 +236,26 @@ describe("gözetmen", () => {
     expect(r.markdown).toMatch(/Tıkananlar[\s\S]*bekliyor: T-1/);
   });
 });
+
+describe("Stüdyo dosyaları", () => {
+  it("sonradan eklenen dosyayı sunar, eksik dosyada index.html'e düşmez, SPA yolunda index döner", async () => {
+    const dizin = fs.mkdtempSync(path.join(os.tmpdir(), "arnorg-studyo-"));
+    fs.writeFileSync(path.join(dizin, "index.html"), "<!doctype html><title>ArnOrg</title>");
+    const anahtar = "studyo-anahtari-0123456789abcdef";
+    const app = await sunucuKur({ sirket, terminaller: new TerminalYoneticisi(), erisimAnahtari: anahtar, studyoDizini: dizin, izinliHostlar: [] });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const h = { host: `127.0.0.1:${(app.server.address() as { port: number }).port}`, authorization: `Bearer ${anahtar}` };
+    fs.mkdirSync(path.join(dizin, "assets"));
+    fs.writeFileSync(path.join(dizin, "assets", "giris-abc123.js"), "console.log(1)");
+    const js = await app.inject({ url: "/assets/giris-abc123.js", headers: h });
+    expect(js.statusCode).toBe(200);
+    expect(js.headers["cache-control"]).toContain("immutable");
+    expect((await app.inject({ url: "/assets/eski-000.js", headers: h })).statusCode).toBe(404);
+    const spa = await app.inject({ url: "/proje/pano", headers: h });
+    expect(spa.statusCode).toBe(200);
+    expect(spa.body).toContain("<title>ArnOrg</title>");
+    expect(spa.headers["cache-control"]).toBe("no-cache");
+    await app.close();
+    fs.rmSync(dizin, { recursive: true, force: true });
+  });
+});

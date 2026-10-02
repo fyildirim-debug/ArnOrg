@@ -6,7 +6,7 @@ import { AnmaliYazi } from "../bilesenler/AnmaliYazi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { GonderenAvatar } from "../bilesenler/Kisi";
 import { Simge } from "../bilesenler/Simge";
-import { ZenginMetin } from "../bilesenler/ZenginMetin";
+import { ZenginBlok } from "../bilesenler/ZenginMetin";
 import { ajanaGit, useArayuz } from "../durum/arayuz";
 import { kanalMesajlariniYukle, kanalOkundu, mesajUygula, useVeri } from "../durum/veri";
 import { saat, tarih } from "../yardimcilar/bicim";
@@ -214,9 +214,7 @@ function MesajSatiri({ mesaj, devam }: { mesaj: Mesaj; devam: boolean }) {
             </small>
           </div>
         ) : null}
-        <p>
-          <ZenginMetin metin={mesaj.metin} />
-        </p>
+        <ZenginBlok metin={mesaj.metin} />
       </div>
     </li>
   );

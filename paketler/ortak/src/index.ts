@@ -464,6 +464,16 @@ export interface TerminalAcIstegi {
   satir?: number;
 }
 
+/** Dönem durum raporu (GET/POST /api/projeler/:pid/rapor) */
+export interface Rapor {
+  baslik: string;
+  /** Notlara kaydedilecek göreli yol (raporlar/AAAA-AA-GG.md) */
+  yol: string;
+  /** Dönemin başladığı an */
+  baslangic: Zaman;
+  markdown: string;
+}
+
 /** Masaüstü uygulamasının Stüdyo'ya açtığı köprü (window.arnorg); tarayıcıda yoktur */
 export interface MasaustuKoprusu {
   platform: "win32" | "linux" | "darwin" | string;

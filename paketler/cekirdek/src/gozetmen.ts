@@ -1,5 +1,5 @@
 // Gözetmen: tıkanma koruması (ilerlemeyen görevi hatırlatma ve yükseltme) ve dönem raporu
-import { GOREV_DURUM_ADLARI, KARAR_ADLARI, ONAY_TURU_ADLARI, type Ajan, type Gorev, type Karar } from "@arnorg/ortak";
+import { GOREV_DURUM_ADLARI, KARAR_ADLARI, ONAY_TURU_ADLARI, type Ajan, type Gorev, type Karar, type Rapor } from "@arnorg/ortak";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { bugun } from "./yardimci.js";
@@ -11,14 +11,6 @@ const GUN_MS = 86_400_000;
 // ===================================================================
 // Dönem raporu
 // ===================================================================
-
-export interface Rapor {
-  baslik: string;
-  /** Notlara kaydedilecek göreli yol (raporlar/AAAA-AA-GG.md) */
-  yol: string;
-  baslangic: string;
-  markdown: string;
-}
 
 const para = (usd: number) => `$${usd.toFixed(2)}`;
 const tarih = (iso: string) => {

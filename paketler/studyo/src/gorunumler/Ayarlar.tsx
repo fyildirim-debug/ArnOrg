@@ -39,10 +39,11 @@ export function Ayarlar() {
   const kirli = !!ayarlar && !!taslak && JSON.stringify(ayarlar) !== JSON.stringify(taslak);
   const sureGecersiz = !!taslak && (!Number.isFinite(taslak.onaySuresiSn) || taslak.onaySuresiSn < 10);
   const butceGecersiz = !!taslak && (!Number.isFinite(taslak.gunlukButceUsd) || taslak.gunlukButceUsd < 0);
+  const tikanmaGecersiz = !!taslak && (!Number.isFinite(taslak.tikanmaDakika) || taslak.tikanmaDakika < 0 || taslak.tikanmaDakika > 1440);
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (!taslak || sureGecersiz || butceGecersiz) return;
+    if (!taslak || sureGecersiz || butceGecersiz || tikanmaGecersiz) return;
     void calistir("kaydet", async () => {
       const a = await api.ayarlariKaydet({ ...taslak, claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null });
       setAyarlar(a);
@@ -122,6 +123,25 @@ export function Ayarlar() {
                 {butceGecersiz ? <span className="alan-hata">Geçerli bir tutar yazın.</span> : null}
               </div>
               <div className="alan">
+                <label htmlFor="ay-tikanma">Tıkanma eşiği (dakika)</label>
+                <input
+                  id="ay-tikanma"
+                  className="girdi"
+                  type="number"
+                  min={0}
+                  max={1440}
+                  step={5}
+                  value={Number.isFinite(taslak.tikanmaDakika) ? taslak.tikanmaDakika : ""}
+                  onChange={(e) => degistir({ tikanmaDakika: e.target.valueAsNumber })}
+                  aria-invalid={tikanmaGecersiz ? true : undefined}
+                />
+                <span className={tikanmaGecersiz ? "alan-hata" : "alan-ipucu"}>
+                  {tikanmaGecersiz
+                    ? "0 ile 1440 arasında olmalı."
+                    : "Bu süre ilerlemeyen görevin sorumlusu hatırlatılır, sonra yöneticiye ve kurula iletilir. 0 kapatır."}
+                </span>
+              </div>
+              <div className="alan">
                 <label htmlFor="ay-editor">Dış editör</label>
                 <select
                   id="ay-editor"
@@ -152,7 +172,7 @@ export function Ayarlar() {
               ) : null}
             </div>
             <div className="dugme-satir ayar-kaydet">
-              <button type="submit" className="dugme dugme-ana" disabled={!kirli || suruyor !== null || sureGecersiz || butceGecersiz}>
+              <button type="submit" className="dugme dugme-ana" disabled={!kirli || suruyor !== null || sureGecersiz || butceGecersiz || tikanmaGecersiz}>
                 {suruyor ? <span className="doner" aria-hidden="true" /> : null}
                 Kaydet
               </button>

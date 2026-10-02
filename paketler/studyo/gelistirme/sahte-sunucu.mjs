@@ -29,7 +29,7 @@ const kopya = (x) => structuredClone(x);
 // ---------------------------------------------------------------------------
 
 const db = {
-  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium" },
+  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20 },
   projeler: kopya(V.projeler),
   ajanlar: kopya(V.ajanlar),
   gorevler: kopya(V.gorevler),
@@ -934,6 +934,20 @@ rota("DELETE", "/api/terminaller/:tid", ({ p }) => {
 });
 
 rota("GET", "/api/projeler/:pid/maliyet", ({ p }) => (projeGerekli(p.pid), maliyet(p.pid)));
+function sahteRapor(pid) {
+  projeGerekli(pid);
+  const gun = simdi().slice(0, 10);
+  const gorevler = db.gorevler.filter((g) => g.projeId === pid);
+  const say = (d) => gorevler.filter((g) => g.durum === d).length;
+  const markdown = `# Durum raporu · ${gun}\n\n## Özet\n\n- Tamamlanan: ${say("tamam")} · süren: ${say("calisiliyor")} · incelemede: ${say("inceleme")}\n- Harcama: $${maliyet(pid).bugunUsd.toFixed(2)}\n`;
+  return { baslik: `Durum raporu · ${gun}`, yol: `raporlar/${gun}.md`, baslangic: simdi(), markdown };
+}
+rota("GET", "/api/projeler/:pid/rapor", ({ p }) => sahteRapor(p.pid));
+rota("POST", "/api/projeler/:pid/rapor", ({ p }) => {
+  const r = sahteRapor(p.pid);
+  (db.notlar[p.pid] ??= {})[r.yol] = r.markdown;
+  return r;
+});
 
 // ---------------------------------------------------------------------------
 // Sahte terminal

@@ -156,7 +156,18 @@ function CeoRaporu() {
   const akis = useVeri((d) => (ceo ? d.akislar[ceo.id] : undefined));
   const genel = useVeri((d) => d.mesajlar.genel);
   const akisYukleme = useVeri((d) => (ceo ? d.akisYukleme[ceo.id] : undefined));
+  const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [genis, setGenis] = useState(false);
+  const { suruyor, calistir } = useIslem();
+
+  const donemRaporu = () => {
+    if (!aktifProjeId) return;
+    void calistir("rapor", async () => {
+      const r = await api.raporKaydet(aktifProjeId, 7);
+      bildir("basari", `Dönem raporu notlara kaydedildi: ${r.yol}`);
+      git("notlar", { notYolu: r.yol });
+    });
+  };
 
   const rapor = useMemo(() => {
     if (!ceo) return null;
@@ -221,6 +232,9 @@ function CeoRaporu() {
         ) : null}
         <button type="button" className="metin-dugme" onClick={() => ajanaGit(ceo.id)}>
           {ceo.ad} oturumunu aç
+        </button>
+        <button type="button" className="metin-dugme" onClick={donemRaporu} disabled={suruyor !== null} title="Son 7 günün raporunu notlara yazar">
+          {suruyor === "rapor" ? "Hazırlanıyor" : "Dönem raporu"}
         </button>
       </div>
     </section>

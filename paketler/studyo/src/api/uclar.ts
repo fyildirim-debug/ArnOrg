@@ -30,6 +30,7 @@ import type {
   PolitikaKurali,
   ProjeOlusturIstegi,
   ProjeOzeti,
+  Rapor,
   Rol,
   Saglik,
   TerminalAcIstegi,
@@ -111,4 +112,6 @@ export const api = {
 
   // Maliyet
   maliyet: (pid: string) => istek<MaliyetOzeti>(`${proje(pid)}/maliyet`),
+  rapor: (pid: string, gun = 7) => istek<Rapor>(`${proje(pid)}/rapor${sorgu({ gun })}`),
+  raporKaydet: (pid: string, gun = 7) => istek<Rapor>(`${proje(pid)}/rapor${sorgu({ gun })}`, { method: "POST" }),
 };

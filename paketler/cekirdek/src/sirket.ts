@@ -39,7 +39,7 @@ import { degerlendir, girdiOzeti, varsayilanKurallar } from "./politika.js";
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
-import { ArnorgHatasi, bugun, bulunamadi, kisalt, sadelestir, simdi } from "./yardimci.js";
+import { ArnorgHatasi, bugun, bulunamadi, emojiAyikla, kisalt, sadelestir, simdi } from "./yardimci.js";
 
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
@@ -391,7 +391,7 @@ export class Sirket {
       claudeYolu: this.claudeYolu,
       talimat: () => this.talimatOlustur(this.ajan(id), cwd),
       araclar: () => arnorgAraclari(this, id),
-      yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Agent", "Task", "Skill"] : []),
+      yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []),
       kalanButceUsd: () => {
         const a = this.ajan(id);
         return a.gunlukButceUsd > 0 ? Math.max(0.05, a.gunlukButceUsd - a.bugunHarcananUsd) : 0;
@@ -999,9 +999,9 @@ export class Sirket {
     this.proje(projeId);
     const temizKanal = kanal.trim().replace(/^#/, "").toLowerCase();
     if (!/^[\p{L}\p{N}_-]{1,40}$/u.test(temizKanal)) throw new ArnorgHatasi("Geçersiz kanal adı.");
-    const govde = metin.trim();
-    if (!govde) throw new ArnorgHatasi("Mesaj boş olamaz.");
     const gonderenAjan = gonderenId === KURUL ? null : this.depo.ajan(gonderenId);
+    const govde = (gonderenAjan ? emojiAyikla(metin) : metin).trim();
+    if (!govde) throw new ArnorgHatasi("Mesaj boş olamaz.");
     if (gonderenId !== KURUL && !gonderenAjan) throw bulunamadi("Gönderen");
     const anilanlar = this.anilanlariBul(projeId, govde).filter((a) => a.id !== gonderenId);
     const mesaj = this.kanalMesaji(

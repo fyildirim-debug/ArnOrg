@@ -98,3 +98,16 @@ describe("temiz ortam", () => {
     expect(o).toEqual({ PATH: `/usr/bin${a}/bin`, CLAUDE_CONFIG_DIR: "/home/f/.claude", HOME: "/home/f", EK: "1" });
   });
 });
+
+describe("emoji ayıklama ve Monitor", () => {
+  it("emojiyi siler, metni ve eski simgeleri korur", async () => {
+    const { emojiAyikla } = await import("./yardimci.js");
+    expect(emojiAyikla("- ✅ `add` komutu\n**Durum:** tamam ⏳\nKurul kararını bekliyorum. 📋")).toBe("- `add` komutu\n**Durum:** tamam\nKurul kararını bekliyorum.");
+    expect(emojiAyikla("Ekip 👩‍💻 hazır 🇹🇷 © 2026")).toBe("Ekip hazır © 2026");
+    expect(emojiAyikla("düz metin")).toBe("düz metin");
+  });
+
+  it("Monitor komutunu Bash gibi denetler", () => {
+    expect(degerlendir(kurallar, "Monitor", { command: "rm -rf /" }, b).karar).toBe("ret");
+  });
+});

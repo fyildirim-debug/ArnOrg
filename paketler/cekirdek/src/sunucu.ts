@@ -416,9 +416,24 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
 
   // ---------------- Stüdyo (statik) ----------------
   if (s.studyoDizini && fs.existsSync(path.join(s.studyoDizini, "index.html"))) {
-    await app.register(fastifyStatic, { root: s.studyoDizini, wildcard: false, index: ["index.html"] });
+    // wildcard: dosyalar istek anında çözülür; Stüdyo yeniden derlenince yeni dosyalar yeniden başlatmadan görünür
+    await app.register(fastifyStatic, {
+      root: s.studyoDizini,
+      wildcard: true,
+      index: ["index.html"],
+      cacheControl: false,
+      setHeaders: (yanit, yol) => {
+        // Adı içerik özetli dosyalar kalıcı önbelleğe, index.html her açılışta tazelenir
+        yanit.header("Cache-Control", yol.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    });
     app.setNotFoundHandler((istek: FastifyRequest, yanit: FastifyReply) => {
-      if (istek.method === "GET" && !istek.url.startsWith("/api/") && !istek.url.startsWith("/ws")) return yanit.sendFile("index.html");
+      const yol = istek.url.split("?")[0] ?? "";
+      // Uzantılı istek (eksik derleme dosyası) index.html'e düşmez; tarayıcıda boş sayfa yerine açık 404 görünür
+      const dosyaIstegi = /\.[a-z0-9]{1,8}$/i.test(yol);
+      if (istek.method === "GET" && !dosyaIstegi && !yol.startsWith("/api/") && !yol.startsWith("/ws")) {
+        return yanit.header("Cache-Control", "no-cache").sendFile("index.html");
+      }
       return yanit.code(404).send({ hata: "Bulunamadı." });
     });
   } else {

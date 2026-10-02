@@ -154,6 +154,8 @@ export const EDITOR_SECENEKLERI: monaco.editor.IStandaloneEditorConstructionOpti
   hideCursorInOverviewRuler: true,
   scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
   fixedOverflowWidgets: true,
+  // Türkçe ı, ş, ğ gibi harfler "karışabilir karakter" diye kutulanmasın; görünmez karakter uyarısı açık kalır
+  unicodeHighlight: { ambiguousCharacters: false, allowedLocales: { _os: true, _vscode: true, tr: true } },
 };
 
 /** Çalışma alanı + yol için model adresi */

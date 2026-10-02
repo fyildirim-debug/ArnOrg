@@ -21,7 +21,8 @@ export interface PolitikaSonucu {
   neden: string | null;
 }
 
-const KOMUT_ARACLARI = new Set(["Bash", "PowerShell"]);
+/** Kabuk komutu çalıştıran araçlar; Monitor arka planda komut çalıştırır */
+const KOMUT_ARACLARI = new Set(["Bash", "PowerShell", "Monitor"]);
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const OKUMA_ARACLARI = new Set(["Read", "Grep", "Glob", "NotebookRead"]);
 

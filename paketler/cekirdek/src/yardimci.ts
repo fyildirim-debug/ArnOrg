@@ -13,6 +13,15 @@ export function simdi(): string {
   return new Date().toISOString();
 }
 
+/** Emoji dizileri (bayrak, ten rengi, ZWJ birleşimleri dahil); © ® gibi eski simgeler korunur */
+const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\u{FE0F}\u{1F3FB}-\u{1F3FF}]?(?:\u200D[\p{Extended_Pictographic}][\u{FE0F}]?)*[ \t]?/gu;
+
+/** Ajan mesajlarından emojiyi ayıklar (FY tasarım dili: süsleme simgesi yok) */
+export function emojiAyikla(metin: string): string {
+  if (!/\p{Extended_Pictographic}/u.test(metin)) return metin;
+  return metin.replace(EMOJI, (m) => (m.codePointAt(0)! < 0x2000 ? m : "")).replace(/[ \t]+$/gm, "");
+}
+
 /** Yerel saate göre YYYY-AA-GG */
 export function bugun(tarih = new Date()): string {
   const y = tarih.getFullYear();
