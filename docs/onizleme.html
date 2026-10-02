@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ArnOrg İş Önizlemesi</title>
+<style>body { margin: 0; }</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap&subset=latin-ext">
+<style>
+/* Yerleşim: tek sütunlu okuma akışı (en çok 76rem); açılışta tam genişlikte çalışan uygulama maketi, bölümler hairline çizgiyle ayrılır */
+:root {
+  --ink: #0a0a0b;
+  --ink-2: #0f0f11;
+  --ink-3: #19191c;
+  --ink-4: #2a2a2e;
+  --paper: #f2f0ec;
+  --bone: #ede7dc;
+  --muted: #a19c94;
+  --line: rgba(242, 240, 236, .1);
+  --line-strong: rgba(242, 240, 236, .22);
+  --coral: oklch(0.72 0.19 25);
+  --coral-hi: oklch(0.78 0.16 28);
+  --ok: oklch(0.8 0.12 155);
+  --warn: oklch(0.84 0.13 85);
+  --sil: oklch(0.74 0.15 22);
+  --sil-zemin: rgba(255, 90, 70, .08);
+  --ekle-zemin: rgba(110, 220, 150, .07);
+  --font-display: "Anton", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+  --t-xs: .75rem;
+  --t-s: .875rem;
+  --t-m: 1rem;
+  --t-l: 1.375rem;
+  --t-xl: 2.5rem;
+  --t-xxl: clamp(4.25rem, 13vw, 6rem);
+  color-scheme: dark;
+}
+html { background: var(--ink); }
+body { background: var(--ink); color: var(--paper); font-family: var(--font-mono); font-size: var(--t-s); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--coral); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+* { scrollbar-width: thin; scrollbar-color: var(--ink-4) transparent; }
+a { color: var(--paper); text-decoration-color: var(--coral); text-underline-offset: .2em; }
+a:hover { color: var(--coral); }
+code { font-family: var(--font-mono); font-size: .95em; }
+.gizli { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.sayfa { max-width: 76rem; margin: 0 auto; padding-inline: clamp(16px, 4vw, 48px); padding-block: 2.5rem 5rem; }
+
+/* açılış */
+.acilis { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); align-items: end; gap: 1.5rem 3rem; padding-bottom: 2rem; }
+.marka { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: var(--t-xxl); line-height: .9; letter-spacing: .005em; text-transform: uppercase; color: var(--paper); }
+.marka span { color: var(--coral); }
+.acilis-metin { display: grid; gap: 1rem; }
+.acilis-metin p { margin: 0; font-size: var(--t-m); line-height: 1.6; color: var(--paper); text-wrap: pretty; }
+.kunye { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem 1rem; margin: 0; padding-top: 1rem; border-top: 1px solid var(--line); font-size: var(--t-xs); }
+.kunye dt { color: var(--muted); }
+.kunye dd { margin: 0; color: var(--paper); }
+.maket-not { margin: .75rem 0 0; color: var(--muted); font-size: var(--t-xs); }
+
+/* bölümler */
+.bolum { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 1.25rem 3rem; padding-top: 3.5rem; margin-top: 3.5rem; border-top: 1px solid var(--line); }
+.bolum > header h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: var(--t-xl); line-height: 1; text-transform: uppercase; letter-spacing: .01em; color: var(--paper); text-wrap: balance; }
+.bolum > header p { margin: .875rem 0 0; color: var(--muted); font-size: var(--t-xs); line-height: 1.6; }
+.bolum-ic { min-width: 0; display: grid; gap: 1.5rem; align-content: start; }
+.bolum-ic > p, .metin p { margin: 0; max-width: 68ch; line-height: 1.7; color: var(--paper); }
+.bolum-ic h3 { margin: .75rem 0 0; font-size: var(--t-m); font-weight: 600; color: var(--paper); }
+.vurgu { color: var(--coral); }
+
+/* akış adımları: gerçek bir sıra */
+.adimlar { list-style: none; margin: 0; padding: 0; counter-reset: adim; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.adimlar li { counter-increment: adim; padding: 1.125rem 1.25rem 1.25rem 0; border-bottom: 1px solid var(--line); display: grid; gap: .375rem; align-content: start; }
+.adimlar li + li { padding-left: 1.25rem; border-left: 1px solid var(--line); }
+.adimlar li:nth-child(3n + 1) { padding-left: 0; border-left: 0; }
+.adimlar li::before { content: counter(adim, decimal-leading-zero); font-family: var(--font-display); font-size: 1.5rem; color: var(--coral); line-height: 1; }
+.adimlar b { color: var(--paper); font-size: var(--t-m); font-weight: 600; }
+.adimlar p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+/* tablolar */
+.tablo-kap { overflow-x: auto; border-top: 1px solid var(--line-strong); }
+.kiyas { width: 100%; border-collapse: collapse; font-size: var(--t-xs); min-width: 46rem; }
+.kiyas th { text-align: left; font-weight: 400; color: var(--muted); padding: .75rem 1rem .75rem 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.kiyas td { padding: .875rem 1rem .875rem 0; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; color: var(--paper); }
+.kiyas td:first-child { white-space: nowrap; }
+.kiyas td:first-child b { display: block; font-size: var(--t-s); }
+.kiyas td:first-child small { color: var(--muted); }
+.kiyas .al { color: var(--paper); }
+.kiyas .eksik { color: var(--muted); }
+
+/* ajan araçları */
+.araclar { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0 2rem; margin: 0; border-top: 1px solid var(--line); }
+.araclar > div { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--line); font-size: var(--t-xs); }
+.araclar dt code { color: var(--coral); }
+.araclar dd { margin: 0; color: var(--muted); }
+
+/* tanım listeleri */
+.izgara { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0 2rem; border-top: 1px solid var(--line); }
+.izgara > div { padding: 1rem 0 1.125rem; border-bottom: 1px solid var(--line); display: grid; gap: .375rem; align-content: start; }
+.izgara b { color: var(--paper); font-weight: 600; }
+.izgara p { margin: 0; color: var(--muted); line-height: 1.6; }
+.izgara code { color: var(--bone); }
+
+/* dosya ağacı */
+.agac-kod { margin: 0; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-2); font-size: var(--t-xs); line-height: 1.75; color: var(--paper); overflow-x: auto; }
+.agac-kod .ac { color: var(--muted); }
+.agac-kod .kl { color: var(--coral); }
+
+/* mimari şema */
+.mimari { display: grid; gap: .75rem; }
+.katman { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); gap: 1rem; padding: 1rem 0; border-top: 1px solid var(--line); }
+.katman:last-child { border-bottom: 1px solid var(--line); }
+.katman-ad b { display: block; color: var(--paper); font-size: var(--t-s); }
+.katman-ad small { color: var(--muted); font-size: var(--t-xs); }
+.moduller { display: flex; flex-wrap: wrap; gap: .5rem; align-content: start; }
+.modul { padding: .375rem .625rem; border: 1px solid var(--line-strong); border-radius: 3px; font-size: var(--t-xs); color: var(--paper); }
+.modul-vurgu { border-color: var(--coral); color: var(--coral); }
+.baglanti { padding-left: calc(11rem + 1rem); color: var(--muted); font-size: var(--t-xs); }
+
+/* yol haritası */
+.fazlar { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-strong); }
+.faz { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) minmax(0, 14rem); gap: .5rem 1.5rem; padding: 1.25rem 0; border-bottom: 1px solid var(--line); }
+.faz-ad { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; color: var(--paper); text-transform: uppercase; }
+.faz-ad small { display: block; margin-top: .375rem; font-family: var(--font-mono); font-size: var(--t-xs); color: var(--muted); text-transform: none; }
+.faz ul { margin: 0; padding-left: 1rem; color: var(--paper); line-height: 1.7; }
+.faz ul li::marker { color: var(--coral); }
+.faz-cikti { color: var(--muted); font-size: var(--t-xs); line-height: 1.6; }
+.faz-cikti b { display: block; color: var(--paper); font-weight: 600; margin-bottom: .25rem; }
+
+/* kararlar */
+.kararlar { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-strong); }
+.karar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: .5rem 2rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.karar b { color: var(--paper); }
+.karar p { margin: .25rem 0 0; color: var(--muted); line-height: 1.6; }
+.karar .oneri { color: var(--paper); line-height: 1.6; }
+.karar .oneri span { color: var(--coral); }
+
+.alt { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 2rem; color: var(--muted); font-size: var(--t-xs); }
+
+@media (max-width: 900px) {
+  .acilis { grid-template-columns: minmax(0, 1fr); }
+  .bolum { grid-template-columns: minmax(0, 1fr); padding-top: 2.5rem; margin-top: 2.5rem; }
+  .adimlar { grid-template-columns: minmax(0, 1fr); }
+  .adimlar li, .adimlar li + li { padding-left: 0; border-left: 0; }
+  .katman { grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+  .baglanti { padding-left: 0; }
+  .faz { grid-template-columns: minmax(0, 1fr); }
+  .karar { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .kiyas { min-width: 0; }
+  .kiyas thead { display: none; }
+  .kiyas tr { display: grid; gap: .5rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  .kiyas td { display: block; padding: 0; border: 0; white-space: normal; }
+  .kiyas td:first-child { white-space: normal; }
+  .kiyas td:not(:first-child)::before { display: block; margin-bottom: .125rem; color: var(--coral); font-size: var(--t-xs); }
+  .kiyas-ornek td:nth-child(2)::before { content: "Aldığımız fikir"; }
+  .kiyas-ornek td:nth-child(3)::before { content: "Eksik bıraktığı"; }
+  .kiyas-yigin td:nth-child(2)::before { content: "Seçim"; }
+  .kiyas-yigin td:nth-child(3)::before { content: "Neden"; }
+  .araclar > div { grid-template-columns: minmax(0, 1fr); gap: .125rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+/* ---------- Stüdyo maketi ---------- */
+.studio { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--ink-2); overflow: hidden; font-size: var(--t-s); }
+.studio-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding: .625rem .875rem; border-bottom: 1px solid var(--line); }
+.sb-sol, .sb-sag { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; min-width: 0; }
+.logo-mark { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; background: var(--coral); color: var(--ink); font-family: var(--font-display); font-size: .95rem; border-radius: 3px; }
+.sb-sirket { color: var(--paper); }
+.sb-ayrac { color: var(--muted); }
+.sb-proje { color: var(--paper); font-weight: 600; }
+.etiket { display: inline-block; font-size: var(--t-xs); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 3px; padding: .05rem .375rem; }
+.sb-metre { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sb-metre b { color: var(--paper); font-weight: 600; }
+
+.studio-govde { display: grid; grid-template-columns: 11.5rem minmax(0, 1fr) 17rem; height: 38rem; }
+.studio-nav { display: flex; flex-direction: column; gap: 2px; padding: .5rem; border-right: 1px solid var(--line); }
+.nav-btn { display: flex; align-items: center; gap: .625rem; width: 100%; padding: .5rem .625rem; border: 0; border-radius: 4px; background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
+.nav-btn svg { flex: none; width: 1rem; height: 1rem; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.nav-btn:hover { color: var(--paper); background: var(--ink-3); }
+.nav-btn[aria-current="page"] { color: var(--paper); background: var(--ink-3); box-shadow: inset 2px 0 0 var(--coral); }
+.rozet { margin-left: auto; min-width: 1.25rem; padding: 0 .375rem; border-radius: 999px; background: var(--coral); color: var(--ink); font-size: .6875rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+
+.studio-ana { min-width: 0; overflow: auto; padding: 1.25rem 1.375rem 1.5rem; }
+.studio-ray { min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+.ray-baslik { display: flex; justify-content: space-between; align-items: baseline; padding: .875rem 1rem .5rem; }
+.ray-baslik h3 { margin: 0; font-size: var(--t-s); font-weight: 600; color: var(--paper); }
+.ray-baslik small { color: var(--muted); font-size: var(--t-xs); }
+.akis { list-style: none; margin: 0; padding: 0 1rem 1rem; overflow: hidden; display: flex; flex-direction: column; }
+.olay { display: grid; gap: .125rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.olay-ust { display: flex; align-items: center; gap: .5rem; font-size: var(--t-xs); }
+.olay-ust b { color: var(--paper); font-weight: 600; }
+.olay-ust time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.olay-hedef { color: var(--muted); font-size: var(--t-xs); overflow-wrap: anywhere; }
+.arac { padding: 0 .3rem; border-radius: 3px; font-size: .6875rem; color: var(--paper); background: var(--ink-3); }
+.arac-yaz { color: var(--coral); }
+.arac-kabuk { color: var(--warn); }
+.arac-mcp { color: var(--ok); }
+.olay-yeni { animation: olay-gir .5s cubic-bezier(.16, 1, .3, 1); }
+@keyframes olay-gir { from { opacity: .2; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.v-baslik { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; margin-bottom: 1.125rem; padding-bottom: .875rem; border-bottom: 1px solid var(--line); }
+.v-baslik h3 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.75rem; letter-spacing: .01em; color: var(--paper); line-height: 1; }
+.v-baslik p { margin: 0; color: var(--muted); font-size: var(--t-xs); }
+.ara-baslik { display: flex; align-items: baseline; gap: .5rem; margin: 1.5rem 0 .625rem; font-size: var(--t-s); font-weight: 600; color: var(--paper); }
+.ara-baslik small { color: var(--muted); font-weight: 400; font-size: var(--t-xs); }
+
+.av { display: inline-grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--ink-3); color: var(--paper); font-family: var(--font-display); font-size: .95rem; }
+.av-s { width: 1.5rem; height: 1.5rem; font-size: .75rem; }
+.av-ceo { border-color: var(--coral); color: var(--coral); }
+.av-siz { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+.kisi { display: flex; align-items: center; gap: .5rem; }
+.kisi > span:last-child, .rapor-kim > span { display: grid; }
+.kisi small, .rapor-kim small { color: var(--muted); font-size: var(--t-xs); }
+
+.pill { display: inline-flex; align-items: center; gap: .375rem; white-space: nowrap; font-size: var(--t-xs); color: var(--muted); }
+.pill i { width: .4375rem; height: .4375rem; border-radius: 50%; background: currentColor; }
+.pill-calisiyor { color: var(--ok); }
+.pill-calisiyor i { animation: nabiz 1.8s ease-in-out infinite; }
+.pill-bekliyor, .pill-uyari { color: var(--warn); }
+.pill-ok { color: var(--ok); }
+.pill-bosta, .pill-durdu { color: var(--muted); }
+@keyframes nabiz { 50% { opacity: .35; } }
+
+.btn, .btn-ghost { font: inherit; font-size: var(--t-xs); font-weight: 600; letter-spacing: .02em; padding: .5rem .875rem; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.btn { background: var(--coral); color: var(--ink); border: 1px solid var(--coral); }
+.btn:hover { background: var(--coral-hi); border-color: var(--coral-hi); }
+.btn-ghost { background: none; color: var(--paper); border: 1px solid var(--line-strong); }
+.btn-ghost:hover { border-color: var(--paper); }
+.btn-satir { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+/* karargâh */
+.rapor { display: grid; gap: .625rem; padding: 1rem 0 1.125rem; border-bottom: 1px solid var(--line); }
+.rapor-kim { display: flex; align-items: center; gap: .625rem; }
+.rapor p { margin: 0; max-width: 62ch; color: var(--paper); line-height: 1.6; }
+.ilerleme { display: flex; gap: 2px; height: .625rem; }
+.seg { border-radius: 1px; }
+.seg-bekleyen { background: var(--ink-4); }
+.seg-planlandi { background: var(--muted); }
+.seg-calisiyor, .seg-calisiliyor { background: var(--warn); }
+.seg-inceleme { background: var(--coral); }
+.seg-tamam { background: var(--ok); }
+.lejant { display: flex; flex-wrap: wrap; gap: .375rem 1.125rem; list-style: none; margin: .625rem 0 0; padding: 0; color: var(--muted); font-size: var(--t-xs); }
+.lejant li { display: flex; align-items: center; gap: .375rem; }
+.lejant b { color: var(--paper); font-variant-numeric: tabular-nums; }
+.sw { width: .625rem; height: .625rem; border-radius: 1px; }
+
+.tablo-sar, .pano-sar, .org-sar, .diff-sar { overflow-x: auto; }
+.tablo { width: 100%; border-collapse: collapse; font-size: var(--t-xs); }
+.tablo th { text-align: left; font-weight: 400; color: var(--muted); padding: 0 .75rem .5rem 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tablo td { padding: .625rem .75rem .625rem 0; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--paper); }
+.tablo .sayi { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.td-is { min-width: 12rem; }
+.td-butce { min-width: 8.5rem; }
+.td-butce small { display: block; margin-top: .25rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.butce { display: block; height: 3px; background: var(--ink-4); }
+.butce span { display: block; height: 100%; background: var(--paper); }
+.butce-sinir span { background: var(--warn); }
+
+/* ekip */
+.ekip-yerlesim { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.org { min-width: max-content; padding: .25rem 0 .5rem; }
+.org ul { display: flex; justify-content: center; list-style: none; margin: 0; padding: 1.25rem 0 0; position: relative; }
+.org > ul { padding-top: 0; }
+.org li { position: relative; padding: 1.25rem .25rem 0; display: flex; flex-direction: column; align-items: center; }
+.org > ul > li { padding-top: 0; }
+.org li::before, .org li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 1.25rem; border-top: 1px solid var(--line-strong); }
+.org li::after { right: auto; left: 50%; border-left: 1px solid var(--line-strong); }
+.org li:only-child::before, .org li:only-child::after { display: none; }
+.org li:only-child { padding-top: 0; }
+.org li:first-child::before, .org li:last-child::after { border: 0; }
+.org li:last-child::before { border-right: 1px solid var(--line-strong); }
+.org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 1.25rem; border-left: 1px solid var(--line-strong); }
+.dugum { display: grid; justify-items: center; gap: .125rem; width: 6.75rem; padding: .625rem .375rem .5rem; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--ink-2); text-align: center; }
+.dugum b { color: var(--paper); font-size: var(--t-xs); margin-top: .25rem; }
+.dugum small { color: var(--muted); font-size: .6875rem; line-height: 1.3; }
+.dugum-av { position: relative; display: inline-block; }
+.dugum-yeni { border-color: var(--coral); }
+.nokta { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--muted); }
+.dugum-av .nokta { position: absolute; right: -1px; bottom: -1px; box-shadow: 0 0 0 2px var(--ink-2); }
+.nokta-calisiyor { background: var(--ok); }
+.nokta-bekliyor { background: var(--warn); }
+.nokta-bosta, .nokta-durdu { background: var(--muted); }
+.org-lejant { margin: -.25rem 0 1rem; }
+.teklif { display: grid; gap: .75rem; padding: 1rem 0 0; border-top: 1px solid var(--line); }
+.teklif-ust { display: flex; flex-wrap: wrap; align-items: center; gap: .625rem; }
+.teklif-ust b { color: var(--paper); font-size: var(--t-m); }
+.teklif p { margin: 0; color: var(--muted); max-width: 62ch; line-height: 1.6; }
+.teklif-ok b { color: var(--ok); }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .375rem 1rem; margin: 0; font-size: var(--t-xs); }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; color: var(--paper); }
+
+/* pano */
+.pano { display: grid; grid-template-columns: repeat(5, minmax(10.5rem, 1fr)); gap: .75rem; min-width: 56rem; }
+.kolon h4 { display: flex; justify-content: space-between; margin: 0 0 .5rem; padding-bottom: .5rem; border-bottom: 1px solid var(--line); font-size: var(--t-xs); font-weight: 600; color: var(--paper); letter-spacing: .04em; text-transform: uppercase; }
+.kolon h4 small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bilet-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.bilet { display: grid; gap: .375rem; padding: .625rem; border: 1px solid var(--line); border-radius: 4px; background: var(--ink-2); }
+.bilet:hover { border-color: var(--line-strong); }
+.bilet-ust { display: flex; justify-content: space-between; font-size: .6875rem; color: var(--muted); }
+.bilet-ust code { color: var(--coral); }
+.bilet b { font-weight: 500; color: var(--paper); line-height: 1.4; }
+.bilet-not { color: var(--warn); font-size: .6875rem; }
+.bilet-alt { display: flex; align-items: center; gap: .375rem; font-size: .6875rem; color: var(--muted); }
+.ilerlet { margin-left: auto; border: 0; background: none; color: var(--muted); font: inherit; font-size: .6875rem; cursor: pointer; padding: .125rem 0; }
+.ilerlet:hover { color: var(--coral); }
+
+/* kanallar */
+.kanal-yerlesim { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 1rem; }
+.kanal-liste { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: 2px; }
+.kanal-btn, .not-btn { width: 100%; text-align: left; border: 0; border-radius: 3px; background: none; color: var(--muted); font: inherit; font-size: var(--t-xs); padding: .375rem .5rem; cursor: pointer; }
+.kanal-btn:hover, .not-btn:hover { color: var(--paper); }
+.kanal-btn[aria-current], .not-btn[aria-current] { color: var(--paper); background: var(--ink-3); }
+.kanal-dm { margin-top: .75rem; padding: .5rem .5rem 0; border-top: 1px solid var(--line); color: var(--muted); font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; }
+.kanal-dm .kanal-btn { text-transform: none; letter-spacing: 0; padding-left: 0; margin-top: .25rem; }
+.kanal-ic { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; height: 28rem; }
+.mesajlar { list-style: none; margin: 0; padding: 0 .25rem 0 0; overflow-y: auto; display: grid; align-content: start; gap: 1rem; }
+.mesaj { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .625rem; }
+.mesaj-ust { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
+.mesaj-ust b { color: var(--paper); }
+.mesaj-ust small { color: var(--muted); font-size: var(--t-xs); }
+.mesaj p { margin: .25rem 0 0; color: var(--paper); line-height: 1.6; max-width: 64ch; overflow-wrap: anywhere; }
+.mesaj code { color: var(--coral); }
+.anma { color: var(--coral); }
+.mesaj-siz p { color: var(--bone); }
+.yaz { display: flex; gap: .5rem; padding-top: .75rem; margin-top: .75rem; border-top: 1px solid var(--line); }
+.yaz input { flex: 1; min-width: 0; font: inherit; font-size: var(--t-xs); color: var(--paper); background: var(--ink); border: 1px solid var(--line-strong); border-radius: 4px; padding: .5rem .625rem; }
+.yaz input::placeholder { color: var(--muted); }
+.yaz input:focus { outline: none; border-color: var(--coral); }
+
+/* notlar */
+.not-yerlesim { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.25rem; }
+.not-agac { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: 1px; font-size: var(--t-xs); }
+.klasor { color: var(--paper); padding: .375rem .5rem .25rem; }
+.not-ic { padding-left: 1.25rem; }
+.not-btn { padding-left: .875rem; overflow-wrap: anywhere; }
+.not-btn.not-ic { padding-left: 1.5rem; }
+.not-pasif { color: var(--muted); padding: .25rem .875rem; }
+.not-icerik { min-width: 0; padding-left: 1.25rem; border-left: 1px solid var(--line); }
+.not-icerik h5 { margin: 0 0 .75rem; font-family: var(--font-display); font-weight: 400; font-size: 1.375rem; color: var(--paper); letter-spacing: .01em; }
+.not-icerik p { margin: .75rem 0 0; max-width: 64ch; color: var(--paper); line-height: 1.65; }
+.not-icerik b { color: var(--bone); }
+.not-icerik code { color: var(--coral); }
+
+/* kod */
+.diff { margin: 0; padding: .875rem 1rem; border: 1px solid var(--line); border-radius: 4px; background: var(--ink); font-size: var(--t-xs); line-height: 1.7; color: var(--muted); min-width: max-content; }
+.diff span { display: block; }
+.d-baglam { color: var(--muted); }
+.d-sil { color: var(--sil); background: var(--sil-zemin); }
+.d-ekle { color: var(--ok); background: var(--ekle-zemin); }
+.d-yorum { margin: .5rem 0; padding: .625rem .75rem; border: 1px solid var(--coral); border-radius: 4px; color: var(--paper); white-space: pre-wrap; }
+
+/* onaylar */
+.onay-liste { list-style: none; margin: 0; padding: 0; }
+.onay { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.onay > div:first-child { display: grid; gap: .25rem; justify-items: start; }
+.onay b { color: var(--paper); font-size: var(--t-m); font-weight: 500; margin-top: .25rem; }
+.onay small { color: var(--muted); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.onay p { margin: .25rem 0 0; color: var(--muted); max-width: 62ch; line-height: 1.6; }
+
+@media (max-width: 1100px) {
+  .studio-govde { grid-template-columns: 11rem minmax(0, 1fr); grid-template-rows: 36rem 15rem; height: auto; }
+  .studio-ray { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .studio-govde { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 34rem 14rem; }
+  .studio-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .nav-btn { width: auto; white-space: nowrap; }
+  .nav-btn[aria-current="page"] { box-shadow: inset 0 -2px 0 var(--coral); }
+  .kanal-yerlesim, .not-yerlesim { grid-template-columns: minmax(0, 1fr); }
+  .kanal-liste { grid-auto-flow: column; justify-content: start; overflow-x: auto; }
+  .kanal-dm { display: none; }
+  .not-icerik { padding-left: 0; border-left: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+  .onay { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<main class="sayfa" lang="tr">
+  <header class="acilis">
+    <h1 class="marka">Arn<span>Org</span></h1>
+    <div class="acilis-metin">
+      <p>Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsınız; CEO planı yazar, ekibi işe alır, işi dağıtır ve size rapor verir.</p>
+      <dl class="kunye">
+        <dt>Platform</dt><dd>Windows 10/11 · Linux (x64, arm64)</dd>
+        <dt>Biçim</dt><dd>Masaüstü uygulaması + sunucu modu</dd>
+        <dt>Ajan motoru</dt><dd>Claude Code (Claude Agent SDK)</dd>
+        <dt>Belge</dt><dd>İş önizlemesi · 2 Ekim 2026</dd>
+      </dl>
+    </div>
+  </header>
+
+  <section class="studio" aria-label="ArnOrg Stüdyo maketi">
+    <div class="studio-bar">
+      <div class="sb-sol">
+        <span class="logo-mark" aria-hidden="true">A</span>
+        <span class="sb-sirket">Arnex Yazılım</span>
+        <span class="sb-ayrac" aria-hidden="true">/</span>
+        <span class="sb-proje">Sipariş Paneli</span>
+        <span class="etiket">örnek veri</span>
+      </div>
+      <div class="sb-sag">
+        <span class="sb-metre" id="m-ajan">4 aktif · 7 çalışan</span>
+        <span class="sb-metre">Bugün <b id="m-maliyet">$14,20</b> / $40,00</span>
+        <button class="btn-ghost" id="btn-mesai" aria-pressed="false">Mesaiyi durdur</button>
+      </div>
+    </div>
+    <div class="studio-govde">
+      <nav class="studio-nav" aria-label="Stüdyo menüsü">
+        <button class="nav-btn" data-view="karargah"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg><span>Karargâh</span></button>
+        <button class="nav-btn" data-view="ekip"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3.5" r="1.75"/><circle cx="3.5" cy="12.5" r="1.75"/><circle cx="12.5" cy="12.5" r="1.75"/><path d="M8 5.25V8M3.5 10.75V8h9v2.75"/></svg><span>Ekip</span></button>
+        <button class="nav-btn" data-view="pano"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5v11M8 2.5v11M13.5 2.5v11"/><path d="M4.5 4h2M4.5 6.5h2M10 4h2"/></svg><span>Pano</span></button>
+        <button class="nav-btn" data-view="kanallar"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2 4.5 14M11.5 2 10 14M2.5 5.5h11M2 10.5h11"/></svg><span>Kanallar</span></button>
+        <button class="nav-btn" data-view="notlar"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5"/></svg><span>Notlar</span></button>
+        <button class="nav-btn" data-view="kod"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="6" r="1.5"/><path d="M4 5v6M12 7.5c0 2.5-3 2.5-6.5 4"/></svg><span>Kod</span></button>
+        <button class="nav-btn" data-view="onaylar"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 13.5 3.5v4c0 3.5-2.5 5.75-5.5 7-3-1.25-5.5-3.5-5.5-7v-4z"/><path d="m5.5 8 1.75 1.75L10.75 6"/></svg><span>Onaylar</span><span class="rozet" id="rozet-onay">3</span></button>
+      </nav>
+      <div class="studio-ana" id="gorunum" aria-live="polite"></div>
+      <aside class="studio-ray" aria-label="Canlı akış">
+        <div class="ray-baslik"><h3>Canlı akış</h3><small>araç çağrıları</small></div>
+        <ol class="akis" id="akis"></ol>
+      </aside>
+    </div>
+  </section>
+  <p class="maket-not">Pencere tıklanabilir bir maket: menüleri gezin, Onaylar'dan işe alım yapın, #genel kanalına bir iş yazın, Pano'da görevleri ilerletin. Tüm kişiler ve veriler örnektir.</p>
+
+  <section class="bolum" id="akis-bolum">
+    <header><h2>Nasıl çalışır</h2><p>Bir projenin ilk saatinden teslimine kadar</p></header>
+    <div class="bolum-ic">
+      <ol class="adimlar">
+        <li><b>Proje açılır</b><p>Var olan bir repo bağlanır ya da sıfırdan açılır. ArnOrg kod tabanını tarar ve <code>.arnorg/notlar/</code> altına ilk vizyon ve mimari notlarını yazar.</p></li>
+        <li><b>Brief verilir</b><p>Ne istediğinizi düz metinle yazarsınız. CEO eksik noktaları sorar, hedefleri ve kabul ölçütlerini çıkarır.</p></li>
+        <li><b>Plan ve kadro</b><p>CEO işi epik ve görevlere böler, bağımlılıkları sıralar, gereken rolleri ve bütçeyi önerir. Siz onaylarsınız.</p></li>
+        <li><b>İşe alım</b><p>Onaylanan her rol için bir ajan doğar: kimlik dosyası, modeli, araç izinleri, günlük bütçesi ve kendi git çalışma alanı.</p></li>
+        <li><b>Mesai</b><p>Ajanlar görev alır, kod yazar, test çalıştırır, kanallarda birbirine yazar. CEO günlük durum toplantısını yönetir, tıkanan işi çözer.</p></li>
+        <li><b>İnceleme ve teslim</b><p>İnceleyici ajan kodu denetler, testler geçer, birleştirme sizin onayınızla main'e girer. CEO sprint raporunu yazar.</p></li>
+      </ol>
+    </div>
+  </section>
+  <section class="bolum" id="ornekler">
+    <header><h2>İncelenen örnekler</h2><p>Ekim 2026 itibarıyla ajan şirketi ve Claude Code arayüzü alanındaki projeler. Yıldız sayıları yaklaşıktır.</p></header>
+    <div class="bolum-ic">
+      <p>Alanda iki ayrı aile var. Birinci aile ajanları şirket gibi örgütlüyor ama masaüstünde ve Windows'ta zayıf. İkinci aile iyi bir masaüstü deneyimi sunuyor ama ajanları birbirinden habersiz, tek seviyeli işçiler olarak çalıştırıyor. ArnOrg iki aileyi birleştiriyor.</p>
+      <div class="tablo-kap">
+        <table class="kiyas kiyas-ornek">
+          <thead><tr><th>Proje</th><th>Aldığımız fikir</th><th>Eksik bıraktığı</th></tr></thead>
+          <tbody>
+            <tr><td><b>Paperclip</b><small>MIT · ~96k · Node + React + Postgres, web</small></td><td class="al">CEO'nun işe alımı yönetim kurulu onayından geçer. Ajanlar kısa uyanışlarla (heartbeat) çalışır. Bir görevi aynı anda tek ajan kilitler. Şirket, proje ve ajan düzeyinde bütçe ve sert durdurma.</td><td class="eksik">Proje hafızası henüz yok. CEO işe alım döngüsüne takılabiliyor. Masaüstü uygulaması yok; Windows desteği yeni ve yol hataları var.</td></tr>
+            <tr><td><b>Multica</b><small>~52k · Go daemon + Electron + mobil</small></td><td class="al">Masaüstü uygulaması + yerel daemon biçimi Windows'ta yerel çalışıyor. Göreve ajan atamak bir ekip arkadaşına atamak gibi. Çalışan ajana iş sırasında yön verilebiliyor. Mükerrer çalıştırmalar birleştirilerek döngü önleniyor.</td><td class="eksik">Organizasyon modeli zayıf: lider ajan yalnız anma ile iş yönlendiriyor. Planlama ve hafıza ikinci planda.</td></tr>
+            <tr><td><b>Gas Town</b><small>MIT · ~18k · Go CLI + tmux</small></td><td class="al">Kalıcı kimlik, kısa ömürlü oturum. Durum git'te tutulur, çökme veri kaybettirmez. Takılan ajanı yakalayan gözcü katmanları. Testten geçmeyen işi ayıklayan birleştirme kuyruğu.</td><td class="eksik">tmux'a bağlı; Windows'ta WSL ister. Bütçe denetimi yok ve yazarına göre çok pahalı. Kendine özgü jargonu en çok eleştirilen yanı.</td></tr>
+            <tr><td><b>Claude Code Agent Teams</b><small>Anthropic · deneysel</small></td><td class="al">Ajan başına posta kutusu, bağımlılıklı ortak görev listesi, dosya kilidiyle görev alma. Görev bitince ve ajan boşa çıkınca çalışan kalite kapısı kancaları.</td><td class="eksik">Agent SDK ve <code>-p</code> modunda çalışmıyor. Oturum sürdürülünce ekip geri gelmiyor. Bölünmüş paneller Windows Terminal'de yok.</td></tr>
+            <tr><td><b>Claude Projects · Code sekmesi</b><small>Anthropic · masaüstü</small></td><td class="al">Duruma göre gruplanmış dikkat kutusu: sizi bekliyor, incelemeye hazır, çalışıyor. Satıra toplu yorum yazılan diff incelemesi. Koordinatör sohbetinden doğan canlı görev kartları.</td><td class="eksik">Şirket hiyerarşisi, işe alım, rol ve bütçe kavramı yok. Ajanlar birbirine değil koordinatöre bağlı.</td></tr>
+            <tr><td><b>Vibe Kanban · Cline Kanban · Emdash</b><small>Apache-2.0 · Rust/Node + React, Electron</small></td><td class="al">Kart eşittir çalışma alanı: worktree, terminal ve ajan karta bağlı. Bağımlılığı biten kart kendiliğinden başlar. Ajan durumu terminali okuyarak değil kancalardan gelir. Önceden hazırlanmış worktree havuzu.</td><td class="eksik">Tek seviyeli: planlayan bir yönetici yok, ajanlar birbiriyle konuşmuyor. Vibe Kanban'ın şirketi Nisan 2026'da kapandı.</td></tr>
+            <tr><td><b>Conductor</b><small>kapalı kaynak · Tauri + Rust · yalnız macOS</small></td><td class="al">Boşta kalan ajan kapatılır, gerektiğinde <code>--resume</code> ile sürdürülür. SQLite tek doğruluk kaynağı. Kontrol noktaları arka planda alınır, arayüzü bekletmez.</td><td class="eksik">Yalnız macOS. Paralel dallar birleştirmede çakışmaya devam ediyor.</td></tr>
+            <tr><td><b>CloudCLI · opcode · Claude Squad</b><small>AGPL · tek oturum arayüzleri</small></td><td class="al">Agent SDK + node-pty + WebSocket yığını (CloudCLI). Maliyet paneli ve dallanabilen kontrol noktası zaman çizelgesi (opcode).</td><td class="eksik">Orkestrasyon yok. opcode Ağustos 2025'ten beri güncellenmiyor. Claude Squad tmux yüzünden Windows'ta yalnız WSL ile çalışıyor.</td></tr>
+            <tr><td><b>ChatDev 2.0 · MetaGPT</b><small>Apache-2.0 / MIT · Python</small></td><td class="al">Roller arası belge devri (gereksinim → tasarım → API) gevezeliği azaltır. Sanal yazılım şirketi fikrinin ilk örnekleri.</td><td class="eksik">Gerçek repo, PR ve inceleme döngüsü yok. Claude Code'u yönetmiyor. MetaGPT'nin geliştirmesi büyük ölçüde durdu.</td></tr>
+            <tr><td><b>CrewAI · Microsoft Agent Framework</b><small>MIT · kütüphane</small></td><td class="al">Görev defteri ve ilerleme defteri; ilerleme yoksa yeniden planlama (Magentic). Kapsamlı hafıza: proje ve ajan için ayrı alanlar.</td><td class="eksik">Kütüphane olarak kalıyor; kod ajanlarını, repoyu ve masaüstünü yönetmiyor.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Çıkardığımız dersler</h3>
+      <div class="izgara">
+        <div><b>Ekip katmanı bizim</b><p>Agent Teams SDK modunda çalışmadığı için posta kutusu, görev listesi ve görev kilidi ArnOrg'da yaşar.</p></div>
+        <div><b>Kısa uyanış, kalıcı kimlik</b><p>Ajan sürekli açık durmaz. Olayla uyanır, oturumunu sürdürür, iş bitince kapanır. Mükerrer uyandırmalar birleşir.</p></div>
+        <div><b>CEO önerir, siz onaylarsınız</b><p>İşe alım, plan ve bütçe varsayılan olarak onaydan geçer. Özerklik proje bazında genişletilir.</p></div>
+        <div><b>Bütçe platformda</b><p>Sınır talimata yazılmaz, çekirdek uygular: uyarı eşiği ve sert durdurma, ajan, görev ve proje düzeyinde.</p></div>
+        <div><b>Döngüye karşı koruma</b><p>İlerleme defteri, tıkanma sayacı, en fazla tur ve yeniden planlama. Paperclip'teki işe alım döngüsü gerçek bir hata.</p></div>
+        <div><b>Hafıza birinci sınıf</b><p>Notlar ve kararlar repo içinde sürümlenir. Paperclip'te hâlâ eksik olan parça bu.</p></div>
+        <div><b>tmux ve bash sarmalayıcısı yok</b><p>Windows'ta çöken araçların ortak sebebi. Süreçler doğrudan başlatılır ve izlenir.</p></div>
+        <div><b>Sade sözlük</b><p>Proje, hedef, görev, çalışan, rol. Özel jargon öğrenme maliyeti yaratır.</p></div>
+        <div><b>Her şey kayıtlı</b><p>Tekrar oynatılabilir çalışma kayıtları, yalnız eklenebilen denetim günlüğü, yasak geçişi reddeden görev durum makinesi.</p></div>
+      </div>
+    </div>
+  </section>
+  <section class="bolum" id="sirket">
+    <header><h2>Şirket modeli</h2><p>Roller, hiyerarşi ve işe alım</p></header>
+    <div class="bolum-ic">
+      <p>Her şirketin bir CEO'su vardır ve yalnız size bağlıdır. CEO kod yazmaz; planlar, işe alır, önceliklendirir ve rapor verir. Büyüyen projelerde bir CTO ya da takım lideri atar ve geliştiriciler ona bağlanır. Çalışanlar düzenlenebilir bir rol kataloğundan gelir; projeye özel rol eklemek bir markdown dosyası yazmak kadar kolaydır.</p>
+      <div class="izgara">
+        <div><b>CEO</b><p>Brief'i hedefe çevirir, kadroyu ve bütçeyi önerir, toplantıları yönetir, size rapor verir. Varsayılan model Opus.</p></div>
+        <div><b>CTO · takım lideri</b><p>Mimari kararları ADR olarak yazar, görevleri teknik olarak böler, kod standartlarını belirler.</p></div>
+        <div><b>Geliştirici</b><p>Backend, frontend, mobil ya da veri. Kendi çalışma alanında kod yazar, test ekler, commit atar.</p></div>
+        <div><b>Test mühendisi</b><p>Kabul ölçütlerinden test yazar, uçtan uca senaryoları çalıştırır, hatayı görev olarak açar.</p></div>
+        <div><b>Kod inceleyici</b><p>Her birleştirme isteğini okur, bulguyu satıra yazar, onay vermeden main'e iş girmez.</p></div>
+        <div><b>Uzmanlar</b><p>Güvenlik, DevOps, tasarım, teknik yazarlık ve araştırma. Gerektiğinde alınır, iş bitince serbest bırakılır.</p></div>
+      </div>
+      <h3>Bir çalışan neden oluşur</h3>
+      <p>İşe alım bir kimlik dosyası üretir. ArnOrg bu dosyayı ajan oturumunun sistem talimatına, araç izinlerine ve bütçe sınırına çevirir. Dosya repo içinde durduğu için ekip, kodla birlikte sürümlenir.</p>
+<pre class="agac-kod"><span class="ac"># .arnorg/ekip/deniz.md</span>
+---
+ad: Deniz
+rol: backend
+model: sonnet
+yonetici: kerem
+butce_gunluk_usd: 5
+araclar: [Read, Edit, Write, Bash, Grep, Glob, arnorg]
+yasak: ["git push", "rm -rf", "npm publish"]
+beceriler: [api-tasarimi, postgres, vitest]
+calisma_alani: arnorg/deniz/*
+---
+Sipariş Paneli ekibinde backend geliştiricisisin. Kerem'e bağlısın.
+Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</pre>
+    </div>
+  </section>
+
+  <section class="bolum" id="iletisim">
+    <header><h2>İletişim</h2><p>Kanallar, doğrudan mesaj, toplantı ve size yükseltme</p></header>
+    <div class="bolum-ic">
+      <p>Ajanlar birbirine bir posta kutusu üzerinden yazar. Mesaj kalıcıdır, aranabilir ve arayüzde canlı görünür. Anılan ajan uyanır; meşgulse mesaj sırada bekler ve bir sonraki turda okunur. Siz her kanala yazabilir, her konuşmaya girebilirsiniz.</p>
+      <div class="izgara">
+        <div><b>Kanallar</b><p><code>#genel</code> şirket geneli, <code>#backend</code> gibi ekip kanalları. Kanal geçmişi özetlenerek ajanın bağlamına girer.</p></div>
+        <div><b>Doğrudan mesaj ve anma</b><p><code>@Mert</code> yazmak Mert'i uyandırır. Yanıt beklenen soru, cevaplanana kadar CEO'nun listesinde durur.</p></div>
+        <div><b>Görev konuşması</b><p>Her görevin kendi yorum akışı vardır. Varılan karar konuşmada kalmaz, notlara ADR olarak taşınır.</p></div>
+        <div><b>Toplantılar</b><p>Günlük durum: CEO her ajandan üç satır ister ve özetler. Sprint planlama ve retrospektif aynı düzenle yapılır.</p></div>
+        <div><b>Size yükseltme</b><p>Ajan çözemediği konuyu <code>onay_iste</code> ile size getirir. Onaylar kutusuna düşer, isterseniz telefona bildirim gider.</p></div>
+        <div><b>Gürültü sınırı</b><p>Her ajanın mesaj bütçesi vardır. Uzun tartışmayı CEO keser, kararı verir ya da size taşır.</p></div>
+      </div>
+      <h3>Ajanların kullandığı araçlar</h3>
+      <p>Bu yetenekler ArnOrg'un kendi MCP sunucusunda araç olarak tanımlıdır ve her ajan oturumuna rolüne göre eklenir:</p>
+<dl class="araclar"><div><dt><code>mesaj_gonder</code></dt><dd>kanal ya da kişiye yaz</dd></div><div><dt><code>kanal_oku</code></dt><dd>okunmamışları getir</dd></div><div><dt><code>gorev_al</code></dt><dd>panodan iş çek</dd></div><div><dt><code>gorev_guncelle</code></dt><dd>durum, not, bağımlılık</dd></div><div><dt><code>not_yaz</code></dt><dd>proje notu ya da ADR yaz</dd></div><div><dt><code>hafiza_ara</code></dt><dd>notlarda ve geçmişte ara</dd></div><div><dt><code>toplanti_cagir</code></dt><dd>durum toplantısı başlat</dd></div><div><dt><code>onay_iste</code></dt><dd>kararı size taşı</dd></div><div><dt><code>birlestir_iste</code></dt><dd>incelemeye ve kuyruğa gönder</dd></div><div><dt><code>ise_al</code></dt><dd>yalnız CEO: kadro teklifi</dd></div></dl>
+    </div>
+  </section>
+
+  <section class="bolum" id="planlama">
+    <header><h2>Planlama ve yönetişim</h2><p>Hedeften göreve, bütçeden onaya</p></header>
+    <div class="bolum-ic">
+      <div class="izgara">
+        <div><b>Hedef → epik → görev</b><p>CEO brief'i hedeflere, hedefleri epiklere, epikleri tek oturumda bitebilecek görevlere böler. Her görevin kabul ölçütü vardır.</p></div>
+        <div><b>Bağımlılık</b><p>Görevler arası bağımlılık grafiği tutulur. Bağımlılığı bitmemiş görev kimseye atanmaz; Mert, T-24 bitene kadar bekler.</p></div>
+        <div><b>Sprint</b><p>İş dönemlere ayrılır. Dönem sonunda CEO raporu yazar: biten, kayan, öğrenilen, harcanan.</p></div>
+        <div><b>Mesai</b><p>Ajanlar sürekli açık durmaz. Zamanlayıcı onları görev geldiğinde, anıldığında ya da belirli aralıklarla uyandırır.</p></div>
+        <div><b>Bütçe</b><p>Şirket, proje ve ajan düzeyinde günlük ve aylık sınır. Sınıra yaklaşan ajan yavaşlar, aşınca durur ve size sorar.</p></div>
+        <div><b>Onay kapıları</b><p>İşe alım, bütçe artışı, main'e birleştirme, dışarı push, deploy ve geri alınamaz komutlar varsayılan olarak sizden geçer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bolum" id="hafiza">
+    <header><h2>Notlar, hafıza ve kod</h2><p>Proje bilgisi repo içinde, çalışma verisi uygulamada</p></header>
+    <div class="bolum-ic">
+      <p>Proje notları markdown olarak repo içinde yaşar ve kodla birlikte sürümlenir. Böylece ArnOrg'u kapatsanız bile ekip, kararlar ve hafıza projede kalır. Mesajlar, olaylar ve maliyet kayıtları ise uygulamanın kendi veritabanındadır.</p>
+<pre class="agac-kod">siparis-paneli/
+├─ .arnorg/
+│  ├─ proje.yaml            <span class="ac">bütçe, onay kuralları, birleştirme politikası</span>
+│  ├─ ekip/                 <span class="ac">çalışan kimlikleri</span>
+│  │  ├─ ada.md
+│  │  └─ deniz.md
+│  ├─ notlar/               <span class="ac">proje hafızası</span>
+│  │  ├─ vizyon.md
+│  │  ├─ mimari.md
+│  │  ├─ kararlar/ADR-004-jeton-yenileme.md
+│  │  └─ sozluk.md
+│  └─ hafiza/               <span class="ac">ajan günlükleri, öğrenilen dersler</span>
+├─ CLAUDE.md                <span class="ac">ortak kurallar, ArnOrg günceller</span>
+└─ src/</pre>
+      <div class="izgara">
+        <div><b>Her görev bir dal</b><p>Ajan işe <code>arnorg/&lt;ajan&gt;/&lt;görev&gt;</code> dalında, kendine ait bir git worktree içinde başlar. Ajanlar birbirinin dosyasını ezmez.</p></div>
+        <div><b>İnceleme</b><p>Biten iş inceleyici ajana gider. Bulgular satıra yazılır, iş sahibine geri döner; onaylanan iş kuyruğa girer.</p></div>
+        <div><b>Birleştirme kuyruğu</b><p>Kuyruk işleri sırayla main'in üstüne alır, testleri yeniden çalıştırır. Çakışmayı işin sahibi çözer.</p></div>
+        <div><b>Dışarı push</b><p>Proje ayarı: doğrudan main'e push ya da GitHub'da PR. Varsayılan: onaylı birleştirmeden sonra main'e push.</p></div>
+      </div>
+    </div>
+  </section>
+  <section class="bolum" id="mimari">
+    <header><h2>Mimari</h2><p>Ajan döngüsünü yeniden yazmıyoruz, etrafına şirketi kuruyoruz</p></header>
+    <div class="bolum-ic">
+      <p>Kod yazan, araç çağıran ve bağlamı yöneten şey değiştirilmemiş Claude Code'dur. ArnOrg onun etrafındaki şirketi yönetir: kim çalışacak, hangi işi alacak, hangi bütçeyle, kime rapor vererek. Aynı çekirdek masaüstünde uygulamanın içinde, sunucuda ise tek başına çalışır.</p>
+      <div class="mimari" role="img" aria-label="ArnOrg katmanları: Stüdyo arayüzü, çekirdek, ajan oturumları ve depolama">
+        <div class="katman">
+          <div class="katman-ad"><b>Stüdyo</b><small>React · Electron ya da tarayıcı</small></div>
+          <div class="moduller"><span class="modul">Karargâh</span><span class="modul">Ekip</span><span class="modul">Pano</span><span class="modul">Kanallar</span><span class="modul">Notlar</span><span class="modul">Kod ve inceleme</span><span class="modul">Onaylar</span><span class="modul">Terminal</span></div>
+        </div>
+        <p class="baglanti">↓ WebSocket olay akışı + HTTP API · yerel ya da uzak çekirdeğe</p>
+        <div class="katman">
+          <div class="katman-ad"><b>Çekirdek</b><small>arnorg-server · Node.js 22</small></div>
+          <div class="moduller"><span class="modul">Orkestratör</span><span class="modul">Uyandırma kuyruğu</span><span class="modul">Görev durum makinesi</span><span class="modul">Posta kutusu</span><span class="modul">Bütçe ve onay</span><span class="modul">Worktree havuzu</span><span class="modul">Birleştirme kuyruğu</span><span class="modul">Hafıza ve arama</span><span class="modul">Olay günlüğü</span><span class="modul modul-vurgu">arnorg MCP araçları</span></div>
+        </div>
+        <p class="baglanti">↓ Claude Agent SDK · her çalışan bir oturum · mesajlar akış girdisiyle teslim edilir</p>
+        <div class="katman">
+          <div class="katman-ad"><b>Ajanlar</b><small>Claude Code oturumları</small></div>
+          <div class="moduller"><span class="modul">CEO</span><span class="modul">CTO</span><span class="modul">Geliştiriciler</span><span class="modul">Test</span><span class="modul">Kod inceleme</span><span class="modul">Uzmanlar</span><span class="modul">Odaklı işler için yerel alt ajanlar</span></div>
+        </div>
+        <div class="katman">
+          <div class="katman-ad"><b>Depolama</b><small>yerel, kurulumsuz</small></div>
+          <div class="moduller"><span class="modul">SQLite (WAL): mesaj, olay, maliyet</span><span class="modul">Repo içi .arnorg/: ekip, notlar</span><span class="modul">Git worktree'leri</span><span class="modul">Sunucu modunda isteğe bağlı PostgreSQL</span></div>
+        </div>
+      </div>
+      <h3>Bir mesaj nasıl yol alır</h3>
+      <p>Deniz <code>mesaj_gonder</code> aracıyla Mert'e yazar. Araç ArnOrg'un kendi MCP sunucusundadır; mesaj veritabanına ve olay günlüğüne düşer, Stüdyo'da anında görünür. Mert uyuyorsa uyandırma kuyruğu onun oturumunu sürdürür ve mesajı ilk girdi olarak verir; çalışıyorsa mesaj akış girdisiyle sıradaki turuna eklenir. Bütçe ve izin denetimi her araç çağrısından önce çekirdekte yapılır.</p>
+    </div>
+  </section>
+
+  <section class="bolum" id="yigin">
+    <header><h2>Teknoloji yığını</h2><p>Her seçim Windows ve Linux'ta aynı çalışacak şekilde</p></header>
+    <div class="bolum-ic">
+      <div class="tablo-kap">
+        <table class="kiyas kiyas-yigin">
+          <thead><tr><th>Katman</th><th>Seçim</th><th>Neden</th></tr></thead>
+          <tbody>
+            <tr><td><b>Ajan motoru</b></td><td>Claude Agent SDK (TypeScript), sürümü sabitlenmiş</td><td class="eksik">Kancalar, süreç içi MCP araçları, izin geri çağrısı, oturum sürdürme ve akış girdisi yalnız burada eksiksiz. Maliyet her sonuçta raporlanıyor.</td></tr>
+            <tr><td><b>Çekirdek</b></td><td>Node.js 22 LTS + TypeScript</td><td class="eksik">SDK ve node-pty Node ister. Masaüstü ve sunucu aynı kodu çalıştırır.</td></tr>
+            <tr><td><b>Veri</b></td><td>SQLite (better-sqlite3, WAL) + Drizzle</td><td class="eksik">Kurulumsuz tek dosya, kolay yedek. FTS5 ile not ve mesaj araması. Sunucu modunda PostgreSQL seçeneği.</td></tr>
+            <tr><td><b>Arayüz</b></td><td>React 19, Vite, TanStack Router ve Query, Zustand</td><td class="eksik">Conductor, Nimbalyst ve CloudCLI'de kanıtlanmış yığın.</td></tr>
+            <tr><td><b>Bileşenler</b></td><td>Monaco, xterm.js, React Flow, react-virtuoso</td><td class="eksik">Diff ve kod, terminal, organizasyon ve bağımlılık grafiği, binlerce satırlık akışlar.</td></tr>
+            <tr><td><b>Masaüstü</b></td><td>Electron + electron-builder</td><td class="eksik">Node zaten şart; Chromium her dağıtımda aynı çizer. NSIS, MSI, AppImage, deb, rpm ve otomatik güncelleme tek araçla. Codex uygulaması, Nimbalyst ve Emdash aynı yolu seçti.</td></tr>
+            <tr><td><b>Terminal</b></td><td>node-pty (Windows'ta ConPTY)</td><td class="eksik">Ajan çalışma alanına bakan gerçek terminal.</td></tr>
+            <tr><td><b>Git</b></td><td>Sistem git'i + worktree havuzu</td><td class="eksik">Ajan başına yalıtılmış çalışma alanı; havuz sayesinde görev anında başlar.</td></tr>
+            <tr><td><b>Gözlem</b></td><td>OpenTelemetry + kanca olayları</td><td class="eksik">Ajan ve proje etiketli maliyet ve token ölçümü. Durum bilgisi terminal okunarak değil olaylardan gelir.</td></tr>
+            <tr><td><b>Depo ve CI</b></td><td>pnpm monorepo, GitHub Actions</td><td class="eksik">Her commit windows-latest ve ubuntu-latest üzerinde derlenir ve test edilir.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="bolum" id="platform">
+    <header><h2>Windows ve Linux</h2><p>Rakiplerin çoğunun zayıf kaldığı yer</p></header>
+    <div class="bolum-ic">
+      <div class="izgara">
+        <div><b>Kurulum paketleri</b><p>Windows: otomatik güncellenen NSIS ve kurumsal dağıtım için MSI. Linux: otomatik güncellenen AppImage, deb ve rpm; x64 ve arm64.</p></div>
+        <div><b>Claude Code</b><p>Windows'ta yerel çalışır, yönetici yetkisi istemez. Bash aracı Git for Windows ister; ArnOrg ilk açılışta denetler ve kurulumu yönlendirir.</p></div>
+        <div><b>Süreç yönetimi</b><p>Ajanlar tmux ya da bash sarmalayıcısı olmadan başlatılır. Kapatmada süreç ağacının tamamı sonlanır, konsol penceresi açılmaz.</p></div>
+        <div><b>Yollar ve satır sonları</b><p>Kısa 8.3 yollar uzun yola çevrilir, boşluklu yollar tırnaklanır, <code>core.longpaths</code> açılır, satır sonları <code>.gitattributes</code> ile sabitlenir.</p></div>
+        <div><b>Kancalar</b><p>Tüm kanca ve yardımcı betikler Node ile yazılır. Shebang'e ve kabuğa güvenilmez.</p></div>
+        <div><b>Yalıtım</b><p>Claude Code'un sandbox'ı Windows'ta yalnız WSL2'de var. Yerelde izin kuralları, yasak komut listesi ve kanca denetimi devrede.</p></div>
+        <div><b>Sunucu modu</b><p>Aynı çekirdek Linux sunucuda systemd hizmeti olarak çalışır. Masaüstü uygulaması uzaktaki çekirdeğe bağlanır.</p></div>
+        <div><b>Sürekli doğrulama</b><p>Her sürüm iki platformda uçtan uca testten geçer: proje aç, ekip kur, görev bitir, birleştir.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bolum" id="yol">
+    <header><h2>Yol haritası</h2><p>Her faz kendi başına kullanılabilir bir sürüm bırakır</p></header>
+    <div class="bolum-ic">
+      <ol class="fazlar">
+        <li class="faz"><div class="faz-ad">Faz 0<small>Temel</small></div><ul><li>pnpm monorepo, çekirdek iskeleti, SQLite şeması</li><li>Tek çalışan oturumu: Agent SDK, akış girdisi, oturum sürdürme</li><li>Proje açma: var olan repoyu bağlama ya da sıfırdan başlatma</li><li>Stüdyo kabuğu FY tasarım diliyle</li><li>Windows ve Linux'ta CI ve kurulum paketleri</li></ul><div class="faz-cikti"><b>Çıktı</b>Tek ajanla konuşulan, kod yazdıran masaüstü uygulaması.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 1<small>Ekip</small></div><ul><li>Rol kataloğu ve çalışan kimlik dosyaları</li><li>İşe alım akışı ve worktree havuzu</li><li>arnorg MCP: mesaj, görev, not araçları</li><li>Görev durum makinesi, pano, kanallar</li><li>Canlı akış ve maliyet sayacı</li></ul><div class="faz-cikti"><b>Çıktı</b>Elle kurulan bir ekip aynı repoda birlikte çalışır ve birbirine yazar.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 2<small>CEO</small></div><ul><li>Brief → plan → kadro döngüsü</li><li>Onay kapıları ve uyandırma kuyruğu</li><li>Günlük durum toplantısı, ilerleme defteri, tıkanma koruması</li><li>İnceleme ve birleştirme kuyruğu</li><li>Sprint raporu</li></ul><div class="faz-cikti"><b>Çıktı</b>Tek paragraflık brief'ten planlanan, onaylanan ve main'e giren bir özellik.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 3<small>Şirket</small></div><ul><li>Bütçe politikaları ve abonelik penceresi takibi</li><li>Hafıza araması ve oturum tekrarı</li><li>Şirket ve proje şablonları, içe ve dışa aktarma</li><li>Sunucu modu ve uzak bağlantı</li><li>Telefona bildirim, otomatik güncelleme</li></ul><div class="faz-cikti"><b>Çıktı</b>1.0 sürümü.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 4<small>Genişleme</small></div><ul><li>Eklentiler ve rol pazarı</li><li>AXConnector köprüsü: ortak hafıza ve Kasa</li><li>Başka ajan motorları için adaptör</li><li>Birden çok şirket</li></ul><div class="faz-cikti"><b>Çıktı</b>ArnOrg'un dışa açılan ekosistemi.</div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="bolum" id="kararlar">
+    <header><h2>Karar bekleyenler</h2><p>Her biri için önerim hazır; itiraz yoksa Faz 0 bu önerilerle başlar</p></header>
+    <div class="bolum-ic">
+      <ul class="kararlar">
+        <li class="karar"><div><b>Claude'a giriş</b><p>Anthropic, üçüncü taraf ürünlerin claude.ai girişi sunmasına ve kimlik bilgisi tutmasına izin vermiyor. Kişinin kendi bilgisayarında, kendi girişiyle, değiştirilmemiş Claude Code'u kullanması serbest. 15 Haziran duyurusuna göre Agent SDK ve <code>claude -p</code> kullanımı şimdilik abonelik limitinden düşüyor.</p></div><p class="oneri"><span>Öneri:</span> ArnOrg kimlik bilgisine hiç dokunmaz. Kişisel kullanımda ajanlar makinedeki Claude Code girişinizle çalışır. Ürünü başkalarına dağıtırsak her kullanıcı kendi API anahtarını kullanır. Giriş katmanı değiştirilebilir tutulur, çünkü politika değişebilir.</p></li>
+        <li class="karar"><div><b>Masaüstü kabuğu</b><p>Electron mu, Tauri 2 mi.</p></div><p class="oneri"><span>Öneri:</span> Electron. Tauri'de Node yan süreç olarak gelir ve node-pty gibi yerel modüller paketlenemez. Linux'ta sistem WebKitGTK'sı boş pencere ve işlemci sorunları çıkarıyor. Tauri güncelleyicisi deb ve rpm desteklemiyor. Boyut farkı önemsiz: SDK'nın getirdiği Claude ikili dosyası tek başına yaklaşık 230 MB.</p></li>
+        <li class="karar"><div><b>Ajanlar arası iletişim</b><p>Claude Code'un yerleşik Agent Teams özelliği mi, ArnOrg'un kendi posta kutusu mu.</p></div><p class="oneri"><span>Öneri:</span> Kendi posta kutumuz. Agent Teams deneysel, SDK modunda çalışmıyor ve oturum sürdürmede ekip kayboluyor. Her ajanın içinde odaklı alt işler için yerel alt ajanlar serbest kalır.</p></li>
+        <li class="karar"><div><b>Ajan oturumu</b><p>Sürekli açık mı, kısa uyanış mı.</p></div><p class="oneri"><span>Öneri:</span> Kısa uyanış. Kalıcı kimlik ve sürdürülen oturum; olay gelince uyanır, iş bitince kapanır. Boşta maliyet sıfır.</p></li>
+        <li class="karar"><div><b>Git politikası</b><p>Ajan işleri main'e nasıl girer.</p></div><p class="oneri"><span>Öneri:</span> Ajanlar main'e doğrudan yazmaz. Onaylanan iş birleştirme kuyruğundan main'e girer, sonra main GitHub'a push edilir. PR akışı proje ayarı olarak açılabilir.</p></li>
+        <li class="karar"><div><b>Sunucu modu</b><p>Uzun işler nerede koşacak.</p></div><p class="oneri"><span>Öneri:</span> arnex.codes geliştirme sunucusunda systemd hizmeti; Windows dizüstünden masaüstü uygulamasıyla bağlanılır, dışarıya Cloudflare Access arkasından açılır.</p></li>
+        <li class="karar"><div><b>Arayüz dili</b><p>Türkçe mi, çok dilli mi.</p></div><p class="oneri"><span>Öneri:</span> Türkçe. Metinler baştan çeviri dosyalarında tutulur, İngilizce sonra eklenir.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="alt">
+    <span>ArnOrg · iş önizlemesi · 2 Ekim 2026</span>
+    <span>Kaynaklar: <a href="https://github.com/paperclipai/paperclip">Paperclip</a> · <a href="https://github.com/multica-ai/multica">Multica</a> · <a href="https://github.com/gastownhall/gastown">Gas Town</a> · <a href="https://code.claude.com/docs/en/agent-teams">Agent Teams</a> · <a href="https://code.claude.com/docs/en/agent-sdk/overview">Agent SDK</a> · <a href="https://code.claude.com/docs/en/legal-and-compliance">Claude Code hukuki koşulları</a> · <a href="https://performance.dev/the-conductor-rewrite">Conductor</a></span>
+  </footer>
+</main>
+<script>
+// ArnOrg Stüdyo maketi — örnek veriyle çalışan tıklanabilir önizleme
+(function () {
+  "use strict";
+
+  var hareketAz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var ajanlar = [
+    { id: "ada", ad: "Ada", rol: "CEO", model: "Opus", yonetici: null, durum: "calisiyor", is: "Sprint 3 ilerlemesini derliyor", harcanan: 3.1, limit: 10 },
+    { id: "kerem", ad: "Kerem", rol: "CTO", model: "Opus", yonetici: "ada", durum: "calisiyor", is: "T-21 Jeton yenileme mimarisi", harcanan: 2.6, limit: 8 },
+    { id: "sena", ad: "Sena", rol: "Tasarım", model: "Sonnet", yonetici: "ada", durum: "bosta", is: "Yeni görev bekliyor", harcanan: 0.9, limit: 4 },
+    { id: "deniz", ad: "Deniz", rol: "Backend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-24 Sipariş API uç noktaları", harcanan: 4.25, limit: 5 },
+    { id: "ece", ad: "Ece", rol: "Frontend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-26 Sipariş listesi ekranı", harcanan: 2.2, limit: 5 },
+    { id: "mert", ad: "Mert", rol: "Test", model: "Sonnet", yonetici: "kerem", durum: "bekliyor", is: "T-27 için T-24'ü bekliyor", harcanan: 0.4, limit: 3 },
+    { id: "onur", ad: "Onur", rol: "Kod inceleme", model: "Opus", yonetici: "kerem", durum: "bekliyor", is: "T-19 düzeltmelerini bekliyor", harcanan: 0.75, limit: 5 }
+  ];
+
+  var aday = { id: "aras", ad: "Aras", rol: "Güvenlik", model: "Sonnet", yonetici: "kerem", durum: "bosta", is: "İşe başlama: OWASP taraması", harcanan: 0, limit: 6 };
+
+  var sutunlar = [
+    { id: "bekleyen", ad: "Bekleyen" },
+    { id: "planlandi", ad: "Planlandı" },
+    { id: "calisiliyor", ad: "Çalışılıyor" },
+    { id: "inceleme", ad: "İncelemede" },
+    { id: "tamam", ad: "Tamam" }
+  ];
+
+  var gorevler = [
+    { id: "T-28", baslik: "Kargo firması entegrasyonu", kim: null, sutun: "bekleyen", etiket: "backend" },
+    { id: "T-29", baslik: "Sipariş bildirim e-postaları", kim: null, sutun: "bekleyen", etiket: "backend" },
+    { id: "T-27", baslik: "Sipariş akışı uçtan uca testleri", kim: "mert", sutun: "planlandi", etiket: "test", bagli: "T-24" },
+    { id: "T-21", baslik: "Jeton yenileme mimarisi", kim: "kerem", sutun: "calisiliyor", etiket: "mimari" },
+    { id: "T-24", baslik: "Sipariş API uç noktaları", kim: "deniz", sutun: "calisiliyor", etiket: "backend" },
+    { id: "T-26", baslik: "Sipariş listesi ekranı", kim: "ece", sutun: "calisiliyor", etiket: "frontend" },
+    { id: "T-19", baslik: "Oturum açma akışı", kim: "ece", sutun: "inceleme", etiket: "frontend", not: "2 bulgu · değişiklik istendi" },
+    { id: "T-22", baslik: "Ürün kataloğu API", kim: "deniz", sutun: "inceleme", etiket: "backend", not: "Onur onayladı · birleştirme onayınızda" },
+    { id: "T-15", baslik: "Proje iskeleti", kim: "kerem", sutun: "tamam", etiket: "altyapı" },
+    { id: "T-16", baslik: "Veritabanı şeması", kim: "deniz", sutun: "tamam", etiket: "backend" },
+    { id: "T-18", baslik: "Tasarım sistemi", kim: "sena", sutun: "tamam", etiket: "tasarım" }
+  ];
+  var sonGorevNo = 29;
+
+  var kanallar = {
+    genel: [
+      { kim: "ada", saat: "09:02", metin: "Günaydın. Sprint 3 hedefi: sipariş akışının uçtan uca çalışması. Kerem jeton yenilemeyi, Deniz sipariş API'sini, Ece liste ekranını alıyor. Mert, T-24 incelemeye düşünce testlere başlayacak." },
+      { kim: "deniz", saat: "09:40", metin: "T-24: GET ve POST /siparisler hazır, sayfalama kaldı. @Mert şema notlar/api/siparis.md içinde." },
+      { kim: "mert", saat: "09:41", metin: "Aldım. T-24 incelemeye geçince E2E testlerini başlatıyorum." },
+      { kim: "onur", saat: "10:12", metin: "T-19 incelemesi bitti: oturum süresi sabit kodlanmış, yenileme jetonunda yarış durumu var. Ece'ye geri gönderdim." },
+      { kim: "ada", saat: "10:15", metin: "Ödeme entegrasyonundan önce güvenlik denetimi gerekiyor. Bir güvenlik uzmanı alınmasını öneriyorum; teklif Onaylar'da." }
+    ],
+    backend: [
+      { kim: "kerem", saat: "09:10", metin: "Jeton yenileme için ADR-004 taslağını açtım. Yorumlarınızı nota yazın, kanala değil." },
+      { kim: "deniz", saat: "09:55", metin: "@Kerem sayfalamada imleç mi, ofset mi? Katalogda ofset kullanmıştık." },
+      { kim: "kerem", saat: "09:58", metin: "İmleç. Sipariş listesi büyüyecek; karar ADR-005 olarak notlara girdi." }
+    ],
+    tasarim: [
+      { kim: "sena", saat: "08:30", metin: "Tasarım sistemi T-18 ile main'de. Tablo bileşeninin boş ve hata durumları hazır." },
+      { kim: "ece", saat: "08:47", metin: "Teşekkürler, liste ekranında doğrudan kullanıyorum." }
+    ]
+  };
+  var aktifKanal = "genel";
+
+  var onaylar = [
+    { id: "o1", tur: "İşe alım", baslik: "Aras · Güvenlik uzmanı", ayrinti: "Sonnet · günlük $6 · Kerem'e bağlı", gerekce: "Ödeme entegrasyonu öncesi OWASP denetimi ve bağımlılık taraması. Teklif eden: Ada (CEO).", durum: "bekliyor" },
+    { id: "o2", tur: "main'e birleştirme", baslik: "T-22 Ürün kataloğu API", ayrinti: "6 dosya · +214 −12 · testler geçti", gerekce: "Onur iki turda inceledi ve onayladı. Çakışma yok.", durum: "bekliyor" },
+    { id: "o3", tur: "Bütçe artışı", baslik: "Deniz · +$3 günlük", ayrinti: "Kullanım: $4,25 / $5", gerekce: "T-24 sayfalama testleri beklenenden uzun sürdü. Kalan iş: tahmini 40 dk.", durum: "bekliyor" }
+  ];
+
+  var akisKaynak = [
+    ["deniz", "Edit", "src/api/siparisler.ts", 0.04],
+    ["ece", "Bash", "pnpm vitest run liste", 0.02],
+    ["kerem", "not_yaz", "kararlar/ADR-004-jeton-yenileme.md", 0.05],
+    ["deniz", "Bash", "pnpm test api/siparisler", 0.03],
+    ["ada", "gorev_guncelle", "T-27 → Planlandı", 0.01],
+    ["ece", "Read", "src/bilesenler/Tablo.tsx", 0.01],
+    ["mert", "mesaj_gonder", "#backend · T-24 şeması değişti mi?", 0.01],
+    ["kerem", "Grep", "\"refreshToken\" src/", 0.01],
+    ["ece", "Edit", "src/ekranlar/SiparisListesi.tsx", 0.05],
+    ["deniz", "mesaj_gonder", "@Mert · Değişmedi, sayfalama eklendi.", 0.01],
+    ["ada", "hafiza_ara", "\"ödeme sağlayıcısı\"", 0.01],
+    ["ece", "Bash", "pnpm lint", 0.01],
+    ["deniz", "Write", "tests/api/sayfalama.test.ts", 0.04],
+    ["kerem", "Read", "src/auth/jeton.ts", 0.01]
+  ];
+  var akis = [];
+  var akisIndeks = 0;
+  var maliyet = 14.2;
+  var mesaide = true;
+  var aktifGorunum = "karargah";
+  var secilenNot = "kararlar/ADR-004-jeton-yenileme.md";
+
+  // ---------- yardımcılar ----------
+  function $(s, k) { return (k || document).querySelector(s); }
+  function kacis(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function ajan(id) {
+    for (var i = 0; i < ajanlar.length; i++) if (ajanlar[i].id === id) return ajanlar[i];
+    return id === aday.id ? aday : null;
+  }
+  function para(n) { return "$" + n.toFixed(2).replace(".", ","); }
+  // Maket kendi saatini tutar: her olay bir dakika ilerletir
+  var dakika = 10 * 60 + 31;
+  function saatSimdi(ilerlet) {
+    if (ilerlet) dakika++;
+    return String(Math.floor(dakika / 60)).padStart(2, "0") + ":" + String(dakika % 60).padStart(2, "0");
+  }
+  var durumAd = { calisiyor: "Çalışıyor", bekliyor: "Bekliyor", bosta: "Boşta", durdu: "Durduruldu" };
+  function durumPill(d) {
+    var g = mesaide ? d : "durdu";
+    return '<span class="pill pill-' + g + '"><i></i>' + durumAd[g] + "</span>";
+  }
+  function avatar(a, kucuk) {
+    return '<span class="av' + (kucuk ? " av-s" : "") + (a.id === "ada" ? " av-ceo" : "") + '" aria-hidden="true">' + kacis(a.ad.charAt(0)) + "</span>";
+  }
+
+  // ---------- görünümler ----------
+  var gorunumler = {};
+
+  gorunumler.karargah = function () {
+    var say = {};
+    sutunlar.forEach(function (s) { say[s.id] = 0; });
+    gorevler.forEach(function (g) { say[g.sutun]++; });
+    var toplam = gorevler.length;
+    var bar = sutunlar.map(function (s) {
+      return say[s.id] ? '<span class="seg seg-' + s.id + '" style="flex:' + say[s.id] + '" title="' + s.ad + ": " + say[s.id] + '"></span>' : "";
+    }).join("");
+    var lejant = sutunlar.map(function (s) {
+      return '<li><span class="sw seg-' + s.id + '"></span>' + s.ad + " <b>" + say[s.id] + "</b></li>";
+    }).join("");
+    var bekleyenOnay = onaylar.filter(function (o) { return o.durum === "bekliyor"; }).length;
+    var satirlar = ajanlar.map(function (a) {
+      var oran = Math.min(100, Math.round((a.harcanan / a.limit) * 100));
+      return '<tr><td><span class="kisi">' + avatar(a, true) + "<span><b>" + kacis(a.ad) + "</b><small>" + kacis(a.rol) + " · " + a.model + "</small></span></span></td>" +
+        "<td>" + durumPill(a.durum) + "</td>" +
+        '<td class="td-is">' + kacis(a.is) + "</td>" +
+        '<td class="td-butce"><span class="butce' + (oran >= 80 ? " butce-sinir" : "") + '"><span style="width:' + oran + '%"></span></span><small>' + para(a.harcanan) + " / " + para(a.limit) + "</small></td></tr>";
+    }).join("");
+    return (
+      '<div class="v-baslik"><h3>Karargâh</h3><p>Sprint 3 · 2. gün · hedef: sipariş akışı uçtan uca</p></div>' +
+      '<div class="rapor">' +
+      '<div class="rapor-kim">' + avatar(ajan("ada")) + "<span><b>Ada</b><small>CEO raporu · 10:30</small></span></div>" +
+      "<p>Sprint planının yüzde 27'si tamamlandı. Jeton yenileme ve sipariş API'si yolunda. T-19 iki güvenlik bulgusuyla geri döndü; Ece düzeltiyor. Ödeme işine geçmeden önce bir güvenlik uzmanı almamızı öneriyorum.</p>" +
+      '<p class="rapor-eylem"><button class="btn" data-git="onaylar">Onay bekleyen ' + bekleyenOnay + " karar</button></p>" +
+      "</div>" +
+      '<h4 class="ara-baslik">Sprint görevleri <small>' + toplam + " görev</small></h4>" +
+      '<div class="ilerleme" role="img" aria-label="Görev dağılımı">' + bar + "</div>" +
+      '<ul class="lejant">' + lejant + "</ul>" +
+      '<h4 class="ara-baslik">Ekip <small>' + ajanlar.length + " çalışan</small></h4>" +
+      '<div class="tablo-sar"><table class="tablo"><thead><tr><th>Çalışan</th><th>Durum</th><th>Şu an</th><th>Bugünkü bütçe</th></tr></thead><tbody>' + satirlar + "</tbody></table></div>"
+    );
+  };
+
+  function dugum(a) {
+    var g = mesaide ? a.durum : "durdu";
+    return '<div class="dugum' + (a.id === "aras" ? " dugum-yeni" : "") + '" title="' + kacis(a.ad + " · " + a.rol + " · " + a.model + " · " + durumAd[g]) + '">' +
+      '<span class="dugum-av">' + avatar(a) + '<i class="nokta nokta-' + g + '"></i></span>' +
+      "<b>" + kacis(a.ad) + "</b><small>" + kacis(a.rol) + "</small></div>";
+  }
+  function agac(yoneticiId) {
+    var astlar = ajanlar.filter(function (a) { return a.yonetici === yoneticiId; });
+    if (!astlar.length) return "";
+    return "<ul>" + astlar.map(function (a) { return "<li>" + dugum(a) + agac(a.id) + "</li>"; }).join("") + "</ul>";
+  }
+  gorunumler.ekip = function () {
+    var ceo = ajan("ada");
+    var alindi = ajanlar.indexOf(aday) > -1;
+    var reddedildi = onaylar[0].durum === "reddedildi";
+    var teklif = reddedildi
+      ? '<div class="teklif"><b>Teklif reddedildi.</b><p>Ada güvenlik denetimini Onur\'un inceleme listesine ekledi; ödeme işi öncesi yeniden değerlendirilecek.</p></div>'
+      : alindi
+      ? '<div class="teklif teklif-ok"><b>Aras işe alındı.</b><p>Çalışma alanı açıldı: <code>arnorg/aras/guvenlik-denetimi</code>. İlk görevi Kerem atadı.</p></div>'
+      : '<div class="teklif"><div class="teklif-ust"><span class="etiket">CEO teklifi</span><b>Güvenlik uzmanı · Aras</b></div>' +
+        '<dl class="kv"><dt>Model</dt><dd>Sonnet</dd><dt>Yönetici</dt><dd>Kerem (CTO)</dd><dt>Günlük bütçe</dt><dd>$6</dd><dt>Araçlar</dt><dd>Read, Grep, Bash (salt okuma), arnorg</dd><dt>Becerileri</dt><dd>OWASP denetimi, bağımlılık taraması</dd></dl>' +
+        "<p>Gerekçe: ödeme entegrasyonuna geçmeden önce oturum ve jeton akışlarının bağımsız denetimi.</p>" +
+        '<div class="btn-satir"><button class="btn" data-ise-al>İşe al</button><button class="btn-ghost" data-git="onaylar">Onaylar\'da gör</button></div></div>';
+    return (
+      '<div class="v-baslik"><h3>Ekip</h3><p>Organizasyon şeması · CEO işe alır, siz onaylarsınız</p></div>' +
+      '<ul class="lejant org-lejant"><li><i class="nokta nokta-calisiyor"></i>Çalışıyor</li><li><i class="nokta nokta-bekliyor"></i>Bekliyor</li><li><i class="nokta nokta-bosta"></i>Boşta</li></ul><div class="ekip-yerlesim"><div class="org-sar"><div class="org"><ul><li>' + dugum(ceo) + agac("ada") + "</li></ul></div></div>" + teklif + "</div>"
+    );
+  };
+
+  gorunumler.pano = function () {
+    var kolonlar = sutunlar.map(function (s, i) {
+      var liste = gorevler.filter(function (g) { return g.sutun === s.id; });
+      var kartlar = liste.map(function (g) {
+        var a = g.kim ? ajan(g.kim) : null;
+        var ileri = i < sutunlar.length - 1 ? '<button class="ilerlet" data-ilerlet="' + g.id + '" aria-label="' + g.id + ' sonraki aşamaya">' + sutunlar[i + 1].ad + " →</button>" : "";
+        return '<li class="bilet"><div class="bilet-ust"><code>' + g.id + "</code><span>" + kacis(g.etiket) + "</span></div><b>" + kacis(g.baslik) + "</b>" +
+          (g.not ? '<small class="bilet-not">' + kacis(g.not) + "</small>" : "") +
+          (g.bagli ? '<small class="bilet-not">Bağlı: ' + g.bagli + "</small>" : "") +
+          '<div class="bilet-alt">' + (a ? avatar(a, true) + "<span>" + kacis(a.ad) + "</span>" : "<span>Atanmadı</span>") + ileri + "</div></li>";
+      }).join("");
+      return '<section class="kolon"><h4>' + s.ad + " <small>" + liste.length + '</small></h4><ul class="bilet-liste">' + kartlar + "</ul></section>";
+    }).join("");
+    return '<div class="v-baslik"><h3>Pano</h3><p>Hedef → epik → görev · bağımlılıklar CEO tarafından çözülür</p></div><div class="pano-sar"><div class="pano">' + kolonlar + "</div></div>";
+  };
+
+  gorunumler.kanallar = function () {
+    var liste = Object.keys(kanallar).map(function (k) {
+      return '<li><button class="kanal-btn" data-kanal="' + k + '"' + (k === aktifKanal ? ' aria-current="true"' : "") + ">#" + k + "</button></li>";
+    }).join("");
+    var mesajlar = kanallar[aktifKanal].map(function (m) {
+      var a = m.kim === "siz" ? { id: "siz", ad: "Siz", rol: "Yönetim kurulu" } : ajan(m.kim);
+      var metin = kacis(m.metin).replace(/@(\w+)/g, '<span class="anma">@$1</span>').replace(/\b(T-\d+)\b/g, "<code>$1</code>");
+      return '<li class="mesaj' + (m.kim === "siz" ? " mesaj-siz" : "") + '">' + (a.id === "siz" ? '<span class="av av-siz" aria-hidden="true">S</span>' : avatar(a)) +
+        '<div><div class="mesaj-ust"><b>' + kacis(a.ad) + "</b><small>" + kacis(a.rol) + " · " + m.saat + "</small></div><p>" + metin + "</p></div></li>";
+    }).join("");
+    return (
+      '<div class="v-baslik"><h3>Kanallar</h3><p>Ajanlar birbirine yazar; siz istediğiniz an araya girersiniz</p></div>' +
+      '<div class="kanal-yerlesim"><ul class="kanal-liste">' + liste + '<li class="kanal-dm">Doğrudan<br><button class="kanal-btn" data-git-kanal="genel">@Ada</button></li></ul>' +
+      '<div class="kanal-ic"><ol class="mesajlar" id="mesajlar">' + mesajlar + "</ol>" +
+      '<form class="yaz" id="yaz-form"><label for="yaz-alan" class="gizli">#' + aktifKanal + ' kanalına yaz</label><input id="yaz-alan" autocomplete="off" placeholder="#' + aktifKanal + ' kanalına yazın, örn. Sipariş listesine CSV dışa aktarma ekleyin"><button class="btn" type="submit">Gönder</button></form></div></div>'
+    );
+  };
+
+  var notlar = {
+    "vizyon.md": "<h5>Vizyon</h5><p>Küçük işletmeler için sipariş, stok ve kargo takibini tek ekranda toplayan web paneli. İlk sürüm: sipariş akışı uçtan uca.</p>",
+    "mimari.md": "<h5>Mimari</h5><p>Vite + React arayüz, Node API, PostgreSQL. Kimlik doğrulama: kısa ömürlü erişim jetonu + dönen yenileme jetonu.</p>",
+    "kararlar/ADR-004-jeton-yenileme.md": "<h5>ADR-004 · Jeton yenileme</h5><dl class=\"kv\"><dt>Durum</dt><dd>Önerildi · Kerem</dd><dt>Tarih</dt><dd>2 Ekim 2026</dd></dl><p><b>Bağlam.</b> T-19 incelemesinde iki sekme aynı anda yenileme yapınca jetonun iki kez kullanıldığı görüldü.</p><p><b>Karar.</b> Yenileme jetonu tek kullanımlık olur; aynı aile ikinci kez görülürse tüm aile iptal edilir. İstemci tarafında yenileme tek bir kilit üzerinden yapılır.</p><p><b>Sonuç.</b> Ece T-19'da istemci kilidini, Deniz T-24'te sunucu tarafını uygular. Mert yarış durumu için test yazar.</p>",
+    "kararlar/ADR-005-imlec-sayfalama.md": "<h5>ADR-005 · İmleç tabanlı sayfalama</h5><p>Sipariş listesi büyüyeceği için ofset yerine imleç kullanılır. Katalog uç noktaları şimdilik ofsette kalır.</p>",
+    "api/siparis.md": "<h5>Sipariş API</h5><p><code>GET /siparisler?imlec=&amp;limit=</code> · <code>POST /siparisler</code> · <code>PATCH /siparisler/:id/durum</code></p>",
+    "sozluk.md": "<h5>Sözlük</h5><p><b>Sipariş:</b> müşterinin onaylanmış sepeti. <b>Gönderi:</b> kargoya verilmiş sipariş parçası.</p>"
+  };
+  gorunumler.notlar = function () {
+    var dosyalar = Object.keys(notlar).map(function (n) {
+      var parcalar = n.split("/");
+      var ad = parcalar[parcalar.length - 1];
+      var girinti = parcalar.length > 1 ? " not-ic" : "";
+      return '<li><button class="not-btn' + girinti + '" data-not="' + n + '"' + (n === secilenNot ? ' aria-current="true"' : "") + ">" + kacis(ad) + "</button></li>";
+    }).join("");
+    return (
+      '<div class="v-baslik"><h3>Notlar</h3><p>Proje hafızası repo içinde yaşar: <code>.arnorg/notlar/</code> · her ajan okur, yazar, arar</p></div>' +
+      '<div class="not-yerlesim"><ul class="not-agac"><li class="klasor">.arnorg/notlar/</li>' + dosyalar + '<li class="klasor">.arnorg/hafiza/</li><li class="not-pasif">ajan günlükleri · 7 dosya</li></ul>' +
+      '<article class="not-icerik">' + notlar[secilenNot] + "</article></div>"
+    );
+  };
+
+  gorunumler.kod = function () {
+    var agaclar = [
+      ["arnorg/deniz/T-24", "Deniz", "+214 −12", "Testler geçti", "ok"],
+      ["arnorg/ece/T-26", "Ece", "+388 −40", "Testler çalışıyor", "calisiyor"],
+      ["arnorg/ece/T-19", "Ece", "+96 −31", "Değişiklik istendi", "uyari"],
+      ["arnorg/kerem/T-21", "Kerem", "+42 −0", "Taslak", "bosta"]
+    ].map(function (r) {
+      return "<tr><td><code>" + r[0] + "</code></td><td>" + r[1] + '</td><td class="sayi">' + r[2] + '</td><td><span class="pill pill-' + r[4] + '"><i></i>' + r[3] + "</span></td></tr>";
+    }).join("");
+    return (
+      '<div class="v-baslik"><h3>Kod</h3><p>Her ajan kendi git çalışma alanında (worktree) çalışır · main\'e yalnız onaylı iş girer</p></div>' +
+      '<div class="tablo-sar"><table class="tablo"><thead><tr><th>Çalışma alanı</th><th>Ajan</th><th>Fark</th><th>Durum</th></tr></thead><tbody>' + agaclar + "</tbody></table></div>" +
+      '<h4 class="ara-baslik">T-19 · src/auth/oturum.ts <small>Onur\'un incelemesi</small></h4>' +
+      '<div class="diff-sar"><pre class="diff"><span class="d-baglam">  export async function oturumuYenile(istemci: ApiIstemci) {</span>' +
+      '<span class="d-sil">-   const sure = 3600;</span>' +
+      '<span class="d-ekle">+   const sure = ayarlar.oturumSuresiSn;</span>' +
+      '<span class="d-baglam">    const yanit = await istemci.post("/oturum/yenile", { jeton });</span>' +
+      '<span class="d-yorum">  Onur · Kod inceleme\n  İki sekme aynı anda bu satıra gelirse aynı yenileme jetonu iki kez gönderiliyor.\n  ADR-004\'teki istemci kilidini burada kullanın.</span>' +
+      '<span class="d-baglam">    jetonDeposu.yaz(yanit.erisim, yanit.yenileme);</span></pre></div>'
+    );
+  };
+
+  gorunumler.onaylar = function () {
+    var satirlar = onaylar.map(function (o) {
+      var sag = o.durum === "bekliyor"
+        ? '<div class="btn-satir"><button class="btn" data-onay="' + o.id + '">Onayla</button><button class="btn-ghost" data-ret="' + o.id + '">Reddet</button></div>'
+        : '<span class="pill ' + (o.durum === "onaylandi" ? "pill-ok" : "pill-bosta") + '"><i></i>' + (o.durum === "onaylandi" ? "Onaylandı" : "Reddedildi") + "</span>";
+      return '<li class="onay"><div><span class="etiket">' + kacis(o.tur) + "</span><b>" + kacis(o.baslik) + "</b><small>" + kacis(o.ayrinti) + "</small><p>" + kacis(o.gerekce) + "</p></div>" + sag + "</li>";
+    }).join("");
+    return '<div class="v-baslik"><h3>Onaylar</h3><p>İşe alım, bütçe, main\'e birleştirme ve geri alınamaz komutlar sizden geçer</p></div><ul class="onay-liste">' + satirlar + "</ul>";
+  };
+
+  // ---------- durum değişiklikleri ----------
+  function iseAl() {
+    if (ajanlar.indexOf(aday) > -1) return;
+    aday.durum = "calisiyor";
+    ajanlar.push(aday);
+    kanallar.genel.push({ kim: "ada", saat: saatSimdi(), metin: "Aras ekibe katıldı. @Kerem ilk görevini sen ata; ödeme işine geçmeden oturum ve jeton akışlarını denetlesin." });
+    var o = onaylar[0];
+    if (o.durum === "bekliyor") o.durum = "onaylandi";
+    olayEkle(["aras", "oturum_basladi", "arnorg/aras/guvenlik-denetimi", 0.0]);
+    sayaclariYaz();
+  }
+
+  function onayla(id, kabul) {
+    var o = onaylar.filter(function (x) { return x.id === id; })[0];
+    if (!o || o.durum !== "bekliyor") return;
+    if (id === "o1" && kabul) { iseAl(); return; }
+    o.durum = kabul ? "onaylandi" : "reddedildi";
+    if (id === "o2" && kabul) {
+      gorevler.forEach(function (g) { if (g.id === "T-22") { g.sutun = "tamam"; g.not = null; } });
+      olayEkle(["onur", "birlestir", "T-22 → main", 0.0]);
+    }
+    if (id === "o3" && kabul) {
+      var d = ajan("deniz");
+      d.limit += 3;
+    }
+    sayaclariYaz();
+  }
+
+  function gorevIlerlet(id) {
+    for (var i = 0; i < gorevler.length; i++) {
+      var g = gorevler[i];
+      if (g.id !== id) continue;
+      var sira = sutunlar.map(function (s) { return s.id; }).indexOf(g.sutun);
+      if (sira < sutunlar.length - 1) g.sutun = sutunlar[sira + 1].id;
+      g.not = null;
+    }
+  }
+
+  function kullaniciMesaji(metin) {
+    kanallar[aktifKanal].push({ kim: "siz", saat: saatSimdi(), metin: metin });
+    var no = ++sonGorevNo;
+    var kisa = metin.length > 48 ? metin.slice(0, 46) + "…" : metin;
+    gorevler.unshift({ id: "T-" + no, baslik: kisa, kim: null, sutun: "bekleyen", etiket: "yeni" });
+    setTimeout(function () {
+      kanallar[aktifKanal].push({ kim: "ada", saat: saatSimdi(), metin: "Not aldım. T-" + no + " olarak panoya ekledim, kapsamını Kerem'le netleştirip bu sprintin sonuna planlıyorum. Tahmini maliyet $2–4." });
+      olayEkle(["ada", "gorev_ac", "T-" + no + " · " + kisa, 0.01]);
+      if (aktifGorunum === "kanallar") ciz();
+    }, hareketAz ? 200 : 1100);
+  }
+
+  // ---------- canlı akış ----------
+  var aracSinif = { Edit: "yaz", Write: "yaz", Bash: "kabuk", Read: "oku", Grep: "oku" };
+  function olayEkle(o) {
+    var a = ajan(o[0]);
+    akis.unshift({ ajan: a, arac: o[1], hedef: o[2], saat: saatSimdi(true), yeni: true });
+    if (akis.length > 14) akis.pop();
+    maliyet += o[3];
+    akisCiz();
+    sayaclariYaz();
+  }
+  function akisCiz() {
+    var ol = $("#akis");
+    if (!ol) return;
+    ol.innerHTML = akis.map(function (e) {
+      var sinif = aracSinif[e.arac] || "mcp";
+      return '<li class="olay' + (e.yeni && !hareketAz ? " olay-yeni" : "") + '"><span class="olay-ust"><b>' + kacis(e.ajan.ad) + '</b><span class="arac arac-' + sinif + '">' + kacis(e.arac) + "</span><time>" + e.saat + '</time></span><span class="olay-hedef">' + kacis(e.hedef) + "</span></li>";
+    }).join("");
+    akis.forEach(function (e) { e.yeni = false; });
+  }
+  function sayaclariYaz() {
+    var aktif = ajanlar.filter(function (a) { return a.durum === "calisiyor"; }).length;
+    $("#m-ajan").textContent = mesaide ? aktif + " aktif · " + ajanlar.length + " çalışan" : "Mesai durdu · " + ajanlar.length + " çalışan";
+    $("#m-maliyet").textContent = para(maliyet);
+    var bekleyen = onaylar.filter(function (o) { return o.durum === "bekliyor"; }).length;
+    var rozet = $("#rozet-onay");
+    rozet.textContent = bekleyen;
+    rozet.hidden = bekleyen === 0;
+  }
+
+  // ---------- çizim ve olaylar ----------
+  function ciz() {
+    var hedef = $("#gorunum");
+    hedef.innerHTML = gorunumler[aktifGorunum]();
+    document.querySelectorAll("[data-view]").forEach(function (b) {
+      if (b.getAttribute("data-view") === aktifGorunum) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    var m = $("#mesajlar");
+    if (m) m.scrollTop = m.scrollHeight;
+  }
+
+  function git(v) {
+    aktifGorunum = v;
+    ciz();
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("button");
+    if (!t || !t.closest(".studio")) return;
+    if (t.hasAttribute("data-view")) git(t.getAttribute("data-view"));
+    else if (t.hasAttribute("data-git")) git(t.getAttribute("data-git"));
+    else if (t.hasAttribute("data-ise-al")) { iseAl(); ciz(); }
+    else if (t.hasAttribute("data-onay")) { onayla(t.getAttribute("data-onay"), true); ciz(); }
+    else if (t.hasAttribute("data-ret")) { onayla(t.getAttribute("data-ret"), false); ciz(); }
+    else if (t.hasAttribute("data-ilerlet")) { gorevIlerlet(t.getAttribute("data-ilerlet")); ciz(); }
+    else if (t.hasAttribute("data-kanal")) { aktifKanal = t.getAttribute("data-kanal"); ciz(); }
+    else if (t.hasAttribute("data-git-kanal")) { aktifKanal = t.getAttribute("data-git-kanal"); ciz(); }
+    else if (t.hasAttribute("data-not")) { secilenNot = t.getAttribute("data-not"); ciz(); }
+    else if (t.id === "btn-mesai") {
+      mesaide = !mesaide;
+      t.textContent = mesaide ? "Mesaiyi durdur" : "Mesaiyi başlat";
+      t.setAttribute("aria-pressed", String(!mesaide));
+      sayaclariYaz();
+      ciz();
+    }
+  });
+
+  document.addEventListener("submit", function (e) {
+    if (e.target.id !== "yaz-form") return;
+    e.preventDefault();
+    var alan = $("#yaz-alan");
+    var metin = alan.value.trim();
+    if (!metin) { alan.focus(); return; }
+    kullaniciMesaji(metin);
+    ciz();
+    var yeni = $("#yaz-alan");
+    if (yeni) yeni.focus();
+  });
+
+  // başlangıç akışı
+  for (var i = 0; i < 6; i++) {
+    var k = akisKaynak[i];
+    akis.unshift({ ajan: ajan(k[0]), arac: k[1], hedef: k[2], saat: "10:" + String(20 + i * 2), yeni: false });
+  }
+  akisIndeks = 6;
+  ciz();
+  akisCiz();
+  sayaclariYaz();
+
+  setInterval(function () {
+    if (!mesaide || document.hidden) return;
+    olayEkle(akisKaynak[akisIndeks % akisKaynak.length]);
+    akisIndeks++;
+  }, hareketAz ? 6000 : 2600);
+})();
+</script>
+</body>
+</html>
