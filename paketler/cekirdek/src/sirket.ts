@@ -155,7 +155,8 @@ export class Sirket {
       if (!(await gitIslemleri.repoMu(kok))) throw new ArnorgHatasi("Klasör bir git deposu değil. Yeni repo oluşturmayı seçin ya da git init çalıştırın.");
       kok = await gitIslemleri.repoKoku(kok);
     }
-    if (this.depo.projeYoluyla(kok)) throw new ArnorgHatasi("Bu repo zaten bir ArnOrg projesi.", 409);
+    kok = gitIslemleri.gercekYol(kok);
+    if (this.depo.projeler().some((p) => gitIslemleri.ayniYol(p.yol, kok))) throw new ArnorgHatasi("Bu repo zaten bir ArnOrg projesi.", 409);
 
     const ilkCommitGerek = !(await gitIslemleri.commitVarMi(kok));
     iskeletOlustur(kok, ad, istek.aciklama?.trim() ?? "", "main", yeniRepo || ilkCommitGerek);

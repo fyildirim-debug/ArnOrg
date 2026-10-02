@@ -43,7 +43,24 @@ export async function repoMu(dizin: string): Promise<boolean> {
 }
 
 export async function repoKoku(dizin: string): Promise<string> {
-  return path.resolve((await git(dizin, ["rev-parse", "--show-toplevel"])).trim());
+  return gercekYol((await git(dizin, ["rev-parse", "--show-toplevel"])).trim());
+}
+
+/** Yolu tek biçime indirger: mutlak, sembolik bağsız, Windows'ta kısa (8.3) adlar açılmış */
+export function gercekYol(yol: string): string {
+  const mutlak = path.resolve(yol);
+  try {
+    return fs.realpathSync.native(mutlak);
+  } catch {
+    return mutlak;
+  }
+}
+
+/** İki yol aynı yeri mi gösteriyor (Windows'ta büyük/küçük harf duyarsız) */
+export function ayniYol(a: string, b: string): boolean {
+  const x = gercekYol(a);
+  const y = gercekYol(b);
+  return process.platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
 }
 
 export async function commitVarMi(dizin: string): Promise<boolean> {

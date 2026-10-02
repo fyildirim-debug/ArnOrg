@@ -293,8 +293,10 @@ function alanDisiSilme(parca: string, b: PolitikaBaglami): string | null {
   }
   if (!ozyinelemeli) return null;
   for (const ham of hedefler) {
+    // Ev dizininin kendisi genişletmeden önce yakalanır (Windows'ta ~ C:\Users\… olur)
+    if (/^(~|\$HOME|\$\{HOME\}|\$env:USERPROFILE|%USERPROFILE%)[\\/]?\*?$/i.test(ham)) return `"${ham}" kök, ev dizini ya da tüm çalışma alanı.`;
     const h = evGenislet(ham);
-    if (/^(\/|[a-z]:\\?|\*|\.\.?\/?\*?)$/i.test(h) || h === "~") return `"${ham}" kök, ev dizini ya da tüm çalışma alanı.`;
+    if (/^(\/|[a-z]:\\?|\*|\.\.?\/?\*?)$/i.test(h) || path.resolve(h) === path.resolve(os.homedir())) return `"${ham}" kök, ev dizini ya da tüm çalışma alanı.`;
     if (h.includes("*") && !h.includes("/") && !h.includes("\\")) continue;
     const mutlak = (platform === "win32" ? path.win32 : path.posix).resolve(b.cwd, h);
     if (!icinde(b.cwd, mutlak, platform) && !geciciDizinde(mutlak, platform)) return `"${ham}" çalışma alanının dışında.`;

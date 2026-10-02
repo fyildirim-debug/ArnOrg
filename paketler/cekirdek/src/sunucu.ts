@@ -424,7 +424,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
       cacheControl: false,
       setHeaders: (yanit, yol) => {
         // Adı içerik özetli dosyalar kalıcı önbelleğe, index.html her açılışta tazelenir
-        yanit.header("Cache-Control", yol.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
+        yanit.header("Cache-Control", /[\\/]assets[\\/]/.test(yol) ? "public, max-age=31536000, immutable" : "no-cache");
       },
     });
     app.setNotFoundHandler((istek: FastifyRequest, yanit: FastifyReply) => {
