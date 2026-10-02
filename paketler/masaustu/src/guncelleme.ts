@@ -1,8 +1,7 @@
 // Otomatik güncelleme (GitHub sürümleri, electron-builder.yml → publish).
 //
-// electron-updater henüz bağımlılık olarak eklenmedi. Eklendiğinde (paketler/masaustu/package.json
-// "dependencies") bu yol kendiliğinden çalışır: paketlenmiş uygulama açılışta yeni sürümü denetler,
-// indirir ve uygulama kapanırken kurar. Desteklenen biçimler: NSIS, AppImage, deb, rpm (MSI desteklenmez).
+// Paketlenmiş uygulama açılışta yeni sürümü denetler, indirir ve uygulama kapanırken kurar.
+// electron-updater bulunamazsa bu adım sessizce atlanır. Desteklenen biçimler: NSIS, AppImage, deb, rpm (MSI desteklenmez).
 // Kapatmak için: ARNORG_GUNCELLEME=kapali
 
 import { app } from "electron";

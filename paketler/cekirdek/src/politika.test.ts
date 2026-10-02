@@ -76,3 +76,25 @@ describe("yardımcılar", () => {
     expect(girdiOzeti("Write", { file_path: "a.ts", content: "x" })).toBe("a.ts");
   });
 });
+
+describe("temiz ortam", () => {
+  it("üst oturum, Electron ve AppImage izlerini temizler", async () => {
+    const { temizOrtam } = await import("./ortam.js");
+    const { delimiter: a } = await import("node:path");
+    const o = temizOrtam(
+      { EK: "1" },
+      {
+        PATH: ["/tmp/.mount_ArnOrgX/usr/bin", "/usr/bin", "/bin"].join(a),
+        LD_LIBRARY_PATH: "/tmp/.mount_ArnOrgX/usr/lib",
+        APPDIR: "/tmp/.mount_ArnOrgX",
+        APPIMAGE: "/home/f/ArnOrg.AppImage",
+        CLAUDECODE: "1",
+        CLAUDE_CODE_SESSION_ID: "x",
+        CLAUDE_CONFIG_DIR: "/home/f/.claude",
+        ELECTRON_RUN_AS_NODE: "1",
+        HOME: "/home/f",
+      },
+    );
+    expect(o).toEqual({ PATH: `/usr/bin${a}/bin`, CLAUDE_CONFIG_DIR: "/home/f/.claude", HOME: "/home/f", EK: "1" });
+  });
+});

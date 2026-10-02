@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { temizOrtam } from "./ortam.js";
 import { ArnorgHatasi } from "./yardimci.js";
 
 const execFileP = promisify(execFile);
@@ -13,7 +14,7 @@ export async function git(dizin: string, argumanlar: string[], secenek: { izinVe
       cwd: dizin,
       maxBuffer: 64 * 1024 * 1024,
       windowsHide: true,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" },
+      env: temizOrtam({ GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" }),
     });
     return stdout;
   } catch (h) {

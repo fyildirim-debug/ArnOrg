@@ -12,7 +12,7 @@ import { z, ZodError } from "zod";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
-import { claudeSurumu } from "./ortam.js";
+import { claudeSurumu, temizOrtam } from "./ortam.js";
 import { raporOlustur } from "./gozetmen.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
@@ -340,7 +340,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const hedef = g.yol ? path.resolve(kok, g.yol) : kok;
     if (!hedef.startsWith(path.resolve(kok))) throw new ArnorgHatasi("Geçersiz yol.");
     const editor = sirket.yapilandirma.ayarlar.disEditor || "code";
-    const cocuk = spawn(editor, [hedef], { detached: true, stdio: "ignore", windowsHide: true, shell: process.platform === "win32" });
+    const cocuk = spawn(editor, [hedef], { detached: true, stdio: "ignore", windowsHide: true, shell: process.platform === "win32", env: temizOrtam() });
     cocuk.on("error", () => sirket.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `"${editor}" çalıştırılamadı. Ayarlar'dan dış editör komutunu değiştirin.` }));
     cocuk.unref();
     return tamam;

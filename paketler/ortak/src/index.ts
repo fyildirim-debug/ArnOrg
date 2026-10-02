@@ -464,6 +464,14 @@ export interface TerminalAcIstegi {
   satir?: number;
 }
 
+/** Masaüstü uygulamasının Stüdyo'ya açtığı köprü (window.arnorg); tarayıcıda yoktur */
+export interface MasaustuKoprusu {
+  platform: "win32" | "linux" | "darwin" | string;
+  surum: string;
+  /** http/https adresini sistem tarayıcısında açar */
+  disaridaAc(url: string): Promise<boolean>;
+}
+
 /** API hata gövdesi */
 export interface ApiHatasi {
   hata: string;

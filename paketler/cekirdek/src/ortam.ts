@@ -19,18 +19,36 @@ const KORUNAN = new Set([
   "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
 ]);
 
+/** AppImage'ın kendi dizinini öne eklediği yol listeleri */
+const APPIMAGE_YOLLARI = ["PATH", "LD_LIBRARY_PATH", "XDG_DATA_DIRS", "PERLLIB", "PYTHONPATH", "QT_PLUGIN_PATH", "GSETTINGS_SCHEMA_DIR"];
+const SILINENLER = new Set(["NODE_OPTIONS", "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", "APPDIR", "APPIMAGE", "ARGV0", "OWD"]);
+
+/** AppImage içinden çalışırken eklenen yolları ayıklar; ajan ve terminal sistemin kendi kitaplıklarını görür */
+function appImageYollariniAyikla(ortam: Record<string, string>, appDizini: string | undefined): void {
+  if (!appDizini) return;
+  for (const k of APPIMAGE_YOLLARI) {
+    const v = ortam[k];
+    if (v === undefined) continue;
+    const kalan = v.split(path.delimiter).filter((p) => p && !p.startsWith(appDizini));
+    if (kalan.length) ortam[k] = kalan.join(path.delimiter);
+    else delete ortam[k];
+  }
+}
+
 /**
  * Üst oturumun kimliğini (CLAUDECODE, CLAUDE_CODE_SESSION_ID…) siler.
  * Aksi halde alt ajan üst oturumun kimliğiyle çalışır (deneyle doğrulandı).
+ * Electron ve AppImage'ın eklediği değişkenler de temizlenir.
  */
-export function temizOrtam(ek: Record<string, string | undefined> = {}): Record<string, string> {
+export function temizOrtam(ek: Record<string, string | undefined> = {}, kaynak: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const ortam: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
+  for (const [k, v] of Object.entries(kaynak)) {
     if (v === undefined) continue;
     if ((k === "CLAUDECODE" || k.startsWith("CLAUDE_")) && !KORUNAN.has(k)) continue;
-    if (k === "NODE_OPTIONS" || k === "ELECTRON_RUN_AS_NODE") continue;
+    if (SILINENLER.has(k)) continue;
     ortam[k] = v;
   }
+  appImageYollariniAyikla(ortam, kaynak.APPDIR);
   for (const [k, v] of Object.entries(ek)) if (v !== undefined) ortam[k] = v;
   return ortam;
 }
