@@ -80,6 +80,8 @@ export class Sirket {
     readonly olaylar: OlayYolu,
     readonly yapilandirma: Yapilandirma,
     private claudeYoluBulucu: () => string | null,
+    /** Testlerde gerçek Claude Code oturumu açılmasını engeller */
+    private readonly oturumlarKapali = false,
   ) {
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat();
@@ -364,7 +366,7 @@ export class Sirket {
       ekip || "- Henüz başka çalışan yok.",
       "",
       "## Ortak kurallar",
-      "- Türkçe yaz. Kısa ve net ol. Emoji ve süsleme kullanma.",
+      "- Türkçe yaz. Kısa ve net ol. Emoji, onay işareti ya da süsleme simgesi kullanma; düz metin yaz.",
       "- Ekiple yalnız mcp__arnorg__mesaj_gonder ile konuş; @Ad ile andığın kişi uyarılır. Kanalları mcp__arnorg__kanal_oku ile oku.",
       "- İşe başlamadan mcp__arnorg__notlari_listele ve not_oku ile ilgili notları oku. Kararları not_yaz ile notlar/kararlar/ altına yaz.",
       "- Görevin durumunu mcp__arnorg__gorev_guncelle ile güncel tut. İş bitince 'inceleme' durumuna al ve ne yaptığını özetle.",
@@ -443,6 +445,7 @@ export class Sirket {
       oturum.gonder(metin, oncelik, kaynak);
       return;
     }
+    if (this.oturumlarKapali) throw new ArnorgHatasi("Oturumlar bu çalıştırmada kapalı.", 503);
     if (!this.claudeYolu && !this.sdkIkilisiVar()) {
       throw new ArnorgHatasi("Claude Code bulunamadı. Ayarlar'dan Claude Code yolunu verin ya da Claude Code'u kurun.", 500);
     }

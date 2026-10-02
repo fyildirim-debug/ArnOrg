@@ -298,21 +298,33 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
     ),
     tool(
       "birlestirme_iste",
-      "Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. Kendi dalın için ajan boş bırakılır; kod inceleyici başkasının dalı için ajan adını verir.",
-      { ozet: z.string().min(10).describe("Neler değişti, testler"), ajan: z.string().optional() },
+      "Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.",
+      { ozet: z.string().min(10).describe("Neler değişti, testler"), ajan: z.string().optional().describe("Dalı birleştirilecek çalışanın adı") },
       (a) =>
         guvenli(() => {
-          const sahip = a.ajan ? ajanBul(a.ajan) : ben();
+          let sahip = a.ajan ? ajanBul(a.ajan) : ben();
+          if (!a.ajan && !sahip.dal) {
+            const adaylar = sirket.depo
+              .gorevler(ben().projeId)
+              .filter((g) => g.durum === "inceleme" && g.atananId)
+              .map((g) => ({ g, ajan: sirket.depo.ajan(g.atananId!) }))
+              .filter((x) => x.ajan?.dal);
+            const tekil = [...new Map(adaylar.map((x) => [x.ajan!.id, x])).values()];
+            if (tekil.length !== 1) {
+              return hata(
+                tekil.length
+                  ? `Birden çok aday var; ajan alanına birini yaz: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`
+                  : "Kendi çalışma dalın yok ve incelemede dalı olan görev yok; ajan alanına çalışan adını yaz.",
+              );
+            }
+            sahip = tekil[0]!.ajan!;
+          }
           if (!sahip.dal) return hata(`${sahip.ad} için çalışma dalı yok.`);
           if (sahip.id !== ajanId && !yonetici() && rolBul(ben().rol)?.kimlik !== "inceleme") return hata("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.");
-          sirket.teklifAc(
-            ben(),
-            "birlestirme",
-            `${sahip.dal} → ${proje().varsayilanDal}`,
-            a.ozet,
-            { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId },
-          );
-          return metin("Birleştirme kurul onayına sunuldu. Sonuç sana bildirilecek.");
+          const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "birlestirme" && (o.veri as { dal?: string })?.dal === sahip.dal);
+          if (bekleyen) return metin(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`);
+          const onay = sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${proje().varsayilanDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId });
+          return metin(`${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`);
         }),
     ),
   ];

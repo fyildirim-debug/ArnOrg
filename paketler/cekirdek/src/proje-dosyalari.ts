@@ -46,7 +46,7 @@ export function iskeletOlustur(kok: string, ad: string, aciklama: string, varsay
       path.join(kok, "CLAUDE.md"),
       `# ${ad}\n\n${aciklama}\n\n## Çalışma kuralları\n\n- Bu proje ArnOrg ile yönetilir. Proje notları \`.arnorg/notlar/\`, kararlar \`.arnorg/notlar/kararlar/\` altındadır; işe başlamadan ilgili notları oku.\n- Her ajan kendi git çalışma alanında ve dalında çalışır. main'e doğrudan commit atılmaz.\n- Commit mesajları Türkçe ve ne değiştiğini söyler.\n- Testler geçmeden iş 'inceleme' durumuna alınmaz.\n`,
     );
-    yazYoksa(path.join(kok, ".gitignore"), "node_modules/\ndist/\n.env\n.env.local\n");
+    yazYoksa(path.join(kok, ".gitignore"), "node_modules/\ndist/\nbuild/\ncoverage/\n.env\n.env.local\n*.log\n");
   }
 }
 
