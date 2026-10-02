@@ -73,6 +73,8 @@ export class Sirket {
   readonly duzenlemeler = new Map<string, { ajanId: string; zaman: number }>();
   /** Mutlak dosya yolu → kilidin bittiği an */
   readonly kullaniciKilitleri = new Map<string, number>();
+  /** Ajan kimliği → son akış ya da çalışma anı (tıkanma koruması için) */
+  readonly sonEtkinlik = new Map<string, number>();
   pencere: Pencere | null = null;
 
   constructor(
@@ -505,6 +507,7 @@ export class Sirket {
     const a = this.depo.ajan(ajanId);
     if (!a) return;
     this.depo.akisEkle(a.projeId, oge);
+    this.sonEtkinlik.set(ajanId, Date.now());
     if (++this.akisSayaci % 200 === 0) this.depo.akisBuda(ajanId);
     this.olaylar.yayinla({ tur: "ajan.akis", projeId: a.projeId, oge });
   }
@@ -520,6 +523,7 @@ export class Sirket {
     const z = this.bostaZamanlayicilari.get(ajanId);
     if (z) clearTimeout(z);
     this.bostaZamanlayicilari.delete(ajanId);
+    if (durum === "calisiyor" || onceki.durum === "calisiyor") this.sonEtkinlik.set(ajanId, Date.now());
     if (durum === "bosta") {
       this.bostaZamanlayicilari.set(
         ajanId,

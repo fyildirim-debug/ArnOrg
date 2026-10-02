@@ -4,6 +4,7 @@ import { GOREV_DURUMLARI, type GorevDurumu } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
+import { raporOlustur } from "./gozetmen.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -254,6 +255,19 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         guvenli(() => {
           const s = notlardaAra(proje().yol, a.sorgu);
           return metin(s.length ? s.map((x) => `${x.yol}:${x.satir}: ${x.metin}`).join("\n") : "Eşleşme yok.");
+        }),
+    ),
+    tool(
+      "rapor_hazirla",
+      "Dönem durum raporu hazırlar (tamamlanan, süren, tıkanan görevler; harcama; denetim; bekleyen onaylar) ve notlara raporlar/<tarih>.md olarak kaydeder. Yalnız CEO ve CTO.",
+      { gun: z.number().int().min(1).max(90).default(7).describe("Kaç günlük dönem") },
+      (a) =>
+        guvenli(() => {
+          if (!yonetici()) return hata("Raporu yalnız CEO ve CTO hazırlayabilir.");
+          const r = raporOlustur(sirket, ben().projeId, a.gun);
+          notYaz(proje().yol, r.yol, r.markdown);
+          sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: ben().projeId, alan: "ana", yol: `.arnorg/notlar/${r.yol}`, ajanId });
+          return metin(`Rapor kaydedildi: ${r.yol}. Kurula #genel'de kısa bir özet yaz.\n\n${r.markdown}`);
         }),
     ),
     tool(

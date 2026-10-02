@@ -13,6 +13,7 @@ import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
 import { claudeSurumu } from "./ortam.js";
+import { raporOlustur } from "./gozetmen.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -78,6 +79,7 @@ const semalar = {
     onaySuresiSn: z.number().optional(),
     gunlukButceUsd: z.number().optional(),
     disEditor: z.string().max(200).optional(),
+    tikanmaDakika: z.number().optional(),
   }),
   politika: z.array(
     z.object({
@@ -259,6 +261,16 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const n = notYaz(p.yol, g.yol, g.icerik);
     sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: p.id, alan: "ana", yol: `.arnorg/notlar/${n.yol}`, ajanId: null });
     return n;
+  });
+
+  // ---------------- rapor ----------------
+  app.get("/api/projeler/:pid/rapor", async (i) => raporOlustur(sirket, param(i, "pid"), sayi(sorgu(i, "gun"), 7)));
+  app.post("/api/projeler/:pid/rapor", async (i) => {
+    const p = sirket.proje(param(i, "pid"));
+    const r = raporOlustur(sirket, p.id, sayi(sorgu(i, "gun"), 7));
+    notYaz(p.yol, r.yol, r.markdown);
+    sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: p.id, alan: "ana", yol: `.arnorg/notlar/${r.yol}`, ajanId: null });
+    return r;
   });
 
   // ---------------- denetim ve onaylar ----------------

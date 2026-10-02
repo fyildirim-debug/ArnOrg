@@ -183,3 +183,56 @@ describe("API", () => {
     expect(agac.cocuklar.map((c) => c.ad)).toContain("CLAUDE.md");
   });
 });
+
+describe("gözetmen", () => {
+  it("ilerlemeyen görevi önce sorumluya hatırlatır, sonra yöneticiye ve kurula yükseltir", async () => {
+    const { Gozetmen } = await import("./gozetmen.js");
+    const p = depo.projeler()[0]!;
+    const deniz = depo.ajanAdla(p.id, "Deniz")!;
+    const g = depo.gorevler(p.id).find((x) => x.durum === "calisiliyor" && x.atananId === deniz.id)!;
+    const gozetmen = new Gozetmen(sirket);
+    expect(depo.ajan(deniz.id)?.durum).toBe("calisiyor");
+    // Çalışan ajan tıkanmış sayılmaz
+    expect(await gozetmen.denetle(Date.now() + 60 * 60_000)).toEqual([]);
+    depo.ajanGuncelle(deniz.id, { durum: "kapali" });
+    expect(await gozetmen.denetle(Date.now())).toEqual([]);
+    const dk = 60_000;
+    let t = Date.now() + 21 * dk;
+    expect((await gozetmen.denetle(t)).map((e) => e.tur)).toEqual(["hatirlatma"]);
+    // Eşik dolmadan yeni eylem yok
+    expect(await gozetmen.denetle(t + 5 * dk)).toEqual([]);
+    t += 21 * dk;
+    expect((await gozetmen.denetle(t)).map((e) => e.tur)).toEqual(["hatirlatma"]);
+    t += 21 * dk;
+    const yukselt = await gozetmen.denetle(t);
+    expect(yukselt).toEqual([{ tur: "yukseltme", gorevKodu: g.kod, ajanAd: "Ada" }]);
+    t += 21 * dk;
+    expect((await gozetmen.denetle(t)).map((e) => e.tur)).toEqual(["kurul"]);
+    expect(depo.mesajlar(p.id, "genel").some((m) => m.gonderenAd === "ArnOrg" && m.metin.includes(g.kod))).toBe(true);
+    t += 21 * dk;
+    expect(await gozetmen.denetle(t)).toEqual([]);
+    // Duraklatılan ajan dürtülmez; görev güncellenince takip sıfırlanır
+    depo.ajanGuncelle(deniz.id, { durum: "duraklatildi" });
+    await sirket.gorevGuncelle(g.id, { aciklama: "Güncellendi" });
+    expect(await gozetmen.denetle(t + 60 * dk)).toEqual([]);
+    depo.ajanGuncelle(deniz.id, { durum: "kapali" });
+  });
+
+  it("ayar 0 iken çalışmaz", async () => {
+    const { Gozetmen } = await import("./gozetmen.js");
+    sirket.yapilandirma.guncelle({ tikanmaDakika: 0 });
+    expect(await new Gozetmen(sirket).denetle(Date.now() + 10 * 86_400_000)).toEqual([]);
+    sirket.yapilandirma.guncelle({ tikanmaDakika: 20 });
+  });
+
+  it("dönem raporu görevleri, ekibi ve onayları özetler", async () => {
+    const { raporOlustur } = await import("./gozetmen.js");
+    const p = depo.projeler()[0]!;
+    const r = raporOlustur(sirket, p.id, 7);
+    expect(r.yol).toMatch(/^raporlar\/\d{4}-\d{2}-\d{2}\.md$/);
+    expect(r.markdown).toContain("## Özet");
+    expect(r.markdown).toContain("## Sürenler");
+    expect(r.markdown).toContain("| Deniz | Backend geliştirici |");
+    expect(r.markdown).toMatch(/Tıkananlar[\s\S]*bekliyor: T-1/);
+  });
+});

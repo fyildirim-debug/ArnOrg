@@ -453,6 +453,12 @@ export class Depo {
     );
   }
 
+  /** Verilen andan bu yana karar türüne göre denetim sayıları */
+  denetimSayilari(projeId: string, baslangic: string): Record<string, number> {
+    const satirlar = this.db.prepare("SELECT karar, count(*) n FROM denetim WHERE proje_id = ? AND zaman >= ? GROUP BY karar").all(projeId, baslangic) as Satir[];
+    return Object.fromEntries(satirlar.map((s) => [String(s.karar), Number(s.n)]));
+  }
+
   // ---------------- onaylar ----------------
 
   private onaySatiri(s: Satir): Onay {
@@ -547,6 +553,13 @@ export class Depo {
       ? this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ? AND gun = ?").get(projeId, gun)
       : this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ?").get(projeId)) as Satir;
     return Number(s.t ?? 0);
+  }
+
+  /** Verilen günden (dahil) bu yana ajan başına harcama */
+  donemMaliyeti(projeId: string, baslangicGun: string): { ajanId: string; usd: number }[] {
+    return (this.db.prepare("SELECT ajan_id, sum(usd) t FROM maliyet WHERE proje_id = ? AND gun >= ? GROUP BY ajan_id ORDER BY t DESC").all(projeId, baslangicGun) as Satir[]).map(
+      (s) => ({ ajanId: String(s.ajan_id), usd: Number(s.t ?? 0) }),
+    );
   }
 
   sirketMaliyeti(gun: string): number {

@@ -119,6 +119,15 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 |---|---|---|
 | GET | `/api/projeler/:pid/maliyet` | `MaliyetOzeti` |
 
+## Rapor ve tıkanma koruması
+
+| Yöntem | Yol | Yanıt |
+|---|---|---|
+| GET | `/api/projeler/:pid/rapor?gun=7` | `{baslik, yol, baslangic, markdown}` dönem raporu (1–90 gün) |
+| POST | `/api/projeler/:pid/rapor?gun=7` | Aynı rapor; ayrıca notlara `raporlar/AAAA-AA-GG.md` olarak yazılır |
+
+Çekirdek dakikada bir süren ve incelemedeki görevlere bakar. Sorumlusu `Ayarlar.tikanmaDakika` (varsayılan 20, 0 kapalı) boyunca hareketsiz kalan görevde önce sorumlu iki kez hatırlatılır, sonra yöneticisi (yoksa CEO) uyandırılır, en son #genel'e ArnOrg adıyla yazılır ve `bildirim` (uyarı) yayınlanır. Çalışan, karar bekleyen, duraklatılan ya da bütçesi biten ajan ve kurul onayındaki birleştirme dürtülmez; görev güncellenince sayaç sıfırlanır.
+
 ## Canlı olaylar
 
 `WS /ws?anahtar=<anahtar>`: sunucu `SunucuOlayi` JSON'ları gönderir. İstemci `{"tur":"abone","projeId":"…"}` gönderince yalnız o projenin olaylarını alır (`proje.guncellendi` ve `bildirim` her zaman gelir). Bağlantı açılınca ilk mesaj `{"tur":"merhaba"}`.

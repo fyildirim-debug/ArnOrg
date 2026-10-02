@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Depo } from "./depo.js";
+import { Gozetmen } from "./gozetmen.js";
 import { DosyaIzleyici } from "./izleyici.js";
 import { OlayYolu } from "./olaylar.js";
 import { claudeYoluBul } from "./ortam.js";
@@ -47,6 +48,8 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   const olaylar = new OlayYolu();
   const sirket = new Sirket(depo, olaylar, yapilandirma, () => claudeYoluBul(s.claudeYolu ?? yapilandirma.ayarlar.claudeYolu));
   const terminaller = new TerminalYoneticisi();
+  const gozetmen = new Gozetmen(sirket);
+  gozetmen.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {
     const d = sirket.duzenlemeler.get(tam);
     return d && Date.now() - d.zaman < 15_000 ? d.ajanId : null;
@@ -86,6 +89,7 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
     async kapat() {
       if (kapandi) return;
       kapandi = true;
+      gozetmen.durdur();
       sirket.kapat();
       terminaller.hepsiniKapat();
       await izleyici.kapat();

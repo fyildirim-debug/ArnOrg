@@ -10,6 +10,7 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   onaySuresiSn: 900,
   gunlukButceUsd: 50,
   disEditor: process.platform === "win32" ? "code" : "codium",
+  tikanmaDakika: 20,
 };
 
 export class Yapilandirma {
@@ -41,6 +42,7 @@ export class Yapilandirma {
     if (typeof degisiklik.onaySuresiSn === "number") temiz.onaySuresiSn = Math.min(Math.max(30, degisiklik.onaySuresiSn), 86_400);
     if (typeof degisiklik.gunlukButceUsd === "number") temiz.gunlukButceUsd = Math.max(0, degisiklik.gunlukButceUsd);
     if (typeof degisiklik.disEditor === "string") temiz.disEditor = degisiklik.disEditor.trim();
+    if (typeof degisiklik.tikanmaDakika === "number") temiz.tikanmaDakika = Math.min(Math.max(0, Math.round(degisiklik.tikanmaDakika)), 1440);
     this.mevcut = { ...this.mevcut, ...temiz };
     fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
     return this.ayarlar;

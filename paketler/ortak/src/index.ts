@@ -37,6 +37,8 @@ export interface Ayarlar {
   gunlukButceUsd: number;
   /** Dış editör komutu (codium, code, cursor) */
   disEditor: string;
+  /** Görev bu kadar dakika ilerlemezse sorumlu hatırlatılır, sonra yöneticiye ve kurula yükseltilir; 0 kapalı */
+  tikanmaDakika: number;
 }
 
 // ---------------------------------------------------------------------------
