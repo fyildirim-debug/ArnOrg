@@ -1,0 +1,1051 @@
+// Şirket orkestratörü: projeler, ekip, ajan oturumları, denetim kapısı, onaylar, görev akışı ve kanallar
+import fs from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import type { CanUseTool, HookJSONOutput, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import {
+  GOREV_DURUMLARI,
+  GOREV_GECISLERI,
+  KURUL,
+  type Ajan,
+  type AjanBaslatIstegi,
+  type AjanDurumu,
+  type AjanGuncelleIstegi,
+  type AjanIseAlIstegi,
+  type AkisOgesi,
+  type CalismaAlani,
+  type Gorev,
+  type GorevDurumu,
+  type GorevGuncelleIstegi,
+  type GorevOlusturIstegi,
+  type IzinModu,
+  type Karar,
+  type MaliyetOzeti,
+  type Mesaj,
+  type MesajOnceligi,
+  type Onay,
+  type OnayTuru,
+  type PolitikaKurali,
+  type Proje,
+  type ProjeOlusturIstegi,
+  type ProjeOzeti,
+} from "@arnorg/ortak";
+import { AjanOturumu, type MesajKaynagi } from "./ajan-oturumu.js";
+import { arnorgAraclari } from "./arnorg-araclari.js";
+import type { Depo } from "./depo.js";
+import * as gitIslemleri from "./git.js";
+import type { OlayYolu } from "./olaylar.js";
+import { degerlendir, girdiOzeti, varsayilanKurallar } from "./politika.js";
+import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
+import { rolBul } from "./roller.js";
+import type { Yapilandirma } from "./yapilandirma.js";
+import { ArnorgHatasi, bugun, bulunamadi, kisalt, sadelestir, simdi } from "./yardimci.js";
+
+const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
+const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
+/** Boşta kalan oturum bu süre sonra kapatılır (kısa uyanış) */
+const BOSTA_KAPATMA_MS = 10 * 60_000;
+/** Ajanlardan gelen uyandırma sınırı (döngü koruması) */
+const UYANDIRMA_PENCERESI_MS = 10 * 60_000;
+const UYANDIRMA_SINIRI = 8;
+/** Kurulun kaydettiği dosya bu süre ajanlara kilitli kalır */
+const KULLANICI_KILIDI_MS = 30_000;
+
+interface BekleyenKarar {
+  coz: (sonuc: { izin: boolean; not: string | null }) => void;
+  zamanlayici: NodeJS.Timeout;
+}
+
+export interface Pencere {
+  tur: string;
+  durum: string;
+  sifirlanma: string | null;
+}
+
+export class Sirket {
+  private oturumlar = new Map<string, AjanOturumu>();
+  private bekleyenKararlar = new Map<string, BekleyenKarar>();
+  private bostaZamanlayicilari = new Map<string, NodeJS.Timeout>();
+  private uyandirmalar = new Map<string, number[]>();
+  private butceOnayiIstendi = new Set<string>();
+  private akisSayaci = 0;
+  /** Mutlak dosya yolu → son düzenleyen ajan */
+  readonly duzenlemeler = new Map<string, { ajanId: string; zaman: number }>();
+  /** Mutlak dosya yolu → kilidin bittiği an */
+  readonly kullaniciKilitleri = new Map<string, number>();
+  pencere: Pencere | null = null;
+
+  constructor(
+    readonly depo: Depo,
+    readonly olaylar: OlayYolu,
+    readonly yapilandirma: Yapilandirma,
+    private claudeYoluBulucu: () => string | null,
+  ) {
+    depo.ajanDurumlariniSifirla();
+    depo.bekleyenAracOnaylariniKapat();
+  }
+
+  get claudeYolu(): string | null {
+    return this.claudeYoluBulucu();
+  }
+
+  /** Testlerde ve geliştirmede tüm modelleri tek modele çevirir (ör. haiku) */
+  private modelSec(model: string): string {
+    return process.env.ARNORG_MODEL_ZORLA || model;
+  }
+
+  // ===================================================================
+  // Projeler
+  // ===================================================================
+
+  proje(id: string): Proje {
+    const p = this.depo.proje(id);
+    if (!p) throw bulunamadi("Proje");
+    return p;
+  }
+
+  projeOzeti(id: string): ProjeOzeti {
+    const p = this.proje(id);
+    const ajanlar = this.depo.ajanlar(id);
+    const sayilar = Object.fromEntries(GOREV_DURUMLARI.map((d) => [d, 0])) as Record<GorevDurumu, number>;
+    for (const g of this.depo.gorevler(id)) sayilar[g.durum]++;
+    return {
+      ...p,
+      ajanSayisi: ajanlar.length,
+      aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
+      gorevSayilari: sayilar,
+      bekleyenOnay: this.depo.onaylar(id, "bekliyor").length,
+      bugunMaliyetUsd: this.depo.projeMaliyeti(id, bugun()),
+    };
+  }
+
+  projeler(): ProjeOzeti[] {
+    return this.depo.projeler().map((p) => this.projeOzeti(p.id));
+  }
+
+  private projeYayinla(id: string): void {
+    try {
+      this.olaylar.yayinla({ tur: "proje.guncellendi", proje: this.projeOzeti(id) });
+    } catch {
+      // proje silinmiş olabilir
+    }
+  }
+
+  async projeOlustur(istek: ProjeOlusturIstegi): Promise<ProjeOzeti> {
+    const ad = istek.ad?.trim();
+    if (!ad) throw new ArnorgHatasi("Proje adı gerekli.");
+    if (!istek.yol?.trim()) throw new ArnorgHatasi("Proje yolu gerekli.");
+    if (!(await gitIslemleri.gitVarMi())) throw new ArnorgHatasi("Sistemde git bulunamadı. Git kurulu olmalı.", 500);
+    let kok = path.resolve(istek.yol.trim());
+    let yeniRepo = false;
+    if (istek.olustur) {
+      fs.mkdirSync(kok, { recursive: true });
+      if (!(await gitIslemleri.repoMu(kok))) {
+        await gitIslemleri.repoBaslat(kok, "main");
+        yeniRepo = true;
+      } else {
+        kok = await gitIslemleri.repoKoku(kok);
+      }
+    } else {
+      if (!fs.existsSync(kok)) throw new ArnorgHatasi("Klasör bulunamadı.", 404);
+      if (!(await gitIslemleri.repoMu(kok))) throw new ArnorgHatasi("Klasör bir git deposu değil. Yeni repo oluşturmayı seçin ya da git init çalıştırın.");
+      kok = await gitIslemleri.repoKoku(kok);
+    }
+    if (this.depo.projeYoluyla(kok)) throw new ArnorgHatasi("Bu repo zaten bir ArnOrg projesi.", 409);
+
+    const ilkCommitGerek = !(await gitIslemleri.commitVarMi(kok));
+    iskeletOlustur(kok, ad, istek.aciklama?.trim() ?? "", "main", yeniRepo || ilkCommitGerek);
+    if (yeniRepo || ilkCommitGerek) {
+      await gitIslemleri.kimlikGuvenceAltinaAl(kok);
+      await gitIslemleri.tumunuCommitle(kok, "ArnOrg: proje iskeleti");
+    }
+    let dal = await gitIslemleri.mevcutDal(kok);
+    if (dal === "HEAD") dal = "main";
+
+    const proje = this.depo.projeEkle({ ad, yol: kok, aciklama: istek.aciklama?.trim() ?? "", varsayilanDal: dal });
+    this.depo.politikaYaz(proje.id, varsayilanKurallar());
+
+    // Repo içinde kayıtlı ekip varsa geri yükle
+    const kayitlar = ekipDosyalariniOku(kok);
+    for (const k of kayitlar) {
+      if (!rolBul(k.rol)) continue;
+      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, gunlukButceUsd: k.gunlukButceUsd, talimatEki: k.talimatEki }, false);
+    }
+    for (const k of kayitlar) {
+      if (!k.yonetici) continue;
+      const a = this.depo.ajanAdla(proje.id, k.ad);
+      const y = this.depo.ajanAdla(proje.id, k.yonetici);
+      if (a && y) this.depo.ajanGuncelle(a.id, { yoneticiId: y.id });
+    }
+    if (!this.depo.ajanlar(proje.id).some((a) => a.rol === "ceo")) {
+      this.iseAl(proje.id, { ad: "Ada", rol: "ceo" });
+    }
+    this.depo.mesajEkle({
+      projeId: proje.id,
+      kanal: "genel",
+      gonderenId: "arnorg",
+      gonderenAd: "ArnOrg",
+      metin: `${ad} projesi açıldı. CEO hazır; brief'inizi bu kanala yazın.`,
+      anilanlar: [],
+    });
+    this.projeYayinla(proje.id);
+    return this.projeOzeti(proje.id);
+  }
+
+  projeSil(id: string): void {
+    for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
+    this.depo.projeSil(id);
+    this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: "Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı." });
+  }
+
+  // ===================================================================
+  // Ekip
+  // ===================================================================
+
+  ajan(id: string): Ajan {
+    const a = this.depo.ajan(id);
+    if (!a) throw bulunamadi("Ajan");
+    return a;
+  }
+
+  private ajanYayinla(id: string): void {
+    const a = this.depo.ajan(id);
+    if (a) this.olaylar.yayinla({ tur: "ajan.guncellendi", ajan: a });
+  }
+
+  iseAl(projeId: string, istek: AjanIseAlIstegi, dosyaYaz = true): Ajan {
+    const proje = this.proje(projeId);
+    const ad = istek.ad?.trim();
+    if (!ad || ad.length > 40) throw new ArnorgHatasi("Ajan adı 1–40 karakter olmalı.");
+    if (!/^[\p{L}\p{N} ._-]+$/u.test(ad)) throw new ArnorgHatasi("Ajan adında yalnız harf, rakam, boşluk, nokta, tire ve alt çizgi olabilir.");
+    if (this.depo.ajanAdla(projeId, ad)) throw new ArnorgHatasi(`${ad} adında bir çalışan zaten var.`, 409);
+    const rol = rolBul(istek.rol);
+    if (!rol) throw new ArnorgHatasi("Bilinmeyen rol.");
+    const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
+    if (rol.kimlik === "ceo" && ceo) throw new ArnorgHatasi("Projede zaten bir CEO var.", 409);
+    const yoneticiId = istek.yoneticiId === undefined ? (rol.kimlik === "ceo" ? null : (ceo?.id ?? null)) : istek.yoneticiId;
+    const ajan = this.depo.ajanEkle({
+      projeId,
+      ad,
+      rol: rol.kimlik,
+      rolAdi: rol.ad,
+      model: istek.model?.trim() || rol.varsayilanModel,
+      yoneticiId,
+      durum: "kapali",
+      isAciklamasi: "",
+      gorevId: null,
+      oturumId: null,
+      calismaAlani: null,
+      dal: null,
+      izinModu: this.yapilandirma.ayarlar.varsayilanIzinModu,
+      gunlukButceUsd: typeof istek.gunlukButceUsd === "number" ? Math.max(0, istek.gunlukButceUsd) : rol.yonetici ? 10 : 5,
+      talimatEki: istek.talimatEki?.trim() ?? "",
+    });
+    if (dosyaYaz) this.kimlikDosyasiYaz(ajan, proje);
+    this.ajanYayinla(ajan.id);
+    this.projeYayinla(projeId);
+    return ajan;
+  }
+
+  private kimlikDosyasiYaz(ajan: Ajan, proje: Proje): void {
+    try {
+      const yonetici = ajan.yoneticiId ? this.depo.ajan(ajan.yoneticiId) : null;
+      ekipDosyasiYaz(proje.yol, ajan, yonetici?.ad ?? null);
+    } catch {
+      // Repo salt okunursa kimlik dosyası yazılamaz; veritabanı kaydı yeterli
+    }
+  }
+
+  async ajanGuncelle(id: string, istek: AjanGuncelleIstegi): Promise<Ajan> {
+    const a = this.ajan(id);
+    const alanlar: Partial<Ajan> = {};
+    if (istek.model) alanlar.model = istek.model;
+    if (typeof istek.gunlukButceUsd === "number") alanlar.gunlukButceUsd = Math.max(0, istek.gunlukButceUsd);
+    if (istek.izinModu) alanlar.izinModu = istek.izinModu;
+    if (istek.yoneticiId !== undefined) {
+      if (istek.yoneticiId === id) throw new ArnorgHatasi("Ajan kendi yöneticisi olamaz.");
+      alanlar.yoneticiId = istek.yoneticiId;
+    }
+    if (istek.talimatEki !== undefined) alanlar.talimatEki = istek.talimatEki;
+    const yeni = this.depo.ajanGuncelle(id, alanlar);
+    const oturum = this.oturumlar.get(id);
+    if (oturum?.acik) {
+      if (istek.model && istek.model !== a.model) await oturum.modelDegistir(this.modelSec(istek.model));
+      if (istek.izinModu && istek.izinModu !== a.izinModu) await oturum.modDegistir(istek.izinModu);
+    }
+    this.kimlikDosyasiYaz(yeni, this.proje(yeni.projeId));
+    this.ajanYayinla(id);
+    return this.ajan(id);
+  }
+
+  ajanSil(id: string): void {
+    const a = this.ajan(id);
+    if (a.rol === "ceo") throw new ArnorgHatasi("CEO işten çıkarılamaz.", 409);
+    this.oturumlar.get(id)?.kapat();
+    this.oturumlar.delete(id);
+    for (const g of this.depo.gorevler(a.projeId)) {
+      if (g.atananId === id && g.durum !== "tamam") this.depo.gorevGuncelle(g.id, { atananId: null, durum: g.durum === "calisiliyor" ? "planlandi" : g.durum });
+    }
+    for (const alt of this.depo.ajanlar(a.projeId)) if (alt.yoneticiId === id) this.depo.ajanGuncelle(alt.id, { yoneticiId: a.yoneticiId });
+    this.depo.ajanSil(id);
+    try {
+      ekipDosyasiSil(this.proje(a.projeId).yol, a.ad);
+    } catch {
+      // yok sayılır
+    }
+    this.olaylar.yayinla({ tur: "ajan.silindi", projeId: a.projeId, ajanId: id });
+    this.projeYayinla(a.projeId);
+  }
+
+  // ===================================================================
+  // Çalışma alanları
+  // ===================================================================
+
+  private async calismaAlaniHazirla(ajan: Ajan): Promise<string> {
+    const proje = this.proje(ajan.projeId);
+    if (rolBul(ajan.rol)?.kimlik === "ceo") return proje.yol;
+    if (ajan.calismaAlani && fs.existsSync(ajan.calismaAlani)) return ajan.calismaAlani;
+    if (!(await gitIslemleri.commitVarMi(proje.yol))) {
+      await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
+      await gitIslemleri.git(proje.yol, ["commit", "--allow-empty", "-m", "ArnOrg: başlangıç"]);
+    }
+    const slug = sadelestir(ajan.ad);
+    const hedef = path.join(this.yapilandirma.calismaKoku, `${sadelestir(proje.ad)}-${proje.id.slice(0, 8)}`, slug);
+    const dal = `arnorg/${slug}`;
+    await gitIslemleri.worktreeAc(proje.yol, hedef, dal, proje.varsayilanDal);
+    const yeni = this.depo.ajanGuncelle(ajan.id, { calismaAlani: hedef, dal });
+    this.kimlikDosyasiYaz(yeni, proje);
+    this.ajanYayinla(ajan.id);
+    return hedef;
+  }
+
+  async calismaAlanlari(projeId: string): Promise<CalismaAlani[]> {
+    const p = this.proje(projeId);
+    const anaDal = await gitIslemleri.mevcutDal(p.yol).catch(() => p.varsayilanDal);
+    const liste: CalismaAlani[] = [{ kimlik: "ana", yol: p.yol, dal: anaDal, ajanId: null, ana: true }];
+    for (const a of this.depo.ajanlar(projeId)) {
+      if (a.calismaAlani && a.calismaAlani !== p.yol && fs.existsSync(a.calismaAlani)) {
+        liste.push({ kimlik: a.id, yol: a.calismaAlani, dal: a.dal ?? "", ajanId: a.id, ana: false });
+      }
+    }
+    return liste;
+  }
+
+  alanYolu(projeId: string, alan: string): string {
+    const p = this.proje(projeId);
+    if (!alan || alan === "ana") return p.yol;
+    const a = this.depo.ajan(alan);
+    if (!a || a.projeId !== projeId || !a.calismaAlani) throw bulunamadi("Çalışma alanı");
+    return a.calismaAlani;
+  }
+
+  // ===================================================================
+  // Oturumlar
+  // ===================================================================
+
+  private talimatOlustur(ajan: Ajan, cwd: string): string {
+    const proje = this.proje(ajan.projeId);
+    const rol = rolBul(ajan.rol);
+    const yonetici = ajan.yoneticiId ? this.depo.ajan(ajan.yoneticiId) : null;
+    const ekip = this.depo
+      .ajanlar(ajan.projeId)
+      .filter((a) => a.id !== ajan.id)
+      .map((a) => `- ${a.ad} (${a.rolAdi})`)
+      .join("\n");
+    return [
+      "# ArnOrg",
+      `Sen ArnOrg yazılım şirketinde ${ajan.rolAdi} olarak çalışan ${ajan.ad}'sın. Yöneticin: ${yonetici ? `${yonetici.ad} (${yonetici.rolAdi})` : "Yönetim kurulu"}.`,
+      `Proje: ${proje.ad}${proje.aciklama ? ` — ${proje.aciklama}` : ""}`,
+      `Ana repo: ${proje.yol} (varsayılan dal ${proje.varsayilanDal}). Çalışma dizinin: ${cwd}${ajan.dal ? ` (dal ${ajan.dal})` : ""}.`,
+      "",
+      rol?.talimat ?? "",
+      "",
+      "## Ekip",
+      ekip || "- Henüz başka çalışan yok.",
+      "",
+      "## Ortak kurallar",
+      "- Türkçe yaz. Kısa ve net ol. Emoji ve süsleme kullanma.",
+      "- Ekiple yalnız mcp__arnorg__mesaj_gonder ile konuş; @Ad ile andığın kişi uyarılır. Kanalları mcp__arnorg__kanal_oku ile oku.",
+      "- İşe başlamadan mcp__arnorg__notlari_listele ve not_oku ile ilgili notları oku. Kararları not_yaz ile notlar/kararlar/ altına yaz.",
+      "- Görevin durumunu mcp__arnorg__gorev_guncelle ile güncel tut. İş bitince 'inceleme' durumuna al ve ne yaptığını özetle.",
+      "- Yönetim kuruluna soru gerekiyorsa mcp__arnorg__kurula_sor kullan.",
+      "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
+      "- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister.",
+      "- Kodu commit'le; mesajlar Türkçe ve ne değiştiğini söyler.",
+      ajan.talimatEki ? `\n## Ek talimat\n${ajan.talimatEki}` : "",
+    ].join("\n");
+  }
+
+  private oturumAl(ajan: Ajan, cwd: string): AjanOturumu {
+    let oturum = this.oturumlar.get(ajan.id);
+    if (oturum) return oturum;
+    const id = ajan.id;
+    const izinSor: CanUseTool = async (arac, girdi, s) => this.izinSor(id, arac, girdi, s.toolUseID);
+    oturum = new AjanOturumu({
+      ajan: () => this.ajan(id),
+      cwd,
+      claudeYolu: this.claudeYolu,
+      talimat: () => this.talimatOlustur(this.ajan(id), cwd),
+      araclar: () => arnorgAraclari(this, id),
+      yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Agent", "Task", "Skill"] : []),
+      kalanButceUsd: () => {
+        const a = this.ajan(id);
+        return a.gunlukButceUsd > 0 ? Math.max(0.05, a.gunlukButceUsd - a.bugunHarcananUsd) : 0;
+      },
+      onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
+      kapi: (arac, girdi, aracKimligi) => this.kapi(id, arac, girdi, aracKimligi),
+      izinSor,
+      aracSonrasi: (arac, girdi) => this.aracSonrasi(id, arac, girdi),
+      akis: (oge) => this.akisEkle(id, oge),
+      durum: (d, aciklama) => this.durumDegisti(id, d, aciklama),
+      oturumKimligi: (oid) => {
+        this.depo.ajanGuncelle(id, { oturumId: oid || null });
+      },
+      maliyet: (delta) => this.maliyetEkle(id, delta),
+      pencere: (p) => {
+        this.pencere = p;
+      },
+      bitti: (hata) => {
+        if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? "Ajan"}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
+      },
+    });
+    this.oturumlar.set(ajan.id, oturum);
+    return oturum;
+  }
+
+  async ajanBaslat(id: string, istek: AjanBaslatIstegi = {}): Promise<Ajan> {
+    const a = this.ajan(id);
+    let metin = istek.talimat?.trim() ?? "";
+    if (istek.gorevId) {
+      const g = this.depo.gorev(istek.gorevId);
+      if (!g || g.projeId !== a.projeId) throw bulunamadi("Görev");
+      if (g.atananId !== id) this.depo.gorevGuncelle(g.id, { atananId: id });
+      this.depo.ajanGuncelle(id, { gorevId: g.id });
+      metin = this.gorevMetni(g) + (metin ? `\n\nEk not: ${metin}` : "");
+    }
+    if (!metin) {
+      const benim = this.depo.gorevler(a.projeId).filter((g) => g.atananId === id && (g.durum === "calisiliyor" || g.durum === "planlandi"));
+      metin = benim.length
+        ? `Mesaine başla. Sana atanmış görevler:\n${benim.map((g) => `- ${g.kod} ${g.baslik} (${g.durum})`).join("\n")}\nÖnce notları ve görev ayrıntılarını oku, sonra sıradaki işe başla.`
+        : rolBul(a.rol)?.yonetici
+          ? "Mesaine başla. #genel kanalını, görevleri ve notları oku; durumu değerlendir ve gerekiyorsa plan yap."
+          : "Mesaine başla. Görevleri ve notları oku; sana atanmış iş yoksa yöneticine durumunu bildir.";
+    }
+    await this.ajanaMesaj(id, metin, "next", { tur: "kurul" });
+    return this.ajan(id);
+  }
+
+  async ajanaMesaj(id: string, metin: string, oncelik: MesajOnceligi = "next", kaynak: MesajKaynagi = { tur: "kurul" }): Promise<void> {
+    if (!metin.trim()) throw new ArnorgHatasi("Mesaj boş olamaz.");
+    const a = this.ajan(id);
+    const oturum = this.oturumlar.get(id);
+    if (oturum?.acik) {
+      oturum.gonder(metin, oncelik, kaynak);
+      return;
+    }
+    if (!this.claudeYolu && !this.sdkIkilisiVar()) {
+      throw new ArnorgHatasi("Claude Code bulunamadı. Ayarlar'dan Claude Code yolunu verin ya da Claude Code'u kurun.", 500);
+    }
+    let cwd: string;
+    try {
+      cwd = await this.calismaAlaniHazirla(a);
+    } catch (h) {
+      this.durumDegisti(id, "hata", `Çalışma alanı açılamadı: ${(h as Error).message}`);
+      throw h;
+    }
+    this.oturumAl(this.ajan(id), cwd).baslat(metin, kaynak);
+  }
+
+  private sdkIkilisiVar(): boolean {
+    // SDK'nın platform paketi kuruluysa kendi Claude Code ikilisini kullanır
+    try {
+      createRequire(import.meta.url).resolve(`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async ajanKes(id: string): Promise<void> {
+    this.ajan(id);
+    await this.oturumlar.get(id)?.kes();
+  }
+
+  ajanDurdur(id: string): Ajan {
+    this.ajan(id);
+    this.oturumlar.get(id)?.kapat();
+    return this.ajan(id);
+  }
+
+  async ajanMod(id: string, mod: IzinModu): Promise<Ajan> {
+    return this.ajanGuncelle(id, { izinModu: mod });
+  }
+
+  async ajanModel(id: string, model: string): Promise<Ajan> {
+    if (!model.trim()) throw new ArnorgHatasi("Model adı gerekli.");
+    return this.ajanGuncelle(id, { model: model.trim() });
+  }
+
+  akis(id: string, sinir = 300): AkisOgesi[] {
+    this.ajan(id);
+    return this.depo.akis(id, Math.min(Math.max(1, sinir), 2000));
+  }
+
+  tumunuDurdur(projeId?: string): void {
+    for (const [id, o] of this.oturumlar) {
+      const a = this.depo.ajan(id);
+      if (!projeId || a?.projeId === projeId) o.kapat();
+    }
+  }
+
+  private akisEkle(ajanId: string, oge: AkisOgesi): void {
+    const a = this.depo.ajan(ajanId);
+    if (!a) return;
+    this.depo.akisEkle(a.projeId, oge);
+    if (++this.akisSayaci % 200 === 0) this.depo.akisBuda(ajanId);
+    this.olaylar.yayinla({ tur: "ajan.akis", projeId: a.projeId, oge });
+  }
+
+  private durumDegisti(ajanId: string, durum: AjanDurumu, aciklama?: string): void {
+    const onceki = this.depo.ajan(ajanId);
+    if (!onceki) return;
+    const alanlar: Partial<Ajan> = { durum };
+    if (aciklama !== undefined) alanlar.isAciklamasi = aciklama;
+    if (durum === "kapali") alanlar.isAciklamasi = "";
+    this.depo.ajanGuncelle(ajanId, alanlar);
+    // Kısa uyanış: boşta kalan oturum bir süre sonra kapanır, oturum kimliği saklanır
+    const z = this.bostaZamanlayicilari.get(ajanId);
+    if (z) clearTimeout(z);
+    this.bostaZamanlayicilari.delete(ajanId);
+    if (durum === "bosta") {
+      this.bostaZamanlayicilari.set(
+        ajanId,
+        setTimeout(() => {
+          if (this.depo.ajan(ajanId)?.durum === "bosta") this.oturumlar.get(ajanId)?.kapat();
+        }, BOSTA_KAPATMA_MS),
+      );
+    }
+    this.ajanYayinla(ajanId);
+    if (onceki.durum !== durum) this.projeYayinla(onceki.projeId);
+  }
+
+  private maliyetEkle(ajanId: string, delta: number): void {
+    const a = this.depo.ajan(ajanId);
+    if (!a) return;
+    this.depo.maliyetEkle(a.projeId, ajanId, delta);
+    const y = this.depo.ajan(ajanId)!;
+    this.olaylar.yayinla({ tur: "maliyet", projeId: a.projeId, ajanId, bugunUsd: y.bugunHarcananUsd, toplamUsd: y.toplamHarcananUsd });
+    this.ajanYayinla(ajanId);
+  }
+
+  // ===================================================================
+  // Denetim kapısı
+  // ===================================================================
+
+  politika(projeId: string): PolitikaKurali[] {
+    this.proje(projeId);
+    return this.depo.politika(projeId) ?? varsayilanKurallar();
+  }
+
+  politikaYaz(projeId: string, kurallar: PolitikaKurali[]): PolitikaKurali[] {
+    this.proje(projeId);
+    if (!Array.isArray(kurallar)) throw new ArnorgHatasi("Kurallar dizi olmalı.");
+    for (const k of kurallar) {
+      if (!k.id || !k.ad || !["izin", "ret", "sor"].includes(k.karar) || !["komut", "yol", "url", "arac"].includes(k.hedef)) {
+        throw new ArnorgHatasi(`Geçersiz kural: ${k.ad || k.id || "adsız"}`);
+      }
+      for (const d of k.desenler ?? []) {
+        try {
+          new RegExp(d, "i");
+        } catch {
+          throw new ArnorgHatasi(`Geçersiz düzenli ifade (${k.ad}): ${d}`);
+        }
+      }
+    }
+    this.depo.politikaYaz(projeId, kurallar);
+    return kurallar;
+  }
+
+  private denetimKaydet(ajan: Ajan, arac: string, girdi: Record<string, unknown>, karar: Karar, kural: string | null, neden: string | null, aracKimligi?: string): void {
+    const kayit = this.depo.denetimEkle({
+      projeId: ajan.projeId,
+      ajanId: ajan.id,
+      ajanAd: ajan.ad,
+      arac,
+      girdiOzeti: girdiOzeti(arac, girdi),
+      karar,
+      kural,
+      neden,
+      aracKimligi: aracKimligi ?? null,
+    });
+    this.olaylar.yayinla({ tur: "denetim.kaydi", kayit });
+  }
+
+  private ret(neden: string): HookJSONOutput {
+    return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: neden } };
+  }
+
+  /** PreToolUse: her araç çağrısı buradan geçer */
+  async kapi(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<HookJSONOutput> {
+    const ajan = this.depo.ajan(ajanId);
+    if (!ajan) return this.ret("ArnOrg: ajan bulunamadı.");
+    if (arac.startsWith("mcp__arnorg__")) return {};
+    const proje = this.proje(ajan.projeId);
+    const cwd = ajan.calismaAlani ?? proje.yol;
+
+    // Bütçe
+    if (ajan.gunlukButceUsd > 0 && ajan.bugunHarcananUsd >= ajan.gunlukButceUsd) {
+      this.butceOnayiIste(ajan);
+      const neden = `Günlük bütçen doldu ($${ajan.bugunHarcananUsd.toFixed(2)} / $${ajan.gunlukButceUsd.toFixed(2)}). Yönetim kurulu onayı bekleniyor; işini özetleyip dur.`;
+      this.denetimKaydet(ajan, arac, girdi, "ret", "Bütçe", neden, aracKimligi);
+      return this.ret(neden);
+    }
+    const sirketButcesi = this.yapilandirma.ayarlar.gunlukButceUsd;
+    if (sirketButcesi > 0 && this.depo.sirketMaliyeti(bugun()) >= sirketButcesi) {
+      const neden = `Şirketin günlük bütçesi ($${sirketButcesi.toFixed(2)}) doldu. Yarın ya da kurul bütçeyi artırınca devam edilir.`;
+      this.denetimKaydet(ajan, arac, girdi, "ret", "Şirket bütçesi", neden, aracKimligi);
+      return this.ret(neden);
+    }
+
+    // Kurulun düzenlediği dosya
+    if (YAZMA_ARACLARI.has(arac)) {
+      const hedef = typeof girdi.file_path === "string" ? path.resolve(cwd, girdi.file_path) : null;
+      const kilit = hedef ? this.kullaniciKilitleri.get(hedef) : undefined;
+      if (hedef && kilit && kilit > Date.now()) {
+        const neden = "Bu dosyayı şu an yönetim kurulu düzenliyor. Birkaç saniye sonra dosyayı yeniden oku ve sonra düzenle.";
+        this.denetimKaydet(ajan, arac, girdi, "ret", "Kurul kilidi", neden, aracKimligi);
+        return this.ret(neden);
+      }
+    }
+
+    const sonuc = degerlendir(this.politika(proje.id), arac, girdi, { cwd, projeKoku: proje.yol, rol: ajan.rol });
+    if (sonuc.karar === "ret") {
+      this.denetimKaydet(ajan, arac, girdi, "ret", sonuc.kural, sonuc.neden, aracKimligi);
+      return this.ret(`ArnOrg politikası reddetti. ${sonuc.neden ?? ""} Gerekliyse kurula_sor ile gerekçeli izin iste.`);
+    }
+    if (sonuc.karar === "sor") {
+      this.denetimKaydet(ajan, arac, girdi, "sor", sonuc.kural, sonuc.neden, aracKimligi);
+      const k = await this.kararBekle(ajan, "arac", `${ajan.ad} · ${arac}`, girdiOzeti(arac, girdi), { arac, girdi, kural: sonuc.kural, aracKimligi });
+      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", "Yönetim kurulu", k.not, aracKimligi);
+      if (!k.izin) return this.ret(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`);
+      this.yazmaKaydet(ajanId, cwd, arac, girdi);
+      return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Yönetim kurulu onayladı" } };
+    }
+    this.yazmaKaydet(ajanId, cwd, arac, girdi);
+    if (!SESSIZ_ARACLAR.has(arac)) this.denetimKaydet(ajan, arac, girdi, "izin", null, null, aracKimligi);
+    return {};
+  }
+
+  private yazmaKaydet(ajanId: string, cwd: string, arac: string, girdi: Record<string, unknown>): void {
+    if (!YAZMA_ARACLARI.has(arac)) return;
+    const y = typeof girdi.file_path === "string" ? girdi.file_path : typeof girdi.notebook_path === "string" ? girdi.notebook_path : null;
+    if (y) this.duzenlemeler.set(path.resolve(cwd, y), { ajanId, zaman: Date.now() });
+  }
+
+  private aracSonrasi(ajanId: string, arac: string, girdi: Record<string, unknown>): void {
+    const a = this.depo.ajan(ajanId);
+    if (!a || !YAZMA_ARACLARI.has(arac)) return;
+    const cwd = a.calismaAlani ?? this.proje(a.projeId).yol;
+    const y = typeof girdi.file_path === "string" ? girdi.file_path : null;
+    if (!y) return;
+    const tam = path.resolve(cwd, y);
+    this.duzenlemeler.set(tam, { ajanId, zaman: Date.now() });
+    this.olaylar.yayinla({ tur: "dosya.degisti", projeId: a.projeId, alan: a.calismaAlani ? a.id : "ana", yol: path.relative(cwd, tam).replace(/\\/g, "/"), ajanId });
+  }
+
+  /** Claude Code'un izin sorduğu çağrı (bypass dışı modlar, plan onayı) */
+  private async izinSor(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<PermissionResult> {
+    const ajan = this.depo.ajan(ajanId);
+    if (!ajan) return { behavior: "deny", message: "Ajan bulunamadı." };
+    if (arac.startsWith("mcp__arnorg__")) return { behavior: "allow", updatedInput: girdi };
+    const planMi = arac === "ExitPlanMode";
+    const baslik = planMi ? `${ajan.ad} · Plan onayı` : `${ajan.ad} · ${arac} izni istiyor`;
+    const ayrinti = planMi ? String(girdi.plan ?? "") : girdiOzeti(arac, girdi);
+    const k = await this.kararBekle(ajan, "arac", baslik, ayrinti, { arac, girdi, kural: "Claude Code izin sorusu", aracKimligi });
+    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", "Yönetim kurulu", k.not, aracKimligi);
+    return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: `Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}` };
+  }
+
+  /** Onay açar ve kurulun kararını bekler; süre dolarsa ret */
+  kararBekle(ajan: Ajan | null, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown, projeId?: string): Promise<{ izin: boolean; not: string | null }> {
+    const sure = this.yapilandirma.ayarlar.onaySuresiSn;
+    const onay = this.depo.onayEkle({
+      projeId: ajan?.projeId ?? projeId!,
+      ajanId: ajan?.id ?? null,
+      tur,
+      baslik,
+      ayrinti,
+      veri,
+      sonGecerlilik: new Date(Date.now() + sure * 1000).toISOString(),
+    });
+    this.olaylar.yayinla({ tur: "onay.yeni", onay });
+    this.projeYayinla(onay.projeId);
+    if (ajan) this.durumDegisti(ajan.id, "karar_bekliyor", `Onay bekliyor: ${kisalt(baslik, 60)}`);
+    return new Promise((coz) => {
+      const zamanlayici = setTimeout(() => {
+        this.bekleyenKararlar.delete(onay.id);
+        const son = this.depo.onaySonuclandir(onay.id, "zaman_asimi", "Süre doldu");
+        this.olaylar.yayinla({ tur: "onay.sonuc", onay: son });
+        this.projeYayinla(son.projeId);
+        coz({ izin: false, not: "Süre doldu" });
+      }, sure * 1000);
+      this.bekleyenKararlar.set(onay.id, {
+        zamanlayici,
+        coz: (s) => {
+          clearTimeout(zamanlayici);
+          this.bekleyenKararlar.delete(onay.id);
+          if (ajan && this.depo.ajan(ajan.id)?.durum === "karar_bekliyor") this.durumDegisti(ajan.id, "calisiyor", "Devam ediyor");
+          coz(s);
+        },
+      });
+    });
+  }
+
+  /** Beklemeden karar isteği açar (işe alım, birleştirme teklifleri) */
+  teklifAc(ajan: Ajan, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown): Onay {
+    const onay = this.depo.onayEkle({ projeId: ajan.projeId, ajanId: ajan.id, tur, baslik, ayrinti, veri, sonGecerlilik: null });
+    this.olaylar.yayinla({ tur: "onay.yeni", onay });
+    this.projeYayinla(ajan.projeId);
+    return onay;
+  }
+
+  private butceOnayiIste(ajan: Ajan): void {
+    const anahtar = `${ajan.id}:${bugun()}`;
+    if (this.butceOnayiIstendi.has(anahtar)) return;
+    this.butceOnayiIstendi.add(anahtar);
+    const onay = this.depo.onayEkle({
+      projeId: ajan.projeId,
+      ajanId: ajan.id,
+      tur: "butce",
+      baslik: `${ajan.ad} · günlük bütçe doldu`,
+      ayrinti: `Bugün $${ajan.bugunHarcananUsd.toFixed(2)} harcandı, sınır $${ajan.gunlukButceUsd.toFixed(2)}. Onaylarsanız sınır %50 artar.`,
+      veri: { ajanId: ajan.id, eskiSinir: ajan.gunlukButceUsd },
+      sonGecerlilik: null,
+    });
+    this.olaylar.yayinla({ tur: "onay.yeni", onay });
+    this.projeYayinla(ajan.projeId);
+  }
+
+  /** Kurulun onay kararı */
+  async onayKarari(onayId: string, karar: "onayla" | "reddet", not?: string): Promise<Onay> {
+    const onay = this.depo.onay(onayId);
+    if (!onay) throw bulunamadi("Onay");
+    if (onay.durum !== "bekliyor") throw new ArnorgHatasi("Bu onay zaten sonuçlanmış.", 409);
+    const izin = karar === "onayla";
+    const temizNot = not?.trim() || null;
+    const son = this.depo.onaySonuclandir(onayId, izin ? "onaylandi" : "reddedildi", temizNot);
+    this.olaylar.yayinla({ tur: "onay.sonuc", onay: son });
+    const bekleyen = this.bekleyenKararlar.get(onayId);
+    if (bekleyen) bekleyen.coz({ izin, not: temizNot });
+
+    try {
+      if (onay.tur === "ise_alim") await this.iseAlimSonucu(onay, izin, temizNot);
+      else if (onay.tur === "butce" && izin) this.butceArtir(onay);
+      else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot);
+    } catch (h) {
+      this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId });
+    }
+    this.projeYayinla(onay.projeId);
+    return this.depo.onay(onayId)!;
+  }
+
+  private async iseAlimSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
+    const veri = onay.veri as AjanIseAlIstegi & { yoneticiAd?: string | null };
+    const teklifEden = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
+    if (!izin) {
+      if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım teklifin reddedildi: ${veri.ad} (${veri.rol}).${not ? ` Kurulun notu: ${not}` : ""}`);
+      return;
+    }
+    let yoneticiId = veri.yoneticiId ?? null;
+    if (veri.yoneticiAd) yoneticiId = this.depo.ajanAdla(onay.projeId, veri.yoneticiAd)?.id ?? yoneticiId;
+    const yeni = this.iseAl(onay.projeId, { ...veri, yoneticiId: yoneticiId ?? teklifEden?.id ?? null });
+    this.kanalMesaji(onay.projeId, "genel", { id: "arnorg", ad: "ArnOrg" }, `${yeni.ad} (${yeni.rolAdi}) ekibe katıldı.`);
+    if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım onaylandı: ${yeni.ad} (${yeni.rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`);
+  }
+
+  private butceArtir(onay: Onay): void {
+    const veri = onay.veri as { ajanId: string; eskiSinir: number };
+    const a = this.depo.ajan(veri.ajanId);
+    if (!a) return;
+    const yeni = Math.max(a.gunlukButceUsd * 1.5, a.bugunHarcananUsd + 1);
+    this.depo.ajanGuncelle(a.id, { gunlukButceUsd: Math.round(yeni * 100) / 100 });
+    this.butceOnayiIstendi.delete(`${a.id}:${bugun()}`);
+    this.ajanYayinla(a.id);
+    void this.sistemMesaji(a.id, `Günlük bütçen $${yeni.toFixed(2)} oldu. Kaldığın yerden devam et.`).catch(() => undefined);
+  }
+
+  private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
+    const veri = onay.veri as { ajanId: string; dal: string; ozet: string; isteyenId?: string };
+    const sahip = this.depo.ajan(veri.ajanId);
+    const isteyen = veri.isteyenId ? this.depo.ajan(veri.isteyenId) : sahip;
+    if (!izin) {
+      if (isteyen) await this.sistemMesaji(isteyen.id, `${veri.dal} birleştirmesi reddedildi.${not ? ` Not: ${not}` : ""}`);
+      return;
+    }
+    const proje = this.proje(onay.projeId);
+    const mevcut = await gitIslemleri.mevcutDal(proje.yol);
+    if (mevcut !== proje.varsayilanDal) throw new ArnorgHatasi(`Ana repo ${proje.varsayilanDal} dalında değil (${mevcut}). Birleştirme yapılmadı.`, 409);
+    const kirli = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
+    if (kirli) throw new ArnorgHatasi("Ana repoda commit'lenmemiş değişiklik var; birleştirme yapılmadı.", 409);
+    const sonuc = await gitIslemleri.birlestir(proje.yol, veri.dal, `ArnOrg: ${veri.dal} birleştirildi\n\n${veri.ozet}`);
+    if (sonuc.basarili) {
+      for (const g of this.depo.gorevler(proje.id)) {
+        if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
+      }
+      this.kanalMesaji(proje.id, "genel", { id: "arnorg", ad: "ArnOrg" }, `${veri.dal} ${proje.varsayilanDal} dalına birleştirildi. ${kisalt(veri.ozet, 200)}`);
+    } else if (sahip) {
+      await this.sistemMesaji(
+        sahip.id,
+        `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${proje.varsayilanDal}'i al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
+      );
+    }
+  }
+
+  // ===================================================================
+  // Görevler
+  // ===================================================================
+
+  gorevMetni(g: Gorev): string {
+    const bagimli = g.bagimliliklar
+      .map((id) => this.depo.gorev(id))
+      .filter(Boolean)
+      .map((b) => `${b!.kod} ${b!.baslik} (${b!.durum})`);
+    return [
+      `Görev ${g.kod}: ${g.baslik}`,
+      g.aciklama ? `\n${g.aciklama}` : "",
+      g.kabulOlcutu ? `\nKabul ölçütü:\n${g.kabulOlcutu}` : "",
+      bagimli.length ? `\nBağımlı olduğu görevler: ${bagimli.join(", ")}` : "",
+      "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
+    ].join("\n");
+  }
+
+  gorevOlustur(projeId: string, istek: GorevOlusturIstegi, olusturanId: string | null = null): Gorev {
+    this.proje(projeId);
+    const baslik = istek.baslik?.trim();
+    if (!baslik) throw new ArnorgHatasi("Görev başlığı gerekli.");
+    if (istek.atananId) {
+      const a = this.depo.ajan(istek.atananId);
+      if (!a || a.projeId !== projeId) throw bulunamadi("Atanan ajan");
+    }
+    const bagimliliklar = (istek.bagimliliklar ?? []).map((b) => {
+      const g = this.depo.gorevKoduyla(projeId, b);
+      if (!g) throw new ArnorgHatasi(`Bağımlı görev bulunamadı: ${b}`);
+      return g.id;
+    });
+    const durum = istek.durum && istek.durum !== "calisiliyor" ? istek.durum : "bekleyen";
+    const gorev = this.depo.gorevEkle({
+      projeId,
+      baslik,
+      aciklama: istek.aciklama?.trim() ?? "",
+      kabulOlcutu: istek.kabulOlcutu?.trim() ?? "",
+      durum,
+      atananId: istek.atananId ?? null,
+      bagimliliklar,
+      etiket: istek.etiket?.trim() ?? "",
+      olusturanId,
+    });
+    this.olaylar.yayinla({ tur: "gorev.guncellendi", gorev });
+    this.projeYayinla(projeId);
+    return gorev;
+  }
+
+  async gorevGuncelle(id: string, istek: GorevGuncelleIstegi, kaynakAjanId: string | null = null): Promise<Gorev> {
+    const eski = this.depo.gorev(id);
+    if (!eski) throw bulunamadi("Görev");
+    if (istek.atananId) {
+      const a = this.depo.ajan(istek.atananId);
+      if (!a || a.projeId !== eski.projeId) throw bulunamadi("Atanan ajan");
+    }
+    let bagimliliklar: string[] | undefined;
+    if (istek.bagimliliklar) {
+      bagimliliklar = istek.bagimliliklar.map((b) => {
+        const g = this.depo.gorevKoduyla(eski.projeId, b);
+        if (!g) throw new ArnorgHatasi(`Bağımlı görev bulunamadı: ${b}`);
+        if (g.id === id) throw new ArnorgHatasi("Görev kendine bağımlı olamaz.");
+        return g.id;
+      });
+    }
+    const yeniDurum = istek.durum;
+    if (yeniDurum && yeniDurum !== eski.durum) {
+      if (!GOREV_GECISLERI[eski.durum].includes(yeniDurum)) {
+        throw new ArnorgHatasi(`${eski.kod}: ${eski.durum} → ${yeniDurum} geçişine izin yok.`, 409);
+      }
+      if (yeniDurum === "calisiliyor") {
+        const bitmemis = (bagimliliklar ?? eski.bagimliliklar).map((b) => this.depo.gorev(b)).filter((g) => g && g.durum !== "tamam");
+        if (bitmemis.length) throw new ArnorgHatasi(`${eski.kod} başlayamaz; bitmemiş bağımlılık: ${bitmemis.map((g) => g!.kod).join(", ")}`, 409);
+        if (!(istek.atananId ?? eski.atananId)) throw new ArnorgHatasi(`${eski.kod} başlamadan önce bir çalışana atanmalı.`, 409);
+      }
+    }
+    const gorev = this.depo.gorevGuncelle(id, {
+      baslik: istek.baslik?.trim() || undefined,
+      aciklama: istek.aciklama,
+      kabulOlcutu: istek.kabulOlcutu,
+      durum: yeniDurum,
+      atananId: istek.atananId,
+      bagimliliklar,
+      etiket: istek.etiket,
+    });
+    this.olaylar.yayinla({ tur: "gorev.guncellendi", gorev });
+    this.projeYayinla(gorev.projeId);
+
+    const durumDegisti = yeniDurum && yeniDurum !== eski.durum;
+    const atamaDegisti = istek.atananId !== undefined && istek.atananId !== eski.atananId;
+    if (gorev.durum === "calisiliyor" && gorev.atananId && (durumDegisti || atamaDegisti) && gorev.atananId !== kaynakAjanId) {
+      await this.gorevBaslat(gorev).catch((h) =>
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${gorev.kod} başlatılamadı: ${(h as Error).message}`, projeId: gorev.projeId }),
+      );
+    }
+    if (durumDegisti && gorev.durum === "inceleme") await this.incelemeyeBildir(gorev).catch(() => undefined);
+    if (durumDegisti && gorev.durum === "tamam") await this.gorevBitti(gorev).catch(() => undefined);
+    return gorev;
+  }
+
+  private async gorevBaslat(g: Gorev): Promise<void> {
+    if (!g.atananId) return;
+    this.depo.ajanGuncelle(g.atananId, { gorevId: g.id });
+    const oturum = this.oturumlar.get(g.atananId);
+    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${this.gorevMetni(g)}` : this.gorevMetni(g);
+    await this.ajanaMesaj(g.atananId, metin, "next", { tur: "sistem" });
+  }
+
+  private async incelemeyeBildir(g: Gorev): Promise<void> {
+    const ajanlar = this.depo.ajanlar(g.projeId);
+    const sahip = g.atananId ? this.depo.ajan(g.atananId) : null;
+    const inceleyici = ajanlar.find((a) => a.rol === "inceleme" && a.id !== g.atananId);
+    const hedef = inceleyici ?? ajanlar.find((a) => a.rol === "ceo");
+    if (!hedef) return;
+    const dal = sahip?.dal ? ` Dal: ${sahip.dal}.` : "";
+    await this.uyandir(hedef.id, `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? "calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa birlestirme_iste ile kurul onayına sun, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz." : "calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir."}`, null);
+  }
+
+  private async gorevBitti(g: Gorev): Promise<void> {
+    // Bağımlılığı tamamlanan ve atanmış görevleri otomatik başlat
+    for (const d of this.depo.gorevler(g.projeId)) {
+      if (!d.bagimliliklar.includes(g.id) || !d.atananId) continue;
+      if (d.durum !== "planlandi" && d.durum !== "bekleyen") continue;
+      const hazir = d.bagimliliklar.every((b) => this.depo.gorev(b)?.durum === "tamam");
+      if (hazir) await this.gorevGuncelle(d.id, { durum: "calisiliyor" });
+    }
+    // Ekip boşa düştüyse CEO'yu uyandır
+    const gorevler = this.depo.gorevler(g.projeId);
+    const suren = gorevler.some((x) => x.durum === "calisiliyor" || x.durum === "inceleme");
+    const ceo = this.depo.ajanlar(g.projeId).find((a) => a.rol === "ceo");
+    if (!suren && ceo) {
+      await this.uyandir(ceo.id, `${g.kod} tamamlandı ve şu an çalışılan görev yok. Durumu değerlendir: sıradaki işleri planla ve ata ya da kurula #genel'de rapor ver.`, null);
+    }
+  }
+
+  // ===================================================================
+  // Kanallar ve uyandırma
+  // ===================================================================
+
+  /** Ajan ya da sistemden gelen uyandırma; döngü koruması uygular */
+  async uyandir(aliciId: string, metin: string, gonderen: Ajan | null): Promise<boolean> {
+    const alici = this.depo.ajan(aliciId);
+    if (!alici) return false;
+    if (gonderen) {
+      const simdiMs = Date.now();
+      const liste = (this.uyandirmalar.get(aliciId) ?? []).filter((t) => simdiMs - t < UYANDIRMA_PENCERESI_MS);
+      if (liste.length >= UYANDIRMA_SINIRI && !this.oturumlar.get(aliciId)?.acik) {
+        this.olaylar.yayinla({
+          tur: "bildirim",
+          seviye: "uyari",
+          metin: `${alici.ad} son 10 dakikada çok sık uyandırıldı; ${gonderen.ad}'in mesajı kanalda bırakıldı, ajan uyandırılmadı.`,
+          projeId: alici.projeId,
+        });
+        return false;
+      }
+      liste.push(simdiMs);
+      this.uyandirmalar.set(aliciId, liste);
+    }
+    const kaynak: MesajKaynagi = gonderen ? { tur: "ajan", ad: gonderen.ad, id: gonderen.id } : { tur: "sistem" };
+    try {
+      await this.ajanaMesaj(aliciId, metin, "next", kaynak);
+      return true;
+    } catch (h) {
+      this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${alici.ad} uyandırılamadı: ${(h as Error).message}`, projeId: alici.projeId });
+      return false;
+    }
+  }
+
+  private async sistemMesaji(ajanId: string, metin: string): Promise<void> {
+    await this.uyandir(ajanId, metin, null);
+  }
+
+  kanalMesaji(projeId: string, kanal: string, gonderen: { id: string; ad: string }, metin: string, anilanlar: string[] = []): Mesaj {
+    const mesaj = this.depo.mesajEkle({ projeId, kanal, gonderenId: gonderen.id, gonderenAd: gonderen.ad, metin, anilanlar });
+    this.olaylar.yayinla({ tur: "mesaj.yeni", mesaj });
+    return mesaj;
+  }
+
+  anilanlariBul(projeId: string, metin: string): Ajan[] {
+    const sonuc: Ajan[] = [];
+    for (const m of metin.matchAll(/@([\p{L}\p{N}_.-]+)/gu)) {
+      const a = this.depo.ajanAdla(projeId, m[1]!);
+      if (a && !sonuc.some((x) => x.id === a.id)) sonuc.push(a);
+    }
+    return sonuc;
+  }
+
+  /** Kurulun ya da bir ajanın kanala yazdığı mesaj; anılanlar uyanır */
+  async mesajGonder(projeId: string, kanal: string, gonderenId: string, metin: string): Promise<Mesaj> {
+    this.proje(projeId);
+    const temizKanal = kanal.trim().replace(/^#/, "").toLowerCase();
+    if (!/^[\p{L}\p{N}_-]{1,40}$/u.test(temizKanal)) throw new ArnorgHatasi("Geçersiz kanal adı.");
+    const govde = metin.trim();
+    if (!govde) throw new ArnorgHatasi("Mesaj boş olamaz.");
+    const gonderenAjan = gonderenId === KURUL ? null : this.depo.ajan(gonderenId);
+    if (gonderenId !== KURUL && !gonderenAjan) throw bulunamadi("Gönderen");
+    const anilanlar = this.anilanlariBul(projeId, govde).filter((a) => a.id !== gonderenId);
+    const mesaj = this.kanalMesaji(
+      projeId,
+      temizKanal,
+      { id: gonderenId, ad: gonderenAjan?.ad ?? "Yönetim kurulu" },
+      govde,
+      anilanlar.map((a) => a.id),
+    );
+    let alicilar = anilanlar;
+    if (!gonderenAjan && temizKanal === "genel" && !alicilar.length) {
+      const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
+      if (ceo) alicilar = [ceo];
+    }
+    const etiket = `#${temizKanal} · ${gonderenAjan?.ad ?? "Yönetim kurulu"}: ${govde}`;
+    for (const a of alicilar) {
+      if (gonderenAjan) await this.uyandir(a.id, etiket, gonderenAjan);
+      else await this.ajanaMesaj(a.id, etiket, "next", { tur: "kurul" }).catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId }));
+    }
+    return mesaj;
+  }
+
+  // ===================================================================
+  // Maliyet
+  // ===================================================================
+
+  maliyetOzeti(projeId: string): MaliyetOzeti {
+    this.proje(projeId);
+    const ajanlar = this.depo.ajanlar(projeId);
+    return {
+      bugunUsd: this.depo.projeMaliyeti(projeId, bugun()),
+      toplamUsd: this.depo.projeMaliyeti(projeId),
+      gunlukButceUsd: this.yapilandirma.ayarlar.gunlukButceUsd,
+      ajanlar: ajanlar.map((a) => ({ ajanId: a.id, ad: a.ad, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd })),
+      pencere: this.pencere,
+    };
+  }
+
+  // ===================================================================
+  // Kapanış
+  // ===================================================================
+
+  kapat(): void {
+    for (const o of this.oturumlar.values()) o.kapat();
+    for (const z of this.bostaZamanlayicilari.values()) clearTimeout(z);
+    for (const b of this.bekleyenKararlar.values()) {
+      clearTimeout(b.zamanlayici);
+      b.coz({ izin: false, not: "ArnOrg kapanıyor" });
+    }
+  }
+
+  /** Başlangıç zamanı (sağlık kontrolü için) */
+  readonly acilis = simdi();
+}
