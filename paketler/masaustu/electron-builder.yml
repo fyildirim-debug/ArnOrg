@@ -1,0 +1,125 @@
+# ArnOrg masaüstü paketleme (electron-builder 26). Ayrıntılar: README.md → "Paketleme".
+#
+# Paketlenmiş uygulamanın düzeni:
+#   resources/app.asar                      kabuk: dist/ (ana süreç, ön yükleme, açılış sayfası), kaynaklar/simge.png
+#   resources/app.asar.unpacked/cekirdek/   çekirdek derlemesi (../cekirdek/dist) + "type": "module" paket dosyası
+#   resources/app.asar.unpacked/node_modules/  çekirdeğin çalışma zamanı bağımlılıkları (package.json "dependencies")
+#   resources/studyo/                       Stüdyo derlemesi (../studyo/dist)
+#
+# Çekirdek ve bağımlılıkları asar dışında aynı ağaçtadır: çekirdeğin ESM içe aktarmaları Node'un olağan
+# node_modules aramasıyla çözülür, yerel modüller ve çalıştırılan ikililer (claude, node-pty) gerçek yola sahiptir.
+
+appId: com.arnexlab.arnorg
+productName: ArnOrg
+copyright: Copyright © 2026 Furkan YILDIRIM
+artifactName: ${productName}-${version}-${arch}.${ext}
+
+directories:
+  output: cikti
+  buildResources: kaynaklar
+
+beforePack: betikler/paket-oncesi.cjs
+
+# Tüm yerel bağımlılıklar N-API hazır derlemeyle gelir (better-sqlite3 13, @lydell/node-pty);
+# yeniden derleme Electron ABI'si için gerekmez ama yeni bir yerel modül eklenirse güvence olarak açık kalır.
+npmRebuild: true
+
+# Yalnız Türkçe ve İngilizce Chromium dil dosyaları
+electronLanguages:
+  - tr
+  - en-US
+
+files:
+  - package.json
+  - dist/**/*
+  - "!dist/**/*.map"
+  - kaynaklar/simge.png
+  # musl ikilileri (Alpine) Electron'la çalışmaz; yalnız yer kaplar
+  - "!node_modules/@anthropic-ai/claude-agent-sdk-*-musl{,/**/*}"
+  - "!node_modules/better-sqlite3/{deps,src,build}{,/**/*}"
+  - "!node_modules/better-sqlite3/prebuilds/*.node"
+  - node_modules/better-sqlite3/prebuilds/${platform}-${arch}.node
+
+asar: true
+asarUnpack:
+  - node_modules/**
+
+extraResources:
+  # Çekirdek, bağımlılıklarının (app.asar.unpacked/node_modules) yanına konur
+  - from: ../cekirdek/dist
+    to: app.asar.unpacked/cekirdek
+  - from: kaynaklar/cekirdek-paketi.json
+    to: app.asar.unpacked/cekirdek/package.json
+  - from: ../studyo/dist
+    to: studyo
+
+publish:
+  provider: github
+  owner: fyildirim-debug
+  repo: ArnOrg
+  releaseType: draft
+
+# ---------------------------------------------------------------------------
+# Windows: NSIS (kurulum sihirbazı) ve MSI. Mimari komut satırından verilir (--x64 / --arm64).
+# İmzalama: CSC_LINK + CSC_KEY_PASSWORD (ya da WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD) ortam değişkenleri
+# verilirse otomatik yapılır; depoya sertifika konmaz.
+# ---------------------------------------------------------------------------
+win:
+  target:
+    - nsis
+    - msi
+  icon: kaynaklar/simge.ico
+  executableName: ArnOrg
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  language: "1055"
+  installerLanguages:
+    - tr_TR
+  multiLanguageInstaller: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ArnOrg
+  uninstallDisplayName: ArnOrg
+  deleteAppDataOnUninstall: false
+  artifactName: ${productName}-Kurulum-${version}-${arch}.${ext}
+
+msi:
+  oneClick: false
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ArnOrg
+
+# ---------------------------------------------------------------------------
+# Linux: AppImage, deb, rpm. Mimari komut satırından verilir (--x64 / --arm64);
+# her mimari kendi makinesinde paketlenir (betikler/paket-oncesi.cjs denetler).
+# ---------------------------------------------------------------------------
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  icon: kaynaklar/simge.png
+  category: Development
+  executableName: arnorg
+  syncDesktopName: true
+  maintainer: Furkan YILDIRIM <posta@furkanyildirim.com>
+  vendor: Furkan YILDIRIM <posta@furkanyildirim.com>
+  synopsis: Claude Code ajanlarından kurulan yazılım şirketi
+  description: >-
+    ArnOrg, Claude Code ajanlarını bir yazılım şirketi gibi çalıştırır: CEO ajanı planı yazar,
+    ekibi işe alır, işi dağıtır; her ajan kendi git çalışma alanında, canlı denetim altında çalışır.
+
+deb:
+  packageName: arnorg
+  packageCategory: devel
+  recommends:
+    - git
+
+rpm:
+  packageName: arnorg
+  packageCategory: Development/Tools
