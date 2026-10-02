@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Geliştirmede çekirdek (ya da sahte sunucu) bu adreste çalışır
-const CEKIRDEK = "http://127.0.0.1:47820";
+// Geliştirmede çekirdek (ya da sahte sunucu) bu adreste çalışır; ARNORG_CEKIRDEK ile değiştirilebilir
+const CEKIRDEK = process.env.ARNORG_CEKIRDEK ?? "http://127.0.0.1:47820";
 
 export default defineConfig({
   plugins: [react()],
