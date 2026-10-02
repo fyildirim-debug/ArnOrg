@@ -1,0 +1,77 @@
+/* FY tasarım dili: mürekkep zemin, kâğıt metin, tek mercan vurgu, kıl çizgiler. Uygulama yalnız koyu temadadır. */
+:root {
+  /* zemin katmanları */
+  --ink: #0a0a0b;
+  --ink-2: #0f0f11;
+  --ink-3: #161619;
+  --ink-4: #222226;
+  --ink-5: #2e2e33;
+
+  /* metin */
+  --paper: #f2f0ec;
+  --bone: #ede7dc;
+  --muted: #a19c94;
+  --muted-2: #77726b;
+
+  /* çizgiler */
+  --line-soft: rgba(242, 240, 236, 0.06);
+  --line: rgba(242, 240, 236, 0.1);
+  --line-strong: rgba(242, 240, 236, 0.22);
+  --line-hover: rgba(242, 240, 236, 0.42);
+
+  /* tek vurgu */
+  --coral: oklch(0.72 0.19 25);
+  --coral-hi: oklch(0.78 0.16 28);
+  --coral-zemin: oklch(0.72 0.19 25 / 0.12);
+  --coral-cizgi: oklch(0.72 0.19 25 / 0.45);
+
+  /* anlam renkleri */
+  --ok: oklch(0.8 0.12 155);
+  --ok-zemin: oklch(0.8 0.12 155 / 0.1);
+  --warn: oklch(0.84 0.13 85);
+  --warn-zemin: oklch(0.84 0.13 85 / 0.1);
+  --sil: oklch(0.74 0.15 22);
+  --sil-zemin: rgba(255, 90, 70, 0.08);
+  --ekle-zemin: rgba(110, 220, 150, 0.07);
+
+  /* kod renkleri */
+  --kod-dize: oklch(0.83 0.09 135);
+  --kod-tur: oklch(0.82 0.07 230);
+  --kod-etiket: oklch(0.8 0.1 60);
+
+  /* yazı */
+  --font-display: "Anton", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+  --t-2xs: 0.6875rem;
+  --t-xs: 0.75rem;
+  --t-s: 0.8125rem;
+  --t-m: 0.9375rem;
+  --t-l: 1.25rem;
+  --t-baslik: 1.875rem;
+
+  /* boşluk ölçeği (4 px tabanlı) */
+  --b-1: 0.25rem;
+  --b-2: 0.5rem;
+  --b-3: 0.75rem;
+  --b-4: 1rem;
+  --b-5: 1.25rem;
+  --b-6: 1.5rem;
+  --b-8: 2rem;
+  --b-10: 2.5rem;
+
+  --r-1: 3px;
+  --r-2: 4px;
+  --r-3: 6px;
+
+  /* hareket */
+  --hiz: 140ms;
+  --hiz-yavas: 260ms;
+  --egri: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* yerleşim */
+  --ust-yukseklik: 3rem;
+  --nav-genislik: 12rem;
+  --ray-genislik: 18.5rem;
+
+  color-scheme: dark;
+}
