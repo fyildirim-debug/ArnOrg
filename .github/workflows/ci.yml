@@ -60,18 +60,30 @@ jobs:
       - name: Bağımlılıklar
         run: npm ci
 
-      - name: Masaüstü kabuğunu derle
-        run: npm run build -w @arnorg/masaustu
+      - name: Derle (çekirdek, Stüdyo, masaüstü kabuğu)
+        run: |
+          npm run build
+          npm run build -w @arnorg/masaustu
 
-      # Sahte çekirdekle açılır: çekirdek utilityProcess içinde başlar, yerel bağımlılıklar
-      # (better-sqlite3, node-pty, claude ikilisi) denenir, ana pencere yüklenince ekran görüntüsü
-      # alınır ve uygulama nazikçe kapanır. Çekirdek durursa çıkış kodu 1 olur.
+      # Gerçek çekirdek ve Stüdyo ile açılır: çekirdek utilityProcess içinde başlar, yerel bağımlılıklar
+      # (better-sqlite3, node-pty) Electron'un Node'unda yüklenir, Stüdyo yüklenince ekran görüntüsü
+      # alınır ve uygulama nazikçe kapanır. Çekirdek durursa ya da görüntü alınamazsa çıkış kodu 1 olur.
       # GitHub koşucularında kullanıcı ad alanları kısıtlı olduğundan --no-sandbox gerekir.
+      - name: Gerçek çekirdekle aç
+        env:
+          ARNORG_KULLANICI_DIZINI: ${{ runner.temp }}/arnorg
+          ARNORG_DENEME_EKRAN_GORUNTUSU: ${{ runner.temp }}/arnorg/ana-pencere.png
+        run: |
+          mkdir -p "$ARNORG_KULLANICI_DIZINI"
+          timeout 120 xvfb-run -a npx electron paketler/masaustu --no-sandbox
+          test -s "$ARNORG_DENEME_EKRAN_GORUNTUSU"
+
+      # Sahte çekirdek kabuğun yerel bağımlılık denetimini ve hata sayfasını dener
       - name: Sahte çekirdekle aç
         env:
           ARNORG_SAHTE_CEKIRDEK: "1"
-          ARNORG_KULLANICI_DIZINI: ${{ runner.temp }}/arnorg
-          ARNORG_DENEME_EKRAN_GORUNTUSU: ${{ runner.temp }}/arnorg/ana-pencere.png
+          ARNORG_KULLANICI_DIZINI: ${{ runner.temp }}/arnorg-sahte
+          ARNORG_DENEME_EKRAN_GORUNTUSU: ${{ runner.temp }}/arnorg/sahte-pencere.png
         run: |
           mkdir -p "$ARNORG_KULLANICI_DIZINI"
           timeout 120 xvfb-run -a npx electron paketler/masaustu --no-sandbox
@@ -83,6 +95,7 @@ jobs:
         with:
           name: masaustu-duman
           path: |
-            ${{ runner.temp }}/arnorg/ana-pencere.png
+            ${{ runner.temp }}/arnorg/*.png
             ${{ runner.temp }}/arnorg/logs/
+            ${{ runner.temp }}/arnorg-sahte/logs/
           if-no-files-found: ignore

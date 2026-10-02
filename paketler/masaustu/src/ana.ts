@@ -44,6 +44,8 @@ if (process.platform === "win32") app.setAppUserModelId("com.arnexlab.arnorg");
 // Tüm görüntü süreçleri sandbox'lı çalışır. --no-sandbox yalnız root olarak çalışılan konteyner/CI
 // denemeleri içindir; o durumda Chromium sandbox'ı kuramayacağından zorlanmaz.
 if (!app.commandLine.hasSwitch("no-sandbox")) app.enableSandbox();
+// Deneme kipinde (ekransız CI) GPU yok; yazılım çizimi ekran görüntüsünü güvenilir kılar (UnknownVizError)
+if (process.env.ARNORG_DENEME_EKRAN_GORUNTUSU) app.disableHardwareAcceleration();
 oturumAyarlariniKur();
 
 if (!app.requestSingleInstanceLock()) {
@@ -267,12 +269,20 @@ function basla(): void {
     denemeBasladi = true;
     setTimeout(async () => {
       const pencere = anaPencere && !anaPencere.isDestroyed() ? anaPencere : durumPenceresi;
-      if (pencere && !pencere.isDestroyed()) {
-        const goruntu = await pencere.webContents.capturePage();
-        writeFileSync(denemeGoruntusu, goruntu.toPNG());
-        kayit.kabuk(`Deneme: ekran görüntüsü yazıldı ${denemeGoruntusu} (${pencere.webContents.getURL().split("#")[0]})`);
+      let yazildi = false;
+      for (let deneme = 1; pencere && !pencere.isDestroyed() && !yazildi && deneme <= 3; deneme++) {
+        try {
+          const goruntu = await pencere.webContents.capturePage();
+          writeFileSync(denemeGoruntusu, goruntu.toPNG());
+          yazildi = true;
+          kayit.kabuk(`Deneme: ekran görüntüsü yazıldı ${denemeGoruntusu} (${pencere.webContents.getURL().split("#")[0]})`);
+        } catch (hata) {
+          kayit.kabuk(`Deneme: ekran görüntüsü alınamadı (${deneme}/3): ${hata instanceof Error ? hata.message : String(hata)}`);
+          await new Promise((coz) => setTimeout(coz, 1000));
+        }
       }
-      cikisKodu = durum.asama === "hata" ? 1 : 0;
+      // Asılı kalmak yerine her durumda kapanır; görüntü yoksa ya da çekirdek durduysa çıkış kodu 1
+      cikisKodu = durum.asama === "hata" || !yazildi ? 1 : 0;
       app.quit();
     }, 2000);
   }
