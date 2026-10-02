@@ -138,7 +138,13 @@ ArnOrg'un içinde tam bir kod editörü olur. Her ajanın çalışma alanı ayr�
 - **Çakışma koruması:** ajanın düzenlediği dosya kullanıcıya salt okunur; "duraklat ve düzenle" ile kontrol kullanıcıya geçer, kaydedince ajana değişiklik notu gider.
 - **Dış editör:** tek tıkla VSCodium, VS Code ya da Cursor'da açma; çalışma alanları sıradan klasörlerdir.
 
-Editör bileşeni (Monaco ya da CodeMirror 6) ve ArnOrg editörünün Claude Code'a IDE olarak bağlanması araştırılıyor; sonuç karar bölümüne eklenecek.
+**Editör kararı (2 Ekim 2026):**
+
+- **Bileşen: Monaco.** Stüdyo `http://127.0.0.1` üzerinden yüklendiği için Monaco'nun worker'ları sorunsuz çalışır; masaüstünde paket boyutu (~1,2 MB gzip) önemsiz; VS Code ile aynı kısayollar, minimap ve fark editörü hazır gelir. CodeMirror 6 (daha hafif, parça parça kabul/ret yapabilen birleştirme görünümü, resmi LSP istemcisi) yedek seçenek olarak tutulur.
+- **Dil desteği:** dil sunucuları çekirdekte, çalışma alanı ve dil başına, ihtiyaç olunca açılır; editöre WebSocket ile köprülenir (Faz 2).
+- **Claude Code IDE protokolü uygulanmaz.** Protokol (`~/.claude/ide/<port>.lock`, WebSocket MCP) yalnız etkileşimli oturumlara bağlanıyor; SDK ajanlarına IDE bağlanamıyor (`ws-ide` türü yapılandırmayla eklenemez). Aynı işler SDK karşılıklarıyla yapılır: değişiklik onayı denetim kapısında, tanılamalar ArnOrg aracıyla, seçili metin mesaja eklenerek.
+- **Çakışma:** ajan bir dosyayı düzenlerken kurula salt okunur; kurul kaydedince dosya 30 saniye ajanlara kilitlenir ve ajana "yeniden oku" notu gider. Claude Code da okuduktan sonra değişen dosyayı ajana bildirir.
+- **Tam VS Code gömülmez:** code-server'ın Windows sürümü yok, VS Code Server lisansı yeniden dağıtıma izin vermiyor.
 
 ## Mimari
 
