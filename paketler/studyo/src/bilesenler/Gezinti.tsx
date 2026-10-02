@@ -1,4 +1,5 @@
 // Sol menü: ekranlar, bekleyen karar rozetleri, projeler ve ayarlar
+import { useEffect, useRef } from "react";
 import { git, PROJESIZ_GORUNUMLER, useArayuz, type Gorunum } from "../durum/arayuz";
 import { useVeri } from "../durum/veri";
 import { Simge, type SimgeAdi } from "./Simge";
@@ -33,6 +34,17 @@ export function Gezinti() {
   const bekleyenArac = onaylar.filter((o) => o.durum === "bekliyor" && o.tur === "arac").length;
   const bekleyenDiger = onaylar.filter((o) => o.durum === "bekliyor" && o.tur !== "arac").length;
   const okunmamisToplam = Object.values(okunmamis).reduce((a, b) => a + b, 0);
+  const navRef = useRef<HTMLElement>(null);
+
+  // Dar ekranda menü yatay kayar; etkin öğe görünür kalsın
+  useEffect(() => {
+    const nav = navRef.current;
+    const etkin = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !etkin || nav.scrollWidth <= nav.clientWidth) return;
+    const kutu = etkin.getBoundingClientRect();
+    const sol = kutu.left - nav.getBoundingClientRect().left + nav.scrollLeft - nav.clientWidth / 2 + kutu.width / 2;
+    nav.scrollTo({ left: Math.max(0, sol) });
+  }, [gorunum]);
 
   const rozet = (g: Gorunum) => {
     if (g === "denetim" && bekleyenArac)
@@ -77,7 +89,7 @@ export function Gezinti() {
   };
 
   return (
-    <nav className="gezinti" aria-label="Stüdyo menüsü">
+    <nav className="gezinti" aria-label="Stüdyo menüsü" ref={navRef}>
       {ANA.map(dugme)}
       <div className="gezinti-alt">{ALT.map(dugme)}</div>
     </nav>

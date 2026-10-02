@@ -12,6 +12,18 @@ import { ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVeri
 import { akilliZaman, para, yonelme } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
+// Claude Code rate_limit_event alanları
+const PENCERE_TURLERI: Record<string, string> = {
+  five_hour: "5 saatlik kullanım penceresi",
+  seven_day: "Haftalık kullanım penceresi",
+  seven_day_opus: "Haftalık Opus penceresi",
+};
+const PENCERE_DURUMLARI: Record<string, string> = {
+  allowed: "Açık",
+  allowed_warning: "Sınıra yaklaşıyor",
+  rejected: "Sınıra ulaşıldı",
+};
+
 export function Karargah() {
   const projeler = useVeri((d) => d.projeler);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
@@ -77,11 +89,13 @@ export function Karargah() {
               </dd>
             </div>
             {maliyet?.pencere ? (
-              <div>
-                <dt>Abonelik penceresi</dt>
+              <div className="ozet-metin">
+                <dt>{PENCERE_TURLERI[maliyet.pencere.tur] ?? "Abonelik penceresi"}</dt>
                 <dd>
-                  <b>{maliyet.pencere.durum}</b>
-                  {maliyet.pencere.sifirlanma ? <small> · {akilliZaman(maliyet.pencere.sifirlanma)} sıfırlanır</small> : null}
+                  <b className={maliyet.pencere.durum === "allowed" ? undefined : "vurgu"}>
+                    {PENCERE_DURUMLARI[maliyet.pencere.durum] ?? maliyet.pencere.durum}
+                  </b>
+                  {maliyet.pencere.sifirlanma ? <small>Sıfırlanma {akilliZaman(maliyet.pencere.sifirlanma)}</small> : null}
                 </dd>
               </div>
             ) : null}

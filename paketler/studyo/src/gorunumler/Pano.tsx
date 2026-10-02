@@ -117,7 +117,7 @@ export function Pano() {
 
       {gorevler.length ? (
         <div className="pano-sar">
-          <div className="pano" style={{ gridTemplateColumns: `repeat(${sutunlar.length}, minmax(13.5rem, 1fr))` }}>
+          <div className="pano" style={{ gridTemplateColumns: `repeat(${sutunlar.length}, minmax(12.5rem, 1fr))` }}>
             {sutunlar.map((d) => {
               const uygun = suruklenenGorev ? suruklenenGorev.durum !== d && gecisVarMi(suruklenenGorev.durum, d) : false;
               return (

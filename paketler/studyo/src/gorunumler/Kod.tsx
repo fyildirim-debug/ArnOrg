@@ -484,7 +484,7 @@ function KodCalismaAlani({
                       </span>
                     ) : null}
                     <span className="e-durum-sag">
-                      Sa {imlec.satir}, Sü {imlec.sutun} · {dilAdi(aktifSekme.dil)} · UTF-8
+                      Satır {imlec.satir}, Sütun {imlec.sutun} · {dilAdi(aktifSekme.dil)} · UTF-8
                     </span>
                   </>
                 ) : (

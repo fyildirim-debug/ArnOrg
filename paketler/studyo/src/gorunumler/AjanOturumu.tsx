@@ -115,7 +115,7 @@ function Oturum({ ajanId }: { ajanId: string }) {
       {ajan.isAciklamasi ? <p className="oturum-is">{ajan.isAciklamasi}</p> : null}
 
       <div className="oturum-govde">
-        <div className="transkript" ref={kapRef} onScroll={kaydirildi} aria-live="polite" aria-relevant="additions">
+        <div className="transkript" ref={kapRef} onScroll={kaydirildi} role="log" aria-label={`${ajan.ad} oturum dökümü`}>
           {yukleme === "yukleniyor" && !ogeler?.length ? <Iskelet satir={10} etiket="Oturum yükleniyor" /> : null}
           {yukleme === "hata" ? <HataKutu metin="Oturum akışı alınamadı." yeniden={() => void ajanAkisiniYukle(ajanId, true)} /> : null}
           {yukleme === "hazir" && satirlar.length === 0 ? (

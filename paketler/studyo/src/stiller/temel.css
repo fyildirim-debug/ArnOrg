@@ -428,9 +428,14 @@ input[type="number"] {
   display: inline-flex;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-2);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   flex: none;
   max-width: 100%;
+  scrollbar-width: none;
+}
+.bolumlu::-webkit-scrollbar {
+  display: none;
 }
 .bolumlu button {
   height: 1.875rem;

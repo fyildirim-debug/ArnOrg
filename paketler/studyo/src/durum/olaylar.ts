@@ -1,5 +1,5 @@
 // Sunucu olaylarını (WS /ws) depoya artımlı uygular
-import { GOREV_DURUM_ADLARI, ONAY_TURU_ADLARI, type SunucuOlayi } from "@arnorg/ortak";
+import { GOREV_DURUM_ADLARI, KURUL, ONAY_TURU_ADLARI, type SunucuOlayi } from "@arnorg/ortak";
 import { CanliBaglanti } from "../api/canli";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
@@ -89,9 +89,9 @@ export function olayUygula(olay: SunucuOlayi) {
         zaman: o.sonuclanma ?? o.olusturma,
         ajanId: o.ajanId,
         ajanAd: ajan?.ad ?? "ArnOrg",
-        etiket: `${ONAY_TURU_ADLARI[o.tur]} · ${ONAY_DURUM_METNI[o.durum]}`,
+        etiket: ONAY_DURUM_METNI[o.durum],
         sinif: o.durum === "bekliyor" ? "sor" : o.durum === "onaylandi" ? "ok" : "ret",
-        hedef: o.baslik,
+        hedef: `${ONAY_TURU_ADLARI[o.tur]} · ${o.baslik}`,
       });
       if (olay.tur === "onay.yeni" && o.durum === "bekliyor" && o.tur === "arac") {
         bildir("uyari", `${ajan?.ad ?? "Bir ajan"} kararınızı bekliyor: ${kisalt(o.baslik, 60)}`);
@@ -124,7 +124,8 @@ export function olayUygula(olay: SunucuOlayi) {
       if (m.projeId !== pid) return;
       mesajUygula(m);
       const ui = useArayuz.getState();
-      if (!(ui.gorunum === "kanallar" && ui.kanal === m.kanal)) {
+      // Kurulun kendi mesajı okunmamış sayılmaz
+      if (m.gonderenId !== KURUL && !(ui.gorunum === "kanallar" && ui.kanal === m.kanal)) {
         useVeri.setState((s) => ({ okunmamis: { ...s.okunmamis, [m.kanal]: (s.okunmamis[m.kanal] ?? 0) + 1 } }));
       }
       return;

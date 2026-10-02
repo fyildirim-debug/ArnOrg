@@ -51,16 +51,22 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
             </span>
           </>
         ) : null}
-        <button
-          type="button"
-          className={`ws-durum ws-${wsDurumu}`}
-          onClick={wsDurumu === "kopuk" ? simdiYenidenBaglan : undefined}
-          title={wsDurumu === "kopuk" ? "Canlı bağlantı koptu. Yeniden denemek için tıklayın." : "Canlı olay bağlantısı"}
-          aria-live="polite"
-        >
-          <i aria-hidden="true" />
-          {WS_METNI[wsDurumu]}
-        </button>
+        {wsDurumu === "kopuk" ? (
+          <button
+            type="button"
+            className="ws-durum ws-kopuk"
+            onClick={simdiYenidenBaglan}
+            title="Canlı bağlantı koptu; arka planda yeniden deneniyor. Hemen denemek için tıklayın."
+          >
+            <i aria-hidden="true" />
+            {WS_METNI.kopuk}
+          </button>
+        ) : (
+          <span className={`ws-durum ws-${wsDurumu}`} title="Canlı olay bağlantısı" role="status">
+            <i aria-hidden="true" />
+            {WS_METNI[wsDurumu]}
+          </span>
+        )}
         {aktifProjeId ? <MesaiDugmesi /> : null}
         {rayDugmesi}
       </div>

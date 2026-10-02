@@ -7,7 +7,7 @@ import { Iskelet } from "./bilesenler/Durumlar";
 import { Gezinti } from "./bilesenler/Gezinti";
 import { Simge } from "./bilesenler/Simge";
 import { UstCubuk } from "./bilesenler/UstCubuk";
-import { hataBildir, PROJESIZ_GORUNUMLER, rayiDegistir, useArayuz, type Gorunum } from "./durum/arayuz";
+import { git, hataBildir, PROJESIZ_GORUNUMLER, rayiDegistir, useArayuz, type Gorunum } from "./durum/arayuz";
 import { canliBaglantiyiBaslat, canliBaglantiyiKapat } from "./durum/olaylar";
 import { projeleriYukle, projeVerisiniYukle, sagligiYukle, useVeri } from "./durum/veri";
 import { AjanOturumu } from "./gorunumler/AjanOturumu";
@@ -68,6 +68,11 @@ function Studyo() {
 
   const projeYok = !aktifProjeId || (projelerYukleme === "hazir" && projeSayisi === 0);
   const etkin: Gorunum = projeYok && !PROJESIZ_GORUNUMLER.includes(gorunum) ? "projeler" : gorunum;
+
+  // Proje yokken menü de Projeler'i etkin göstersin
+  useEffect(() => {
+    if (etkin !== gorunum) git(etkin);
+  }, [etkin, gorunum]);
   const rayUygun = !projeYok && !RAYSIZ.includes(etkin);
   const rayGorunur = rayUygun && (genis ? rayAcik : rayKatman);
   const tam = TAM_YUKSEKLIK.includes(etkin);

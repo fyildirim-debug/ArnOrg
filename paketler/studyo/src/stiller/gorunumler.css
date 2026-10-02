@@ -12,6 +12,44 @@
   margin-left: auto;
 }
 
+/* Sütunu belirtilmemiş ızgaralarda tek sütun kapsayıcıya sığar; içerik genişliğine göre büyümez */
+.onay-govde,
+.rapor,
+.ajan-ayrinti,
+.cekmece-govde,
+.bekleyen-ic,
+.not-icerik,
+.not-makale,
+.proje-kimlik,
+.proje-gorev,
+.panel,
+.not-agac,
+.not-agac ul,
+.bilet-liste,
+.mesaj-grup,
+.bekleyen-liste,
+.bekleyen,
+.kanal-liste,
+.bagimlilik-liste,
+.oturum-dugmeleri,
+.ic-form,
+.mesaj-formu,
+.ajan-bolum,
+.ajan-ayar-form,
+.politika,
+.ayar-bolum,
+.ayar-yan,
+.dagilim,
+.ak-arac,
+.gorev-durum-bolum,
+.yeni-gorev-form,
+.karargah-ozet,
+.brief,
+.yeni-not,
+.alan {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* ---------- panel ve süzgeç ---------- */
 .panel {
   display: grid;
@@ -350,6 +388,13 @@
   font-weight: 500;
   letter-spacing: -0.01em;
 }
+.ozet-sayac .ozet-metin b {
+  font-size: var(--t-s);
+  font-weight: 600;
+}
+.ozet-sayac .ozet-metin small {
+  display: block;
+}
 .karargah-ozet .dugme-satir {
   flex-direction: column;
   align-items: stretch;
@@ -631,6 +676,7 @@
 .onay-liste {
   list-style: none;
   border-top: 1px solid var(--line);
+  container-type: inline-size;
 }
 .onay {
   display: grid;
@@ -670,12 +716,12 @@
 .onay-veri {
   margin-top: 0.25rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: 0.5rem 1.5rem;
-  max-width: 52rem;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.625rem 1.5rem;
 }
 .onay-veri .kv-satir {
   display: grid;
+  align-content: start;
   gap: 0.125rem;
   min-width: 0;
 }
@@ -725,6 +771,17 @@
   margin-right: 0.5rem;
   vertical-align: 0.1em;
 }
+/* Dar kapsayıcıda (ör. Ekip sütunu) karar düğmeleri alta iner */
+@container (max-width: 40rem) {
+  .onay {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .onay-sag,
+  .onay-karar,
+  .onay-sonuc {
+    justify-items: start;
+  }
+}
 
 /* ---------- pano ---------- */
 .pano-sar {
@@ -734,7 +791,6 @@
 .pano {
   display: grid;
   gap: 0.75rem;
-  min-width: 56rem;
   align-items: start;
 }
 .kolon {
@@ -1516,7 +1572,7 @@
     flex-direction: row;
   }
   .ozet-sayac {
-    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   }
   .not-yerlesim {
     grid-template-columns: minmax(0, 1fr);
@@ -1544,7 +1600,9 @@
     gap: var(--b-3);
   }
   .kanal-liste {
+    grid-template-columns: none;
     grid-auto-flow: column;
+    grid-auto-columns: max-content;
     justify-content: start;
     overflow-x: auto;
   }

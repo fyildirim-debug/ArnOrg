@@ -271,8 +271,9 @@ function satirlariParlat(
         options: { isWholeLine: true, className: "e-canli-satir", linesDecorationsClassName: "e-canli-cizgi" },
       },
       {
-        range: new monaco.Range(son, model.getLineMaxColumn(son), son, model.getLineMaxColumn(son)),
-        options: { after: { content: ` ${ajanAd}`, inlineClassName: "e-ajan-etiket" } },
+        // Ad, değişikliğin ilk satırına yazılır: görünür kılınan satır odur
+        range: new monaco.Range(aralik.bas, model.getLineMaxColumn(aralik.bas), aralik.bas, model.getLineMaxColumn(aralik.bas)),
+        options: { showIfCollapsed: true, after: { content: ` ${ajanAd}`, inlineClassName: "e-ajan-etiket" } },
       },
     ],
   );

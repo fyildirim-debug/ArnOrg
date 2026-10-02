@@ -413,13 +413,17 @@
   color: var(--paper);
 }
 .e-durum-flas {
+  padding: 0 0.25rem;
+  border-radius: 2px;
   color: var(--ok);
-  animation: flas 1.6s var(--egri);
+  animation: flas 2s ease-out;
 }
 @keyframes flas {
   from {
-    color: var(--ink);
-    background: var(--ok);
+    background: rgba(110, 220, 150, 0.22);
+  }
+  to {
+    background: transparent;
   }
 }
 
