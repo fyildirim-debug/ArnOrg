@@ -1,0 +1,157 @@
+# ArnOrg masaüstü uygulaması
+
+Electron kabuğu: çekirdeği (arnorg-server) arka planda başlatır, Stüdyo arayüzünü bir pencerede açar, Windows ve Linux için kurulum paketlerini üretir.
+
+## Nasıl çalışır
+
+```
+Electron ana süreci (dist/ana.js)
+├─ açılış/hata penceresi (dist/durum.html)        çekirdek başlarken ya da durunca
+├─ çekirdek süreci: utilityProcess(dist/cekirdek-giris.js)
+│    └─ import(cekirdek) → baslat({ port: 0, host: "127.0.0.1", veriDizini, studyoDizini })
+│         → { adres, erisimAnahtari } ana sürece iletilir
+└─ ana pencere → ${adres}/#anahtar=${erisimAnahtari}
+```
+
+- **Tek örnek:** ikinci kez açılınca var olan pencere öne gelir.
+- **Çekirdek süreci:** Electron'un `utilityProcess`'i (Node ortamı, Electron ile aynı ikili). Çıktısı `logs/cekirdek.log` dosyasına yazılır. 60 sn içinde hazır olmazsa ya da beklenmedik biçimde durursa kaydın son satırları ve **Yeniden başlat** düğmesiyle hata sayfası açılır.
+- **Kapanış:** çekirdeğe `kapat` mesajı gider (`sunucu.kapat()`), 5 sn içinde çıkmazsa süreç sonlandırılır.
+- **Güvenlik:** `contextIsolation`, `sandbox`, `webSecurity` açık, `nodeIntegration` kapalı. Pencere yalnız çekirdeğin kökünde gezinebilir; başka http(s) adresleri sistem tarayıcısında açılır, diğer her şey engellenir. Yeni pencere, `<webview>` ve izinler (pano, bildirim, tam ekran dışında) kapalı; yazım denetimi sözlük indirmesin diye kapalı.
+- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url) }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar.
+- **Pencere:** konum ve boyut `pencere-durumu.json` dosyasında hatırlanır; menü Türkçedir (Dosya, Düzen, Görünüm, Pencere, Yardım), Windows ve Linux'ta Alt ile görünür.
+
+### Çekirdek sözleşmesi
+
+`paketler/cekirdek` derlemesi (`dist/index.js`, ESM) şunu dışa aktarmalıdır:
+
+```ts
+export async function baslat(s: {
+  port?: number; host?: string; veriDizini: string; studyoDizini?: string;
+  erisimAnahtari?: string; claudeYolu?: string | null;
+}): Promise<{ adres: string; port: number; erisimAnahtari: string; kapat(): Promise<void> }>;
+```
+
+Çekirdeğin bulunduğu yer:
+
+| Durum | Çekirdek | Bağımlılıkları | Stüdyo |
+|---|---|---|---|
+| Geliştirme | `paketler/cekirdek/dist/index.js` | kök `node_modules` | `paketler/studyo/dist` |
+| `ARNORG_SAHTE_CEKIRDEK=1` | `gelistirme/sahte-cekirdek.mjs` | kök `node_modules` | aynı |
+| Paketli | `resources/app.asar.unpacked/cekirdek/index.js` | `resources/app.asar.unpacked/node_modules` | `resources/studyo` |
+
+## Geliştirme
+
+```bash
+npm install            # kökte
+npm run build          # Stüdyo + çekirdek derlemesi
+npm run masaustu       # kabuğu derler ve Electron'u açar
+```
+
+Çekirdek henüz yoksa ya da yalnız kabukla uğraşıyorsanız sahte çekirdek kullanın. Sahte çekirdek gerçek sözleşmeyi taklit eder ve çekirdeğin yerel bağımlılıklarını (better-sqlite3, node-pty, fastify, Claude Agent SDK ve `claude` ikilisi) Electron içinde dener:
+
+```bash
+ARNORG_SAHTE_CEKIRDEK=1 npm run masaustu
+```
+
+| Ortam değişkeni | Etkisi |
+|---|---|
+| `ARNORG_SAHTE_CEKIRDEK=1` | `gelistirme/sahte-cekirdek.mjs` kullanılır |
+| `ARNORG_SAHTE_COKME=<sn>` / `baslarken` | sahte çekirdek bir süre sonra çöker / hiç başlamaz (hata sayfasını denemek için) |
+| `ARNORG_SAHTE_GECIKME=<sn>` | sahte çekirdek geç başlar (açılış penceresini görmek için) |
+| `ARNORG_KULLANICI_DIZINI=<dizin>` | kullanıcı verisi dizinini değiştirir |
+| `ARNORG_DENEME_EKRAN_GORUNTUSU=<png>` | ana pencere (ya da hata sayfası) yüklenince ekran görüntüsü alınır ve uygulama kapanır; çekirdek durduysa çıkış kodu 1 |
+| `ARNORG_GUNCELLEME=kapali` | otomatik güncelleme denetimini kapatır |
+
+Root olarak çalışılan konteynerlerde ve GitHub koşucularında Chromium sandbox'ı kurulamaz; `--no-sandbox` verin (`npx electron paketler/masaustu --no-sandbox`). Ekransız makinede: `xvfb-run -a ...`.
+
+Birim testleri kökteki `npm test` ile çalışır (`src/denetimler.test.ts`). Tip denetimi: `npm run typecheck -w @arnorg/masaustu`.
+
+## Veri ve kayıtlar
+
+| | Windows | Linux |
+|---|---|---|
+| Kullanıcı verisi | `%APPDATA%\ArnOrg` | `~/.config/ArnOrg` |
+| Çekirdek verisi | `%APPDATA%\ArnOrg\veri` | `~/.config/ArnOrg/veri` |
+| Kayıt | `%APPDATA%\ArnOrg\logs\cekirdek.log` | `~/.config/ArnOrg/logs/cekirdek.log` |
+| Pencere durumu | `%APPDATA%\ArnOrg\pencere-durumu.json` | `~/.config/ArnOrg/pencere-durumu.json` |
+
+Geliştirme sürümü aynı yerlerde `ArnOrg-gelistirme` dizinini kullanır; paketli uygulamanın verisine dokunmaz. Kayıt 5 MB'ı aşınca açılışta `cekirdek.1.log` olur. Menüde **Dosya → Veri klasörünü aç / Kayıt klasörünü aç** vardır. Kaldırma, kullanıcı verisini silmez.
+
+## Paketleme
+
+```bash
+npm run build                                             # Stüdyo + çekirdek
+npm run paketle -w @arnorg/masaustu -- --linux --x64 --publish never
+npm run paketle -w @arnorg/masaustu -- --win --x64 --publish never      # Windows makinesinde
+```
+
+Çıktılar `paketler/masaustu/cikti/` altındadır:
+
+| Platform | Dosyalar |
+|---|---|
+| Windows | `ArnOrg-Kurulum-<sürüm>-x64.exe` (NSIS, Türkçe, kurulum dizini seçilebilir), `ArnOrg-<sürüm>-x64.msi`, `latest.yml` |
+| Linux | `ArnOrg-<sürüm>-x86_64.AppImage`, `ArnOrg-<sürüm>-amd64.deb`, `ArnOrg-<sürüm>-x86_64.rpm`, `latest-linux.yml` (arm64: `-arm64` / `aarch64`) |
+
+Paketin düzeni (`electron-builder.yml`):
+
+```
+resources/app.asar                         kabuk (dist/, kaynaklar/simge.png, package.json)
+resources/app.asar.unpacked/node_modules/  çekirdeğin çalışma zamanı bağımlılıkları
+resources/app.asar.unpacked/cekirdek/      çekirdek derlemesi + {"type":"module"} paket dosyası
+resources/studyo/                          Stüdyo derlemesi
+```
+
+Neden böyle:
+
+- Çekirdeğin çalışma zamanı bağımlılıkları (`fastify`, `better-sqlite3`, `@lydell/node-pty`, `@anthropic-ai/claude-agent-sdk` …) bu paketin `dependencies` alanında, çekirdekteki sürümlerle aynıdır. electron-builder bunları üretim bağımlılığı olarak toplar ve tamamı `asarUnpack` ile asar dışına çıkar.
+- Çekirdek ESM'dir; ESM içe aktarmaları `NODE_PATH`'e bakmaz. Çekirdek, `extraResources` ile bağımlılıklarının yanına (`app.asar.unpacked/cekirdek`) konduğu için `import "fastify"` Node'un olağan `node_modules` aramasıyla çözülür. Çekirdeğin çalıştırdığı yardımcı betikler ve iş parçacıkları da aynı aramayı kullanır.
+- Asar dışındaki her dosyanın gerçek yolu vardır: `claude` ikilisi, node-pty'nin `conpty.dll`/`OpenConsole.exe` dosyaları ve yerel modüller doğrudan çalıştırılabilir.
+- better-sqlite3 13 ve @lydell/node-pty N-API hazır derlemeleriyle gelir; Electron için yeniden derleme gerekmez, geliştirmede de aynı dosyalar Node ve Electron'da çalışır. `npmRebuild: true` yeni bir yerel modül eklenirse güvence olarak açıktır.
+- Gereksiz dosyalar paketlenmez: musl `claude` ikilileri, better-sqlite3 kaynak kodu ve diğer platformların hazır derlemeleri.
+- npm yalnız çalışılan makinenin platform paketlerini kurar (`@lydell/node-pty-<platform>-<mimari>`, `@anthropic-ai/claude-agent-sdk-<platform>-<mimari>`). Bu yüzden **her platform ve mimari kendi makinesinde paketlenir**. `betikler/paket-oncesi.cjs` paketlemeden önce çekirdek/Stüdyo derlemelerini ve bu paketleri denetler, eksikse Türkçe hatayla durdurur.
+- rpm için Linux'ta `rpmbuild` gerekir (`sudo apt-get install rpm`). AppImage ve deb için ek araç gerekmez; electron-builder araçlarını kendisi indirir.
+
+### Sahte çekirdekle paket denemesi
+
+Gerçek çekirdek hazır değilken paket düzenini denemek için (bu dosyalar `.gitignore`'dadır, commit edilmez):
+
+```bash
+mkdir -p paketler/cekirdek/dist paketler/studyo/dist
+cp paketler/masaustu/gelistirme/sahte-cekirdek.mjs paketler/cekirdek/dist/index.js
+echo '<!doctype html><title>ArnOrg</title>' > paketler/studyo/dist/index.html
+npm run paketle -w @arnorg/masaustu -- --linux dir --x64 --publish never
+ARNORG_DENEME_EKRAN_GORUNTUSU=/tmp/arnorg.png paketler/masaustu/cikti/linux-unpacked/arnorg
+```
+
+### Simge
+
+`kaynaklar/simge.png` (512×512) ve `kaynaklar/simge.ico` (16–256) `npm run simge -w @arnorg/masaustu` ile üretilir (`betikler/simge-uret.mjs`, yalnız `node:zlib`).
+
+### İmzalama
+
+Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa paketler imzasız üretilir.
+
+- **Windows (Authenticode):** `CSC_LINK` (.pfx dosyasının yolu, https adresi ya da base64 içeriği) ve `CSC_KEY_PASSWORD`. Yalnız Windows için ayrı sertifika: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`. Azure Trusted Signing için `win.azureSignOptions` kullanılabilir. CI'da sertifika depo sırlarına eklenip `surum.yml`'deki **Paketle** adımına verilir (dosyada TODO olarak işaretli).
+- **Linux:** AppImage imzasızdır; deb/rpm için GPG imzası henüz yok (yapılacak).
+
+### Otomatik güncelleme
+
+`electron-builder.yml` → `publish` GitHub sürümlerini (fyildirim-debug/ArnOrg, taslak) gösterir; paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir. Uygulama tarafındaki kod hazırdır (`src/guncelleme.ts`) ama `electron-updater` henüz bağımlılık değildir; eklenince (`npm install electron-updater -w @arnorg/masaustu`) paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar. NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez.
+
+## Windows notları
+
+- **SmartScreen:** imzasız kurulum dosyası "Windows kişisel bilgisayarınızı korudu" uyarısı verir: **Ek bilgi → Yine de çalıştır**. İmzalı sürümlerde uyarı, sertifika itibar kazandıkça kalkar.
+- **Git for Windows önerilir:** Claude Code'un Bash aracı Windows'ta Git Bash ile çalışır. Git for Windows kurulu değilse ajanlar kabuk komutu çalıştıramaz. Kurulum yeri standart dışıysa `CLAUDE_CODE_GIT_BASH_PATH` ile `bash.exe` gösterilir.
+- Uzun yollar için: `git config --global core.longpaths true`.
+- NSIS varsayılan olarak kullanıcıya kurar (`%LOCALAPPDATA%\Programs\ArnOrg`); kurulumda tüm kullanıcılar ve dizin seçilebilir. MSI kurumsal dağıtım içindir.
+
+## Linux notları
+
+- AppImage için FUSE 2 gerekir (Ubuntu 24.04: `sudo apt install libfuse2t64`). Ubuntu 24.04 kullanıcı ad alanlarını kısıtladığından AppImage masaüstü kısayolu `--no-sandbox` ile açılır; deb kurulumu sandbox'ı AppArmor profili ya da SUID `chrome-sandbox` ile açık tutar.
+- AppImage'dan çalışırken `PATH`, `LD_LIBRARY_PATH`, `XDG_DATA_DIRS` başına AppImage dizini eklenir; çekirdek ajan ve terminal süreçlerine bu girdileri temizlenmiş ortam vermelidir.
+- deb paketi `git` önerir.
+
+## CI
+
+- `.github/workflows/ci.yml`: main'e gönderim ve çekme isteklerinde Ubuntu ve Windows'ta `npm ci`, `npm run typecheck`, `npm test`, `npm run build` ve kabuk derlemesi; Linux'ta sahte çekirdekle Electron duman testi (ekran görüntüsü yapıt olarak yüklenir).
+- `.github/workflows/surum.yml`: `v*` etiketinde Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir, sürüm etiketten alınır, dosyalar taslak GitHub sürümüne eklenir. Elle çalıştırma yalnız paketleri yapıt olarak üretir.
