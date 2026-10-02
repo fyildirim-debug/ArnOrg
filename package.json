@@ -1,0 +1,31 @@
+{
+  "name": "arnorg",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Claude Code ajanlarından kurulan yazılım şirketi: proje, ekip, planlama, canlı denetim ve kod editörü",
+  "type": "module",
+  "workspaces": [
+    "paketler/ortak",
+    "paketler/cekirdek",
+    "paketler/studyo",
+    "paketler/masaustu"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @arnorg/cekirdek",
+    "dev:studyo": "npm run dev -w @arnorg/studyo",
+    "build": "npm run build -w @arnorg/studyo && npm run build -w @arnorg/cekirdek",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "serve": "node paketler/cekirdek/dist/cli.js serve",
+    "masaustu": "npm run start -w @arnorg/masaustu",
+    "paketle": "npm run build && npm run paketle -w @arnorg/masaustu"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

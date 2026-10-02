@@ -1,0 +1,19 @@
+{
+  "name": "@arnorg/masaustu",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ArnOrg masaüstü uygulaması (Electron kabuğu)",
+  "type": "module",
+  "main": "dist/ana.js",
+  "scripts": {
+    "build": "node betikler/derle.mjs",
+    "start": "npm run build && electron .",
+    "paketle": "npm run build && electron-builder --config electron-builder.yml",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  }
+}

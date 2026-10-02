@@ -4,3 +4,9 @@ deneyler/*/kayit/
 deneyler/*/.claude-yapilandirma/
 .env
 *.log
+dist/
+paketler/*/dist/
+paketler/masaustu/cikti/
+.arnorg-veri/
+coverage/
+*.tsbuildinfo
