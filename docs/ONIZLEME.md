@@ -70,6 +70,32 @@ Ajanlar ArnOrg'un posta kutusu üzerinden yazışır: kanallar (`#genel`, ekip k
 
 ArnOrg MCP araçları: `mesaj_gonder`, `kanal_oku`, `gorev_al`, `gorev_guncelle`, `not_yaz`, `hafiza_ara`, `toplanti_cagir`, `onay_iste`, `birlestir_iste`, `ise_al` (yalnız CEO).
 
+## Canlı denetim
+
+ArnOrg her ajanı Claude Agent SDK ile kendisi başlatır ve Claude Code ile satır satır JSON akan iki yönlü bir kanal açar. Ajanın her mesajı ve araç çağrısı anında gelir; ArnOrg aynı kanaldan izin verir, reddeder, araç girdisini değiştirir, araya mesaj sokar, keser, izin modunu ve modeli değiştirir. Ayrıntılar ve gerçek trafik örnekleri: [`PROTOKOLLER.md`](PROTOKOLLER.md). Denemeler: [`../deneyler/gozcu`](../deneyler/gozcu).
+
+Doğrulanan deneyler (2 Ekim 2026, Claude Code 2.1.287, SDK 0.3.287):
+
+| Deney | Sonuç |
+|---|---|
+| Politika ile ret | `rm -rf eski` reddedildi, klasör yerinde kaldı |
+| Girdiyi değiştirerek onay | Yazılan dosyanın başına ArnOrg damgası eklendi |
+| Çalışırken araya girme | Yönetici notu aynı turda işlendi |
+| Kesme | Çalışan komut ~20 ms'de durdu, tur `error_during_execution` |
+| Bypass modunda denetim | İzin geri çağrısı hiç çalışmadı, `PreToolUse` kancası durdurdu |
+| Dışarıda açılan oturum | Kanca köprüsü zincirli `rm -rf`'yi reddetti; gözcü kapalıyken her çağrıyı engelledi |
+| ArnOrg aracı | `mesaj_gonder` çağrıldı, mesaj posta kutusuna düştü |
+
+Öğrenilenler:
+
+- Her çağrıyı görmek için `PreToolUse` kancası gerekir; izin geri çağrısı güvenli komutlara ve bypass moduna hiç uğramaz.
+- Claude Code uzun komutları kendiliğinden arka plana alabilir; arka plan görevleri ayrıca izlenir.
+- Üst oturumun ortam değişkenleri sızarsa alt ajan aynı oturum kimliğini kullanır; her ajan temiz ortamla başlar.
+- Süreç erken çıkarsa hata yalnız stderr'dedir; stderr ve süreç çıkışı her zaman izlenir.
+- SDK varsayılan olarak boş sistem talimatı gönderir; ajanlara Claude Code talimatı ve rol metni birlikte verilir.
+- HTTP kancası gözcü kapalıyken çağrıyı geçirir; dış oturumlarda güvenli kapanan komut köprüsü kullanılır.
+- Ajanlar komutları `&&` ile zincirler; politika komutun tamamına bakar.
+
 ## Planlama ve yönetişim
 
 - Hedef → epik → görev; her görevin kabul ölçütü var.
@@ -131,7 +157,7 @@ siparis-paneli/
 
 | Faz | İçerik | Çıktı |
 |---|---|---|
-| 0 · Temel | Monorepo, çekirdek iskeleti, SQLite şeması, tek çalışan oturumu, proje açma, Stüdyo kabuğu, iki platformda CI ve paket | Tek ajanla konuşulan masaüstü uygulaması |
+| 0 · Temel | Monorepo, çekirdek iskeleti, SQLite şeması, tek çalışan oturumu, gözcü (canlı akış, PreToolUse kapısı, araya girme, kesme, temiz ortam), proje açma, Stüdyo kabuğu, iki platformda CI ve paket | Tek ajanla konuşulan masaüstü uygulaması |
 | 1 · Ekip | Rol kataloğu, işe alım, worktree havuzu, arnorg MCP, görev durum makinesi, pano, kanallar, canlı akış, maliyet sayacı | Elle kurulan ekip birlikte çalışır |
 | 2 · CEO | Brief → plan → kadro, onay kapıları, uyandırma kuyruğu, toplantı, tıkanma koruması, inceleme ve birleştirme kuyruğu, sprint raporu | Brief'ten main'e giren özellik |
 | 3 · Şirket | Bütçe politikaları, hafıza araması, şablonlar, sunucu modu, oturum tekrarı, bildirim, otomatik güncelleme | 1.0 |
@@ -139,6 +165,7 @@ siparis-paneli/
 
 ## Karar bekleyenler (öneriyle)
 
+0. **Denetim kapısı:** ajanlar tam yetki tercihine uygun olarak bypassPermissions modunda soru sormadan çalışır; her araç çağrısı ArnOrg'un `PreToolUse` kancasından geçer, yalnız "onaya sor" kuralına takılan çağrı kullanıcıya gelir.
 1. **Claude'a giriş:** ArnOrg kimlik bilgisine dokunmaz. Kişisel kullanımda ajanlar makinedeki Claude Code girişiyle çalışır; dağıtımda her kullanıcı kendi API anahtarını kullanır. Anthropic üçüncü taraf ürünlerin claude.ai girişi sunmasına izin vermiyor; giriş katmanı değiştirilebilir tutulur.
 2. **Masaüstü kabuğu:** Electron (Tauri'de Node yan süreç ve yerel modül paketleme sorunu, Linux WebKitGTK sorunları, güncelleyici deb/rpm desteklemiyor).
 3. **Ajanlar arası iletişim:** kendi posta kutumuz; Agent Teams deneysel ve SDK modunda yok.
