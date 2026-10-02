@@ -10,3 +10,4 @@ paketler/masaustu/cikti/
 .arnorg-veri/
 coverage/
 *.tsbuildinfo
+.claude/worktrees/
