@@ -1,6 +1,6 @@
 // Hafıza: projenin kalıcı hafızası, ajan defterleri ve ajanlar arası soru-yanıtlar.
 // Kayıtlar yalnız bu projeye aittir; ajanlar her oturumda okur, çalışırken doğru anda hatırlar.
-import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaKaydi, type HafizaTuru } from "@arnorg/ortak";
+import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru } from "@arnorg/ortak";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api/uclar";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
@@ -165,6 +165,7 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
   return (
     <section aria-label="Hafıza kayıtları">
       {yeniAcik ? <KayitFormu kapat={() => setYeniAcik(false)} /> : null}
+      <Tekrarlar />
 
       <div className="suzgec">
         <div className="arama-kutu">
@@ -223,6 +224,123 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
         </Bos>
       )}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bakım: birbirini tekrar eden kayıtlar
+// ---------------------------------------------------------------------------
+
+function Tekrarlar() {
+  const pid = useVeri((d) => d.aktifProjeId);
+  const ajanlar = useVeri((d) => d.ajanlar);
+  const kayitlar = useHafiza((d) => d.kayitlar);
+  const [ciftler, setCiftler] = useState<HafizaBenzerCifti[]>([]);
+  const [acik, setAcik] = useState(false);
+  const { suruyor, calistir } = useIslem();
+
+  // Kayıtlar değiştikçe (canlı olaylar dahil) sessizce yeniden hesaplanır
+  const imza = useMemo(() => kayitlar.map((k) => `${k.id}:${k.guncelleme}:${k.yerineGecen ?? ""}`).join(","), [kayitlar]);
+  useEffect(() => {
+    if (!pid) return;
+    const z = setTimeout(() => {
+      api
+        .hafizaBenzerler(pid)
+        .then(setCiftler)
+        .catch(() => undefined);
+    }, 400);
+    return () => clearTimeout(z);
+  }, [pid, imza]);
+
+  if (!ciftler.length) return null;
+  const ceo = ajanlar.find((a) => a.rol === "ceo");
+  const anahtar = (c: HafizaBenzerCifti) => `${c.a.id}|${c.b.id}`;
+  const cikar = (c: HafizaBenzerCifti) => setCiftler((l) => l.filter((x) => anahtar(x) !== anahtar(c)));
+
+  const tut = (c: HafizaBenzerCifti, tutulan: HafizaKaydi, eskiyen: HafizaKaydi) =>
+    void calistir(anahtar(c), async () => {
+      const k = await api.hafizaBirlestir(tutulan.id, eskiyen.id);
+      hafizaKaydiUygula(k);
+      hafizaKaydiUygula({ ...eskiyen, yerineGecen: tutulan.id });
+      cikar(c);
+      bildir("basari", `"${tutulan.baslik}" kaldı; öteki eskidi ve artık hatırlatılmaz.`);
+    });
+
+  const ceoyaVer = () =>
+    ceo &&
+    void calistir("ceo", async () => {
+      const liste = ciftler
+        .slice(0, 10)
+        .map((c) => `- ${c.a.id.slice(0, 8)} "${c.a.baslik}" ↔ ${c.b.id.slice(0, 8)} "${c.b.baslik}"`)
+        .join("\n");
+      await api.ajanaMesaj(ceo.id, {
+        metin: `Hafızada birbirini tekrar eden kayıtlar var. Her çifte bak: aynı bilgiyse hafiza_birlestir ile ikisini birleştiren tek kayda indir; farklıysa olduğu gibi bırak. Bitince kısa bir özet yaz.\n${liste}`,
+      });
+      bildir("basari", `${ceo.ad} hafızayı düzenleyecek.`);
+      setAcik(false);
+    });
+
+  return (
+    <div className="tekrar" data-acik={acik || undefined}>
+      <div className="tekrar-ust">
+        <span className="tekrar-isaret" aria-hidden="true" />
+        <p>
+          <b>{ciftler.length} kayıt çifti birbirini tekrar ediyor.</b> Aynı bilgi iki kez yazılınca ajanların bağlamı şişer; birini tutun.
+        </p>
+        <div className="dugme-satir">
+          {ceo ? (
+            <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={ceoyaVer} disabled={suruyor !== null}>
+              {ceo.ad} düzenlesin
+            </button>
+          ) : null}
+          <button type="button" className="dugme dugme-kucuk" aria-expanded={acik} onClick={() => setAcik(!acik)}>
+            {acik ? "Kapat" : "Gözden geçir"}
+          </button>
+        </div>
+      </div>
+      {acik ? (
+        <ul className="tekrar-liste">
+          {ciftler.map((c) => (
+            <li key={anahtar(c)} className="tekrar-cift">
+              <span className="tekrar-oran" title="Sözcük benzerliği">
+                %{Math.round(c.benzerlik * 100)}
+              </span>
+              {[c.a, c.b].map((k, i) => {
+                const oteki = i === 0 ? c.b : c.a;
+                return (
+                  <div key={k.id} className="tekrar-kayit">
+                    <span className="hk-tur">
+                      {HAFIZA_TURU_ADLARI[k.tur]} · {k.kaynakAd} · {goreli(k.guncelleme)}
+                    </span>
+                    <b>{k.baslik}</b>
+                    <div className="tekrar-metin">
+                      <ZenginBlok metin={k.metin} />
+                    </div>
+                    <button type="button" className="dugme dugme-kucuk" disabled={suruyor !== null} onClick={() => tut(c, k, oteki)}>
+                      Bunu tut
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                className="metin-dugme tekrar-ayri"
+                disabled={suruyor !== null}
+                onClick={() =>
+                  pid &&
+                  void calistir(anahtar(c), async () => {
+                    await api.hafizaAyriTut(pid, c.a.id, c.b.id);
+                    cikar(c);
+                  })
+                }
+              >
+                İkisi de kalsın
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

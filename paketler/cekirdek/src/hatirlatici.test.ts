@@ -148,3 +148,99 @@ describe("uzman bulma ve önceki yanıt", () => {
     s.uyandir = asil;
   });
 });
+
+describe("hafıza bakımı", () => {
+  it("tekrar eden kayıtları bulur; ayrı tutulan çift bir daha önerilmez; birleştirme eskisini işaretler", () => {
+    const deniz = ajan("Deniz");
+    const a = sirket.hafizaYaz(pid, { tur: "tercih", baslik: "Para birimi kuruş olarak saklanır", metin: "Tutarlar veritabanında tamsayı kuruş olarak tutulur; kayan nokta kullanılmaz.", etiketler: ["para"] }, null);
+    const b = sirket.hafizaYaz(pid, { tur: "tercih", baslik: "Tutarlar kuruş", metin: "Tutarlar kuruş cinsinden tamsayı saklanır, kayan nokta yok.", etiketler: ["veritabani"] }, deniz.id);
+    const c = sirket.hafizaYaz(pid, { tur: "karar", baslik: "Tutarlar kuruş", metin: "Tutarlar kuruş cinsinden tamsayı saklanır, kayan nokta yok." }, deniz.id);
+    const ciftler = sirket.hafiza.benzerler(pid);
+    const bizim = ciftler.find((x) => [x.a.id, x.b.id].sort().join() === [a.id, b.id].sort().join());
+    expect(bizim?.benzerlik).toBeGreaterThanOrEqual(0.45);
+    // Farklı türdeki aynı metin çift sayılmaz
+    expect(ciftler.some((x) => [x.a.id, x.b.id].includes(c.id) && [x.a.id, x.b.id].includes(b.id))).toBe(false);
+
+    sirket.hafiza.ayriTut(pid, b.id, a.id);
+    expect(sirket.hafiza.benzerler(pid).some((x) => [x.a.id, x.b.id].includes(a.id) && [x.a.id, x.b.id].includes(b.id))).toBe(false);
+
+    const k = sirket.hafiza.birlestir(a.id, b.id, "Tutarlar tamsayı kuruş olarak saklanır; kayan nokta kullanılmaz.");
+    expect(k.etiketler.sort()).toEqual(["para", "veritabani"]);
+    expect(depo.hafizaKaydi(b.id)?.yerineGecen).toBe(a.id);
+    expect(() => sirket.hafiza.birlestir(b.id, a.id)).toThrow(/eskimiş/);
+  });
+});
+
+describe("görev devri", () => {
+  it("devralınan görevin mesajında önceki sahibin defteri, göreve bağlı hafıza ve görevle ilgili soru-yanıt olur", () => {
+    const deniz = ajan("Deniz");
+    const mert = ajan("Mert");
+    const g = sirket.gorevOlustur(pid, { baslik: "Sipariş iptal ucu", aciklama: "PATCH /siparisler/:id/iptal", atananId: deniz.id });
+    sirket.defterYaz(deniz.id, "## Açık\n- İptal ucu yazıldı, testleri eksik\n## Sıradaki\n- 409 durumunu test et");
+    sirket.hafizaYaz(pid, { tur: "karar", baslik: "İptal yalnız kargodan önce", metin: "Kargodaki sipariş iptal edilemez; 409 döner.", gorevId: g.id }, deniz.id);
+    const kayit = depo.soruEkle({ projeId: pid, soranId: mert.id, soranAd: "Mert", soruluId: deniz.id, soruluAd: "Deniz", soru: `${g.kod} için iptal hangi kodla reddediliyor?` });
+    depo.soruSonuclandir(kayit.id, "yanitlandi", "409 GECERSIZ_GECIS");
+
+    const devralinan = depo.gorevGuncelle(g.id, { atananId: mert.id });
+    const metin = sirket.gorevMetni(devralinan, deniz.id);
+    expect(metin).toContain("Devir: bu görevde daha önce Deniz");
+    expect(metin).toContain("409 durumunu test et");
+    expect(metin).toContain("Bu görevle ilgili hafıza:");
+    expect(metin).toContain("İptal yalnız kargodan önce");
+    expect(metin).toContain("409 GECERSIZ_GECIS");
+    // Göreve bağlı kayıt "İlgili hafıza" altında yinelenmez
+    expect(metin.split("İptal yalnız kargodan önce").length - 1).toBe(1);
+    // Devir yoksa defter eklenmez
+    expect(sirket.gorevMetni(devralinan)).not.toContain("Devir:");
+  });
+});
+
+describe("toplantı", () => {
+  it("katılımcı verilmezse uzmanları seçer, görüşleri paralel toplar, kanala ve hafızaya yazar", async () => {
+    const ceo = depo.ajanlar(pid).find((a) => a.rol === "ceo")!;
+    const s = sirket as unknown as { uyandir: (...a: unknown[]) => Promise<boolean> };
+    const asil = s.uyandir;
+    s.uyandir = async () => true;
+    const toplanti = sirket.toplantiYap(ceo.id, "Iyzico webhook imzası ve Playwright e2e testi: ödeme akışını nasıl test edelim?", null, 1);
+    await bekle(20);
+    const bekleyenler = depo.sorular(pid, { durum: "bekliyor" });
+    const adlar = bekleyenler.map((x) => x.soruluAd).sort();
+    expect(adlar).toEqual(expect.arrayContaining(["Deniz", "Mert"]));
+    for (const soru of bekleyenler) sirket.soruYanitla(soru.soruluId, soru.id, `${soru.soruluAd}: sandbox anahtarıyla uçtan uca dene.`);
+    const sonuc = await toplanti;
+    const mert = sonuc.gorusler.find((g) => g.ad === "Mert")!;
+    const deniz = sonuc.gorusler.find((g) => g.ad === "Deniz")!;
+    expect(deniz).toMatchObject({ durum: "yanitlandi", gorus: "Deniz: sandbox anahtarıyla uçtan uca dene." });
+    expect(deniz.neden).toBeTruthy();
+    expect(mert.durum).toBe("yanitlandi");
+    const kanal = depo.mesajlar(pid, "toplanti");
+    expect(kanal.some((m) => m.gonderenAd === ceo.ad && m.metin.startsWith("Toplantı:"))).toBe(true);
+    expect(kanal.some((m) => m.gonderenAd === "Deniz")).toBe(true);
+    expect(depo.hafizaKaydi(sonuc.kayitId)).toMatchObject({ tur: "ozet", kaynakAjanId: ceo.id });
+    s.uyandir = asil;
+  });
+
+  it("verilen katılımcı adı yoksa reddeder; kendini çağıramaz", async () => {
+    const elif = ajan("Elif");
+    await expect(sirket.toplantiYap(elif.id, "Tema renkleri değişsin mi, karar verelim.", ["Yok"], 1)).rejects.toThrow(/çalışan yok/);
+    await expect(sirket.toplantiYap(elif.id, "Tema renkleri değişsin mi, karar verelim.", ["Elif"], 1)).rejects.toThrow(/bulunamadı/);
+  });
+});
+
+describe("aynı dosyada çalışma", () => {
+  it("başka ajan aynı dosyayı yakın zamanda değiştirdiyse bir kez uyarır; eski yazma sayılmaz", () => {
+    const deniz = ajan("Deniz");
+    const elif = ajan("Elif");
+    const mert = ajan("Mert");
+    const t = 1_000_000_000;
+    expect(sirket.hatirlatici.yazmaIzi(deniz, "src/api/siparis.ts", t)).toBeNull();
+    const uyari = sirket.hatirlatici.yazmaIzi(elif, "src/api/siparis.ts", t + 5 * 60_000)!;
+    expect(uyari).toContain("src/api/siparis.ts dosyasını Deniz (5 dk önce");
+    expect(sirket.hatirlatici.yazmaIzi(elif, "src/api/siparis.ts", t + 6 * 60_000)).toBeNull();
+    // Deniz de Elif'in değişikliğinden haberdar olur
+    expect(sirket.hatirlatici.yazmaIzi(deniz, "src/api/siparis.ts", t + 7 * 60_000)).toContain("Elif");
+    // 6 saatten eski yazma uyarı doğurmaz; .arnorg yolu izlenmez
+    expect(sirket.hatirlatici.yazmaIzi(mert, "src/api/siparis.ts", t + 7 * 3600_000)).toBeNull();
+    expect(sirket.hatirlatici.yazmaIzi(mert, ".arnorg/hafiza/hafiza.md", t)).toBeNull();
+  });
+});

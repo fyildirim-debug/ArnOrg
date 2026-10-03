@@ -182,10 +182,12 @@ Hafıza, ajan çalışırken de doğru anda önüne gelir (Claude Code kancalar�
 |---|---|---|
 | Yeni mesaj | `UserPromptSubmit` | Başka ajanların son turundan beri yazdığı kayıtlar ve mesajla ilgili kayıtlar. Kurul "bundan sonra", "asla", "her zaman" gibi kalıcı bir tercih bildirirse kaydetme hatırlatması |
 | Komut hatası | `PostToolUseFailure` | Aynı hataya dair öğrenilen kayıt; yoksa (oturumda bir kez) çözümü `ogrenilen` olarak kaydetme ipucu |
-| Dosyaya dokunma | `PostToolUse` | O dosyayı yoluyla ya da adıyla anan kayıtlar |
+| Dosyaya dokunma | `PostToolUse` | O dosyayı yoluyla ya da adıyla anan kayıtlar; aynı dosyayı son 6 saatte başka bir ajan kendi dalında değiştirdiyse çakışma uyarısı (kişi başına bir kez) |
 | Bağlam sıkıştırma | `SessionStart` (compact) | Defter, oturum boyunca ekipten gelen kayıtlar, yanıt bekleyen sorular |
 
 `ajana_sor` hedefsiz çağrılabilir: ArnOrg hafızadaki uzmanlık ve iş kayıtlarına, üzerinde çalışılan görevlere, benzer soruları kimin yanıtladığına ve rollere bakıp uzmanı seçer; işaret yoksa soranın yöneticisine, o da yoksa CEO'ya gider. Aynı soru son 30 günde yanıtlandıysa meslektaş uyandırılmaz, önceki yanıt hemen döner (`yeniden: true` zorlar). `hafiza_ara` yanıtlanmış soruları da arar.
+
+Hafıza bakımı: `GET /api/projeler/:pid/hafiza/benzerler` aynı türde birbirini tekrar eden geçerli kayıt çiftlerini döner (`HafizaBenzerCifti[]`, benzerlik 0–1). `POST /api/hafiza/:hid/birlestir` `{ eskiyen, metin? }` tutulan kaydı (isteğe bağlı birleşik metinle) günceller, ötekini eskimiş sayar. `POST /api/projeler/:pid/hafiza/ayri` `{ a, b }` çifti bir daha önermez. Ajan araçları: `hafiza_bakim`, `hafiza_birlestir`; CEO dönem raporunda bakım yapar. Silme `hafiza.silindi` olayını yayınlar. `toplanti_yap` (gündem, isteğe bağlı katılımcılar, bekle_dk): katılımcıların görüşü ajanlar arası soru olarak paralel toplanır, konuşma `#toplanti` kanalına yazılır, özet hafızaya `ozet` olarak düşer; katılımcı verilmezse ArnOrg konuya en yakın en çok üç çalışanı seçer. Kararı çağıran verir ve `karar` olarak kaydeder. Görev başka bir çalışana geçerse yeni sahibin görev mesajına önceki sahibin defteri, göreve bağlı hafıza kayıtları ve görev kodunun geçtiği yanıtlanmış sorular eklenir.
 
 ## Rapor ve tıkanma koruması
 

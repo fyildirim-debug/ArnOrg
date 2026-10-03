@@ -197,8 +197,10 @@ export class AjanOturumu {
         }),
         systemPrompt: { type: "preset", preset: "claude_code", append: this.b.talimat() },
         settingSources: ["project"],
-        // Commit ve PR'lara Claude imzası (Co-Authored-By, oturum bağlantısı) eklenmez; repo sahibinin adı kalır
-        settings: { attribution: { commit: "", pr: "", sessionUrl: false }, includeCoAuthoredBy: false },
+        // Commit ve PR'lara Claude imzası (Co-Authored-By, oturum bağlantısı) eklenmez; repo sahibinin adı kalır.
+        // Claude Code'un kendi otomatik hafızası kapalı: o, çalışma dizini başına ev dizininde ayrı ve görünmez bir hafıza tutar;
+        // ArnOrg'da tek hafıza projenin ortak hafızasıdır (repo içinde, ekipçe ve kurulca görülür) ve ajanın defteridir.
+        settings: { attribution: { commit: "", pr: "", sessionUrl: false }, includeCoAuthoredBy: false, autoMemoryEnabled: false, autoDreamEnabled: false },
         mcpServers: { arnorg: this.b.araclar() },
         disallowedTools: ["AskUserQuestion", ...this.b.yasakAraclar()],
         hooks: {

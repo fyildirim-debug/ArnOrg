@@ -8,29 +8,9 @@ import path from "node:path";
 import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type Gorev, type HafizaKaydi } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
 import type { ProjeHafizasi } from "./hafiza.js";
-import { aramaMetni, kisalt } from "./yardimci.js";
+import { anlamliSozcukler, aramaMetni, kisalt } from "./yardimci.js";
 
-/** Aramada anlam taşımayan sözcükler (Türkçe harfleri sadeleştirilmiş, İngilizce hata metinleri dahil) */
-const DURAK = new Set(
-  (
-    "ve veya ile icin bu su o bir ne mi mu nasil neden niye hangi gibi daha en de da ki ama ya olarak olan var yok misin musun " +
-    "sen ben biz siz onu bunu sunu icin kadar sonra once simdi her hep hic cok az bana sana ona bize size mesela yani sey " +
-    "nedir midir mudur olur olmaz olsun ederim edebilir yapar yapilir yap the an of to in is and or for on with it this that be are was " +
-    "error errors failed fail failure cannot could not found such file directory exit code line at from command warning warn err " +
-    "hata hatasi komut dosya dizin satir kod uyari bulunamadi basarisiz"
-  ).split(/\s+/),
-);
-
-/** Metnin ayırt edici sözcükleri; sıra korunur, tekrar atılır */
-export function anlamliSozcukler(metin: string, sinir = 12): string[] {
-  const goruldu = new Set<string>();
-  for (const s of aramaMetni(metin).split(/[^a-z0-9]+/)) {
-    if (s.length < 3 || DURAK.has(s) || /^\d+$/.test(s) || goruldu.has(s)) continue;
-    goruldu.add(s);
-    if (goruldu.size >= sinir) break;
-  }
-  return [...goruldu];
-}
+export { anlamliSozcukler };
 
 function kayitMetni(k: HafizaKaydi): string {
   return aramaMetni(`${k.baslik} ${k.metin} ${k.etiketler.join(" ")}`);
@@ -76,8 +56,15 @@ interface Iz {
   tercihIpucu: number;
 }
 
+/** Aynı dosyayı başka dalda değiştiren ajan bu süre içindeyse uyarılır */
+const CAKISMA_SURESI_MS = 6 * 3600_000;
+
 export class Hatirlatici {
   private izler = new Map<string, Iz>();
+  /** proje → göreli yol → ajan → son yazma anı */
+  private yazmalar = new Map<string, Map<string, Map<string, number>>>();
+  /** Bir oturumda aynı dosya ve kişi için bir kez uyarılır: ajan → "yol|öteki" */
+  private cakismaUyarilari = new Map<string, Set<string>>();
 
   constructor(
     private readonly depo: Depo,
@@ -102,6 +89,34 @@ export class Hatirlatici {
 
   oturumKapandi(ajanId: string): void {
     this.izler.delete(ajanId);
+    this.cakismaUyarilari.delete(ajanId);
+  }
+
+  /**
+   * Ajan bir dosyaya yazdı. Aynı dosyayı yakın zamanda başka bir ajan kendi dalında değiştirdiyse
+   * (birleştirmede çakışma çıkabilir) ajana bir kez haber verilir.
+   */
+  yazmaIzi(ajan: Ajan, goreli: string, simdiMs = Date.now()): string | null {
+    if (!goreli || goreli.startsWith("..") || goreli.startsWith(".arnorg/")) return null;
+    let proje = this.yazmalar.get(ajan.projeId);
+    if (!proje) this.yazmalar.set(ajan.projeId, (proje = new Map()));
+    let dosya = proje.get(goreli);
+    if (!dosya) proje.set(goreli, (dosya = new Map()));
+    dosya.set(ajan.id, simdiMs);
+    const uyarilan = this.cakismaUyarilari.get(ajan.id) ?? new Set<string>();
+    const digerleri: string[] = [];
+    for (const [digerId, zaman] of dosya) {
+      if (digerId === ajan.id || simdiMs - zaman > CAKISMA_SURESI_MS || uyarilan.has(`${goreli}|${digerId}`)) continue;
+      const diger = this.depo.ajan(digerId);
+      if (!diger || diger.projeId !== ajan.projeId) continue;
+      uyarilan.add(`${goreli}|${digerId}`);
+      const gorev = diger.gorevId ? this.depo.gorev(diger.gorevId) : null;
+      const dk = Math.max(1, Math.round((simdiMs - zaman) / 60_000));
+      digerleri.push(`${diger.ad} (${dk} dk önce${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""}${diger.dal ? `, dal ${diger.dal}` : ""})`);
+    }
+    this.cakismaUyarilari.set(ajan.id, uyarilan);
+    if (!digerleri.length) return null;
+    return `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de kendi dalında değiştirdi. Birleştirmede çakışma çıkabilir; değişikliğin onunkini etkiliyorsa ajana_sor ile sor ya da mesaj_gonder ile haber ver, aynı satırları ikiniz birden değiştirmeyin.`;
   }
 
   /**
@@ -256,6 +271,18 @@ export interface UzmanSonucu {
 export function uzmanBul(depo: Depo, soran: Ajan, soru: string): UzmanSonucu | null {
   const adaylar = depo.ajanlar(soran.projeId).filter((a) => a.id !== soran.id && a.durum !== "duraklatildi");
   if (!adaylar.length) return null;
+  const en = uzmanlariSirala(depo, soran, soru)[0];
+  if (en && en.puan >= 1) return { ajan: en.ajan, neden: en.neden };
+  const yonetici = soran.yoneticiId ? adaylar.find((a) => a.id === soran.yoneticiId) : undefined;
+  if (yonetici) return { ajan: yonetici, neden: "konuda belirgin bir uzman yok; yöneticin" };
+  const ceo = adaylar.find((a) => a.rol === "ceo");
+  return ceo ? { ajan: ceo, neden: "konuda belirgin bir uzman yok; CEO" } : null;
+}
+
+/** Konuya göre puanlanmış çalışanlar (en uygun önce); soran hariç, duraklatılmışlar hariç */
+export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSonucu & { puan: number })[] {
+  const adaylar = depo.ajanlar(soran.projeId).filter((a) => a.id !== soran.id && a.durum !== "duraklatildi");
+  if (!adaylar.length) return [];
   const sozcukler = anlamliSozcukler(soru, 12);
   const puan = new Map<string, number>();
   const nedenler = new Map<string, string[]>();
@@ -308,16 +335,9 @@ export function uzmanBul(depo: Depo, soran: Ajan, soru: string): UzmanSonucu | n
   // CEO yalnız öncelik ve plan sorularında öne çıksın
   for (const a of adaylar) if (a.rol === "ceo" && puan.has(a.id)) puan.set(a.id, puan.get(a.id)! * 0.6);
 
-  const sirali = [...puan.entries()].sort((a, b) => b[1] - a[1]);
-  const en = sirali[0];
-  if (en && en[1] >= 1) {
-    const ajan = adaylar.find((a) => a.id === en[0])!;
-    return { ajan, neden: (nedenler.get(ajan.id) ?? []).join(", ") || "konuya en yakın çalışan" };
-  }
-  const yonetici = soran.yoneticiId ? adaylar.find((a) => a.id === soran.yoneticiId) : undefined;
-  if (yonetici) return { ajan: yonetici, neden: "konuda belirgin bir uzman yok; yöneticin" };
-  const ceo = adaylar.find((a) => a.rol === "ceo");
-  return ceo ? { ajan: ceo, neden: "konuda belirgin bir uzman yok; CEO" } : null;
+  return [...puan.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, p]) => ({ ajan: adaylar.find((a) => a.id === id)!, puan: p, neden: (nedenler.get(id) ?? []).join(", ") || "konuya en yakın çalışan" }));
 }
 
 /**

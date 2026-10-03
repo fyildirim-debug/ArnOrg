@@ -2,10 +2,10 @@
 // Kayıtlar veritabanında aranır, repo içinde .arnorg/hafiza altında okunur biçimde ve geri yüklenebilir JSON olarak tutulur.
 import fs from "node:fs";
 import path from "node:path";
-import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaKaydi, type HafizaTuru, type HafizaYazIstegi, type Proje } from "@arnorg/ortak";
+import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru, type HafizaYazIstegi, type Proje } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
 import type { OlayYolu } from "./olaylar.js";
-import { aramaMetni, ArnorgHatasi, kisalt, sadelestir } from "./yardimci.js";
+import { anlamliSozcukler, aramaMetni, ArnorgHatasi, jsonOku, kisalt, sadelestir } from "./yardimci.js";
 
 export const HAFIZA_TURLERI: HafizaTuru[] = ["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"];
 const HAFIZA_DIZINI = [".arnorg", "hafiza"];
@@ -32,6 +32,10 @@ function hafizaKoku(proje: Proje): string {
 
 function defterYolu(proje: Proje, ajanAd: string): string {
   return path.join(hafizaKoku(proje), "ajanlar", `${sadelestir(ajanAd)}.md`);
+}
+
+function ciftAnahtari(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
 function denetle(istek: HafizaYazIstegi): void {
@@ -109,6 +113,57 @@ export class ProjeHafizasi {
     return (tur ? sonuc.filter((k) => k.tur === tur) : sonuc).slice(0, sinir);
   }
 
+  // ---------------- bakım: tekrar eden kayıtlar ----------------
+
+  /**
+   * Aynı türde birbirini tekrar eden geçerli kayıt çiftleri. Benzerlik: sözcük kümelerinin Jaccard oranı;
+   * kısa kayıt uzun olanın içinde kalıyorsa örtüşme oranı da sayılır (en az 3 ortak sözcükle).
+   */
+  benzerler(projeId: string, esik = 0.45): HafizaBenzerCifti[] {
+    const ayrik = new Set(jsonOku<string[]>(this.depo.deger(`hafiza-ayrik:${projeId}`), []));
+    const kumeler = this.depo.hafizaKayitlari(projeId, { sinir: 500 }).map((k) => ({ k, s: new Set(anlamliSozcukler(`${k.baslik} ${k.metin}`, 60)) }));
+    const sonuc: HafizaBenzerCifti[] = [];
+    for (let i = 0; i < kumeler.length; i++) {
+      for (let j = i + 1; j < kumeler.length; j++) {
+        const x = kumeler[i]!;
+        const y = kumeler[j]!;
+        if (x.k.tur !== y.k.tur || !x.s.size || !y.s.size || ayrik.has(ciftAnahtari(x.k.id, y.k.id))) continue;
+        let ortak = 0;
+        for (const s of x.s) if (y.s.has(s)) ortak++;
+        const jaccard = ortak / (x.s.size + y.s.size - ortak);
+        const ortusme = ortak >= 3 ? ortak / Math.min(x.s.size, y.s.size) : 0;
+        const benzerlik = Math.max(jaccard, ortusme * 0.8);
+        if (benzerlik >= esik) sonuc.push({ a: x.k, b: y.k, benzerlik: Math.round(benzerlik * 100) / 100 });
+      }
+    }
+    return sonuc.sort((a, b) => b.benzerlik - a.benzerlik).slice(0, 30);
+  }
+
+  /** Kurul iki kaydın ayrı kalmasına karar verdi; çift bir daha önerilmez */
+  ayriTut(projeId: string, aId: string, bId: string): void {
+    const liste = jsonOku<string[]>(this.depo.deger(`hafiza-ayrik:${projeId}`), []);
+    const anahtar = ciftAnahtari(aId, bId);
+    if (!liste.includes(anahtar)) this.depo.degerYaz(`hafiza-ayrik:${projeId}`, JSON.stringify([...liste, anahtar].slice(-500)));
+  }
+
+  /** Tutulan kayıt kalır (istenirse metni birleşik hâliyle güncellenir), öteki onun yerine geçmiş sayılır */
+  birlestir(tutulanId: string, eskiyenId: string, metin?: string): HafizaKaydi {
+    const tutulan = this.depo.hafizaKaydi(tutulanId);
+    const eskiyen = this.depo.hafizaKaydi(eskiyenId);
+    if (!tutulan || !eskiyen || tutulan.projeId !== eskiyen.projeId) throw new ArnorgHatasi("Birleştirilecek kayıtlar bulunamadı.", 404);
+    if (tutulan.id === eskiyen.id) throw new ArnorgHatasi("Kayıt kendisiyle birleştirilemez.");
+    if (tutulan.yerineGecen) throw new ArnorgHatasi("Tutulacak kayıt zaten eskimiş.", 409);
+    const yeniMetin = metin?.trim();
+    if (yeniMetin !== undefined && (!yeniMetin || yeniMetin.length > 8000)) throw new ArnorgHatasi("Metin 1–8000 karakter olmalı.");
+    const etiketler = [...new Set([...tutulan.etiketler, ...eskiyen.etiketler])].slice(0, 12);
+    const kayit = this.depo.hafizaGuncelle(tutulan.id, { metin: yeniMetin ?? tutulan.metin, etiketler, onem: Math.max(tutulan.onem, eskiyen.onem) })!;
+    const eskimis = this.depo.hafizaGuncelle(eskiyen.id, { yerineGecen: tutulan.id })!;
+    this.olaylar.yayinla({ tur: "hafiza.yeni", kayit });
+    this.olaylar.yayinla({ tur: "hafiza.yeni", kayit: eskimis });
+    this.yansitPlanla(kayit.projeId);
+    return kayit;
+  }
+
   // ---------------- defter ----------------
 
   defter(ajan: Ajan): string {
@@ -164,8 +219,10 @@ export class ProjeHafizasi {
   }
 
   /** Bir iş metniyle ilgili en fazla birkaç kayıt; görev verilirken mesaja eklenir */
-  ilgili(projeId: string, metin: string, sinir = 5): string {
-    const kayitlar = this.ara(projeId, metin, undefined, sinir);
+  ilgili(projeId: string, metin: string, sinir = 5, haric?: Set<string>): string {
+    const kayitlar = this.ara(projeId, metin, undefined, sinir + (haric?.size ?? 0))
+      .filter((k) => !haric?.has(k.id))
+      .slice(0, sinir);
     if (!kayitlar.length) return "";
     return ["İlgili hafıza:", ...kayitlar.map((k) => `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 200)}`)].join("\n");
   }

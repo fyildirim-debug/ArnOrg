@@ -8,6 +8,7 @@ import { GorevDagilimi } from "../bilesenler/GorevDagilimi";
 import { AjanAvatar, AjanDurum } from "../bilesenler/Kisi";
 import { Markdown } from "../bilesenler/Markdown";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
+import { HafizaNabzi } from "../bilesenler/HafizaNabzi";
 import { KullanimPaneli } from "../bilesenler/Kullanim";
 import { abonelikMi, ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
 import { akilliZaman, para, yonelme } from "../yardimcilar/bicim";
@@ -130,6 +131,8 @@ export function Karargah() {
         </span>
       </h2>
       <GorevDagilimi sayilar={sayilar} />
+
+      <HafizaNabzi />
 
       <h2 className="ara-baslik">
         Ekip <small>{ajanlar.length} çalışan</small>

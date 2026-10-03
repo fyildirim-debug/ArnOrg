@@ -33,6 +33,7 @@ export const hafiza = [
   kayit("olgu", "Ödeme sağlayıcı test anahtarı Kasa'da", "Iyzico sandbox anahtarı Kasa: siparis-paneli/iyzico-sandbox. Koda ya da nota yazılmaz.", "deniz", "Deniz", 60 * 12, { etiketler: ["odeme", "gizli"] }),
   kayit("uzmanlik", "Ödeme ve webhook imzası: Deniz", "Iyzico ödeme akışını ve webhook HMAC doğrulamasını Deniz kurdu; bu konudaki sorular ona.", "ada", "Ada", 60 * 11, { etiketler: ["odeme"] }),
   kayit("uzmanlik", "Erişilebilirlik ve klavye gezintisi: Ece", "Tablo klavye gezintisini ve odak halkalarını Ece yazdı.", "ada", "Ada", 60 * 5, { etiketler: ["erisilebilirlik"] }),
+  kayit("tercih", "Tutarlar kuruş, kayan nokta yok", "Tutarlar kuruş cinsinden tamsayı saklanır; kayan nokta kullanılmaz.", "deniz", "Deniz", 60 * 4, { onem: 4, etiketler: ["para"] }),
   kayit("ozet", "T-19 sipariş filtreleri birleştirildi", "Tarih ve durum filtreleri ana dala alındı; URL sorgusunda saklanıyor. Kalan: kayıtlı filtreler (T-31).", "onur", "Onur", 60 * 2, { onem: 2, gorevId: "g19" }),
 ];
 

@@ -549,6 +549,14 @@ export interface HafizaYazIstegi {
   yerineGectigi?: string | null;
 }
 
+/** Birbirini tekrar eden iki kayıt; kurul birini tutar ya da ayrı kalmalarına karar verir */
+export interface HafizaBenzerCifti {
+  a: HafizaKaydi;
+  b: HafizaKaydi;
+  /** 0–1 */
+  benzerlik: number;
+}
+
 export type SoruDurumu = "bekliyor" | "yanitlandi" | "zaman_asimi";
 
 /** Bir ajanın başka bir ajana sorduğu, yanıtını beklediği soru */
