@@ -9,7 +9,12 @@
    ],
    "dosya": "karakterler/k01.png",
    "en": 155,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k01-arka.png",
+    "en": 165,
+    "boy": 480
+   }
   },
   {
    "id": "k02",
@@ -19,7 +24,12 @@
    ],
    "dosya": "karakterler/k02.png",
    "en": 171,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k02-arka.png",
+    "en": 174,
+    "boy": 480
+   }
   },
   {
    "id": "k03",
@@ -30,7 +40,12 @@
    ],
    "dosya": "karakterler/k03.png",
    "en": 168,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k03-arka.png",
+    "en": 174,
+    "boy": 480
+   }
   },
   {
    "id": "k04",
@@ -41,7 +56,12 @@
    ],
    "dosya": "karakterler/k04.png",
    "en": 169,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k04-arka.png",
+    "en": 159,
+    "boy": 480
+   }
   },
   {
    "id": "k05",
@@ -51,7 +71,12 @@
    ],
    "dosya": "karakterler/k05.png",
    "en": 176,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k05-arka.png",
+    "en": 210,
+    "boy": 480
+   }
   },
   {
    "id": "k06",
@@ -61,7 +86,12 @@
    ],
    "dosya": "karakterler/k06.png",
    "en": 158,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k06-arka.png",
+    "en": 178,
+    "boy": 480
+   }
   },
   {
    "id": "k07",
@@ -71,7 +101,12 @@
    ],
    "dosya": "karakterler/k07.png",
    "en": 159,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k07-arka.png",
+    "en": 166,
+    "boy": 480
+   }
   },
   {
    "id": "k08",
@@ -81,7 +116,12 @@
    ],
    "dosya": "karakterler/k08.png",
    "en": 179,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k08-arka.png",
+    "en": 191,
+    "boy": 480
+   }
   },
   {
    "id": "k09",
@@ -91,7 +131,12 @@
    ],
    "dosya": "karakterler/k09.png",
    "en": 184,
-   "boy": 480
+   "boy": 480,
+   "arka": {
+    "dosya": "karakterler/k09-arka.png",
+    "en": 175,
+    "boy": 480
+   }
   },
   {
    "id": "k10",

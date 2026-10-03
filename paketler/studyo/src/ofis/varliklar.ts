@@ -9,6 +9,10 @@ export interface KarakterVarligi {
   dosya: string;
   en: number;
   boy: number;
+  /** Arkadan görünüş: karakter uzaklaşırken kullanılır; yoksa önden görünüş aynalanır */
+  arka?: { dosya: string; en: number; boy: number };
+  /** Tekerlekli sandalye kullanan karakter adım sallanması yapmaz */
+  hareket?: "yuruyen" | "tekerlekli";
 }
 
 export interface EsyaVarligi {
@@ -32,6 +36,12 @@ function sayiMi(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v) && v > 0;
 }
 
+function arkaCoz(ham: unknown): Pick<KarakterVarligi, "arka"> {
+  const a = (ham ?? null) as Record<string, unknown> | null;
+  if (!a || typeof a.dosya !== "string") return {};
+  return { arka: { dosya: a.dosya, en: sayiMi(a.en) ? a.en : 160, boy: sayiMi(a.boy) ? a.boy : 480 } };
+}
+
 /** Bildirimi doğrular; bozuk girdileri atar */
 export function bildirimiCoz(ham: unknown): Varliklar {
   const kayit = (ham ?? {}) as { karakterler?: unknown; esyalar?: unknown };
@@ -46,6 +56,8 @@ export function bildirimiCoz(ham: unknown): Varliklar {
         dosya: k.dosya,
         en: sayiMi(k.en) ? k.en : 128,
         boy: sayiMi(k.boy) ? k.boy : 360,
+        ...arkaCoz(k.arka),
+        ...(k.hareket === "tekerlekli" ? { hareket: "tekerlekli" as const } : {}),
       });
     }
   }

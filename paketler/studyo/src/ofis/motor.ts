@@ -17,6 +17,7 @@ import {
   type OnayDurumu,
 } from "@arnorg/ortak";
 import { esyaOgesi, PANO_SUTUNLARI, panoOgesi, zeminSvg, type PanoOgesi } from "./cizim";
+import { karakterBul, type KarakterTanimi, type OfisYeri } from "@arnorg/ortak/karakterler";
 import { Kamera } from "./kamera";
 import { projeAtamalari } from "./karakterAtama";
 import { adayKarakteri } from "./karakterSecimi";
@@ -146,6 +147,10 @@ interface Kisi {
   dugme: HTMLButtonElement;
   govde: HTMLSpanElement;
   img: HTMLImageElement;
+  /** Arkadan görünüş (karakterin varsa) */
+  arkaImg: HTMLImageElement;
+  /** Şu an arkası dönük mü (uzaklaşırken) */
+  arkadan: boolean;
   golge: HTMLSpanElement;
   halka: HTMLSpanElement;
   ust: HTMLDivElement;
@@ -191,7 +196,7 @@ interface Kisi {
   balonlar: Balon[];
   bekleyenBalon: { metin: string; tip: BalonTipi; simge?: OfisSimgesi; ust?: string }[];
   // yazılan son değerler (gereksiz DOM yazımını önler)
-  yaz: { tf: string; z: number; govde: string; kirp: string; ust: string; op: string; durum: string; etiket: string; isaret: string; ad: string; is: string; oturan: boolean };
+  yaz: { tf: string; z: number; govde: string; kirp: string; ust: string; op: string; durum: string; etiket: string; isaret: string; ad: string; is: string; oturan: boolean; arka: boolean };
   sonEtiketZamani: number;
 }
 
@@ -624,7 +629,12 @@ export class OfisMotoru {
     img.alt = "";
     img.draggable = false;
     img.decoding = "async";
-    govde.appendChild(img);
+    const arkaImg = document.createElement("img");
+    arkaImg.className = "ofis-kisi-arka";
+    arkaImg.alt = "";
+    arkaImg.draggable = false;
+    arkaImg.decoding = "async";
+    govde.append(img, arkaImg);
     dugme.append(golge, halka, govde);
 
     const ust = document.createElement("div");
@@ -652,6 +662,8 @@ export class OfisMotoru {
       dugme,
       govde,
       img,
+      arkaImg,
+      arkadan: false,
       golge,
       halka,
       ust,
@@ -693,7 +705,7 @@ export class OfisMotoru {
       karsilandi: false,
       balonlar: [],
       bekleyenBalon: [],
-      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false },
+      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false, arka: false },
       sonEtiketZamani: -SONSUZ,
     };
     this.gorselAyarla(k, karakter);
@@ -726,6 +738,10 @@ export class OfisMotoru {
     k.karakter = karakter;
     k.en = (KARAKTER_BOYU * karakter.en) / karakter.boy;
     k.img.src = karakter.dosya ? varlikAdresi(karakter.dosya) : "";
+    // Arkadan görünüş önceden yüklenir; dönüşte titreme olmaz
+    if (karakter.arka) k.arkaImg.src = varlikAdresi(karakter.arka.dosya);
+    else k.arkaImg.removeAttribute("src");
+    k.arkadan = false;
     k.img.onload = () => {
       if (k.img.naturalWidth && k.img.naturalHeight) {
         k.en = (KARAKTER_BOYU * k.img.naturalWidth) / k.img.naturalHeight;
@@ -1063,9 +1079,16 @@ export class OfisMotoru {
 
   private *dinlenmeDavranisi(k: Kisi): Senaryo {
     const n = this.yer.noktalar;
+    const kisilik = karakterBul(k.karakter.id);
     if (k.oturan) yield this.bekle(rastgele(1200, 3600));
     let ilk = true;
     for (;;) {
+      // Karakterin kişiliği: zamanının bir kısmını sevdiği yerde geçirir
+      if (kisilik && Math.random() < (ilk ? 0.5 : 0.4)) {
+        ilk = false;
+        yield* this.sevdigiYerde(k, kisilik);
+        continue;
+      }
       const zar = Math.random();
       const kahve = ilk ? zar < 0.55 : zar < 0.3;
       ilk = false;
@@ -1095,6 +1118,38 @@ export class OfisMotoru {
         yield this.bekle(rastgele(4000, 9000));
       }
     }
+  }
+
+  /** Kişiliğin sevdiği yere gider, oyalanır, ara sıra kendi sözlerinden birini söyler */
+  private *sevdigiYerde(k: Kisi, kisilik: KarakterTanimi): Senaryo {
+    const n = this.yer.noktalar;
+    const toplantiSuruyor = !!this.toplanti && this.t < this.toplanti.bitis;
+    const yerler: Record<OfisYeri, Karo[]> = {
+      kahve: [n.kahve],
+      otomat: [n.kahve],
+      su: [n.su],
+      kanepe: n.kanepeOnu,
+      "masa-tenisi": n.kanepeOnu,
+      kitaplik: n.arsivOnu,
+      sunucu: n.sunucuOnu,
+      // Toplantı sürerken odaya girilmez
+      "beyaz-tahta": toplantiSuruyor ? n.dinlenme : n.toplantiAyakta,
+      bitki: n.dinlenme,
+      pencere: n.dinlenme,
+    };
+    const liste = yerler[kisilik.sevdigiYer].length ? yerler[kisilik.sevdigiYer] : n.dinlenme;
+    const hedef = sec(liste) ?? n.kahve;
+    yield* this.git(k, hedef, liste.length > 1 ? { adaylar: [...liste].sort(() => Math.random() - 0.5) } : {});
+    k.yon = Math.random() < 0.5 ? 1 : -1;
+    yield this.bekle(rastgele(1800, 3200));
+    if (kisilik.sevdigiYer === "kahve" || kisilik.sevdigiYer === "otomat") k.elde = { simge: "fincan" };
+    else if (kisilik.sevdigiYer === "su") k.elde = { simge: "bardak" };
+    if (Math.random() < 0.45) {
+      const soz = sec(kisilik.sozler);
+      if (soz) this.balon(k, soz, "kisa");
+    }
+    yield this.bekle(rastgele(6000, 11000));
+    k.elde = null;
   }
 
   // ---- sahneler ----
@@ -1840,6 +1895,7 @@ export class OfisMotoru {
     if (!k.yol) return;
     let kalan = (k.hiz * dt) / 1000;
     const onceX = k.x;
+    const onceY = k.y;
     while (kalan > 0 && k.yol) {
       const h = k.yol[k.yolI];
       if (!h) {
@@ -1862,7 +1918,14 @@ export class OfisMotoru {
       }
     }
     const hareketX = k.x - onceX;
+    const hareketY = k.y - onceY;
     if (Math.abs(hareketX) > 0.15) k.yon = hareketX > 0 ? 1 : -1;
+    // Yukarı (bakandan uzağa) yürürken arkası döner; aşağı ya da yana dönünce yüzü görünür
+    if (!k.yol) k.arkadan = false;
+    else if (k.karakter.arka) {
+      if (hareketY < -0.15 && -hareketY > Math.abs(hareketX) * 0.6) k.arkadan = true;
+      else if (hareketY > 0.15 || Math.abs(hareketX) > Math.abs(hareketY) * 2.5) k.arkadan = false;
+    }
     k.faz += ((k.hiz * dt) / 1000 / ADIM) * Math.PI;
   }
 
@@ -1908,7 +1971,10 @@ export class OfisMotoru {
     let sx = 1;
     let sy = 1;
     if (!this.azHareket) {
-      if (yuruyor) {
+      if (yuruyor && k.karakter.hareket === "tekerlekli") {
+        // Tekerlekli sandalye: adım sallanması yok, hafif süzülme
+        don = Math.sin(k.faz * 0.5) * 0.35;
+      } else if (yuruyor) {
         bob = -Math.abs(Math.sin(k.faz)) * 3.4;
         don = Math.sin(k.faz) * 2.8;
       } else {
@@ -1933,6 +1999,12 @@ export class OfisMotoru {
     if (z !== k.yaz.z) {
       k.dugme.style.zIndex = String(z);
       k.yaz.z = z;
+    }
+    const arkadan = k.arkadan && !k.oturan;
+    if (arkadan !== k.yaz.arka) {
+      if (arkadan) k.govde.dataset.arka = "";
+      else delete k.govde.dataset.arka;
+      k.yaz.arka = arkadan;
     }
     const govde = `translateY(${bob.toFixed(2)}px) rotate(${don.toFixed(2)}deg) scale(${(sx * k.yon).toFixed(4)}, ${sy.toFixed(4)})`;
     if (govde !== k.yaz.govde) {

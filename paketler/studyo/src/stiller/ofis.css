@@ -1279,3 +1279,23 @@ span.ofis-balon-soru {
     flex-direction: row;
   }
 }
+
+/* Arkadan görünüş: karakter uzaklaşırken önden görünüşün yerini alır (aynı boyda, kendi oranında) */
+.ofis-kisi-govde .ofis-kisi-arka {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: auto;
+  height: 100%;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+.ofis-kisi-govde .ofis-kisi-arka:not([src]) {
+  display: none;
+}
+.ofis-kisi-govde[data-arka] img:first-child {
+  visibility: hidden;
+}
+.ofis-kisi-govde[data-arka] .ofis-kisi-arka {
+  visibility: visible;
+}
