@@ -5,6 +5,7 @@ import { hataMetni } from "../api/istek";
 export type Gorunum =
   | "projeler"
   | "karargah"
+  | "ofis"
   | "ekip"
   | "ajan"
   | "pano"
@@ -58,7 +59,7 @@ function yaz(anahtar: string, deger: string) {
   }
 }
 
-const GECERLI: Gorunum[] = ["projeler", "karargah", "ekip", "ajan", "pano", "kanallar", "notlar", "kod", "denetim", "onaylar", "ayarlar"];
+const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "kod", "denetim", "onaylar", "ayarlar"];
 const kayitli = oku(DEPO.gorunum) as Gorunum | null;
 
 export const useArayuz = create<ArayuzDurumu>()(() => ({

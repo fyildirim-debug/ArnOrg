@@ -55,18 +55,23 @@ function ajan(o) {
     dal: null,
     izinModu: "bypassPermissions",
     talimatEki: "",
+    karakter: null,
     olusturma: once(60 * 24 * 8),
     ...o,
   };
 }
 
 export const ajanlar = [
+  // karakter: bazıları kayıtlı, bazıları boş (Ofis ekranı role göre seçer)
   ajan({ id: "ada", ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "calisiyor", isAciklamasi: "Sprint 3 ilerlemesini derliyor", gunlukButceUsd: 10, bugunHarcananUsd: 3.1, toplamHarcananUsd: 41.8, dal: "arnorg/ada", calismaAlani: null, izinModu: "default", talimatEki: "Her sabah 09:00'da kısa durum raporu yaz. Bütçe aşımlarını hemen kurula bildir." }),
-  ajan({ id: "kerem", ad: "Kerem", rol: "cto", rolAdi: "CTO", model: "opus", yoneticiId: "ada", durum: "calisiyor", isAciklamasi: "T-21 Jeton yenileme mimarisi", gorevId: "g21", gunlukButceUsd: 8, bugunHarcananUsd: 2.6, toplamHarcananUsd: 33.2, dal: "arnorg/kerem/T-21" }),
-  ajan({ id: "deniz", ad: "Deniz", rol: "backend", rolAdi: "Backend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "karar_bekliyor", isAciklamasi: "T-24 Sipariş API uç noktaları · git push için onay bekliyor", gorevId: "g24", gunlukButceUsd: 5, bugunHarcananUsd: 4.25, toplamHarcananUsd: 28.9, dal: "arnorg/deniz/T-24" }),
-  ajan({ id: "ece", ad: "Ece", rol: "frontend", rolAdi: "Frontend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "T-26 Sipariş listesi ekranı", gorevId: "g26", gunlukButceUsd: 5, bugunHarcananUsd: 2.2, toplamHarcananUsd: 19.4, dal: "arnorg/ece/T-26" }),
-  ajan({ id: "mert", ad: "Mert", rol: "test", rolAdi: "Test mühendisi", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "T-27 için T-24'ü bekliyor", gorevId: "g27", gunlukButceUsd: 3, bugunHarcananUsd: 0.4, toplamHarcananUsd: 6.1, dal: "arnorg/mert/T-27", izinModu: "acceptEdits" }),
-  ajan({ id: "onur", ad: "Onur", rol: "inceleme", rolAdi: "Kod inceleyici", model: "opus", yoneticiId: "kerem", durum: "kapali", isAciklamasi: "T-19 düzeltmelerini bekliyor", gunlukButceUsd: 5, bugunHarcananUsd: 0.75, toplamHarcananUsd: 12.3, dal: "arnorg/onur", izinModu: "plan" }),
+  ajan({ id: "kerem", ad: "Kerem", rol: "cto", rolAdi: "CTO", model: "opus", yoneticiId: "ada", durum: "calisiyor", isAciklamasi: "T-21 Jeton yenileme mimarisi", gorevId: "g21", gunlukButceUsd: 8, bugunHarcananUsd: 2.6, toplamHarcananUsd: 33.2, dal: "arnorg/kerem/T-21", karakter: "k16", olusturma: once(60 * 24 * 8 - 1) }),
+  ajan({ id: "deniz", ad: "Deniz", rol: "backend", rolAdi: "Backend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "karar_bekliyor", isAciklamasi: "T-24 Sipariş API uç noktaları · git push için onay bekliyor", gorevId: "g24", gunlukButceUsd: 5, bugunHarcananUsd: 4.25, toplamHarcananUsd: 28.9, dal: "arnorg/deniz/T-24", olusturma: once(60 * 24 * 8 - 2) }),
+  ajan({ id: "ece", ad: "Ece", rol: "frontend", rolAdi: "Frontend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "T-26 Sipariş listesi ekranı", gorevId: "g26", gunlukButceUsd: 5, bugunHarcananUsd: 2.2, toplamHarcananUsd: 19.4, dal: "arnorg/ece/T-26", karakter: "k13", olusturma: once(60 * 24 * 8 - 3) }),
+  ajan({ id: "mert", ad: "Mert", rol: "test", rolAdi: "Test mühendisi", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "T-27 için T-24'ü bekliyor", gorevId: "g27", gunlukButceUsd: 3, bugunHarcananUsd: 0.4, toplamHarcananUsd: 6.1, dal: "arnorg/mert/T-27", izinModu: "acceptEdits", olusturma: once(60 * 24 * 7) }),
+  ajan({ id: "onur", ad: "Onur", rol: "inceleme", rolAdi: "Kod inceleyici", model: "opus", yoneticiId: "kerem", durum: "kapali", isAciklamasi: "T-19 düzeltmelerini bekliyor", gunlukButceUsd: 5, bugunHarcananUsd: 0.75, toplamHarcananUsd: 12.3, dal: "arnorg/onur", izinModu: "plan", olusturma: once(60 * 24 * 6) }),
+  ajan({ id: "burak", ad: "Burak", rol: "devops", rolAdi: "DevOps", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "CI önbelleği ve Windows işi", gunlukButceUsd: 4, bugunHarcananUsd: 1.1, toplamHarcananUsd: 7.6, dal: "arnorg/burak", karakter: "k08", olusturma: once(60 * 24 * 5) }),
+  ajan({ id: "selin", ad: "Selin", rol: "tasarim", rolAdi: "Tasarımcı", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "Boş ve hata durumlarının taslakları bitti", gunlukButceUsd: 3, bugunHarcananUsd: 0.6, toplamHarcananUsd: 4.2, dal: "arnorg/selin", olusturma: once(60 * 24 * 4) }),
+  ajan({ id: "zeynep", ad: "Zeynep", rol: "yazar", rolAdi: "Teknik yazar", model: "haiku", yoneticiId: "ada", durum: "duraklatildi", isAciklamasi: "Kurul tarafından duraklatıldı", gunlukButceUsd: 2, bugunHarcananUsd: 0.2, toplamHarcananUsd: 1.9, dal: "arnorg/zeynep", olusturma: once(60 * 24 * 3) }),
   ajan({ id: "lale", projeId: "arnex-web", ad: "Lale", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "kapali", isAciklamasi: "Brief bekliyor", gunlukButceUsd: 6, bugunHarcananUsd: 0, toplamHarcananUsd: 1.2, calismaAlani: null, dal: null }),
 ];
 
@@ -128,6 +133,7 @@ export const kanallar = {
   "siparis-paneli": [
     { ad: "genel", aciklama: "Bütün ekip · anma olmadan yazılan mesaj CEO'ya gider" },
     { ad: "muhendislik", aciklama: "Teknik konuşmalar · kararlar ADR olarak notlara taşınır" },
+    { ad: "toplanti", aciklama: "Toplantı odası · anılanlar odaya gelir" },
   ],
   "arnex-web": [
     { ad: "genel", aciklama: "Bütün ekip" },

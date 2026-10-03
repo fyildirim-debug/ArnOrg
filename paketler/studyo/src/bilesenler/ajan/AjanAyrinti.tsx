@@ -18,7 +18,8 @@ const IZIN_MODLARI = Object.keys(IZIN_MODU_ADLARI) as IzinModu[];
 // Plan modundan çıkınca dönülecek mod; oturum boyunca bellekte tutulur
 const oncekiModlar = new Map<string, IzinModu>();
 
-export function AjanAyrinti({ ajan }: { ajan: Ajan }) {
+/** mesaj: false ise "Mesaj gönder" bölümü gösterilmez (çağıran kendi mesaj kutusunu koyar) */
+export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolean }) {
   const abonelik = useVeri(abonelikMi);
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
@@ -90,10 +91,12 @@ export function AjanAyrinti({ ajan }: { ajan: Ajan }) {
         <dd>{tarih(ajan.olusturma)}</dd>
       </dl>
 
-      <section className="ajan-bolum" aria-label="Mesaj gönder">
-        <h3>Mesaj gönder</h3>
-        <MesajFormu ajan={ajan} />
-      </section>
+      {mesaj ? (
+        <section className="ajan-bolum" aria-label="Mesaj gönder">
+          <h3>Mesaj gönder</h3>
+          <MesajFormu ajan={ajan} />
+        </section>
+      ) : null}
 
       <AjanAyarlari ajan={ajan} />
       <IstenCikar ajan={ajan} />

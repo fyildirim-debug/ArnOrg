@@ -1,6 +1,7 @@
 /* Ekranlara özgü stiller (Kod ve oturum dökümü ayrı dosyalarda) */
 @import "./oturum.css";
 @import "./kod.css";
+@import "./ofis.css";
 
 .ana-ic-tam {
   height: 100%;

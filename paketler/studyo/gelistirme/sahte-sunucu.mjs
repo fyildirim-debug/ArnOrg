@@ -529,6 +529,193 @@ setInterval(() => {
 setTimeout(() => yay({ tur: "bildirim", seviye: "uyari", metin: "Deniz günlük bütçesinin %85'ine ulaştı.", projeId: "siparis-paneli" }), 25_000);
 
 // ---------------------------------------------------------------------------
+// Ofis canlandırması: anmalı mesajlar, #toplanti, görev geçişleri, durum değişimleri,
+// işe alım ve birleştirme teklifleri, gözetmen hatırlatması. Ofis ekranı bunları sahneye çevirir.
+// (Hafıza ve soru olayları ayrı demo akışında üretilir.)
+// ---------------------------------------------------------------------------
+
+const OFIS = "siparis-paneli";
+const ofisAjanlari = () => projeAjanlari(OFIS).filter((a) => a.durum !== "kapali");
+const rastgeleSec = (liste) => liste[Math.floor(Math.random() * liste.length)];
+
+const ANMALI = [
+  (a) => `@${a} sipariş listesinde \`sonrakiImlec\` boş gelirse ne gösterelim?`,
+  (a) => `@${a} T-24 testleri yeşil, **422 gövdesine** bir göz atar mısın?`,
+  (a) => `@${a} ADR-005'i güncelledim; imleç alanının adı değişmedi.`,
+  (a) => `@${a} hata kutusundaki metni kısalttım, tasarım sistemine uygun mu?`,
+  (a) => `@${a} CI'da Windows işi 3 dakika uzadı, önbelleği açıyorum. Bir sakıncası var mı?`,
+  (a) => `@${a} durum rozetinin renklerini [taslağa](notlar/tasarim.md) ekledim.`,
+  (a) => `@${a} yarın sabah için kısa bir eşleşme yapalım mı? Kargo entegrasyonunu birlikte bölelim.`,
+];
+const GENEL = [
+  "Sprint panosunu güncelledim; T-27 bağımlılıkları netleşti.",
+  "Kargo firması belgelerini okudum, ilk izlenimler notlarda.",
+  "Bugünkü harcama planın altında, sorun yok.",
+];
+
+function anmaliMesaj() {
+  const ajanlar = ofisAjanlari().filter((a) => a.durum !== "duraklatildi");
+  const g = rastgeleSec(ajanlar);
+  if (!g) return;
+  if (Math.random() < 0.2) {
+    mesajEkle(OFIS, "genel", g.id, rastgeleSec(GENEL));
+    return;
+  }
+  const alici = rastgeleSec(projeAjanlari(OFIS).filter((a) => a.id !== g.id));
+  if (!alici) return;
+  mesajEkle(OFIS, Math.random() < 0.6 ? "muhendislik" : "genel", g.id, rastgeleSec(ANMALI)(alici.ad));
+  // Karşılık
+  setTimeout(() => {
+    const a = ajanBul(alici.id);
+    if (!a || a.durum === "kapali") return;
+    mesajEkle(OFIS, "muhendislik", a.id, rastgeleSec(["Bakıyorum, birazdan dönerim.", `Tamam @${g.ad}, böyle kalsın.`, "Uygun, devam edebilirsin.", "Bir şey eklemem gerek; notlara yazıyorum."]));
+  }, 7000);
+}
+
+let toplantiNo = 0;
+function toplantiMesaji() {
+  const ceo = projeAjanlari(OFIS).find((a) => a.rol === "ceo");
+  if (!ceo) return;
+  const digerleri = ofisAjanlari().filter((a) => a.id !== ceo.id && a.durum !== "duraklatildi");
+  const iki = [...digerleri].sort(() => Math.random() - 0.5).slice(0, 2);
+  if (!iki.length) return;
+  const konular = ["sprint 3 kapanışı", "kargo entegrasyonunun bölünmesi", "T-27 uçtan uca test planı", "ödeme öncesi güvenlik denetimi"];
+  const konu = konular[toplantiNo++ % konular.length];
+  mesajEkle(OFIS, "toplanti", ceo.id, `${iki.map((a) => `@${a.ad}`).join(" ")} ${konu} için beş dakikalık durum: engel var mı?`);
+  iki.forEach((a, i) =>
+    setTimeout(() => {
+      if (ajanBul(a.id)) mesajEkle(OFIS, "toplanti", a.id, rastgeleSec(["Engel yok, yarın incelemeye girer.", "Tek açık nokta 422 hata gövdesi; bugün kapanır.", "Windows işinde yavaşlık var, önbellekle çözüyorum.", "Testleri bekliyorum, sonra devralırım."]));
+    }, 4500 + i * 3500),
+  );
+}
+
+// Görev geçişleri: geçerli olan uygulanır, olmayan atlanır
+const GOREV_AKISI = [
+  ["g26", "inceleme"],
+  ["g27", "calisiliyor"],
+  ["g26", "tamam"],
+  ["g19", "calisiliyor"],
+  ["g24", "inceleme"],
+  ["g27", "planlandi"],
+  ["g26", "calisiliyor"],
+  ["g19", "inceleme"],
+  ["g24", "calisiliyor"],
+];
+let gorevAdimi = 0;
+function gorevIlerlet() {
+  for (let i = 0; i < GOREV_AKISI.length; i++) {
+    const [gid, durum] = GOREV_AKISI[gorevAdimi++ % GOREV_AKISI.length];
+    const g = db.gorevler.find((x) => x.id === gid);
+    if (!g || !GECISLER[g.durum].includes(durum)) continue;
+    g.durum = durum;
+    g.guncelleme = simdi();
+    const a = ajanBul(g.atananId);
+    if (a && durum === "calisiliyor") {
+      a.gorevId = g.id;
+      a.isAciklamasi = `${g.kod} ${g.baslik}`;
+      ajanYay(a);
+    }
+    yay({ tur: "gorev.guncellendi", gorev: g }, g.projeId);
+    projeYay(g.projeId);
+    return;
+  }
+}
+
+// Durum değişimleri: Mert ve Onur işe girip çıkar, Selin arada çalışır
+const DURUM_AKISI = [
+  ["mert", "calisiyor", "T-27 uçtan uca testler"],
+  ["onur", "calisiyor", "T-19 incelemesi"],
+  ["selin", "calisiyor", "Liste ekranı boş durum çizimi"],
+  ["mert", "bosta", "T-27 için T-24'ü bekliyor"],
+  ["onur", "bosta", "İnceleme bitti"],
+  ["selin", "bosta", "Taslaklar teslim edildi"],
+  ["onur", "kapali", "T-19 düzeltmelerini bekliyor"],
+];
+let durumAdimi = 0;
+function durumDegistir() {
+  const [aid, durum, aciklama] = DURUM_AKISI[durumAdimi++ % DURUM_AKISI.length];
+  const a = ajanBul(aid);
+  if (!a || a.durum === "karar_bekliyor") return;
+  a.durum = durum;
+  a.isAciklamasi = aciklama;
+  if (durum !== "kapali") a.oturumId ??= `oturum-${a.id}-1`;
+  ajanYay(a);
+  projeYay(a.projeId);
+}
+
+// İşe alım: bekleyen teklif yoksa CEO yeni aday önerir (kapıda siluet olarak bekler)
+const ADAYLAR = [
+  { ad: "Defne", rol: "tasarim", model: "sonnet", gerekce: "Mobil ekranlar için ikinci tasarımcı; Selin'in yükü fazla." },
+  { ad: "Kaan", rol: "devops", model: "sonnet", gerekce: "Dağıtım hattı ve gözlem için ayrı bir DevOps." },
+  { ad: "Nil", rol: "test", model: "sonnet", gerekce: "Kargo entegrasyonu için ikinci test mühendisi." },
+];
+let adayNo = 0;
+function isAlimDongusu() {
+  if (db.onaylar.some((o) => o.projeId === OFIS && o.tur === "ise_alim" && o.durum === "bekliyor")) return;
+  const v = ADAYLAR[adayNo++ % ADAYLAR.length];
+  if (projeAjanlari(OFIS).some((a) => a.ad === v.ad)) return;
+  const rol = V.roller.find((r) => r.kimlik === v.rol);
+  const o = {
+    id: yeniKimlik("o"),
+    projeId: OFIS,
+    ajanId: "ada",
+    tur: "ise_alim",
+    baslik: `${v.ad} · ${rol?.ad ?? v.rol}`,
+    ayrinti: v.gerekce,
+    veri: { ad: v.ad, rol: v.rol, model: v.model, yoneticiId: "kerem", gunlukButceUsd: 4, talimatEki: "" },
+    durum: "bekliyor",
+    olusturma: simdi(),
+    sonGecerlilik: null,
+    sonuclanma: null,
+    not: null,
+  };
+  db.onaylar.unshift(o);
+  yay({ tur: "onay.yeni", onay: o }, OFIS);
+  projeYay(OFIS);
+}
+
+// Birleştirme: incelemedeki bir görev için kurul onayı istenir
+function birlestirmeDongusu() {
+  if (db.onaylar.some((o) => o.projeId === OFIS && o.tur === "birlestirme" && o.durum === "bekliyor")) return;
+  const g = db.gorevler.find((x) => x.projeId === OFIS && x.durum === "inceleme" && x.atananId);
+  if (!g) return;
+  const o = {
+    id: yeniKimlik("o"),
+    projeId: OFIS,
+    ajanId: "onur",
+    tur: "birlestirme",
+    baslik: `${g.kod} ${g.baslik} → main`,
+    ayrinti: "İnceleme tamam, testler geçti, çakışma yok.",
+    veri: { gorevId: g.id, dal: `arnorg/${g.atananId}/${g.kod}`, hedefDal: "main", dosyaSayisi: 4, eklenen: 126, silinen: 9, testler: "52/52 geçti" },
+    durum: "bekliyor",
+    olusturma: simdi(),
+    sonGecerlilik: null,
+    sonuclanma: null,
+    not: null,
+  };
+  db.onaylar.unshift(o);
+  yay({ tur: "onay.yeni", onay: o }, OFIS);
+  projeYay(OFIS);
+}
+
+let gozetmenSayaci = 0;
+function gozetmen() {
+  // Bildirim her ekranda görünür; seyrek gelsin
+  if (gozetmenSayaci++ % 3 !== 0) return;
+  const g = db.gorevler.find((x) => x.projeId === OFIS && x.durum === "calisiliyor" && x.atananId && ajanBul(x.atananId)?.durum !== "kapali");
+  const a = g && ajanBul(g.atananId);
+  if (!g || !a) return;
+  yay({ tur: "bildirim", seviye: "uyari", metin: `${g.kod} 20 dakikadır ilerlemiyor; ${a.ad} hatırlatıldı.`, projeId: OFIS });
+}
+
+const OFIS_ADIMLARI = [anmaliMesaj, gorevIlerlet, durumDegistir, toplantiMesaji, anmaliMesaj, gorevIlerlet, isAlimDongusu, durumDegistir, anmaliMesaj, birlestirmeDongusu, gozetmen];
+let ofisAdimi = 0;
+setTimeout(() => {
+  anmaliMesaj();
+  setInterval(() => OFIS_ADIMLARI[ofisAdimi++ % OFIS_ADIMLARI.length](), 6000);
+}, 3000);
+
+// ---------------------------------------------------------------------------
 // Ajan tepkileri
 // ---------------------------------------------------------------------------
 
@@ -602,8 +789,8 @@ rota("POST", "/api/projeler", ({ govde }) => {
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
   const p = { id, ad: govde.ad, yol: govde.yol, aciklama: govde.aciklama ?? "", varsayilanDal: "main", olusturma: simdi() };
   db.projeler.push(p);
-  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", gunlukButceUsd: 10, bugunHarcananUsd: 0, toplamHarcananUsd: 0, bugunToken: 0, toplamToken: 0, talimatEki: "", olusturma: simdi() });
-  db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "muhendislik", aciklama: "" }];
+  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", gunlukButceUsd: 10, bugunHarcananUsd: 0, toplamHarcananUsd: 0, bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
+  db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "muhendislik", aciklama: "" }, { ad: "toplanti", aciklama: "" }];
   db.notlar[id] = { "vizyon.md": `# Vizyon\n\n${govde.aciklama ?? ""}\n`, "mimari.md": "# Mimari\n\n" };
   db.notZamanlari[id] = { "vizyon.md": simdi(), "mimari.md": simdi() };
   db.politika[id] = kopya(V.politika);
@@ -657,6 +844,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
     bugunToken: 0,
     toplamToken: 0,
     talimatEki: govde.talimatEki ?? "",
+    karakter: govde.karakter ?? null,
     olusturma: simdi(),
   };
   db.ajanlar.push(a);
@@ -668,7 +856,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
 });
 rota("PATCH", "/api/ajanlar/:aid", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
-  for (const k of ["model", "gunlukButceUsd", "izinModu", "yoneticiId", "talimatEki"]) if (govde && k in govde) a[k] = govde[k];
+  for (const k of ["model", "gunlukButceUsd", "izinModu", "yoneticiId", "talimatEki", "karakter"]) if (govde && k in govde) a[k] = govde[k];
   ajanYay(a);
   return a;
 });
@@ -911,6 +1099,7 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
       bugunToken: 0,
       toplamToken: 0,
       talimatEki: v.talimatEki ?? "",
+      karakter: v.karakter ?? null,
       olusturma: simdi(),
     };
     db.ajanlar.push(yeni);

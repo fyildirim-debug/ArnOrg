@@ -18,6 +18,7 @@ import {
   projeVerisiniYukle,
   projeleriYukle,
   useVeri,
+  type VeriDurumu,
 } from "./veri";
 
 const ONAY_DURUM_METNI = {
@@ -27,7 +28,28 @@ const ONAY_DURUM_METNI = {
   zaman_asimi: "Süre doldu",
 } as const;
 
+/** Ofis sahnesi gibi olayları ayrıca canlandıran dinleyiciler; olay depoya uygulandıktan sonra çağrılır */
+export type OfisOlayDinleyicisi = (olay: SunucuOlayi, onceki: VeriDurumu) => void;
+const ofisDinleyicileri = new Set<OfisOlayDinleyicisi>();
+
+export function ofisOlayDinle(dinleyici: OfisOlayDinleyicisi): () => void {
+  ofisDinleyicileri.add(dinleyici);
+  return () => ofisDinleyicileri.delete(dinleyici);
+}
+
 export function olayUygula(olay: SunucuOlayi) {
+  const onceki = useVeri.getState();
+  depoyaUygula(olay);
+  for (const d of ofisDinleyicileri) {
+    try {
+      d(olay, onceki);
+    } catch (e) {
+      console.error("Ofis olay dinleyicisi hata verdi", e);
+    }
+  }
+}
+
+function depoyaUygula(olay: SunucuOlayi) {
   const d = useVeri.getState();
   const pid = d.aktifProjeId;
 

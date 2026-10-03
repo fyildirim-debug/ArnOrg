@@ -18,6 +18,7 @@ import { Ekip } from "./gorunumler/Ekip";
 import { Kanallar } from "./gorunumler/Kanallar";
 import { Karargah } from "./gorunumler/Karargah";
 import { Notlar } from "./gorunumler/Notlar";
+import { Ofis } from "./gorunumler/Ofis";
 import { Onaylar } from "./gorunumler/Onaylar";
 import { Pano } from "./gorunumler/Pano";
 import { Projeler } from "./gorunumler/Projeler";
@@ -37,9 +38,11 @@ export function App() {
 }
 
 /** Rayın gösterilmediği ekranlar */
-const RAYSIZ: Gorunum[] = ["kod", "projeler", "ayarlar"];
+const RAYSIZ: Gorunum[] = ["kod", "projeler", "ayarlar", "ofis"];
 /** Kendi kaydırma alanını yöneten, ana alanı tam yükseklikte kullanan ekranlar */
-const TAM_YUKSEKLIK: Gorunum[] = ["kod", "ajan", "kanallar"];
+const TAM_YUKSEKLIK: Gorunum[] = ["kod", "ajan", "kanallar", "ofis"];
+/** Kenar boşluğu olmadan bütün ana alanı kullanan ekranlar */
+const KENARSIZ: Gorunum[] = ["ofis"];
 
 function Studyo() {
   const gorunum = useArayuz((d) => d.gorunum);
@@ -115,7 +118,7 @@ function Studyo() {
             </div>
           ) : null}
           {etkin === "kod" ? null : tam ? (
-            <div className="ana-ic ana-ic-tam">
+            <div className={`ana-ic ana-ic-tam${KENARSIZ.includes(etkin) ? " ana-ic-kenarsiz" : ""}`}>
               <Ekran gorunum={etkin} />
             </div>
           ) : (
@@ -137,6 +140,8 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Projeler />;
     case "karargah":
       return <Karargah />;
+    case "ofis":
+      return <Ofis />;
     case "ekip":
       return <Ekip />;
     case "ajan":

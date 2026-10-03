@@ -10,6 +10,12 @@ const YOLLAR = {
       <rect x="9" y="9" width="5" height="5" />
     </>
   ),
+  ofis: (
+    <>
+      <path d="M1.5 2.5h13v11h-13z" />
+      <path d="M8 2.5v4.5M1.5 7h4M10 7h4.5M5.5 13.5v-3h5v3" />
+    </>
+  ),
   ekip: (
     <>
       <circle cx="8" cy="3.5" r="1.75" />
@@ -67,6 +73,8 @@ const YOLLAR = {
   sol: <path d="m10 4-4 4 4 4" />,
   kapat: <path d="m4 4 8 8M12 4l-8 8" />,
   arti: <path d="M8 3v10M3 8h10" />,
+  eksi: <path d="M3 8h10" />,
+  sigdir: <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />,
   ara: (
     <>
       <circle cx="7" cy="7" r="4.25" />
