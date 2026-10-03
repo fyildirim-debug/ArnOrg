@@ -577,21 +577,42 @@ function anmaliMesaj() {
   }, 7000);
 }
 
+// Toplantı: çekirdekteki toplanti_yap ile aynı biçim. Çağıranın #toplanti duyurusu, her katılımcıya
+// "Toplantı (X çağırdı): …" sorusu (soru.guncellendi), yanıt gelince soru kapanır ve yanıt #toplanti'ya düşer
 let toplantiNo = 0;
+const GUNDEMLER = [
+  "Kargo entegrasyonunu nasıl bölelim? Tek firma mı, soyut katman mı?",
+  "Sprint 3 kapanışı: T-26 ve T-27 bu hafta yetişir mi?",
+  "Ödeme öncesi güvenlik denetimi hangi kapsamla yapılsın?",
+  "Sipariş listesinde 500+ satır için sanal kaydırma gerekli mi?",
+];
+const GORUSLER = [
+  "Önce tek firma; arayüzü soyut tutalım, ikinci firma gelince katmanı çıkarırız. Risk: firma API'si sık değişiyor.",
+  "T-26 yetişir; T-27 için T-24'ün 422 gövdesi netleşmeli. Risk: testler Windows'ta yavaş.",
+  "OWASP ASVS düzey 2 yeter; oturum ve jeton akışı öncelikli. Risk: üçüncü taraf betikler.",
+  "Evet, 500 üstünde sanal kaydırma; altında düz tablo. Risk: klavye gezintisi bozulmasın.",
+];
 function toplantiMesaji() {
   const ceo = projeAjanlari(OFIS).find((a) => a.rol === "ceo");
-  if (!ceo) return;
+  if (!ceo || ceo.durum === "kapali") return;
   const digerleri = ofisAjanlari().filter((a) => a.id !== ceo.id && a.durum !== "duraklatildi");
-  const iki = [...digerleri].sort(() => Math.random() - 0.5).slice(0, 2);
-  if (!iki.length) return;
-  const konular = ["sprint 3 kapanışı", "kargo entegrasyonunun bölünmesi", "T-27 uçtan uca test planı", "ödeme öncesi güvenlik denetimi"];
-  const konu = konular[toplantiNo++ % konular.length];
-  mesajEkle(OFIS, "toplanti", ceo.id, `${iki.map((a) => `@${a.ad}`).join(" ")} ${konu} için beş dakikalık durum: engel var mı?`);
-  iki.forEach((a, i) =>
+  const katilimcilar = [...digerleri].sort(() => Math.random() - 0.5).slice(0, 2 + (toplantiNo % 2));
+  if (!katilimcilar.length) return;
+  const n = toplantiNo++;
+  const gundem = GUNDEMLER[n % GUNDEMLER.length];
+  mesajEkle(OFIS, "toplanti", ceo.id, `Toplantı: ${gundem}\nKatılımcılar: ${katilimcilar.map((a) => `@${a.ad}`).join(" ")}`);
+  katilimcilar.forEach((a, i) => {
+    const s = { id: yeniKimlik("s"), projeId: OFIS, soranId: ceo.id, soranAd: ceo.ad, soruluId: a.id, soruluAd: a.ad, soru: `Toplantı (${ceo.ad} çağırdı): ${gundem}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk.`, yanit: null, durum: "bekliyor", olusturma: simdi(), yanitlanma: null };
+    db.sorular?.unshift(s);
+    yay({ tur: "soru.guncellendi", soru: s }, OFIS);
     setTimeout(() => {
-      if (ajanBul(a.id)) mesajEkle(OFIS, "toplanti", a.id, rastgeleSec(["Engel yok, yarın incelemeye girer.", "Tek açık nokta 422 hata gövdesi; bugün kapanır.", "Windows işinde yavaşlık var, önbellekle çözüyorum.", "Testleri bekliyorum, sonra devralırım."]));
-    }, 4500 + i * 3500),
-  );
+      if (!ajanBul(a.id)) return;
+      const yanit = GORUSLER[(n + i) % GORUSLER.length];
+      Object.assign(s, { yanit, durum: "yanitlandi", yanitlanma: simdi() });
+      yay({ tur: "soru.guncellendi", soru: s }, OFIS);
+      mesajEkle(OFIS, "toplanti", a.id, yanit);
+    }, 9000 + i * 4500);
+  });
 }
 
 // Görev geçişleri: geçerli olan uygulanır, olmayan atlanır

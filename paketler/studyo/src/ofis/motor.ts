@@ -274,7 +274,9 @@ export class OfisMotoru {
   private sunucuIsiklari: HTMLElement[] = [];
   private sunucuAkisBitis = 0;
   private monitorler = new Map<string, HTMLElement>();
-  private toplanti: { bitis: number; katilimcilar: Set<string>; balonlar: Map<string, { metin: string }[]> } | null = null;
+  private toplanti: { basladi: number; bitis: number; katilimcilar: Set<string>; balonlar: Map<string, { metin: string }[]> } | null = null;
+  /** Yanıtı beklenen toplantı soruları (hepsi yanıtlanınca toplantı dağılır) */
+  private toplantiSorulari = new Set<string>();
   private ipucu: HTMLDivElement;
   private ipucuKisi: Kisi | null = null;
   private ipucuYazildi = 0;
@@ -1226,7 +1228,7 @@ export class OfisMotoru {
       }
       k.etkinlik = "Toplantıda";
       this.toplantiBalonlari(k);
-      yield this.kosul(() => !this.toplanti || this.t > this.toplanti.bitis, 90000);
+      yield this.kosul(() => !this.toplanti || this.t > this.toplanti.bitis, 125000);
     } finally {
       // Yarıda kalırsa koltuk ve katılım bırakılır
       if (bosKoltuk && k.oturan !== bosKoltuk && this.koltukSahipleri.get(bosKoltuk) === k.id) this.koltukSahipleri.delete(bosKoltuk);
@@ -1273,8 +1275,16 @@ export class OfisMotoru {
     const g = this.kisiler.get(m.gonderenId);
     if (!g || g.cikiyor) return;
     if (m.kanal === "toplanti") {
-      this.toplantiyaCagir([g, ...anilan], g, metin);
-      this.akisa("toplanti", `Toplantı · ${g.ajan.ad}: ${kisaMetin(metin, 52)}`);
+      // Çağıranın duyurusu: "Toplantı: <gündem>\nKatılımcılar: @A @B"; görüşler gelene kadar oda dolu kalır
+      const duyuru = /^Toplantı:\s*([^\n]+)/.exec(m.metin.trim());
+      if (duyuru) {
+        const gundem = balonMetni(duyuru[1]!, 110);
+        this.toplantiyaCagir([g, ...anilan], g, `Toplantı: ${gundem}`, 120000);
+        this.akisa("toplanti", `Toplantı · ${g.ajan.ad}: ${kisaMetin(gundem, 48)} · ${anilan.map((a) => a.ajan.ad).join(", ")}`);
+      } else {
+        this.toplantiyaCagir([g, ...anilan], g, metin);
+        this.akisa("toplanti", `Toplantı · ${g.ajan.ad}: ${kisaMetin(metin, 52)}`);
+      }
       return;
     }
     let alicilar = anilan.filter((a) => a !== g);
@@ -1292,9 +1302,10 @@ export class OfisMotoru {
     }
   }
 
-  private toplantiyaCagir(kisiler: Kisi[], konusan: Kisi | null, metin: string) {
-    if (!this.toplanti || this.toplanti.bitis < this.t) this.toplanti = { bitis: this.t + 16000, katilimcilar: new Set(), balonlar: new Map() };
-    else this.toplanti.bitis = Math.max(this.toplanti.bitis, this.t + 13000);
+  /** Toplantı odasına çağırır; enAz: toplantının en az sürmesi gereken süre (en çok 2 dk) */
+  private toplantiyaCagir(kisiler: Kisi[], konusan: Kisi | null, metin: string, enAz = 13000) {
+    if (!this.toplanti || this.toplanti.bitis < this.t) this.toplanti = { basladi: this.t, bitis: this.t + Math.max(16000, enAz), katilimcilar: new Set(), balonlar: new Map() };
+    else this.toplanti.bitis = Math.min(this.toplanti.basladi + 120000, Math.max(this.toplanti.bitis, this.t + enAz));
     const t = this.toplanti;
     if (konusan && metin) {
       const liste = t.balonlar.get(konusan.id) ?? [];
@@ -1334,6 +1345,22 @@ export class OfisMotoru {
     if (s.projeId !== this.s.projeId) return;
     const soran = this.kisiler.get(s.soranId);
     const sorulu = this.kisiler.get(s.soruluId);
+    // Toplantı soruları (toplanti_yap): yürüyüş ve balon toplantı odasında; görüş #toplanti mesajıyla gelir
+    if (/^Toplantı \(/.test(s.soru)) {
+      if (s.durum === "bekliyor") {
+        this.toplantiSorulari.add(s.id);
+        this.toplantiyaCagir([soran, sorulu].filter((k): k is Kisi => !!k && !k.cikiyor), null, "", 120000);
+        return;
+      }
+      this.toplantiSorulari.delete(s.id);
+      if (s.durum === "zaman_asimi") {
+        if (sorulu) this.isaretKoy(sorulu, "omuz", 2200);
+        this.akisa("toplanti", `Toplantı · ${s.soruluAd} görüş vermedi`);
+      }
+      // Bütün görüşler geldiyse oda birkaç saniye sonra dağılır
+      if (!this.toplantiSorulari.size && this.toplanti) this.toplanti.bitis = Math.min(this.toplanti.bitis, this.t + 9000);
+      return;
+    }
     if (s.durum === "bekliyor") {
       if (soran && sorulu && !soran.cikiyor) this.sahneEkle(soran, "soru", () => this.soruSahnesi(soran, sorulu, balonMetni(s.soru, 110)));
       this.akisa("soru", `${s.soranAd} → ${s.soruluAd}: ${kisaMetin(s.soru, 52)}`);
