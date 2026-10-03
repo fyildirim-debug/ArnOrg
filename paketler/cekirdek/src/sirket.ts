@@ -37,6 +37,10 @@ import {
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
 import { HesapIzleyici } from "./hesap.js";
 import { ProjeHafizasi } from "./hafiza.js";
+import { Hatirlatici, oncekiYanit, uzmanBul } from "./hatirlatici.js";
+
+/** ajana_sor sonucu: yakın zamanda yanıtlanmış aynı soru ya da ArnOrg'un seçtiği uzman bilgisiyle */
+export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
@@ -88,6 +92,8 @@ export class Sirket {
   private readonly sinirdaBekleyenler = new Map<string, string[]>();
   /** Proje bazlı kalıcı hafıza ve ajan defterleri */
   readonly hafiza: ProjeHafizasi;
+  /** Hafızayı doğru anda ajanın önüne getirir (yeni tur, hata, dosya, sıkıştırma) */
+  readonly hatirlatici: Hatirlatici;
   /** Yanıt bekleyen ajanlar arası sorular */
   private readonly bekleyenSorular = new Map<string, { coz: (s: AjanSorusu) => void; zamanlayici: NodeJS.Timeout }>();
   /** Defter hatırlatması: oturumdaki araç sayısı ve defterin güncellenip güncellenmediği */
@@ -107,6 +113,7 @@ export class Sirket {
     depo.bekleyenAracOnaylariniKapat();
     depo.bekleyenSorulariKapat();
     this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
+    this.hatirlatici = new Hatirlatici(depo, this.hafiza);
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
   }
@@ -425,6 +432,10 @@ export class Sirket {
       .filter((a) => a.id !== ajan.id)
       .map((a) => `- ${a.ad} (${a.rolAdi})`)
       .join("\n");
+    // Talimata giren hafıza kayıtları bu oturumda gösterilmiş sayılır; tur başında yinelenmez
+    const gosterilen: string[] = [];
+    const hafizaBaglami = this.hafiza.baglam(ajan, this.depo.sorular(ajan.projeId, { soruluId: ajan.id, durum: "bekliyor", sinir: 8 }), gosterilen);
+    this.hatirlatici.oturumAcildi(ajan.id, gosterilen);
     return [
       "# ArnOrg",
       `Sen ArnOrg yazılım şirketinde ${ajan.rolAdi} olarak çalışan ${ajan.ad}'sın. Yöneticin: ${yonetici ? `${yonetici.ad} (${yonetici.rolAdi})` : "Yönetim kurulu"}.`,
@@ -449,11 +460,12 @@ export class Sirket {
       "## Unutmamak ve birlikte düşünmek",
       "- Bu projenin hafızası kalıcıdır ve yalnız bu projeye aittir. Aşağıdaki hafıza her oturumda sana verilir; başka projelerin bilgisini karıştırma.",
       "- Kalıcı bir karar alındığında, kurul bir tercih bildirdiğinde, bir hatanın nedenini ve çözümünü bulduğunda ya da projeye dair önemli bir olgu öğrendiğinde hemen mcp__arnorg__hafiza_kaydet ile kaydet. Bilgi değişirse yerine_gecen ile eskisini işaretle; aynı başlık güncellenir, tekrar yazılmaz.",
-      "- Bilmediğin bir şeyi önce hafiza_ara ile ara. Bilen bir çalışan varsa ajana_sor ile kısa ve net sor; yanıt gelene kadar beklersin. Sana soru gelirse işini kısa bir an bırakıp soruyu_yanitla ile yanıtla.",
+      "- Bilmediğin bir şeyi önce hafiza_ara ile ara. Bilen bir çalışan varsa ajana_sor ile kısa ve net sor; kimin bildiğinden emin değilsen kime alanını boş bırak, ArnOrg hafızaya ve geçmiş işlere bakıp uzmanı bulur. Yanıt gelene kadar beklersin. Sana soru gelirse işini kısa bir an bırakıp soruyu_yanitla ile yanıtla.",
+      "- Çalışırken mesajlarına, hata çıktılarına ve dokunduğun dosyalara [ArnOrg hafızası] notları eklenebilir: ekip arkadaşlarının yeni kayıtları ve geçmişte öğrenilenler. Bunları dikkate al; çelişen bir şey görürsen kaydı güncelle.",
       "- Başkasının işine dokunmadan önce defter_oku ile onun defterine ve gorev_detay ile görevine bak.",
       "- Her turun sonunda defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kısa maddeler; eskiyenleri çıkar.",
       "",
-      this.hafiza.baglam(ajan, this.depo.sorular(ajan.projeId, { soruluId: ajan.id, durum: "bekliyor", sinir: 8 })),
+      hafizaBaglami,
       ajan.talimatEki ? `\n## Ek talimat\n${ajan.talimatEki}` : "",
     ].join("\n");
   }
@@ -479,6 +491,12 @@ export class Sirket {
       kapi: (arac, girdi, aracKimligi) => this.kapi(id, arac, girdi, aracKimligi),
       izinSor,
       aracSonrasi: (arac, girdi) => this.aracSonrasi(id, arac, girdi),
+      aracHatasi: (arac, girdi, hata) => this.hatirlatici.hataSonrasi(this.ajan(id), arac, girdi, hata),
+      turBasi: (metin) => this.hatirlatici.turBasi(this.ajan(id), metin, !/^\[[^\]\n]{1,60}\] /.test(metin)),
+      sikistirmaSonrasi: () => {
+        const a = this.ajan(id);
+        return this.hatirlatici.sikistirmaSonrasi(a, this.depo.sorular(a.projeId, { soruluId: a.id, durum: "bekliyor", sinir: 6 }));
+      },
       akis: (oge) => this.akisEkle(id, oge),
       durum: (d, aciklama) => this.durumDegisti(id, d, aciklama),
       oturumKimligi: (oid) => {
@@ -499,6 +517,7 @@ export class Sirket {
       },
       girisKaynagi: (k) => this.hesap.girisKaynagi(k),
       bitti: (hata) => {
+        this.hatirlatici.oturumKapandi(id);
         if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? "Ajan"}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
       },
     });
@@ -783,20 +802,24 @@ export class Sirket {
     if (y) this.duzenlemeler.set(path.resolve(cwd, y), { ajanId, zaman: Date.now() });
   }
 
-  private aracSonrasi(ajanId: string, arac: string, girdi: Record<string, unknown>): void {
+  /** Araç sonrası: defter sayacı, düzenleme izi; dokunulan dosyayla ilgili hafıza ek bağlam olarak döner */
+  private aracSonrasi(ajanId: string, arac: string, girdi: Record<string, unknown>): string | null {
     if (!arac.startsWith("mcp__arnorg__")) {
       const iz = this.defterIzleri.get(ajanId) ?? { arac: 0, yazildi: false };
       iz.arac++;
       this.defterIzleri.set(ajanId, iz);
     }
     const a = this.depo.ajan(ajanId);
-    if (!a || !YAZMA_ARACLARI.has(arac)) return;
+    if (!a) return null;
     const cwd = a.calismaAlani ?? this.proje(a.projeId).yol;
+    const ek = this.hatirlatici.dosyaSonrasi(a, cwd, arac, girdi);
     const y = typeof girdi.file_path === "string" ? girdi.file_path : null;
-    if (!y) return;
-    const tam = path.resolve(cwd, y);
-    this.duzenlemeler.set(tam, { ajanId, zaman: Date.now() });
-    this.olaylar.yayinla({ tur: "dosya.degisti", projeId: a.projeId, alan: a.calismaAlani ? a.id : "ana", yol: path.relative(cwd, tam).replace(/\\/g, "/"), ajanId });
+    if (y && YAZMA_ARACLARI.has(arac)) {
+      const tam = path.resolve(cwd, y);
+      this.duzenlemeler.set(tam, { ajanId, zaman: Date.now() });
+      this.olaylar.yayinla({ tur: "dosya.degisti", projeId: a.projeId, alan: a.calismaAlani ? a.id : "ana", yol: path.relative(cwd, tam).replace(/\\/g, "/"), ajanId });
+    }
+    return ek;
   }
 
   /** Claude Code'un izin sorduğu çağrı (bypass dışı modlar, plan onayı) */
@@ -1211,15 +1234,24 @@ export class Sirket {
 
   /**
    * Bir ajan diğerine soru sorar ve yanıtı bekler. Sorulan ajan soruyu_yanitla ile yanıtlar.
+   * Hedef verilmezse ArnOrg hafızaya, görevlere, geçmiş yanıtlara ve rollere bakıp uzmanı seçer.
+   * Aynı soru son 30 günde yanıtlandıysa meslektaş yeniden uyandırılmaz (yeniden: true ile zorlanır).
    * Karşılıklı bekleme (A, B'yi beklerken B'nin A'ya sorması) hemen reddedilir.
    */
-  async ajanaSor(soranId: string, hedefAd: string, soru: string, bekleDk = 10): Promise<AjanSorusu> {
+  async ajanaSor(soranId: string, hedefAd: string | null, soru: string, bekleDk = 10, secenek: { yeniden?: boolean } = {}): Promise<SoruSonucu> {
     const soran = this.ajan(soranId);
-    const hedef = this.depo.ajanAdla(soran.projeId, hedefAd.replace(/^@/, "").trim());
-    if (!hedef) throw new ArnorgHatasi(`"${hedefAd}" adında çalışan yok.`, 404);
-    if (hedef.id === soran.id) throw new ArnorgHatasi("Kendine soru soramazsın.");
     const metin = soru.trim();
     if (metin.length < 5 || metin.length > 4000) throw new ArnorgHatasi("Soru 5–4000 karakter olmalı.");
+    const ad = hedefAd?.replace(/^@/, "").trim() ?? "";
+    const secim = ad ? { ajan: this.depo.ajanAdla(soran.projeId, ad), neden: undefined } : uzmanBul(this.depo, soran, metin);
+    const hedef = secim?.ajan;
+    const yonlendirme = secim?.neden;
+    if (!hedef) throw new ArnorgHatasi(ad ? `"${ad}" adında çalışan yok.` : "Projede soracak başka çalışan yok.", 404);
+    if (hedef.id === soran.id) throw new ArnorgHatasi("Kendine soru soramazsın.");
+    if (!secenek.yeniden) {
+      const onceki = oncekiYanit(this.depo, soran.projeId, metin);
+      if (onceki) return { ...onceki, onceki: true };
+    }
     const karsilikli = this.depo.sorular(soran.projeId, { soruluId: soran.id, durum: "bekliyor" }).some((s) => s.soranId === hedef.id);
     if (karsilikli) throw new ArnorgHatasi(`${hedef.ad} şu an senden yanıt bekliyor; önce onun sorusunu soruyu_yanitla ile yanıtla.`, 409);
     const kayit = this.depo.soruEkle({ projeId: soran.projeId, soranId: soran.id, soranAd: soran.ad, soruluId: hedef.id, soruluAd: hedef.ad, soru: metin });
@@ -1237,7 +1269,7 @@ export class Sirket {
     });
     const uyandi = await this.uyandir(
       hedef.id,
-      `${soran.ad} sana soruyor (soru ${kayit.id}):\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Sonra kendi işine dön.`,
+      `${soran.ad} sana soruyor (soru ${kayit.id})${yonlendirme ? ` — ArnOrg soruyu sana yönlendirdi: ${yonlendirme}` : ""}:\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Sonra kendi işine dön.`,
       soran,
     );
     if (!uyandi) {
@@ -1248,9 +1280,9 @@ export class Sirket {
       }
       const son = this.depo.soruSonuclandir(kayit.id, "zaman_asimi", null) ?? kayit;
       this.olaylar.yayinla({ tur: "soru.guncellendi", soru: son });
-      return son;
+      return { ...son, yonlendirme };
     }
-    return yanit;
+    return { ...(await yanit), yonlendirme };
   }
 
   soruYanitla(ajanId: string, soruId: string, yanit: string): AjanSorusu {

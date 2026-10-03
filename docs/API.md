@@ -176,6 +176,17 @@ Her projenin kendi kalıcı hafızası vardır; başka projelerle karışmaz. Ka
 
 Ajan araçları: `hafiza_kaydet`, `hafiza_ara` (hafıza + notlar), `hafiza_listele`, `defter_yaz`, `defter_oku`, `ajana_sor` (yanıtı en çok 30 dk bekler; karşılıklı bekleme reddedilir), `soruyu_yanitla`. Her oturumun talimatına kurul tercihleri, kararlar, öğrenilenler, olgular, uzmanlıklar, son özetler, ajanın defteri ve ona sorulmuş bekleyen sorular eklenir; görev verilirken görevle ilgili hafıza kayıtları mesaja eklenir. Çok iş yapıp defterini yazmadan duran ajana bir kez hatırlatılır. Görev bitişi, birleştirme ve işe alım hafızaya kendiliğinden yazılır. Olaylar: `hafiza.yeni`, `soru.guncellendi`.
 
+Hafıza, ajan çalışırken de doğru anda önüne gelir (Claude Code kancalarıyla; aynı kayıt bir oturumda aynı amaçla bir kez):
+
+| An | Kanca | Ajana eklenen |
+|---|---|---|
+| Yeni mesaj | `UserPromptSubmit` | Başka ajanların son turundan beri yazdığı kayıtlar ve mesajla ilgili kayıtlar. Kurul "bundan sonra", "asla", "her zaman" gibi kalıcı bir tercih bildirirse kaydetme hatırlatması |
+| Komut hatası | `PostToolUseFailure` | Aynı hataya dair öğrenilen kayıt; yoksa (oturumda bir kez) çözümü `ogrenilen` olarak kaydetme ipucu |
+| Dosyaya dokunma | `PostToolUse` | O dosyayı yoluyla ya da adıyla anan kayıtlar |
+| Bağlam sıkıştırma | `SessionStart` (compact) | Defter, oturum boyunca ekipten gelen kayıtlar, yanıt bekleyen sorular |
+
+`ajana_sor` hedefsiz çağrılabilir: ArnOrg hafızadaki uzmanlık ve iş kayıtlarına, üzerinde çalışılan görevlere, benzer soruları kimin yanıtladığına ve rollere bakıp uzmanı seçer; işaret yoksa soranın yöneticisine, o da yoksa CEO'ya gider. Aynı soru son 30 günde yanıtlandıysa meslektaş uyandırılmaz, önceki yanıt hemen döner (`yeniden: true` zorlar). `hafiza_ara` yanıtlanmış soruları da arar.
+
 ## Rapor ve tıkanma koruması
 
 | Yöntem | Yol | Yanıt |

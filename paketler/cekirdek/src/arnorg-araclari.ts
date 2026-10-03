@@ -5,6 +5,7 @@ import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
 import { raporOlustur, tokenMetni } from "./gozetmen.js";
+import { sorulardaAra } from "./hatirlatici.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -284,6 +285,7 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         guvenli(() => {
           const kayitlar = sirket.hafiza.ara(ben().projeId, a.sorgu, a.tur, 12);
           const notlar = a.tur ? [] : notlardaAra(proje().yol, a.sorgu).slice(0, 12);
+          const sorular = a.tur ? [] : sorulardaAra(sirket.depo, ben().projeId, a.sorgu, 5);
           const parcalar: string[] = [];
           if (kayitlar.length)
             parcalar.push(
@@ -291,6 +293,8 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
               ...kayitlar.map((k) => `- [${k.tur}] ${k.baslik} (${k.kaynakAd}, ${k.guncelleme.slice(0, 10)}, kimlik ${k.id.slice(0, 8)}): ${kisalt(k.metin, 500)}`),
             );
           if (notlar.length) parcalar.push("Notlar:", ...notlar.map((x) => `- ${x.yol}:${x.satir}: ${x.metin}`));
+          if (sorular.length)
+            parcalar.push("Daha önce sorulup yanıtlananlar:", ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd} (${x.olusturma.slice(0, 10)}): ${kisalt(x.soru, 200)} | Yanıt: ${kisalt(x.yanit ?? "", 400)}`));
           return metin(parcalar.length ? parcalar.join("\n") : "Eşleşme yok. Bilen biri varsa ajana_sor ile sor.");
         }),
     ),
@@ -327,13 +331,23 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
     ),
     tool(
       "ajana_sor",
-      "Bir çalışana soru sorar ve yanıtını bekler (varsayılan 10, en çok 30 dakika). Uzmanlık, karar gerekçesi ya da onun işine dair bilgi için kullan; kısa ve net sor. Yanıt gelmezse varsayılan ve güvenli yolla devam et.",
-      { ajan: z.string().describe("Çalışan adı"), soru: z.string().min(5).max(4000), bekle_dk: z.number().int().min(1).max(30).optional() },
+      "Bir çalışana soru sorar ve yanıtını bekler (varsayılan 10, en çok 30 dakika). Uzmanlık, karar gerekçesi ya da onun işine dair bilgi için kullan; kısa ve net sor. Kimin bildiğini bilmiyorsan ajan alanını boş bırak: ArnOrg hafızaya, görevlere, geçmiş yanıtlara ve rollere bakıp uzmanı seçer. Aynı soru yakın zamanda yanıtlandıysa o yanıt hemen döner. Yanıt gelmezse varsayılan ve güvenli yolla devam et.",
+      {
+        ajan: z.string().optional().describe("Çalışan adı; boşsa ArnOrg uzmanı seçer"),
+        soru: z.string().min(5).max(4000),
+        bekle_dk: z.number().int().min(1).max(30).optional(),
+        yeniden: z.boolean().optional().describe("Önceki yanıt yetmediyse true: aynı soru yine de sorulur"),
+      },
       (a) =>
         guvenli(async () => {
-          const s = await sirket.ajanaSor(ajanId, a.ajan, a.soru, a.bekle_dk ?? 10);
-          if (s.durum === "yanitlandi") return metin(`${s.soruluAd} yanıtladı:\n${s.yanit}`);
-          return metin(`${s.soruluAd} süre içinde yanıt vermedi. Bildiğin kadarıyla ve güvenli yolla devam et; gerekirse mesaj_gonder ile not bırak.`);
+          const s = await sirket.ajanaSor(ajanId, a.ajan ?? null, a.soru, a.bekle_dk ?? 10, { yeniden: a.yeniden });
+          if (s.onceki)
+            return metin(
+              `Bu soru ${s.olusturma.slice(0, 10)} tarihinde ${s.soranAd} tarafından ${s.soruluAd}'a soruldu ve şöyle yanıtlandı:\nSoru: ${kisalt(s.soru, 400)}\nYanıt: ${s.yanit}\n\nYeterli değilse ajana_sor'u yeniden: true ile çağır.`,
+            );
+          const yol = s.yonlendirme ? `ArnOrg soruyu ${s.soruluAd}'a yönlendirdi (${s.yonlendirme}).\n` : "";
+          if (s.durum === "yanitlandi") return metin(`${yol}${s.soruluAd} yanıtladı:\n${s.yanit}\n\nYanıt ekibin de bilmesi gereken kalıcı bir bilgiyse hafiza_kaydet ile kaydet.`);
+          return metin(`${yol}${s.soruluAd} süre içinde yanıt vermedi. Bildiğin kadarıyla ve güvenli yolla devam et; gerekirse mesaj_gonder ile not bırak.`);
         }),
     ),
     tool(

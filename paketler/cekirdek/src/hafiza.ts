@@ -130,7 +130,7 @@ export class ProjeHafizasi {
   // ---------------- bağlam ----------------
 
   /** Oturum başında ajanın talimatına eklenen hafıza: kurul tercihleri, kararlar, öğrenilenler, uzmanlıklar, defter, bekleyen sorular */
-  baglam(ajan: Ajan, bekleyenSorular: AjanSorusu[]): string {
+  baglam(ajan: Ajan, bekleyenSorular: AjanSorusu[], gosterilen?: string[]): string {
     const satirlar: string[] = ["## Proje hafızası"];
     satirlar.push(
       "Bu projede ekipçe öğrendiklerimiz. Kurul tercihlerine her zaman uy. Bir karar değişirse ya da yeni bir şey öğrenirsen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
@@ -146,6 +146,7 @@ export class ProjeHafizasi {
         toplam += satir.length;
         if (toplam > butce) break;
         satirlar.push(satir);
+        gosterilen?.push(k.id);
       }
       if (toplam > butce) break;
     }
