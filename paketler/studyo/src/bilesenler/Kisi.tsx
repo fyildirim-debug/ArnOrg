@@ -71,7 +71,9 @@ export function AjanKisi({
 /** Kurul ya da ajan için gönderen görünümü */
 export function GonderenAvatar({ gonderenId, ad, ajan, boyut = "m" }: { gonderenId: string; ad: string; ajan?: Ajan; boyut?: Boyut }) {
   if (gonderenId === KURUL) return <Avatar ad="Siz" siz boyut={boyut} />;
-  return <Avatar ad={ajan?.ad ?? ad} ceo={ajanCeoMu(ajan)} boyut={boyut} />;
+  // Ajan hâlâ ekipteyse ofis karakterinin portresi; işten çıkmışsa adın baş harfi
+  if (ajan) return <AjanAvatar ajan={ajan} boyut={boyut} />;
+  return <Avatar ad={ad} boyut={boyut} />;
 }
 
 export function AjanDurum({ durum }: { durum: AjanDurumu }) {
