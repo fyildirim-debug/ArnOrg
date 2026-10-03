@@ -246,7 +246,8 @@ describe("git", () => {
     // Değişiklikleri at: izlenen dosya geri döner, izlenmeyen silinir
     fs.writeFileSync(path.join(repo, "silinecek.txt"), "x");
     expect((await post("degisiklikleri-at", { alan: "ana", yollar: ["src/b.js", "silinecek.txt"] })).statusCode).toBe(200);
-    expect(fs.readFileSync(path.join(repo, "src", "b.js"), "utf8")).toBe("console.log('merhaba dünya');\n");
+    // Windows'ta core.autocrlf açıksa git geri yüklenen dosyayı CRLF ile yazar; içerik satır sonundan bağımsız karşılaştırılır
+    expect(fs.readFileSync(path.join(repo, "src", "b.js"), "utf8").replace(/\r\n/g, "\n")).toBe("console.log('merhaba dünya');\n");
     expect(fs.existsSync(path.join(repo, "silinecek.txt"))).toBe(false);
 
     expect((await post("commit", { alan: "ana", mesaj: "Boş" })).statusCode).toBe(409);
