@@ -19,6 +19,7 @@ import { getService, IEditorService, initialize, IWorkbenchLayoutService, LogLev
 import type { IMonacoEnvironment } from "@codingame/monaco-vscode-api/vscode/vs/base/browser/browser";
 import { isCancellationError } from "@codingame/monaco-vscode-api/vscode/vs/base/common/errors";
 import { URI } from "@codingame/monaco-vscode-api/vscode/vs/base/common/uri";
+import { TextEditorSelectionRevealType } from "@codingame/monaco-vscode-api/vscode/vs/platform/editor/common/editor";
 import { ColorScheme } from "@codingame/monaco-vscode-api/vscode/vs/platform/theme/common/theme";
 import type { IWorkbenchConstructionOptions } from "@codingame/monaco-vscode-api/vscode/vs/workbench/browser/web.api";
 import { EditorResourceAccessor, SideBySideEditor } from "@codingame/monaco-vscode-api/vscode/vs/workbench/common/editor";
@@ -57,7 +58,7 @@ import getUserDataProfileServiceOverride from "@codingame/monaco-vscode-user-dat
 import getWorkbenchServiceOverride from "@codingame/monaco-vscode-workbench-service-override";
 import getWorkingCopyServiceOverride from "@codingame/monaco-vscode-working-copy-service-override";
 import getWorkspaceTrustOverride from "@codingame/monaco-vscode-workspace-trust-service-override";
-import { konumCoz, SEMA } from "./adres";
+import { adresYolu, konumCoz, SEMA, type Konum } from "./adres";
 import { CALISMA_ALANI_DOSYASI, calismaAlaniIcerigi, calismaAlaniniIzle } from "./calismaAlani";
 import { ArnorgDosyaSistemi } from "./dosyaSistemi";
 import { arnorgEklentisiniKaydet } from "./eklenti";
@@ -150,6 +151,8 @@ export interface TezgahDenetimi {
   /** Kod ekranı görünür olunca: yerleşimi kap boyutuna göre yeniler */
   goster(): void;
   gizle(): void;
+  /** Dosyayı düzenleyicide açar; satır verilirse imleç oraya konur ve satır görünür kılınır */
+  ac(k: Konum, satir?: number): Promise<void>;
 }
 
 /** Tezgâhı verilen kabın gölge kökünde kurar */
@@ -289,6 +292,13 @@ export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
       }
       gorunur = false;
       tezgahGorunurlugu(false);
+    },
+    async ac(k, satir) {
+      const secim = satir && satir > 0 ? { startLineNumber: satir, startColumn: 1, endLineNumber: satir, endColumn: 1 } : undefined;
+      await StandaloneServices.get(IEditorService).openEditor({
+        resource: URI.from({ scheme: SEMA, path: adresYolu(k) }),
+        options: { pinned: true, revealIfOpened: true, selection: secim, selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport },
+      });
     },
   };
 }

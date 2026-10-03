@@ -24,6 +24,14 @@ import type {
   HafizaYazIstegi,
   HesapDurumu,
   IzinModu,
+  KodAramaYaniti,
+  KodBagimliliklari,
+  KodDizinDurumu,
+  KodGrafigi,
+  KodHaritaDugumu,
+  KodSembolTuru,
+  KodSembolu,
+  KodZekasiModelBilgisi,
   Kanal,
   MaliyetOzeti,
   Mesaj,
@@ -127,6 +135,22 @@ export const api = {
     istek<AramaSonucu[]>(`${proje(pid)}/ara${sorgu({ alan, q })}`, { sinyal }),
   disaridaAc: (pid: string, alan: string, yol?: string) =>
     istek<Tamam>(`${proje(pid)}/disarida-ac`, { method: "POST", govde: { alan, yol } }),
+
+  // Kod zekâsı: alan "ana" ya da ajan kimliği
+  kodModelleri: () => istek<KodZekasiModelBilgisi[]>("/api/kod-zekasi/modeller"),
+  kodDurumlari: (pid: string) => istek<KodDizinDurumu[]>(`${proje(pid)}/kod-zekasi`),
+  kodDizinle: (pid: string, alan: string, sifirdan = false) =>
+    istek<KodDizinDurumu>(`${proje(pid)}/kod-zekasi/dizinle`, { method: "POST", govde: { alan, sifirdan } }),
+  kodAra: (pid: string, alan: string, q: string, p: { sinir?: number; yol?: string } = {}, sinyal?: AbortSignal) =>
+    istek<KodAramaYaniti>(`${proje(pid)}/kod-zekasi/ara${sorgu({ alan, q, sinir: p.sinir, yol: p.yol })}`, { sinyal }),
+  kodBenzer: (pid: string, alan: string, yol: string, satir: number, sinyal?: AbortSignal) =>
+    istek<KodAramaYaniti>(`${proje(pid)}/kod-zekasi/benzer${sorgu({ alan, yol, satir, sinir: 10 })}`, { sinyal }),
+  kodSemboller: (pid: string, alan: string, q: string, tur?: KodSembolTuru, sinyal?: AbortSignal) =>
+    istek<KodSembolu[]>(`${proje(pid)}/kod-zekasi/semboller${sorgu({ alan, q, tur, sinir: 200 })}`, { sinyal }),
+  kodHaritasi: (pid: string, alan: string, yol?: string) => istek<KodHaritaDugumu>(`${proje(pid)}/kod-zekasi/harita${sorgu({ alan, yol })}`),
+  kodBagimliliklari: (pid: string, alan: string, yol: string) =>
+    istek<KodBagimliliklari>(`${proje(pid)}/kod-zekasi/bagimliliklar${sorgu({ alan, yol })}`),
+  kodGrafigi: (pid: string, alan: string, duzey: "klasor" | "dosya") => istek<KodGrafigi>(`${proje(pid)}/kod-zekasi/grafik${sorgu({ alan, duzey })}`),
 
   // Terminal
   terminalAc: (pid: string, i: TerminalAcIstegi) => istek<{ id: string }>(`${proje(pid)}/terminaller`, { method: "POST", govde: i }),

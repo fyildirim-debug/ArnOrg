@@ -13,6 +13,7 @@ export type Gorunum =
   | "notlar"
   | "hafiza"
   | "kod"
+  | "kod-zekasi"
   | "denetim"
   | "onaylar"
   | "ayarlar";
@@ -60,7 +61,7 @@ function yaz(anahtar: string, deger: string) {
   }
 }
 
-const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "denetim", "onaylar", "ayarlar"];
+const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "kod-zekasi", "denetim", "onaylar", "ayarlar"];
 const kayitli = oku(DEPO.gorunum) as Gorunum | null;
 
 export const useArayuz = create<ArayuzDurumu>()(() => ({

@@ -27,6 +27,8 @@ import { useMedya } from "./yardimcilar/kancalar";
 
 // Kod ekranı (VS Code tezgâhı) büyük; yalnız ilk açılışta yüklenir
 const Kod = lazy(() => import("./gorunumler/Kod"));
+// Kod zekâsı (d3-force grafiği) yalnız açılınca yüklenir
+const KodZekasi = lazy(() => import("./gorunumler/KodZekasi").then((m) => ({ default: m.KodZekasi })));
 
 function useAnahtar(): string | null {
   return useSyncExternalStore(anahtarDinle, anahtar, anahtar);
@@ -155,6 +157,12 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Notlar />;
     case "hafiza":
       return <Hafiza />;
+    case "kod-zekasi":
+      return (
+        <Suspense fallback={<Iskelet satir={6} etiket="Kod zekâsı yükleniyor" />}>
+          <KodZekasi />
+        </Suspense>
+      );
     case "denetim":
       return <Denetim />;
     case "onaylar":

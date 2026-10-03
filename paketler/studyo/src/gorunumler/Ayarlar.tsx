@@ -1,5 +1,5 @@
 // Ayarlar: Claude girişi ve abonelik sınırları, çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri ve bağlantı
-import type { Ayarlar as AyarlarTipi, IzinModu, Saglik } from "@arnorg/ortak";
+import type { Ayarlar as AyarlarTipi, IzinModu, KodZekasiModelBilgisi, KodZekasiModeli, Saglik } from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { api } from "../api/uclar";
@@ -21,6 +21,7 @@ export function Ayarlar() {
   const [ayarlar, setAyarlar] = useState<AyarlarTipi | null>(null);
   const [taslak, setTaslak] = useState<AyarlarTipi | null>(null);
   const [saglik, setSaglik] = useState<Saglik | null>(null);
+  const [modeller, setModeller] = useState<KodZekasiModelBilgisi[]>([]);
   const [hata, setHata] = useState<string | null>(null);
   const { suruyor, calistir } = useIslem();
 
@@ -36,6 +37,12 @@ export function Ayarlar() {
       .catch((e: unknown) => setHata(e instanceof Error ? e.message : "Ayarlar alınamadı."));
   };
   useEffect(yukle, []);
+  useEffect(() => {
+    api
+      .kodModelleri()
+      .then(setModeller)
+      .catch(() => undefined);
+  }, []);
 
   const kirli = !!ayarlar && !!taslak && JSON.stringify(ayarlar) !== JSON.stringify(taslak);
   const sureGecersiz = !!taslak && (!Number.isFinite(taslak.onaySuresiSn) || taslak.onaySuresiSn < 10);
@@ -264,6 +271,45 @@ export function Ayarlar() {
                   />
                 </div>
               ) : null}
+            </div>
+            <h2 className="ara-baslik">Kod zekâsı</h2>
+            <div className="form-izgara">
+              <div className="alan tam">
+                <span className="alan-ad" id="kz-model-ad">
+                  Anlamsal arama modeli
+                </span>
+                <div className="bolumlu" role="group" aria-labelledby="kz-model-ad">
+                  {(
+                    [
+                      ["kaliteli", "Kaliteli"],
+                      ["hizli", "Hızlı"],
+                      ["kapali", "Kapalı"],
+                    ] as [KodZekasiModeli, string][]
+                  ).map(([k, ad]) => (
+                    <button key={k} type="button" aria-pressed={taslak.kodZekasiModeli === k} onClick={() => degistir({ kodZekasiModeli: k })}>
+                      {ad}
+                    </button>
+                  ))}
+                </div>
+                <span className="alan-ipucu">
+                  {taslak.kodZekasiModeli === "kapali"
+                    ? "Kod yalnız anahtar sözcük ve sembol adıyla aranır; model indirilmez."
+                    : (() => {
+                        const m = modeller.find((x) => x.secim === taslak.kodZekasiModeli);
+                        if (!m) return "Model ilk kullanımda indirilir ve bu makinede çalışır; kod dışarı gönderilmez.";
+                        return `${m.ad}: ${m.aciklama} ${m.indirildi ? `İndirildi (${m.diskMb} MB).` : `İlk kullanımda ~${m.indirmeMb} MB indirilir.`} Model bu makinede çalışır; kod dışarı gönderilmez.`;
+                      })()}
+                </span>
+              </div>
+              <div className="alan tam">
+                <label className="secenek">
+                  <input type="checkbox" checked={taslak.kodZekasiOtomatik} onChange={(e) => degistir({ kodZekasiOtomatik: e.target.checked })} />
+                  Projeleri otomatik dizinle
+                </label>
+                <span className="alan-ipucu">
+                  Açıkken ArnOrg açılınca ve proje eklenince ana repo arka planda dizinlenir; değişen dosyalar kendiliğinden güncellenir. Kapalıyken ilk arama dizinlemeyi başlatır.
+                </span>
+              </div>
             </div>
             <div className="dugme-satir ayar-kaydet">
               <button

@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ana, dilBul, katmanlar, listeSurumleri } from "./dosyalar.mjs";
 import * as H from "./hafiza-verisi.mjs";
+import * as KZ from "./kod-zekasi-verisi.mjs";
 import * as V from "./veri.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -30,7 +31,7 @@ const kopya = (x) => structuredClone(x);
 // ---------------------------------------------------------------------------
 
 const db = {
-  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20, girisYontemi: "abonelik", besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95 },
+  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20, girisYontemi: "abonelik", besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95, kodZekasiModeli: "kaliteli", kodZekasiOtomatik: true },
   projeler: kopya(V.projeler),
   ajanlar: kopya(V.ajanlar),
   gorevler: kopya(V.gorevler),
@@ -800,7 +801,9 @@ rota("GET", "/api/saglik", () => ({
 }));
 rota("GET", "/api/ayarlar", () => db.ayarlar);
 rota("PUT", "/api/ayarlar", ({ govde }) => {
+  const eskiModel = db.ayarlar.kodZekasiModeli;
   Object.assign(db.ayarlar, govde);
+  if (govde?.kodZekasiModeli && govde.kodZekasiModeli !== eskiModel) kodModelDegisti();
   yay({ tur: "hesap.guncellendi", hesap: hesapCevabi() }, null);
   return db.ayarlar;
 });
@@ -1319,6 +1322,153 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
 });
 
 rota("GET", "/api/projeler/:pid/calisma-alanlari", ({ p }) => (projeGerekli(p.pid), calismaAlanlari(p.pid)));
+
+// ---------------------------------------------------------------------------
+// Kod zekâsı: örnek repodan sahte dizin (gelistirme/kod-zekasi-verisi.mjs); dizinleme ilerlemesi canlı olaylarla
+// ---------------------------------------------------------------------------
+
+const kodDurumlari = new Map();
+const kodModelKimligi = () => (db.ayarlar.kodZekasiModeli === "kapali" ? null : `${KZ.MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli).kimlik}@q8`);
+
+function kodDurumu(pid, alan) {
+  const anahtar = `${pid}:${alan}`;
+  if (!kodDurumlari.has(anahtar)) {
+    const d = KZ.dizinKur(alanDosyalari(alan));
+    const hazir = alan === "ana";
+    const parca = hazir ? d.parcalar.length : 0;
+    kodDurumlari.set(anahtar, {
+      alan,
+      durum: hazir ? "hazir" : "bos",
+      dosya: hazir ? d.kayitlar.length : 0,
+      sembol: hazir ? d.semboller.length : 0,
+      parca,
+      gomulen: kodModelKimligi() ? parca : 0,
+      toplamParca: parca,
+      model: kodModelKimligi(),
+      indirmeYuzde: null,
+      sonGuncelleme: hazir ? new Date(Date.now() - 4 * 60_000).toISOString() : null,
+      hata: null,
+    });
+  }
+  return kodDurumlari.get(anahtar);
+}
+
+const kodYay = (pid, d) => yay({ tur: "kod.dizin", projeId: pid, durum: { ...d } }, pid);
+const kodSuren = new Map();
+
+/** Dizinleme gösterimi: tarama, gerekiyorsa model indirme, gömme; her adım kod.dizin olayıyla */
+function kodDizinleGoster(pid, alan, { yalnizGomme = false } = {}) {
+  const anahtar = `${pid}:${alan}`;
+  clearInterval(kodSuren.get(anahtar));
+  const d = kodDurumu(pid, alan);
+  const dizin = KZ.dizinKur(alanDosyalari(alan));
+  const model = KZ.MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli);
+  Object.assign(d, { model: kodModelKimligi(), hata: null, toplamDosya: dizin.kayitlar.length, taranan: 0 });
+  let asama = yalnizGomme ? "gomme" : "tarama";
+  if (yalnizGomme) Object.assign(d, { gomulen: 0 });
+  const z = setInterval(() => {
+    if (asama === "tarama") {
+      d.durum = "taraniyor";
+      d.taranan = Math.min(d.toplamDosya, d.taranan + 3);
+      d.dosya = d.taranan;
+      d.sembol = Math.round((dizin.semboller.length * d.taranan) / d.toplamDosya);
+      d.parca = d.toplamParca = Math.round((dizin.parcalar.length * d.taranan) / d.toplamDosya);
+      if (d.taranan >= d.toplamDosya) {
+        Object.assign(d, { dosya: dizin.kayitlar.length, sembol: dizin.semboller.length, parca: dizin.parcalar.length, toplamParca: dizin.parcalar.length, gomulen: 0 });
+        asama = !model ? "bitti" : model.indirildi ? "gomme" : "indirme";
+        d.indirmeYuzde = asama === "indirme" ? 0 : null;
+      }
+    } else if (asama === "indirme") {
+      d.durum = "model-indiriliyor";
+      d.indirmeYuzde = Math.min(100, (d.indirmeYuzde ?? 0) + 9);
+      if (d.indirmeYuzde >= 100) {
+        model.indirildi = true;
+        model.diskMb = model.indirmeMb - 2;
+        d.indirmeYuzde = null;
+        asama = "gomme";
+      }
+    } else if (asama === "gomme") {
+      d.durum = "gomuluyor";
+      d.parca = d.toplamParca = dizin.parcalar.length;
+      d.gomulen = Math.min(d.toplamParca, d.gomulen + 4);
+      if (d.gomulen >= d.toplamParca) asama = "bitti";
+    }
+    if (asama === "bitti") {
+      clearInterval(z);
+      kodSuren.delete(anahtar);
+      delete d.taranan;
+      delete d.toplamDosya;
+      Object.assign(d, { durum: "hazir", sonGuncelleme: simdi(), indirmeYuzde: null, gomulen: d.model ? d.toplamParca : 0 });
+    }
+    kodYay(pid, d);
+  }, 350);
+  kodSuren.set(anahtar, z);
+  kodYay(pid, d);
+}
+
+function kodModelDegisti() {
+  for (const [anahtar, d] of kodDurumlari) {
+    const [pid, alan] = anahtar.split(":");
+    d.model = kodModelKimligi();
+    if (d.durum === "bos") continue;
+    if (!d.model) {
+      clearInterval(kodSuren.get(anahtar));
+      Object.assign(d, { durum: "hazir", gomulen: 0, indirmeYuzde: null });
+      kodYay(pid, d);
+    } else kodDizinleGoster(pid, alan, { yalnizGomme: true });
+  }
+}
+
+const kodAlani = (p, q) => {
+  projeGerekli(p.pid);
+  const alan = q.get("alan") || "ana";
+  if (alan !== "ana" && !calismaAlanlari(p.pid).some((a) => a.kimlik === alan)) throw new Hata(404, "Çalışma alanı bulunamadı.");
+  const d = kodDurumu(p.pid, alan);
+  // Hiç dizinlenmemiş alanda ilk sorgu taramayı başlatır
+  if (d.durum === "bos" && !kodSuren.has(`${p.pid}:${alan}`)) kodDizinleGoster(p.pid, alan);
+  return { alan, durum: d, dosyalar: alanDosyalari(alan), dizin: KZ.dizinKur(alanDosyalari(alan)) };
+};
+
+rota("GET", "/api/kod-zekasi/modeller", () => KZ.MODELLER);
+rota("GET", "/api/projeler/:pid/kod-zekasi", ({ p, q }) => {
+  projeGerekli(p.pid);
+  const alan = q.get("alan");
+  if (alan) return [kodDurumu(p.pid, alan)];
+  return calismaAlanlari(p.pid)
+    .map((a) => a.kimlik)
+    .filter((a) => a === "ana" || kodDurumlari.has(`${p.pid}:${a}`))
+    .map((a) => kodDurumu(p.pid, a));
+});
+rota("POST", "/api/projeler/:pid/kod-zekasi/dizinle", ({ p, govde }) => {
+  projeGerekli(p.pid);
+  const alan = govde?.alan || "ana";
+  kodDizinleGoster(p.pid, alan);
+  return kodDurumu(p.pid, alan);
+});
+rota("GET", "/api/projeler/:pid/kod-zekasi/ara", ({ p, q }) => {
+  const k = kodAlani(p, q);
+  const sorgu = q.get("q") ?? "";
+  if (!sorgu.trim()) throw new Hata(400, "Arama metni (q) gerekli.");
+  const sonuclar = KZ.ara(k.dizin, k.dosyalar, sorgu, { sinir: Number(q.get("sinir") ?? 20), yol: q.get("yol") ?? "" });
+  return { sonuclar, durum: k.durum, yalnizSozcuk: !k.durum.model || k.durum.gomulen < k.durum.toplamParca, sureMs: 18 + Math.round(Math.random() * 60) };
+});
+rota("GET", "/api/projeler/:pid/kod-zekasi/benzer", ({ p, q }) => {
+  const k = kodAlani(p, q);
+  const sonuclar = KZ.benzer(k.dizin, k.dosyalar, q.get("yol") ?? "", Number(q.get("satir") ?? 1), Number(q.get("sinir") ?? 8));
+  if (!sonuclar) throw new Hata(404, `${q.get("yol")}:${q.get("satir")} dizinde yok.`);
+  return { sonuclar, durum: k.durum, yalnizSozcuk: !k.durum.model, sureMs: 12 };
+});
+rota("GET", "/api/projeler/:pid/kod-zekasi/semboller", ({ p, q }) => {
+  const k = kodAlani(p, q);
+  return KZ.sembolAra(k.dizin, q.get("q") ?? "", q.get("tur") || undefined, Number(q.get("sinir") ?? 200));
+});
+rota("GET", "/api/projeler/:pid/kod-zekasi/harita", ({ p, q }) => KZ.harita(kodAlani(p, q).dizin));
+rota("GET", "/api/projeler/:pid/kod-zekasi/bagimliliklar", ({ p, q }) => {
+  const b = KZ.bagimliliklar(kodAlani(p, q).dizin, q.get("yol") ?? "");
+  if (!b) throw new Hata(404, `${q.get("yol")} dizinde yok.`);
+  return b;
+});
+rota("GET", "/api/projeler/:pid/kod-zekasi/grafik", ({ p, q }) => KZ.grafik(kodAlani(p, q).dizin, q.get("duzey") === "dosya" ? "dosya" : "klasor"));
 rota("GET", "/api/projeler/:pid/dosyalar", ({ q }) => agacKur(q.get("alan") ?? "ana"));
 rota("GET", "/api/projeler/:pid/dosya", ({ q }) => {
   const alan = q.get("alan") ?? "ana";

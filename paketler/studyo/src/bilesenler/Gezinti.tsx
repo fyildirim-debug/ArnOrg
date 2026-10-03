@@ -20,6 +20,7 @@ const ANA: Oge[] = [
   { gorunum: "notlar", ad: "Notlar", simge: "notlar" },
   { gorunum: "hafiza", ad: "Hafıza", simge: "hafiza" },
   { gorunum: "kod", ad: "Kod", simge: "kod" },
+  { gorunum: "kod-zekasi", ad: "Kod zekâsı", simge: "kodZekasi" },
   { gorunum: "denetim", ad: "Denetim", simge: "denetim" },
   { gorunum: "onaylar", ad: "Onaylar", simge: "onaylar" },
 ];

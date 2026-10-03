@@ -5,6 +5,7 @@ import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
+import { kodDurumuUygula } from "./kodZekasi";
 import {
   ajanBul,
   ajanKaldir,
@@ -237,6 +238,10 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "dosya.degisti":
       // Kod ekranı olaylariDinle ile kendisi işler
+      return;
+
+    case "kod.dizin":
+      if (olay.projeId === pid) kodDurumuUygula(olay.projeId, olay.durum);
       return;
 
     case "bildirim":

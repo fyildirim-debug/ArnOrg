@@ -8,6 +8,7 @@ import "./stiller/temel.css";
 import "./stiller/kabuk.css";
 import "./stiller/gorunumler.css";
 import "./stiller/hafiza.css";
+import "./stiller/kod-zekasi.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

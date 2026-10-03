@@ -11,6 +11,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - Ofis: şirketin canlı 2D hâli. Ajanlar masalarında çalışır, birbirine yürüyüp konuşur, toplantı odasına gelir, kararınızı kurul masasında bekler; yeni gelen kapıdan girer, onaylanan iş sunucu odasında main'e birleşir. Hepsi çekirdeğin gerçek olaylarıyla
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
 - Yerleşik VS Code tezgâhı (Türkçe): ana repo ve her ajan worktree'si ayrı kök; terminal, arama, kaynak denetimi, ajan rozetleri, "Duraklat ve düzenle"
+- Kod zekâsı: kod tarayıcı, sembol ve bağımlılık haritası, anlamsal (vektörel) kod dizini. Türkçe ya da İngilizce doğal dille ("ajanlar arası soru nasıl yönlendiriliyor") kod aranır; anlamsal arama, anahtar sözcük ve sembol adı birleşir. Model (EmbeddingGemma ya da e5-small) makinede çalışır, kod dışarı gitmez. Ajanlar `kod_ara`, `sembol_bul`, `kod_haritasi`, `bagimliliklar`, `benzer_kod` araçlarıyla aynı dizini kullanır; görev verilirken ilgili kod konumları mesaja eklenir. Dizin artımlıdır ve ajan worktree'leri arasında paylaşılır
 - Tıkanma koruması: ilerlemeyen görev önce sorumluya hatırlatılır, sonra yöneticiye ve kurula iletilir
 - Dönem raporu: biten, süren, tıkanan işler, harcama ve denetim özeti notlara yazılır
 - Ajan commit'leri makinedeki git kimliğinizle atılır; Claude imzası (Co-Authored-By) eklenmez, elle yazılırsa denetim kapısı siler
@@ -27,6 +28,8 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/ekip.png) |
 | Kanallar | ![Kanallar](docs/gorseller/kanallar.png) |
 | Hafıza | ![Hafıza](docs/gorseller/hafiza.png) |
+| Kod zekâsı | ![Kod zekâsı](docs/gorseller/kod-zekasi.png) |
+| Bağımlılık grafiği | ![Bağımlılık grafiği](docs/gorseller/kod-zekasi-grafik.png) |
 | Denetim | ![Denetim](docs/gorseller/denetim.png) |
 | Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/kod.png) |
 
