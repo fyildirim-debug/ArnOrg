@@ -394,6 +394,11 @@ export class OfisMotoru {
     this.kamera.yakinlastir(carpan);
   }
 
+  /** Sahnenin üstündeki başlık katmanının yüksekliği değişti */
+  ustDegisti() {
+    this.kamera.ustDegisti();
+  }
+
   // -------------------------------------------------------------------------
   // Yerleşim ve durağan sahne
   // -------------------------------------------------------------------------
@@ -463,9 +468,10 @@ export class OfisMotoru {
 
   /** Masa sayısı yetmezse yerleşimi büyütür; karakterler yerinde kalır, yürünemez yerdeyse en yakın açık karoya geçer */
   private yerlesimiBuyut(masa: number) {
+    // Var olan adalar aynı yerde kalır: masasında oturan yerinde oturmaya devam eder
+    const masadaOturan = new Set([...this.kisiler.values()].filter((k) => k.oturan && k.oturan === k.masa).map((k) => k.id));
     this.yerlesimiKur(masa);
     this.kamera.boyutDegisti(this.yer.genislik, this.yer.yukseklik);
-    this.masaAtamalari.clear();
     this.rezervler.clear();
     this.koltukSahipleri.clear();
     for (const k of this.kisiler.values()) {
@@ -483,6 +489,7 @@ export class OfisMotoru {
       }
     }
     this.masalariAta();
+    for (const k of this.kisiler.values()) if (masadaOturan.has(k.id) && k.masa) this.oturt(k, k.masa);
     for (const k of this.kisiler.values()) if (k.is?.tur === "kalici") this.kaliciBaslat(k);
     // Lobi aşağı kaydı: aday siluetleri yeni yerlerine
     for (const a of this.adaylar.values()) a.el.remove();
@@ -1174,11 +1181,12 @@ export class OfisMotoru {
   private *arsivSahnesi(k: Kisi, baslik: string): Senaryo {
     k.etkinlik = "Arşive not bırakıyor";
     yield* this.git(k, this.yer.noktalar.arsivOnu[0]!, { adaylar: this.yer.noktalar.arsivOnu });
-    k.yon = 1;
+    const raf = this.yer.esyalar.find((e) => e.kimlik === this.yer.noktalar.arsivKimligi);
+    if (raf) this.yuzlestir(k, raf);
     k.uzanma = this.t;
-    const raf = this.nesneler.querySelector<HTMLElement>(`[data-kimlik="${this.yer.noktalar.arsivKimligi}"]`);
-    raf?.classList.add("ofis-parilti");
-    setTimeout(() => raf?.classList.remove("ofis-parilti"), 1600);
+    const rafEl = this.nesneler.querySelector<HTMLElement>(`[data-kimlik="${this.yer.noktalar.arsivKimligi}"]`);
+    rafEl?.classList.add("ofis-parilti");
+    setTimeout(() => rafEl?.classList.remove("ofis-parilti"), 1600);
     this.balon(k, `not aldı: ${kisaMetin(baslik, 60)}`, "bilgi", "kitap");
     yield this.bekle(3400);
   }

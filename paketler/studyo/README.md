@@ -36,10 +36,11 @@ npm run typecheck -w @arnorg/studyo
 src/
   api/          bağlantı katmanı
   durum/        zustand depoları: veri (projeler, etkin proje), arayüz (ekran, bildirim), olaylar (WS uygulayıcı)
-  gorunumler/   ekranlar: Projeler, Karargah, Ekip, AjanOturumu, Pano, Kanallar, Notlar, Kod, Denetim, Onaylar, Ayarlar
+  gorunumler/   ekranlar: Projeler, Karargah, Ofis, Ekip, AjanOturumu, Pano, Kanallar, Notlar, Hafiza, Kod, Denetim, Onaylar, Ayarlar
   bilesenler/   paylaşılan bileşenler; ajan/, pano/, denetim/ alt klasörleri
+  ofis/         Ofis ekranının React dışı motoru: yerleşim, yol bulma, kamera, sahneler, karakter seçimi
   tezgah/       Kod ekranının VS Code tezgâhı: kurulum, arnorg: dosya sistemi, terminal, yerel ArnOrg eklentisi, FY teması
-  stiller/      düz CSS: tokenlar, temel, kabuk, gorunumler, oturum, kod
+  stiller/      düz CSS: tokenlar, temel, kabuk, gorunumler, oturum, kod, ofis, karakter
   yardimcilar/  biçimler (para, saat, Türkçe ad ekleri), araç özetleri, kancalar
 gelistirme/     sahte çekirdek ve örnek veri
 ```
@@ -57,3 +58,13 @@ gelistirme/     sahte çekirdek ve örnek veri
 - Koyu renk düzeni (`color-scheme: dark`) kökte değil gövdededir: Chromium kökle uyuşmayan webview iframe'lerinin (Markdown önizleme) arkasını beyaz boyar.
 - Dar ekranda (760 px altı) tezgâh yerine kısa bir not ve salt okunur dosya listesi gösterilir.
 - Şirket adı API'de yok; üst çubuktaki ad Ayarlar > Bu tarayıcı'dan ayarlanır ve yalnız tarayıcıda saklanır.
+
+### Ofis
+
+- Motor React dışındadır (`src/ofis/motor.ts`): zemin, duvarlar ve yazılar tek SVG; eşya ve karakterler mutlak konumlu DOM öğeleri, konumlar `requestAnimationFrame` döngüsünde doğrudan `transform` ile yazılır, React durumu her karede değişmez. Derinlik ayak y'sine göre `z-index`. Ekran açık değilken ya da sekme gizliyken döngü durur.
+- Varlıklar `public/ofis/varliklar.json` bildiriminden okunur; çizim boyu sabit dünya biriminde, genişlik görselin oranından (yüklenince gerçek boyutla düzeltilir). Görseller aynı adla değiştirilebilir.
+- Yerleşim saf veridir (`yerlesim.ts`): 48 sütunluk karo ızgarası, en az 12 masa, ekip büyüdükçe üçer masalık ada eklenir ve ofis aşağı uzar. Yol bulma 8 yönlü A*, görüş hattıyla sadeleştirme ve köşe yumuşatma (`yol.ts`); durulan karo ayrılır, ikinci gelen yan karoya geçer.
+- Davranış ajan durumundan: çalışan masasında oturur (gövdenin altı masanın arkasında kırpılır), karar bekleyen kurul masasının yanında sıraya girer, boştaki dinlenme alanında kahve alır ve gezinir; kapalı, duraklatılmış ve hatalı ajan masasında işaretle durur.
+- Sahneler üreteç işlevleridir; canlı olaylar `durum/olaylar.ts`'teki `ofisOlayDinle` kancasıyla (olay depoya uygulandıktan sonra) gelir: mesaj ve anma, `#toplanti` ve `toplanti_yap`, incelemeye teslim, main'e birleşme, işe alım ve ayrılma, hafıza kaydı, ajanlar arası soru, gözetmen hatırlatması. Görev, onay ve ekip değişiklikleri depo farkından çıkarılır.
+- Karakter ataması (`karakterSecimi.ts`, `karakterAtama.ts`): kayıtlı karakter, yoksa projede kullanılmayan ve role uyan ilk karakter, yoksa ilk boş, o da yoksa kimlik özeti. Atamalar tarayıcıda proje başına saklanır; Ofis, avatarlar ve karakter seçici aynı sonucu görür. Çekirdeğin `u-…` (üretilmiş) kimlikleri bildirimde yoksa otomatik seçime düşer.
+- `prefers-reduced-motion`: yürüme yerine kısa solup belirme, sallanma ve yazı makinesi yok.

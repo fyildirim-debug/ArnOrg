@@ -66,6 +66,11 @@ export class Kamera {
     if (this.animasyon) cancelAnimationFrame(this.animasyon);
   }
 
+  /** Üst pay (başlık yüksekliği) değişti: kullanıcı oynamadıysa yeniden sığdırır */
+  ustDegisti() {
+    if (!this.elle) this.sigdir(false);
+  }
+
   boyutDegisti(genislik: number, yukseklik: number) {
     this.s.genislik = genislik;
     this.s.yukseklik = yukseklik;

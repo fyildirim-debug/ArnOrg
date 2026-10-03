@@ -73,6 +73,15 @@ export function Ofis() {
       },
     });
     motorRef.current = motor;
+    // Başlık (akış satırları) büyüyüp küçülünce sahne yeniden sığsın
+    let sonYukseklik = basRef.current?.offsetHeight ?? 0;
+    const basGozlemci = new ResizeObserver(() => {
+      const h = basRef.current?.offsetHeight ?? 0;
+      if (Math.abs(h - sonYukseklik) < 2) return;
+      sonYukseklik = h;
+      motor.ustDegisti();
+    });
+    if (basRef.current) basGozlemci.observe(basRef.current);
     const ilet = (d: VeriDurumu) => {
       if (d.aktifProjeId !== aktifProjeId) return;
       // Yükleme sürerken boş liste "herkes gitti" sayılmasın
@@ -103,6 +112,7 @@ export function Ofis() {
       }
     });
     return () => {
+      basGozlemci.disconnect();
       depoBirak();
       olayBirak();
       motor.yokEt();

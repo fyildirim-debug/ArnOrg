@@ -262,7 +262,7 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     { kimlik: "ceo", ad: "CEO", alt: "yönetim", alan: { c: 1, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
     { kimlik: "cto", ad: "CTO", alt: "teknik yönetim", alan: { c: 10, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
     { kimlik: "toplanti", ad: "Toplantı", alt: "#toplanti", alan: { c: 19, r: 2, g: 12, y: ODA_Y }, zemin: "hali", levha: true },
-    { kimlik: "arsiv", ad: "Arşiv", alt: "proje hafızası · notlar", alan: { c: 32, r: 2, g: 7, y: ODA_Y }, zemin: "ahsap", levha: true },
+    { kimlik: "arsiv", ad: "Arşiv", alt: "hafıza · notlar", alan: { c: 32, r: 2, g: 7, y: ODA_Y }, zemin: "ahsap", levha: true },
     { kimlik: "sunucu", ad: "Sunucu", alt: "main dalı", alan: { c: 40, r: 2, g: 7, y: ODA_Y }, zemin: "yukseltilmis", levha: true },
     {
       kimlik: "muhendislik",
@@ -377,23 +377,23 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     { c: 27, r: 7 },
   ];
 
-  // Arşiv: duvar boyunca üç kitaplık, ortada iki raf daha
-  const arsivKimligi = "arsiv-raf-orta";
-  yerlestir("kitaplik", 33 * KARO, 4 * KARO, 58, { engel: { c: 32, r: 2, g: 2, y: 2 }, sicak: "arsiv" });
-  yerlestir("kitaplik", 35 * KARO + 16, 4 * KARO, 58, { kimlik: arsivKimligi, engel: { c: 34, r: 2, g: 3, y: 2 }, sicak: "arsiv" });
+  // Arşiv: duvarın iki yanında kitaplık (levha ortada görünür kalsın), ortada iki raf daha
+  const arsivKimligi = "arsiv-raf-sol";
+  yerlestir("kitaplik", 33 * KARO, 4 * KARO, 58, { kimlik: arsivKimligi, engel: { c: 32, r: 2, g: 2, y: 2 }, sicak: "arsiv" });
   yerlestir("kitaplik", 38 * KARO, 4 * KARO, 58, { engel: { c: 37, r: 2, g: 2, y: 2 }, sicak: "arsiv" });
+  yerlestir("bitki-kucuk", 35.5 * KARO, 3.4 * KARO, 26, { engel: { c: 35, r: 2, g: 1, y: 1 } });
   yerlestir("kitaplik", 34 * KARO, 7 * KARO, 58, { engel: { c: 33, r: 5, g: 2, y: 2 }, sicak: "arsiv" });
   yerlestir("kitaplik", 37 * KARO, 7 * KARO, 58, { engel: { c: 36, r: 5, g: 2, y: 2 }, sicak: "arsiv" });
   const arsivOnu: Karo[] = [
-    { c: 35, r: 4 },
-    { c: 36, r: 4 },
-    { c: 34, r: 4 },
+    { c: 33, r: 4 },
+    { c: 32, r: 4 },
+    { c: 37, r: 4 },
   ];
 
   // Sunucu odası: üç dolap
   const sunucuKimlikleri: string[] = [];
   for (const [i, c] of [40, 42, 44].entries()) {
-    const e = yerlestir("sunucu", (c + 1) * KARO, 4.2 * KARO, 60, { kimlik: `sunucu-${i}`, engel: { c, r: 2, g: 2, y: 2 }, sicak: "sunucu" });
+    const e = yerlestir("sunucu", (c + 1) * KARO, 4.5 * KARO, 60, { kimlik: `sunucu-${i}`, engel: { c, r: 2, g: 2, y: 3 }, sicak: "sunucu" });
     sunucuKimlikleri.push(e.kimlik);
   }
   yerlestir("bitki-kucuk", 46.4 * KARO, 7.9 * KARO, 28, { engel: { c: 46, r: 7, g: 1, y: 1 } });
@@ -490,7 +490,7 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       { alan: { c: 31, r: 14, g: 15, y: 4 }, tur: "kilim" },
       { alan: { c: 2, r: 3, g: 6, y: 4 }, tur: "koyu" },
       { alan: { c: 11, r: 3, g: 6, y: 4 }, tur: "koyu" },
-      { alan: { c: 3, r: 14, g: 23, y: R - 15 }, tur: "koyu" },
+      { alan: { c: 3, r: 14, g: 23, y: 5 * adaSatiri }, tur: "koyu" },
       { alan: { c: 31, r: 18 + alt, g: 10, y: 5 }, tur: "kurul" },
     ],
     yurunebilir,

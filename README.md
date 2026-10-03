@@ -8,6 +8,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - Proje bazlı kalıcı hafıza: kurul tercihleri, kararlar, öğrenilen hatalar, kim neyi biliyor. Ajan her oturumda okur; çalışırken doğru anda hatırlar (ekipten yeni kayıt, aynı hata, dokunduğu dosya). Her ajanın kendi defteri vardır; bilmediğini ekip arkadaşına sorar, kime soracağını bilmezse ArnOrg uzmanı bulur, aynı soru ikinci kez sorulursa önceki yanıt döner. Toplantıda görüşler paralel toplanır, karar hafızaya yazılır; devralınan görev önceki sahibin defteriyle gelir
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
 - Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
+- Ofis: şirketin canlı 2D hâli. Ajanlar masalarında çalışır, birbirine yürüyüp konuşur, toplantı odasına gelir, kararınızı kurul masasında bekler; yeni gelen kapıdan girer, onaylanan iş sunucu odasında main'e birleşir. Hepsi çekirdeğin gerçek olaylarıyla
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
 - Yerleşik VS Code tezgâhı (Türkçe): ana repo ve her ajan worktree'si ayrı kök; terminal, arama, kaynak denetimi, ajan rozetleri, "Duraklat ve düzenle"
 - Tıkanma koruması: ilerlemeyen görev önce sorumluya hatırlatılır, sonra yöneticiye ve kurula iletilir
@@ -22,6 +23,7 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 
 | Ekran | |
 |---|---|
+| Ofis | ![Ofis](docs/gorseller/ofis.png) |
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/ekip.png) |
 | Kanallar | ![Kanallar](docs/gorseller/kanallar.png) |
 | Hafıza | ![Hafıza](docs/gorseller/hafiza.png) |
