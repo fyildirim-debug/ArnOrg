@@ -93,7 +93,6 @@ const VARSAYILAN_AYARLAR: Record<string, unknown> = {
   "workbench.colorTheme": TEMA_ADI,
   "workbench.iconTheme": "vs-seti",
   "workbench.startupEditor": "none",
-  "workbench.tips.enabled": false,
   "workbench.enableExperiments": false,
   "workbench.welcomePage.walkthroughs.openOnInstall": false,
   "workbench.activity.showAccounts": false,

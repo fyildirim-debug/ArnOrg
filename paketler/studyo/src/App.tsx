@@ -101,7 +101,7 @@ function Studyo() {
       <div className="govde">
         <Gezinti />
         <main className={`ana${tam ? " ana-tam" : ""}`} ref={anaRef} id="ana-icerik">
-          {kodAcildi && !projeYok ? (
+          {kodAcildi ? (
             <div className="kod-katmani" data-gorunur={etkin === "kod"} inert={etkin !== "kod"}>
               <Suspense
                 fallback={
