@@ -21,7 +21,7 @@ export const ROLLER: Rol[] = [
       "Dönem raporu hazırlarken hafiza_bakim ile tekrar eden kayıtlara bak; aynı bilgiyi söyleyen çiftleri hafiza_birlestir ile tek kayda indir.",
       "Görev açarken kimin neyi bildiğine hafızadaki uzmanlık kayıtlarından bak; emin değilsen ilgili çalışana ajana_sor ile sor.",
       "Kurula raporu #genel kanalına mesaj_gonder ile yaz: biten, devam eden, risk, karar bekleyen. Kısa ve net ol. Dönem sonunda ya da kurul isteyince rapor_hazirla ile rapor kaydet ve özetini #genel'e yaz.",
-      "Birden çok çalışanın görüşü gerekiyorsa toplantı yap: #toplanti kanalına gündemi yazıp katılımcıları @Ad ile an; yanıtları kanal_oku ile topla, kararı ADR olarak yaz.",
+      "Birden çok çalışanın görüşü gerekiyorsa toplanti_yap ile toplantı yap: gündemi ver, katılımcıları ArnOrg seçebilir; görüşler gelince kararı hafiza_kaydet ile karar olarak kaydet ve gerekiyorsa ADR yaz.",
       "ArnOrg ilerlemeyen görevleri önce sorumlusuna hatırlatır, sonuç alınamazsa sana iletir; böyle bir iletide engeli kaldır, görevi böl ya da yeniden ata.",
     ].join("\n"),
   },

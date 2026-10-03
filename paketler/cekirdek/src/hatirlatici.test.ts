@@ -194,3 +194,35 @@ describe("görev devri", () => {
     expect(sirket.gorevMetni(devralinan)).not.toContain("Devir:");
   });
 });
+
+describe("toplantı", () => {
+  it("katılımcı verilmezse uzmanları seçer, görüşleri paralel toplar, kanala ve hafızaya yazar", async () => {
+    const ceo = depo.ajanlar(pid).find((a) => a.rol === "ceo")!;
+    const s = sirket as unknown as { uyandir: (...a: unknown[]) => Promise<boolean> };
+    const asil = s.uyandir;
+    s.uyandir = async () => true;
+    const toplanti = sirket.toplantiYap(ceo.id, "Iyzico webhook imzası ve Playwright e2e testi: ödeme akışını nasıl test edelim?", null, 1);
+    await bekle(20);
+    const bekleyenler = depo.sorular(pid, { durum: "bekliyor" });
+    const adlar = bekleyenler.map((x) => x.soruluAd).sort();
+    expect(adlar).toEqual(expect.arrayContaining(["Deniz", "Mert"]));
+    for (const soru of bekleyenler) sirket.soruYanitla(soru.soruluId, soru.id, `${soru.soruluAd}: sandbox anahtarıyla uçtan uca dene.`);
+    const sonuc = await toplanti;
+    const mert = sonuc.gorusler.find((g) => g.ad === "Mert")!;
+    const deniz = sonuc.gorusler.find((g) => g.ad === "Deniz")!;
+    expect(deniz).toMatchObject({ durum: "yanitlandi", gorus: "Deniz: sandbox anahtarıyla uçtan uca dene." });
+    expect(deniz.neden).toBeTruthy();
+    expect(mert.durum).toBe("yanitlandi");
+    const kanal = depo.mesajlar(pid, "toplanti");
+    expect(kanal.some((m) => m.gonderenAd === ceo.ad && m.metin.startsWith("Toplantı:"))).toBe(true);
+    expect(kanal.some((m) => m.gonderenAd === "Deniz")).toBe(true);
+    expect(depo.hafizaKaydi(sonuc.kayitId)).toMatchObject({ tur: "ozet", kaynakAjanId: ceo.id });
+    s.uyandir = asil;
+  });
+
+  it("verilen katılımcı adı yoksa reddeder; kendini çağıramaz", async () => {
+    const elif = ajan("Elif");
+    await expect(sirket.toplantiYap(elif.id, "Tema renkleri değişsin mi, karar verelim.", ["Yok"], 1)).rejects.toThrow(/çalışan yok/);
+    await expect(sirket.toplantiYap(elif.id, "Tema renkleri değişsin mi, karar verelim.", ["Elif"], 1)).rejects.toThrow(/bulunamadı/);
+  });
+});

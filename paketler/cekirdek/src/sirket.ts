@@ -38,7 +38,26 @@ import {
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
 import { HesapIzleyici } from "./hesap.js";
 import { ProjeHafizasi } from "./hafiza.js";
-import { Hatirlatici, oncekiYanit, uzmanBul } from "./hatirlatici.js";
+import { Hatirlatici, oncekiYanit, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
+
+/** Toplantıda bir katılımcının görüşü */
+export interface ToplantiGorusu {
+  ajanId: string;
+  ad: string;
+  rolAdi: string;
+  /** ArnOrg seçtiyse neden */
+  neden: string | null;
+  gorus: string | null;
+  durum: "yanitlandi" | "zaman_asimi" | "katilamadi";
+  hata?: string;
+}
+
+export interface ToplantiSonucu {
+  gundem: string;
+  gorusler: ToplantiGorusu[];
+  /** Hafızaya yazılan toplantı özeti */
+  kayitId: string;
+}
 
 /** ajana_sor sonucu: yakın zamanda yanıtlanmış aynı soru ya da ArnOrg'un seçtiği uzman bilgisiyle */
 export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
@@ -1305,6 +1324,65 @@ export class Sirket {
       return { ...son, yonlendirme };
     }
     return { ...(await yanit), yonlendirme };
+  }
+
+  /**
+   * Toplantı: çağıran gündemi verir, katılımcıların görüşü paralel toplanır (ajanlar arası soru olarak),
+   * konuşma #toplanti kanalına yazılır, özet hafızaya düşer. Katılımcı verilmezse ArnOrg konuya en yakın
+   * en çok üç çalışanı seçer. Kararı çağıran verir.
+   */
+  async toplantiYap(cagiranId: string, gundem: string, katilimciAdlari: string[] | null, bekleDk = 8): Promise<ToplantiSonucu> {
+    const cagiran = this.ajan(cagiranId);
+    const pid = cagiran.projeId;
+    const metin = gundem.trim();
+    if (metin.length < 10 || metin.length > 3000) throw new ArnorgHatasi("Gündem 10–3000 karakter olmalı.");
+    let katilimcilar: { ajan: Ajan; neden: string | null }[] = [];
+    if (katilimciAdlari?.length) {
+      for (const ham of katilimciAdlari) {
+        const ad = ham.replace(/^@/, "").trim();
+        const a = this.depo.ajanAdla(pid, ad);
+        if (!a) throw new ArnorgHatasi(`"${ad}" adında çalışan yok.`, 404);
+        if (a.id !== cagiran.id && !katilimcilar.some((k) => k.ajan.id === a.id)) katilimcilar.push({ ajan: a, neden: null });
+      }
+    } else {
+      katilimcilar = uzmanlariSirala(this.depo, cagiran, metin)
+        .filter((x) => x.puan >= 1)
+        .slice(0, 3)
+        .map((x) => ({ ajan: x.ajan, neden: x.neden }));
+      if (!katilimcilar.length) {
+        const yedek = this.depo.ajanlar(pid).filter((a) => a.id !== cagiran.id && a.durum !== "duraklatildi" && (a.rol === "cto" || a.id === cagiran.yoneticiId));
+        katilimcilar = yedek.slice(0, 2).map((a) => ({ ajan: a, neden: "konuda belirgin bir uzman yok" }));
+      }
+    }
+    katilimcilar = katilimcilar.slice(0, 6);
+    if (!katilimcilar.length) throw new ArnorgHatasi("Toplantıya çağrılacak çalışan bulunamadı; katilimcilar alanında ad ver.", 404);
+
+    this.kanalMesaji(
+      pid,
+      "toplanti",
+      { id: cagiran.id, ad: cagiran.ad },
+      `Toplantı: ${metin}\nKatılımcılar: ${katilimcilar.map((k) => `@${k.ajan.ad}`).join(" ")}`,
+      katilimcilar.map((k) => k.ajan.id),
+    );
+    const soru = `Toplantı (${cagiran.ad} çağırdı): ${metin}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk. Başkalarının görüşünü bekleme; karar ${cagiran.ad}'da.`;
+    const gorusler = await Promise.all(
+      katilimcilar.map(async ({ ajan, neden }): Promise<ToplantiGorusu> => {
+        const temel = { ajanId: ajan.id, ad: ajan.ad, rolAdi: ajan.rolAdi, neden };
+        try {
+          const s = await this.ajanaSor(cagiran.id, ajan.ad, soru, bekleDk, { yeniden: true });
+          if (s.durum === "yanitlandi" && s.yanit) {
+            this.kanalMesaji(pid, "toplanti", { id: ajan.id, ad: ajan.ad }, s.yanit);
+            return { ...temel, gorus: s.yanit, durum: "yanitlandi" };
+          }
+          return { ...temel, gorus: null, durum: "zaman_asimi" };
+        } catch (h) {
+          return { ...temel, gorus: null, durum: "katilamadi", hata: (h as Error).message };
+        }
+      }),
+    );
+    const ozet = gorusler.map((g) => `${g.ad} (${g.rolAdi}): ${g.gorus ? kisalt(g.gorus, 400) : g.durum === "zaman_asimi" ? "süre içinde yanıt vermedi" : `katılamadı (${g.hata ?? ""})`}`).join("\n");
+    const kayit = this.hafiza.yaz(pid, { tur: "ozet", baslik: `Toplantı: ${kisalt(metin, 120)}`, metin: `Çağıran: ${cagiran.ad}\n${ozet}`, onem: 2 }, { ajan: cagiran });
+    return { gundem: metin, gorusler, kayitId: kayit.id };
   }
 
   soruYanitla(ajanId: string, soruId: string, yanit: string): AjanSorusu {

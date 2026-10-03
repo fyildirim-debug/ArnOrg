@@ -385,6 +385,26 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         }),
     ),
     tool(
+      "toplanti_yap",
+      "Birden çok çalışanın görüşü gereken bir konuda toplantı yapar: gündemi verirsin, katılımcıların görüşü paralel toplanır (en çok bekle_dk dakika), konuşma #toplanti kanalına yazılır, özet hafızaya düşer. Katılımcı vermezsen ArnOrg konuya en yakın en çok üç çalışanı seçer. Kararı sen verirsin.",
+      {
+        gundem: z.string().min(10).max(3000).describe("Karar verilecek konu ve seçenekler"),
+        katilimcilar: z.array(z.string()).max(6).optional().describe("Çalışan adları; boşsa ArnOrg seçer"),
+        bekle_dk: z.number().int().min(1).max(30).optional(),
+      },
+      (a) =>
+        guvenli(async () => {
+          const t = await sirket.toplantiYap(ajanId, a.gundem, a.katilimcilar ?? null, a.bekle_dk ?? 8);
+          const satirlar = t.gorusler.map(
+            (g) =>
+              `- ${g.ad} (${g.rolAdi}${g.neden ? `; seçilme nedeni: ${g.neden}` : ""}): ${g.gorus ?? (g.durum === "zaman_asimi" ? "süre içinde yanıt vermedi" : `katılamadı: ${g.hata ?? ""}`)}`,
+          );
+          return metin(
+            `Toplantı tamam. Görüşler:\n${satirlar.join("\n")}\n\nŞimdi kararı ver: hafiza_kaydet ile tur: karar olarak kaydet (gerekçesiyle), gerekiyorsa not_yaz ile ADR yaz ve kararı mesaj_gonder ile #toplanti kanalına bildir.`,
+          );
+        }),
+    ),
+    tool(
       "soruyu_yanitla",
       "Sana sorulan bir soruyu yanıtlar. Yanıt soran çalışana hemen iletilir.",
       { soru_id: z.string(), yanit: z.string().min(1).max(6000) },

@@ -236,6 +236,18 @@ export interface UzmanSonucu {
 export function uzmanBul(depo: Depo, soran: Ajan, soru: string): UzmanSonucu | null {
   const adaylar = depo.ajanlar(soran.projeId).filter((a) => a.id !== soran.id && a.durum !== "duraklatildi");
   if (!adaylar.length) return null;
+  const en = uzmanlariSirala(depo, soran, soru)[0];
+  if (en && en.puan >= 1) return { ajan: en.ajan, neden: en.neden };
+  const yonetici = soran.yoneticiId ? adaylar.find((a) => a.id === soran.yoneticiId) : undefined;
+  if (yonetici) return { ajan: yonetici, neden: "konuda belirgin bir uzman yok; yöneticin" };
+  const ceo = adaylar.find((a) => a.rol === "ceo");
+  return ceo ? { ajan: ceo, neden: "konuda belirgin bir uzman yok; CEO" } : null;
+}
+
+/** Konuya göre puanlanmış çalışanlar (en uygun önce); soran hariç, duraklatılmışlar hariç */
+export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSonucu & { puan: number })[] {
+  const adaylar = depo.ajanlar(soran.projeId).filter((a) => a.id !== soran.id && a.durum !== "duraklatildi");
+  if (!adaylar.length) return [];
   const sozcukler = anlamliSozcukler(soru, 12);
   const puan = new Map<string, number>();
   const nedenler = new Map<string, string[]>();
@@ -288,16 +300,9 @@ export function uzmanBul(depo: Depo, soran: Ajan, soru: string): UzmanSonucu | n
   // CEO yalnız öncelik ve plan sorularında öne çıksın
   for (const a of adaylar) if (a.rol === "ceo" && puan.has(a.id)) puan.set(a.id, puan.get(a.id)! * 0.6);
 
-  const sirali = [...puan.entries()].sort((a, b) => b[1] - a[1]);
-  const en = sirali[0];
-  if (en && en[1] >= 1) {
-    const ajan = adaylar.find((a) => a.id === en[0])!;
-    return { ajan, neden: (nedenler.get(ajan.id) ?? []).join(", ") || "konuya en yakın çalışan" };
-  }
-  const yonetici = soran.yoneticiId ? adaylar.find((a) => a.id === soran.yoneticiId) : undefined;
-  if (yonetici) return { ajan: yonetici, neden: "konuda belirgin bir uzman yok; yöneticin" };
-  const ceo = adaylar.find((a) => a.rol === "ceo");
-  return ceo ? { ajan: ceo, neden: "konuda belirgin bir uzman yok; CEO" } : null;
+  return [...puan.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, p]) => ({ ajan: adaylar.find((a) => a.id === id)!, puan: p, neden: (nedenler.get(id) ?? []).join(", ") || "konuya en yakın çalışan" }));
 }
 
 /**

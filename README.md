@@ -5,7 +5,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - Windows ve Linux'ta çalışan masaüstü uygulaması + sunucu modu
 - Claude aboneliğiyle çalışır (Pro/Max): ücret alınmaz, üst çubukta 5 saatlik ve haftalık pencere yüzdesi; ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer. İsterseniz API anahtarı ve dolar bütçesiyle de çalışır
 - Proje başına notlar, kararlar ve ekip kimlikleri; repo içinde `.arnorg/` altında sürümlü
-- Proje bazlı kalıcı hafıza: kurul tercihleri, kararlar, öğrenilen hatalar, kim neyi biliyor. Ajan her oturumda okur; çalışırken doğru anda hatırlar (ekipten yeni kayıt, aynı hata, dokunduğu dosya). Her ajanın kendi defteri vardır; bilmediğini ekip arkadaşına sorar, kime soracağını bilmezse ArnOrg uzmanı bulur, aynı soru ikinci kez sorulursa önceki yanıt döner
+- Proje bazlı kalıcı hafıza: kurul tercihleri, kararlar, öğrenilen hatalar, kim neyi biliyor. Ajan her oturumda okur; çalışırken doğru anda hatırlar (ekipten yeni kayıt, aynı hata, dokunduğu dosya). Her ajanın kendi defteri vardır; bilmediğini ekip arkadaşına sorar, kime soracağını bilmezse ArnOrg uzmanı bulur, aynı soru ikinci kez sorulursa önceki yanıt döner. Toplantıda görüşler paralel toplanır, karar hafızaya yazılır; devralınan görev önceki sahibin defteriyle gelir
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
 - Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
