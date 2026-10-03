@@ -3,6 +3,7 @@
 Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır ve size rapor verir. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
 
 - Windows ve Linux'ta çalışan masaüstü uygulaması + sunucu modu
+- Claude aboneliğiyle çalışır (Pro/Max): ücret alınmaz, üst çubukta 5 saatlik ve haftalık pencere yüzdesi; ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer. İsterseniz API anahtarı ve dolar bütçesiyle de çalışır
 - Proje başına notlar, kararlar ve ekip kimlikleri; repo içinde `.arnorg/` altında sürümlü
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
 - Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
@@ -27,7 +28,7 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 
 ## Çalıştırma
 
-Gerekenler: Node.js 22+, git, makinede çalışan bir Claude Code girişi (abonelik ya da API anahtarı). Windows'ta Git for Windows önerilir.
+Gerekenler: Node.js 22+, git, makinede Claude Code girişi. Abonelikle çalışmak için terminalde bir kez `claude` açıp `/login` ile claude.ai hesabınızla giriş yapın; ArnOrg ajanları bu girişi kullanır, ortamda API anahtarı olsa bile ajanlara vermez. Windows'ta Git for Windows önerilir.
 
 ```bash
 npm install

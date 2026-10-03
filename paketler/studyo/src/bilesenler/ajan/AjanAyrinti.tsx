@@ -3,8 +3,8 @@ import type { Ajan, IzinModu } from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { ajanaGit, bildir, git } from "../../durum/arayuz";
-import { ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
-import { belirtme, para, tarih } from "../../yardimcilar/bicim";
+import { abonelikMi, ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
+import { belirtme, para, tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { ButceCubugu } from "../EkipTablosu";
 import { AjanAvatar, AjanDurum, IZIN_MODU_ADLARI, izinModuAdi, modelAdi } from "../Kisi";
@@ -19,6 +19,7 @@ const IZIN_MODLARI = Object.keys(IZIN_MODU_ADLARI) as IzinModu[];
 const oncekiModlar = new Map<string, IzinModu>();
 
 export function AjanAyrinti({ ajan }: { ajan: Ajan }) {
+  const abonelik = useVeri(abonelikMi);
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const yonetici = ajanlar.find((a) => a.id === ajan.yoneticiId);
@@ -46,15 +47,26 @@ export function AjanAyrinti({ ajan }: { ajan: Ajan }) {
       <OturumDugmeleri ajan={ajan} kucuk />
 
       <dl className="kv">
-        <dt>Bugün</dt>
-        <dd className="kv-butce">
-          <ButceCubugu harcanan={ajan.bugunHarcananUsd} butce={ajan.gunlukButceUsd} />
-          <span className="sayi">
-            {para(ajan.bugunHarcananUsd)} / {para(ajan.gunlukButceUsd)}
-          </span>
-        </dd>
-        <dt>Toplam</dt>
-        <dd className="sayi">{para(ajan.toplamHarcananUsd)}</dd>
+        {abonelik ? (
+          <>
+            <dt>Bugün</dt>
+            <dd className="sayi">{token(ajan.bugunToken)} token</dd>
+            <dt>Toplam</dt>
+            <dd className="sayi">{token(ajan.toplamToken)} token</dd>
+          </>
+        ) : (
+          <>
+            <dt>Bugün</dt>
+            <dd className="kv-butce">
+              <ButceCubugu harcanan={ajan.bugunHarcananUsd} butce={ajan.gunlukButceUsd} />
+              <span className="sayi">
+                {para(ajan.bugunHarcananUsd)} / {para(ajan.gunlukButceUsd)}
+              </span>
+            </dd>
+            <dt>Toplam</dt>
+            <dd className="sayi">{para(ajan.toplamHarcananUsd)}</dd>
+          </>
+        )}
         <dt>İzin modu</dt>
         <dd>{izinModuAdi(ajan.izinModu)}</dd>
         <dt>Yönetici</dt>
@@ -90,6 +102,7 @@ export function AjanAyrinti({ ajan }: { ajan: Ajan }) {
 }
 
 function AjanAyarlari({ ajan }: { ajan: Ajan }) {
+  const abonelik = useVeri(abonelikMi);
   const ajanlar = useVeri((d) => d.ajanlar);
   const { suruyor, calistir } = useIslem();
   const [butce, setButce] = useState(String(ajan.gunlukButceUsd));
@@ -107,8 +120,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const planda = ajan.izinModu === "plan";
   const butceSayi = Number(butce.replace(",", "."));
   const butceGecersiz = !Number.isFinite(butceSayi) || butceSayi < 0;
-  const degisti =
-    (!butceGecersiz && butceSayi !== ajan.gunlukButceUsd) || (yoneticiId || null) !== ajan.yoneticiId || talimat !== ajan.talimatEki;
+  const degisti = (!butceGecersiz && butceSayi !== ajan.gunlukButceUsd) || (yoneticiId || null) !== ajan.yoneticiId || talimat !== ajan.talimatEki;
 
   const modelDegistir = (model: string) =>
     calistir("model", async () => {
@@ -214,17 +226,19 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
 
       <form className="ajan-ayar-form" onSubmit={kaydet}>
         <div className="ayar-satir">
-          <div className="alan">
-            <label htmlFor={`butce-${ajan.id}`}>Günlük bütçe (USD)</label>
-            <input
-              id={`butce-${ajan.id}`}
-              className="girdi"
-              inputMode="decimal"
-              value={butce}
-              onChange={(e) => setButce(e.target.value)}
-              aria-invalid={butceGecersiz ? true : undefined}
-            />
-          </div>
+          {abonelik ? null : (
+            <div className="alan">
+              <label htmlFor={`butce-${ajan.id}`}>Günlük bütçe (USD)</label>
+              <input
+                id={`butce-${ajan.id}`}
+                className="girdi"
+                inputMode="decimal"
+                value={butce}
+                onChange={(e) => setButce(e.target.value)}
+                aria-invalid={butceGecersiz ? true : undefined}
+              />
+            </div>
+          )}
           <div className="alan">
             <label htmlFor={`yonetici-${ajan.id}`}>Yönetici</label>
             <select id={`yonetici-${ajan.id}`} className="secim" value={yoneticiId} onChange={(e) => setYoneticiId(e.target.value)}>

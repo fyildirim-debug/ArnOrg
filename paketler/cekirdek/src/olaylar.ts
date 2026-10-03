@@ -24,6 +24,7 @@ export function olayProjesi(o: SunucuOlayi): string | null {
   switch (o.tur) {
     case "merhaba":
     case "proje.guncellendi":
+    case "hesap.guncellendi":
       return null;
     case "bildirim":
       return o.projeId ?? null;

@@ -43,7 +43,10 @@ export const projeler = [
 
 function ajan(o) {
   const proje = o.projeId ?? "siparis-paneli";
+  const token = (usd) => Math.round((usd ?? 0) * 60_000);
   return {
+    bugunToken: token(o.bugunHarcananUsd),
+    toplamToken: token(o.toplamHarcananUsd),
     projeId: proje,
     yoneticiId: null,
     gorevId: null,

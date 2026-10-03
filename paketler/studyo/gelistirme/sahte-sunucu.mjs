@@ -29,7 +29,7 @@ const kopya = (x) => structuredClone(x);
 // ---------------------------------------------------------------------------
 
 const db = {
-  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20 },
+  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20, girisYontemi: "abonelik", besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95 },
   projeler: kopya(V.projeler),
   ajanlar: kopya(V.ajanlar),
   gorevler: kopya(V.gorevler),
@@ -64,13 +64,57 @@ function projeOzeti(p) {
   };
 }
 
+// Abonelik: Claude Max, 5 saatlik pencere %42, haftalık %18
+const hesapDurumu = {
+  durum: "hazir",
+  plan: "Max",
+  eposta: "kurul@ornek.com",
+  kaynak: "claude.ai",
+  saglayici: "firstParty",
+  pencereVar: true,
+  pencereler: [
+    { tur: "bes_saat", ad: "5 saatlik pencere", yuzde: 42, sifirlanma: sonra(60 * 112) },
+    { tur: "haftalik", ad: "Haftalık", yuzde: 18, sifirlanma: sonra(60 * 60 * 24 * 4) },
+    { tur: "haftalik_opus", ad: "Haftalık · Opus", yuzde: 9, sifirlanma: sonra(60 * 60 * 24 * 4) },
+  ],
+  uyari: null,
+  hata: null,
+};
+
+function hesapCevabi() {
+  const a = db.ayarlar;
+  const sinirli = hesapDurumu.pencereler.find((p) => {
+    const s = p.tur === "bes_saat" ? a.besSaatlikSinirYuzde : a.haftalikSinirYuzde;
+    return a.girisYontemi === "abonelik" && s > 0 && p.yuzde >= s;
+  });
+  return {
+    ...hesapDurumu,
+    girisYontemi: a.girisYontemi,
+    sinirYuzdeleri: { besSaatlik: a.besSaatlikSinirYuzde, haftalik: a.haftalikSinirYuzde },
+    sinir: sinirli
+      ? { pencere: sinirli.ad, yuzde: Math.round(sinirli.yuzde), sinirYuzde: sinirli.tur === "bes_saat" ? a.besSaatlikSinirYuzde : a.haftalikSinirYuzde, sifirlanma: sinirli.sifirlanma }
+      : null,
+    guncelleme: simdi(),
+  };
+}
+
 function maliyet(pid) {
   const ajanlar = projeAjanlari(pid);
   return {
+    girisYontemi: db.ayarlar.girisYontemi,
     bugunUsd: ajanlar.reduce((t, a) => t + a.bugunHarcananUsd, 0),
     toplamUsd: ajanlar.reduce((t, a) => t + a.toplamHarcananUsd, 0),
     gunlukButceUsd: db.ayarlar.gunlukButceUsd,
-    ajanlar: ajanlar.map((a) => ({ ajanId: a.id, ad: a.ad, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd })),
+    bugunToken: ajanlar.reduce((t, a) => t + a.bugunToken, 0),
+    toplamToken: ajanlar.reduce((t, a) => t + a.toplamToken, 0),
+    ajanlar: ajanlar.map((a) => ({
+      ajanId: a.id,
+      ad: a.ad,
+      bugunUsd: a.bugunHarcananUsd,
+      toplamUsd: a.toplamHarcananUsd,
+      bugunToken: a.bugunToken,
+      toplamToken: a.toplamToken,
+    })),
     pencere: { tur: "five_hour", durum: "allowed_warning", sifirlanma: sonra(60 * 112) },
   };
 }
@@ -312,7 +356,7 @@ const istemciler = new Set();
 function yay(olay, projeId = null) {
   const metin = JSON.stringify(olay);
   for (const i of istemciler) {
-    const herkese = olay.tur === "proje.guncellendi" || olay.tur === "bildirim";
+    const herkese = olay.tur === "proje.guncellendi" || olay.tur === "bildirim" || olay.tur === "hesap.guncellendi";
     if (herkese || (projeId && i.projeId === projeId)) i.ws.gonder(metin);
   }
 }
@@ -341,7 +385,10 @@ function harca(ajanId, usd) {
   if (!a) return;
   a.bugunHarcananUsd = Math.round((a.bugunHarcananUsd + usd) * 1000) / 1000;
   a.toplamHarcananUsd = Math.round((a.toplamHarcananUsd + usd) * 1000) / 1000;
-  yay({ tur: "maliyet", projeId: a.projeId, ajanId, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd }, a.projeId);
+  a.bugunToken += Math.round(usd * 60_000);
+  a.toplamToken += Math.round(usd * 60_000);
+  hesapDurumu.pencereler[0].yuzde = Math.min(100, Math.round((hesapDurumu.pencereler[0].yuzde + usd * 0.4) * 10) / 10);
+  yay({ tur: "maliyet", projeId: a.projeId, ajanId, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd, bugunToken: a.bugunToken, toplamToken: a.toplamToken }, a.projeId);
 }
 
 function mesajEkle(pid, kanal, gonderenId, metin) {
@@ -538,7 +585,12 @@ rota("GET", "/api/saglik", () => ({
   veriDizini: "/home/furkan/.local/share/arnorg",
 }));
 rota("GET", "/api/ayarlar", () => db.ayarlar);
-rota("PUT", "/api/ayarlar", ({ govde }) => Object.assign(db.ayarlar, govde));
+rota("PUT", "/api/ayarlar", ({ govde }) => {
+  Object.assign(db.ayarlar, govde);
+  yay({ tur: "hesap.guncellendi", hesap: hesapCevabi() }, null);
+  return db.ayarlar;
+});
+rota("GET", "/api/hesap", () => hesapCevabi());
 rota("GET", "/api/roller", () => V.roller);
 
 rota("GET", "/api/projeler", () => db.projeler.map(projeOzeti));
@@ -549,7 +601,7 @@ rota("POST", "/api/projeler", ({ govde }) => {
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
   const p = { id, ad: govde.ad, yol: govde.yol, aciklama: govde.aciklama ?? "", varsayilanDal: "main", olusturma: simdi() };
   db.projeler.push(p);
-  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", gunlukButceUsd: 10, bugunHarcananUsd: 0, toplamHarcananUsd: 0, talimatEki: "", olusturma: simdi() });
+  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", gunlukButceUsd: 10, bugunHarcananUsd: 0, toplamHarcananUsd: 0, bugunToken: 0, toplamToken: 0, talimatEki: "", olusturma: simdi() });
   db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "muhendislik", aciklama: "" }];
   db.notlar[id] = { "vizyon.md": `# Vizyon\n\n${govde.aciklama ?? ""}\n`, "mimari.md": "# Mimari\n\n" };
   db.notZamanlari[id] = { "vizyon.md": simdi(), "mimari.md": simdi() };
@@ -601,6 +653,8 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
     gunlukButceUsd: govde.gunlukButceUsd ?? 5,
     bugunHarcananUsd: 0,
     toplamHarcananUsd: 0,
+    bugunToken: 0,
+    toplamToken: 0,
     talimatEki: govde.talimatEki ?? "",
     olusturma: simdi(),
   };
@@ -853,6 +907,8 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
       gunlukButceUsd: v.gunlukButceUsd ?? 5,
       bugunHarcananUsd: 0,
       toplamHarcananUsd: 0,
+      bugunToken: 0,
+      toplamToken: 0,
       talimatEki: v.talimatEki ?? "",
       olusturma: simdi(),
     };

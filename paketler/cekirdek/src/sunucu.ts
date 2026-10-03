@@ -80,6 +80,9 @@ const semalar = {
     gunlukButceUsd: z.number().optional(),
     disEditor: z.string().max(200).optional(),
     tikanmaDakika: z.number().optional(),
+    girisYontemi: z.enum(["abonelik", "api"]).optional(),
+    besSaatlikSinirYuzde: z.number().min(0).max(100).optional(),
+    haftalikSinirYuzde: z.number().min(0).max(100).optional(),
   }),
   politika: z.array(
     z.object({
@@ -189,7 +192,13 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     };
   });
   app.get("/api/ayarlar", async () => sirket.yapilandirma.ayarlar);
-  app.put("/api/ayarlar", async (i) => sirket.yapilandirma.guncelle(govde(semalar.ayarlar, i)));
+  app.put("/api/ayarlar", async (i) => {
+    const a = sirket.yapilandirma.guncelle(govde(semalar.ayarlar, i));
+    sirket.hesap.ayarlarDegisti();
+    return a;
+  });
+  // Claude girişi ve abonelik kullanımı; ?tazele=1 Claude Code'a yeniden sorar
+  app.get("/api/hesap", async (i) => (sorgu(i, "tazele") === "1" ? sirket.hesap.tazele() : sirket.hesap.mevcut));
   app.get("/api/roller", async () => ROLLER);
 
   // ---------------- projeler ----------------

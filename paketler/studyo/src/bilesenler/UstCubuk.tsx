@@ -1,10 +1,10 @@
-// Üst çubuk: şirket / proje seçici, ekip ve maliyet sayaçları, bağlantı durumu, mesaiyi durdur
+// Üst çubuk: şirket / proje seçici, ekip sayacı, abonelik kullanımı, bağlantı durumu, mesaiyi durdur
 import { useRef, useState } from "react";
 import { api } from "../api/uclar";
 import { bildir, git, hataBildir, yeniProjeIste } from "../durum/arayuz";
 import { simdiYenidenBaglan } from "../durum/olaylar";
 import { aktifMi, ajanUygula, oturumAcikMi, projeyiSec, useVeri } from "../durum/veri";
-import { para } from "../yardimcilar/bicim";
+import { UstKullanim } from "./Kullanim";
 import { useDisariTik } from "../yardimcilar/kancalar";
 import { useTercihler } from "../yardimcilar/tercihler";
 import { OnaySor } from "./OnaySor";
@@ -17,14 +17,10 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
   const projeler = useVeri((d) => d.projeler);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const ajanlar = useVeri((d) => d.ajanlar);
-  const maliyet = useVeri((d) => d.maliyet);
   const wsDurumu = useVeri((d) => d.wsDurumu);
   const proje = projeler.find((p) => p.id === aktifProjeId);
 
   const aktif = ajanlar.filter(aktifMi).length;
-  const bugun = maliyet?.bugunUsd ?? proje?.bugunMaliyetUsd ?? 0;
-  const butce = maliyet?.gunlukButceUsd ?? 0;
-  const asim = butce > 0 && bugun >= butce * 0.9;
 
   return (
     <header className="ust">
@@ -45,10 +41,7 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
               <b>{aktif}</b> aktif · <b>{ajanlar.length}</b> çalışan
             </span>
             <span className="metre-ayrac ust-gizle-dar" aria-hidden="true" />
-            <span className={`metre${asim ? " metre-asim" : ""}`} title="Bugünkü harcama / günlük bütçe">
-              Bugün <b>{para(bugun)}</b>
-              {butce > 0 ? <span className="ust-gizle-dar">/ {para(butce)}</span> : null}
-            </span>
+            <UstKullanim />
           </>
         ) : null}
         {wsDurumu === "kopuk" ? (
@@ -180,7 +173,8 @@ function MesaiDugmesi() {
       {acik ? (
         <div className="acilir acilir-sag">
           <OnaySor evet={durdur} vazgec={() => setAcik(false)} evetMetni="Hepsini durdur" suruyor={suruyor}>
-            {acikOlanlar.length} ajanın oturumu kapanır. Çalışan turlar kesilir; oturum kimlikleri saklanır, ajanlar sonra kaldığı yerden başlatılabilir.
+            {acikOlanlar.length} ajanın oturumu kapanır. Çalışan turlar kesilir; oturum kimlikleri saklanır, ajanlar sonra kaldığı yerden
+            başlatılabilir.
           </OnaySor>
         </div>
       ) : null}

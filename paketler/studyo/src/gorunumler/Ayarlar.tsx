@@ -1,4 +1,4 @@
-// Ayarlar: çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri ve bağlantı
+// Ayarlar: Claude girişi ve abonelik sınırları, çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri ve bağlantı
 import type { Ayarlar as AyarlarTipi, IzinModu, Saglik } from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
@@ -6,7 +6,8 @@ import { api } from "../api/uclar";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { IZIN_MODU_ADLARI } from "../bilesenler/Kisi";
 import { bildir } from "../durum/arayuz";
-import { useVeri } from "../durum/veri";
+import { hesabiYukle, useVeri } from "../durum/veri";
+import { akilliZaman, yuzde } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 import { sirketAdiAyarla, useTercihler } from "../yardimcilar/tercihler";
 
@@ -39,15 +40,20 @@ export function Ayarlar() {
   const kirli = !!ayarlar && !!taslak && JSON.stringify(ayarlar) !== JSON.stringify(taslak);
   const sureGecersiz = !!taslak && (!Number.isFinite(taslak.onaySuresiSn) || taslak.onaySuresiSn < 10);
   const butceGecersiz = !!taslak && (!Number.isFinite(taslak.gunlukButceUsd) || taslak.gunlukButceUsd < 0);
+  const yuzdeGecersiz = (v: number) => !Number.isFinite(v) || v < 0 || v > 100;
+  const sinirGecersiz = !!taslak && (yuzdeGecersiz(taslak.besSaatlikSinirYuzde) || yuzdeGecersiz(taslak.haftalikSinirYuzde));
+  const hesap = useVeri((d) => d.hesap);
   const tikanmaGecersiz = !!taslak && (!Number.isFinite(taslak.tikanmaDakika) || taslak.tikanmaDakika < 0 || taslak.tikanmaDakika > 1440);
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (!taslak || sureGecersiz || butceGecersiz || tikanmaGecersiz) return;
+    if (!taslak || sureGecersiz || butceGecersiz || tikanmaGecersiz || sinirGecersiz) return;
     void calistir("kaydet", async () => {
       const a = await api.ayarlariKaydet({ ...taslak, claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null });
       setAyarlar(a);
       setTaslak(a);
+      // Giriş yöntemi değiştiyse kullanım göstergeleri hemen ona göre çizilir
+      useVeri.setState((d) => ({ maliyet: d.maliyet ? { ...d.maliyet, girisYontemi: a.girisYontemi } : d.maliyet }));
       bildir("basari", "Ayarlar kaydedildi.");
     });
   };
@@ -68,6 +74,87 @@ export function Ayarlar() {
       <div className="ayarlar-yerlesim">
         {taslak ? (
           <form className="ayar-bolum" onSubmit={kaydet} noValidate>
+            <h2 className="ara-baslik">Claude girişi</h2>
+            <div className="hesap-durum" role="status">
+              {hesap?.durum === "hazir" ? (
+                <p>
+                  <b>{hesap.plan ? `Claude ${hesap.plan}` : "Claude Code"}</b>
+                  {hesap.eposta ? ` · ${hesap.eposta}` : ""}
+                  {hesap.kaynak ? <small> · giriş: {hesap.kaynak}</small> : null}
+                </p>
+              ) : (
+                <p className="soluk">
+                  {hesap?.durum === "hata" ? `Claude Code'a ulaşılamadı: ${hesap.hata ?? ""}` : "Claude Code girişi henüz okunmadı."}
+                </p>
+              )}
+              {hesap?.pencereler.length ? (
+                <p className="hesap-pencereler">
+                  {hesap.pencereler
+                    .filter((p) => p.tur === "bes_saat" || p.tur === "haftalik")
+                    .map((p) => `${p.ad} ${yuzde(p.yuzde)}${p.sifirlanma ? ` (sıfırlanma ${akilliZaman(p.sifirlanma)})` : ""}`)
+                    .join(" · ")}
+                </p>
+              ) : null}
+              {hesap?.uyari ? <p className="alan-hata">{hesap.uyari}</p> : null}
+              <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)}>
+                Girişi yeniden oku
+              </button>
+            </div>
+            <div className="form-izgara">
+              <div className="alan tam">
+                <span className="alan-ad" id="giris-ad">
+                  Ajanlar nasıl çalışsın
+                </span>
+                <div className="bolumlu" role="group" aria-labelledby="giris-ad">
+                  <button type="button" aria-pressed={taslak.girisYontemi === "abonelik"} onClick={() => degistir({ girisYontemi: "abonelik" })}>
+                    Claude aboneliği
+                  </button>
+                  <button type="button" aria-pressed={taslak.girisYontemi === "api"} onClick={() => degistir({ girisYontemi: "api" })}>
+                    API anahtarı
+                  </button>
+                </div>
+                <span className="alan-ipucu">
+                  {taslak.girisYontemi === "abonelik"
+                    ? "Ajanlar makinedeki Claude Code girişinizle (Pro/Max) çalışır; ücret alınmaz, planın 5 saatlik ve haftalık pencereleri sayılır. API anahtarı ortamda olsa da ajanlara verilmez."
+                    : "Ajanlar ANTHROPIC_API_KEY ile çalışır; token başına ücretlendirilir, dolar bütçeleri uygulanır."}
+                </span>
+              </div>
+              {taslak.girisYontemi === "abonelik" ? (
+                <>
+                  <div className="alan">
+                    <label htmlFor="ay-bes">5 saatlik pencere üst sınırı (%)</label>
+                    <input
+                      id="ay-bes"
+                      className="girdi"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={Number.isFinite(taslak.besSaatlikSinirYuzde) ? taslak.besSaatlikSinirYuzde : ""}
+                      onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
+                      aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
+                    />
+                    <span className="alan-ipucu">Ajanlar bu yüzdede durur, kalanı sizin kullanımınıza kalır. 0 sınırsız.</span>
+                  </div>
+                  <div className="alan">
+                    <label htmlFor="ay-hafta">Haftalık pencere üst sınırı (%)</label>
+                    <input
+                      id="ay-hafta"
+                      className="girdi"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={Number.isFinite(taslak.haftalikSinirYuzde) ? taslak.haftalikSinirYuzde : ""}
+                      onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
+                      aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
+                    />
+                    <span className="alan-ipucu">Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
             <h2 className="ara-baslik">Çekirdek</h2>
             <div className="form-izgara">
               <div className="alan tam">
@@ -83,7 +170,12 @@ export function Ayarlar() {
               </div>
               <div className="alan">
                 <label htmlFor="ay-mod">Varsayılan izin modu</label>
-                <select id="ay-mod" className="secim" value={taslak.varsayilanIzinModu} onChange={(e) => degistir({ varsayilanIzinModu: e.target.value as IzinModu })}>
+                <select
+                  id="ay-mod"
+                  className="secim"
+                  value={taslak.varsayilanIzinModu}
+                  onChange={(e) => degistir({ varsayilanIzinModu: e.target.value as IzinModu })}
+                >
                   {Object.entries(IZIN_MODU_ADLARI).map(([k, ad]) => (
                     <option key={k} value={k}>
                       {ad}
@@ -108,20 +200,22 @@ export function Ayarlar() {
                   {sureGecersiz ? "En az 10 saniye." : "Süre dolunca bekleyen araç çağrısı reddedilir."}
                 </span>
               </div>
-              <div className="alan">
-                <label htmlFor="ay-butce">Şirket günlük bütçesi (USD)</label>
-                <input
-                  id="ay-butce"
-                  className="girdi"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={Number.isFinite(taslak.gunlukButceUsd) ? taslak.gunlukButceUsd : ""}
-                  onChange={(e) => degistir({ gunlukButceUsd: e.target.valueAsNumber })}
-                  aria-invalid={butceGecersiz ? true : undefined}
-                />
-                {butceGecersiz ? <span className="alan-hata">Geçerli bir tutar yazın.</span> : null}
-              </div>
+              {taslak.girisYontemi === "abonelik" ? null : (
+                <div className="alan">
+                  <label htmlFor="ay-butce">Şirket günlük bütçesi (USD)</label>
+                  <input
+                    id="ay-butce"
+                    className="girdi"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={Number.isFinite(taslak.gunlukButceUsd) ? taslak.gunlukButceUsd : ""}
+                    onChange={(e) => degistir({ gunlukButceUsd: e.target.valueAsNumber })}
+                    aria-invalid={butceGecersiz ? true : undefined}
+                  />
+                  {butceGecersiz ? <span className="alan-hata">Geçerli bir tutar yazın.</span> : null}
+                </div>
+              )}
               <div className="alan">
                 <label htmlFor="ay-tikanma">Tıkanma eşiği (dakika)</label>
                 <input
@@ -172,7 +266,11 @@ export function Ayarlar() {
               ) : null}
             </div>
             <div className="dugme-satir ayar-kaydet">
-              <button type="submit" className="dugme dugme-ana" disabled={!kirli || suruyor !== null || sureGecersiz || butceGecersiz || tikanmaGecersiz}>
+              <button
+                type="submit"
+                className="dugme dugme-ana"
+                disabled={!kirli || suruyor !== null || sureGecersiz || butceGecersiz || tikanmaGecersiz || sinirGecersiz}
+              >
                 {suruyor ? <span className="doner" aria-hidden="true" /> : null}
                 Kaydet
               </button>
@@ -236,9 +334,7 @@ function SaglikBilgisi({ saglik }: { saglik: Saglik }) {
           <code>{saglik.veriDizini}</code>
         </dd>
       </dl>
-      {!saglik.claudeBulundu ? (
-        <p className="uyari-kutu">Ajanlar başlatılamaz. Claude Code'u kurun ya da yolunu yukarıda belirtin.</p>
-      ) : null}
+      {!saglik.claudeBulundu ? <p className="uyari-kutu">Ajanlar başlatılamaz. Claude Code'u kurun ya da yolunu yukarıda belirtin.</p> : null}
     </section>
   );
 }

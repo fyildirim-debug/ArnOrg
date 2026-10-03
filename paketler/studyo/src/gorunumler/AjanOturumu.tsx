@@ -6,8 +6,8 @@ import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { AjanAvatar, AjanDurum, izinModuAdi, modelAdi } from "../bilesenler/Kisi";
 import { Simge } from "../bilesenler/Simge";
 import { git, useArayuz } from "../durum/arayuz";
-import { ajanAkisiniYukle, useVeri } from "../durum/veri";
-import { para } from "../yardimcilar/bicim";
+import { abonelikMi, ajanAkisiniYukle, useVeri } from "../durum/veri";
+import { para, token } from "../yardimcilar/bicim";
 
 const PENCERE = 500;
 const ALT_ESIGI = 64;
@@ -36,6 +36,7 @@ export function AjanOturumu() {
 }
 
 function Oturum({ ajanId }: { ajanId: string }) {
+  const abonelik = useVeri(abonelikMi);
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === ajanId))!;
   const ogeler = useVeri((d) => d.akislar[ajanId]);
   const yukleme = useVeri((d) => d.akisYukleme[ajanId]);
@@ -94,7 +95,13 @@ function Oturum({ ajanId }: { ajanId: string }) {
   return (
     <div className="oturum">
       <header className="oturum-ust">
-        <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" onClick={() => git("ekip")} aria-label="Ekibe dön" title="Ekibe dön">
+        <button
+          type="button"
+          className="dugme dugme-sessiz dugme-kucuk dugme-simge"
+          onClick={() => git("ekip")}
+          aria-label="Ekibe dön"
+          title="Ekibe dön"
+        >
           <Simge ad="geri" />
         </button>
         <AjanAvatar ajan={ajan} />
@@ -105,9 +112,15 @@ function Oturum({ ajanId }: { ajanId: string }) {
           </span>
         </div>
         <AjanDurum durum={ajan.durum} />
-        <span className="metre oturum-maliyet" title="Bugün / toplam harcama">
-          <b>{para(ajan.bugunHarcananUsd)}</b> bugün · {para(ajan.toplamHarcananUsd)} toplam
-        </span>
+        {abonelik ? (
+          <span className="metre oturum-maliyet" title="Bugün / toplam işlenen token (abonelik: ücret alınmaz)">
+            <b>{token(ajan.bugunToken)}</b> token bugün · {token(ajan.toplamToken)} toplam
+          </span>
+        ) : (
+          <span className="metre oturum-maliyet" title="Bugün / toplam harcama">
+            <b>{para(ajan.bugunHarcananUsd)}</b> bugün · {para(ajan.toplamHarcananUsd)} toplam
+          </span>
+        )}
         <div className="oturum-eylem">
           <OturumDugmeleri ajan={ajan} kucuk />
         </div>

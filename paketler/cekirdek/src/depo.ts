@@ -149,6 +149,13 @@ export class Depo {
     this.db.pragma("synchronous = NORMAL");
     this.db.pragma("foreign_keys = ON");
     this.db.exec(SEMA);
+    this.gocEt();
+  }
+
+  /** Eski veri dosyalarına sonradan eklenen sütunlar */
+  private gocEt(): void {
+    const sutunlar = (this.db.prepare("PRAGMA table_info(maliyet)").all() as Satir[]).map((s) => String(s.name));
+    if (!sutunlar.includes("token")) this.db.exec("ALTER TABLE maliyet ADD COLUMN token INTEGER NOT NULL DEFAULT 0");
   }
 
   kapat(): void {
@@ -229,12 +236,14 @@ export class Depo {
       gunlukButceUsd: Number(s.gunluk_butce),
       bugunHarcananUsd: this.ajanMaliyeti(projeId, id, bugun()),
       toplamHarcananUsd: this.ajanMaliyeti(projeId, id),
+      bugunToken: this.ajanTokeni(projeId, id, bugun()),
+      toplamToken: this.ajanTokeni(projeId, id),
       talimatEki: String(s.talimat_eki),
       olusturma: String(s.olusturma),
     };
   }
 
-  ajanEkle(a: Omit<Ajan, "id" | "olusturma" | "bugunHarcananUsd" | "toplamHarcananUsd">): Ajan {
+  ajanEkle(a: Omit<Ajan, "id" | "olusturma" | "bugunHarcananUsd" | "toplamHarcananUsd" | "bugunToken" | "toplamToken">): Ajan {
     const id = kimlik();
     this.db
       .prepare(
@@ -531,14 +540,30 @@ export class Depo {
 
   // ---------------- maliyet ----------------
 
-  maliyetEkle(projeId: string, ajanId: string, usd: number): void {
-    if (!(usd > 0)) return;
+  maliyetEkle(projeId: string, ajanId: string, usd: number, token = 0): void {
+    const u = usd > 0 ? usd : 0;
+    const t = token > 0 ? Math.round(token) : 0;
+    if (!u && !t) return;
     this.db
       .prepare(
-        `INSERT INTO maliyet (proje_id, ajan_id, gun, usd) VALUES (?, ?, ?, ?)
-         ON CONFLICT(proje_id, ajan_id, gun) DO UPDATE SET usd = usd + excluded.usd`,
+        `INSERT INTO maliyet (proje_id, ajan_id, gun, usd, token) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(proje_id, ajan_id, gun) DO UPDATE SET usd = usd + excluded.usd, token = token + excluded.token`,
       )
-      .run(projeId, ajanId, bugun(), usd);
+      .run(projeId, ajanId, bugun(), u, t);
+  }
+
+  ajanTokeni(projeId: string, ajanId: string, gun?: string): number {
+    const s = (gun
+      ? this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND ajan_id = ? AND gun = ?").get(projeId, ajanId, gun)
+      : this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND ajan_id = ?").get(projeId, ajanId)) as Satir;
+    return Number(s.t ?? 0);
+  }
+
+  projeTokeni(projeId: string, gun?: string): number {
+    const s = (gun
+      ? this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND gun = ?").get(projeId, gun)
+      : this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ?").get(projeId)) as Satir;
+    return Number(s.t ?? 0);
   }
 
   ajanMaliyeti(projeId: string, ajanId: string, gun?: string): number {
@@ -556,10 +581,10 @@ export class Depo {
   }
 
   /** Verilen günden (dahil) bu yana ajan başına harcama */
-  donemMaliyeti(projeId: string, baslangicGun: string): { ajanId: string; usd: number }[] {
-    return (this.db.prepare("SELECT ajan_id, sum(usd) t FROM maliyet WHERE proje_id = ? AND gun >= ? GROUP BY ajan_id ORDER BY t DESC").all(projeId, baslangicGun) as Satir[]).map(
-      (s) => ({ ajanId: String(s.ajan_id), usd: Number(s.t ?? 0) }),
-    );
+  donemMaliyeti(projeId: string, baslangicGun: string): { ajanId: string; usd: number; token: number }[] {
+    return (
+      this.db.prepare("SELECT ajan_id, sum(usd) t, sum(token) k FROM maliyet WHERE proje_id = ? AND gun >= ? GROUP BY ajan_id ORDER BY k DESC, t DESC").all(projeId, baslangicGun) as Satir[]
+    ).map((s) => ({ ajanId: String(s.ajan_id), usd: Number(s.t ?? 0), token: Number(s.k ?? 0) }));
   }
 
   sirketMaliyeti(gun: string): number {

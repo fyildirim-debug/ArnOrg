@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import type { GirisYontemi } from "@arnorg/ortak";
 
 const execFileP = promisify(execFile);
 
@@ -50,6 +51,19 @@ export function temizOrtam(ek: Record<string, string | undefined> = {}, kaynak: 
   }
   appImageYollariniAyikla(ortam, kaynak.APPDIR);
   for (const [k, v] of Object.entries(ek)) if (v !== undefined) ortam[k] = v;
+  return ortam;
+}
+
+/** Abonelik girişinde Claude Code'un API anahtarına geçmesine yol açan değişkenler */
+const API_GIRISI = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"];
+
+/**
+ * Claude Code oturumu için ortam. Abonelikte API anahtarı ve bulut sağlayıcı değişkenleri
+ * ajanlara geçmez; Claude Code makinedeki claude.ai girişini (Pro/Max) kullanır ve ücret alınmaz.
+ */
+export function ajanOrtami(girisYontemi: GirisYontemi, ek: Record<string, string | undefined> = {}, kaynak: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const ortam = temizOrtam(ek, kaynak);
+  if (girisYontemi === "abonelik") for (const k of API_GIRISI) if (!(k in ek)) delete ortam[k];
   return ortam;
 }
 

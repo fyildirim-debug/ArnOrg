@@ -1650,3 +1650,140 @@
     justify-content: flex-end;
   }
 }
+
+/* Karargâh: abonelik kullanım paneli */
+.kullanim-panel {
+  display: grid;
+  gap: var(--b-3);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+.kullanim-baslik {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--b-2);
+  color: var(--paper);
+  font-weight: 600;
+}
+.kullanim-baslik small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.kullanim-uyari {
+  padding: 0.5rem 0.625rem;
+  border-left: 2px solid var(--coral);
+  background: var(--coral-zemin);
+  color: var(--bone);
+}
+.kullanim-pencereler {
+  display: grid;
+  gap: var(--b-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kullanim-pencereler li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.375rem 0.75rem;
+  align-items: baseline;
+}
+.kullanim-pencereler .kp-ad {
+  color: var(--bone);
+}
+.kullanim-pencereler b {
+  color: var(--paper);
+  font-size: var(--t-l);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.kullanim-pencereler .kullanim-cubuk,
+.kullanim-pencereler small {
+  grid-column: 1 / -1;
+}
+.kullanim-pencereler small {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.kullanim-token {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--b-3);
+  margin: 0;
+  padding-top: var(--b-3);
+  border-top: 1px solid var(--line);
+}
+.kullanim-token dt {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.kullanim-token dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.kullanim-token dd b {
+  color: var(--paper);
+  font-size: var(--t-m);
+  font-weight: 500;
+}
+.kullanim-ajanlar {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kullanim-ajanlar li {
+  display: grid;
+  grid-template-columns: minmax(4rem, 7rem) minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  align-items: center;
+}
+.kullanim-ajanlar li > span:first-child {
+  color: var(--bone);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kullanim-pay {
+  height: 3px;
+  background: var(--ink-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.kullanim-pay span {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+}
+.kullanim-ajanlar small {
+  font-variant-numeric: tabular-nums;
+}
+.kullanim-not,
+.kullanim-bos {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+
+/* Ayarlar: Claude girişi */
+.hesap-durum {
+  display: grid;
+  gap: 0.375rem;
+  margin-bottom: var(--b-4);
+  padding: var(--b-3) var(--b-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+.hesap-durum b {
+  color: var(--paper);
+}
+.hesap-durum .metin-dugme {
+  justify-self: start;
+}
+.hesap-pencereler {
+  font-variant-numeric: tabular-nums;
+}

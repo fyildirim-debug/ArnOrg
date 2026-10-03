@@ -26,6 +26,13 @@ export interface Saglik {
   veriDizini: string;
 }
 
+/**
+ * Ajanların Claude'a girişi.
+ * abonelik: makinedeki Claude Code girişi (claude.ai Pro/Max/Team); ücret alınmaz, plan kullanım pencereleri sayılır.
+ * api: API anahtarı; token başına ücretlendirilir, dolar bütçeleri uygulanır.
+ */
+export type GirisYontemi = "abonelik" | "api";
+
 export interface Ayarlar {
   /** Kurulu Claude Code yolu; boşsa önce PATH, sonra SDK ile gelen ikili denenir */
   claudeYolu: string | null;
@@ -39,6 +46,11 @@ export interface Ayarlar {
   disEditor: string;
   /** Görev bu kadar dakika ilerlemezse sorumlu hatırlatılır, sonra yöneticiye ve kurula yükseltilir; 0 kapalı */
   tikanmaDakika: number;
+  girisYontemi: GirisYontemi;
+  /** Abonelikte ajanlar 5 saatlik pencerenin en çok bu yüzdesine kadar çalışır; 0 sınırsız */
+  besSaatlikSinirYuzde: number;
+  /** Abonelikte haftalık pencere için üst sınır yüzdesi; 0 sınırsız */
+  haftalikSinirYuzde: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,8 +135,12 @@ export interface Ajan {
   dal: string | null;
   izinModu: IzinModu;
   gunlukButceUsd: number;
+  /** API karşılığı tahmini harcama; abonelikte ücret alınmaz */
   bugunHarcananUsd: number;
   toplamHarcananUsd: number;
+  /** Bugün ve toplam işlenen token (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç) */
+  bugunToken: number;
+  toplamToken: number;
   /** Kuruldan ya da CEO'dan gelen ek talimat */
   talimatEki: string;
   olusturma: Zaman;
@@ -426,12 +442,53 @@ export interface FarkSonucu {
 // ---------------------------------------------------------------------------
 
 export interface MaliyetOzeti {
+  girisYontemi: GirisYontemi;
+  /** API karşılığı tahmini harcama; abonelikte ücret alınmaz */
   bugunUsd: number;
   toplamUsd: number;
+  /** Yalnız API girişinde uygulanır */
   gunlukButceUsd: number;
-  ajanlar: { ajanId: string; ad: string; bugunUsd: number; toplamUsd: number }[];
-  /** Abonelik penceresi bilgisi (Claude Code rate_limit_event) */
+  bugunToken: number;
+  toplamToken: number;
+  ajanlar: { ajanId: string; ad: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }[];
+  /** Son bilinen abonelik penceresi olayı (Claude Code rate_limit_event) */
   pencere: { tur: string; durum: string; sifirlanma: Zaman | null } | null;
+}
+
+export type KullanimPenceresiTuru = "bes_saat" | "haftalik" | "haftalik_opus" | "haftalik_sonnet" | "model";
+
+export interface KullanimPenceresi {
+  tur: KullanimPenceresiTuru;
+  /** Görünen ad: "5 saatlik pencere", "Haftalık", "Haftalık · Opus" */
+  ad: string;
+  /** Kullanılan yüzde (0–100); bilinmiyorsa null */
+  yuzde: number | null;
+  sifirlanma: Zaman | null;
+}
+
+/** Claude Code'un fiilen kullandığı giriş ve abonelik kullanım durumu (GET /api/hesap) */
+export interface HesapDurumu {
+  durum: "bilinmiyor" | "hazir" | "hata";
+  /** Ayarlardaki seçim */
+  girisYontemi: GirisYontemi;
+  /** Claude Code'un bildirdiği plan: Max, Pro, Team, Enterprise ya da API */
+  plan: string | null;
+  eposta: string | null;
+  /** Kimlik bilgisinin kaynağı (ör. claude.ai, ANTHROPIC_API_KEY) */
+  kaynak: string | null;
+  /** firstParty, bedrock, vertex… */
+  saglayici: string | null;
+  /** Plan kullanım pencereleri bu girişte var mı (API anahtarında yok) */
+  pencereVar: boolean;
+  pencereler: KullanimPenceresi[];
+  /** Ayardaki üst sınırlar (yüzde; 0 sınırsız) */
+  sinirYuzdeleri: { besSaatlik: number; haftalik: number };
+  /** Ayardaki üst sınır aşıldıysa: ajanlar yeni iş almaz, sıfırlanınca kaldıkları yerden sürer */
+  sinir: { pencere: string; yuzde: number; sinirYuzde: number; sifirlanma: Zaman | null } | null;
+  /** Ayar ile fiili giriş uyuşmuyorsa açıklama */
+  uyari: string | null;
+  guncelleme: Zaman | null;
+  hata: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,7 +506,8 @@ export type SunucuOlayi =
   | { tur: "onay.sonuc"; onay: Onay }
   | { tur: "gorev.guncellendi"; gorev: Gorev }
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
-  | { tur: "maliyet"; projeId: string; ajanId: string; bugunUsd: number; toplamUsd: number }
+  | { tur: "maliyet"; projeId: string; ajanId: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }
+  | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };
 

@@ -20,6 +20,7 @@
 | GET | `/api/saglik` | — | `Saglik` |
 | GET | `/api/ayarlar` | — | `Ayarlar` |
 | PUT | `/api/ayarlar` | `Partial<Ayarlar>` | `Ayarlar` |
+| GET | `/api/hesap?tazele=1` | — | `HesapDurumu`: Claude Code'un fiili girişi (plan, e-posta, kaynak), abonelik pencereleri (5 saatlik, haftalık, model başına yüzde ve sıfırlanma), ayardaki sınır aşıldıysa `sinir`, ayar ile giriş uyuşmuyorsa `uyari`. `tazele=1` Claude Code'a yeniden sorar (açık bir ajan oturumu varsa onun üzerinden, yoksa mesaj göndermeyen kısa bir yoklamayla; token harcanmaz) |
 | GET | `/api/roller` | — | `Rol[]` |
 
 ## Projeler
@@ -117,7 +118,16 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 
 | Yöntem | Yol | Yanıt |
 |---|---|---|
-| GET | `/api/projeler/:pid/maliyet` | `MaliyetOzeti` |
+| GET | `/api/projeler/:pid/maliyet` | `MaliyetOzeti` (giriş yöntemi, bugünkü ve toplam token, API karşılığı tahmini dolar, ajan başına) |
+
+### Abonelik ve API girişi
+
+`Ayarlar.girisYontemi`:
+
+- `abonelik` (varsayılan): ajanlar makinedeki Claude Code girişiyle (claude.ai Pro/Max/Team) çalışır. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ve bulut sağlayıcı değişkenleri ajan ortamına verilmez. Ücret alınmaz; dolar bütçeleri uygulanmaz, `maxBudgetUsd` geçilmez. Asıl sınır planın pencereleridir: ajanlar `besSaatlikSinirYuzde` (varsayılan 90) ya da `haftalikSinirYuzde` (varsayılan 95) aşılınca durdurulur. Bu sürede denetim kapısı araç çağrılarını "Kullanım sınırı" kuralıyla reddeder, ajanlara gelen mesajlar saklanır. Pencere açılınca ajanlar saklanan mesajlarla uyanır. Arayüz token ve pencere yüzdesi gösterir.
+- `api`: ajanlar API anahtarıyla çalışır; ajan ve şirket günlük dolar bütçeleri uygulanır.
+
+Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç). Sürdürülen oturumda Claude Code toplamı önceki turlardan devam ettirdiği için oturum başına son toplam saklanır, yalnız fark sayılır.
 
 ## Rapor ve tıkanma koruması
 
@@ -130,4 +140,4 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 
 ## Canlı olaylar
 
-`WS /ws?anahtar=<anahtar>`: sunucu `SunucuOlayi` JSON'ları gönderir. İstemci `{"tur":"abone","projeId":"…"}` gönderince yalnız o projenin olaylarını alır (`proje.guncellendi` ve `bildirim` her zaman gelir). Bağlantı açılınca ilk mesaj `{"tur":"merhaba"}`.
+`WS /ws?anahtar=<anahtar>`: sunucu `SunucuOlayi` JSON'ları gönderir. İstemci `{"tur":"abone","projeId":"…"}` gönderince yalnız o projenin olaylarını alır (`proje.guncellendi`, `hesap.guncellendi` ve projesiz `bildirim` her zaman gelir). Bağlantı açılınca ilk mesaj `{"tur":"merhaba"}`.

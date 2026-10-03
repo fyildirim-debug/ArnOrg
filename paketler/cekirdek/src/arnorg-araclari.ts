@@ -4,7 +4,7 @@ import { GOREV_DURUMLARI, type GorevDurumu } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
-import { raporOlustur } from "./gozetmen.js";
+import { raporOlustur, tokenMetni } from "./gozetmen.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -171,13 +171,16 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
     ),
     tool(
       "ekip_listele",
-      "Ekibi, rollerini, durumlarını ve günlük bütçe kullanımını listeler. Rol kataloğunu da gösterir.",
+      "Ekibi, rollerini, durumlarını ve bugünkü kullanımlarını listeler. Rol kataloğunu da gösterir.",
       {},
       () =>
         guvenli(() => {
           const ekip = sirket.depo
             .ajanlar(ben().projeId)
-            .map((x) => `${x.ad} · ${x.rolAdi} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · $${x.bugunHarcananUsd.toFixed(2)}/$${x.gunlukButceUsd.toFixed(2)}`)
+            .map((x) => {
+              const kullanim = sirket.abonelik ? `bugün ${tokenMetni(x.bugunToken)} token` : `$${x.bugunHarcananUsd.toFixed(2)}/$${x.gunlukButceUsd.toFixed(2)}`;
+              return `${x.ad} · ${x.rolAdi} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
+            })
             .join("\n");
           return metin(`Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`);
         }),
@@ -190,7 +193,7 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         rol: z.string().describe("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci"),
         gerekce: z.string().min(10),
         model: z.string().optional().describe("opus, sonnet ya da haiku; boşsa rolün varsayılanı"),
-        gunluk_butce_usd: z.number().min(0).max(500).optional(),
+        gunluk_butce_usd: z.number().min(0).max(500).optional().describe("Yalnız API girişinde anlamlı; abonelikte boş bırak"),
         yonetici: z.string().optional().describe("Bağlanacağı çalışanın adı"),
         talimat_eki: z.string().optional(),
       },
@@ -206,7 +209,7 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
             ad: a.ad,
             rol: rol.kimlik,
             model: a.model,
-            gunlukButceUsd: a.gunluk_butce_usd,
+            gunlukButceUsd: sirket.abonelik ? undefined : a.gunluk_butce_usd,
             talimatEki: a.talimat_eki,
             yoneticiAd: a.yonetici ?? ben().ad,
           };
@@ -214,7 +217,7 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
             ben(),
             "ise_alim",
             `İşe alım: ${a.ad} · ${rol.ad}`,
-            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel} · Günlük bütçe: $${a.gunluk_butce_usd ?? 5} · Yönetici: ${veri.yoneticiAd}`,
+            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel}${sirket.abonelik ? "" : ` · Günlük bütçe: $${a.gunluk_butce_usd ?? 5}`} · Yönetici: ${veri.yoneticiAd}`,
             veri,
           );
           return metin(`Teklif yönetim kuruluna sunuldu: ${a.ad} (${rol.ad}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`);

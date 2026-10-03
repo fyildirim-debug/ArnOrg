@@ -12,9 +12,27 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
-import { rootMu, temizOrtam } from "./ortam.js";
+import type { Ajan, AjanDurumu, AkisOgesi, GirisYontemi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
+import { ajanOrtami, rootMu } from "./ortam.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
+
+export interface Toplam {
+  usd: number;
+  token: number;
+}
+
+/** Sonuç mesajındaki model başına kullanımdan işlenen token: girdi + çıktı + önbellek yazımı (önbellekten okuma hariç) */
+export function islenenToken(modelKullanimi: Record<string, { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number }> | undefined): number {
+  let t = 0;
+  for (const k of Object.values(modelKullanimi ?? {})) t += (k.inputTokens ?? 0) + (k.outputTokens ?? 0) + (k.cacheCreationInputTokens ?? 0);
+  return t;
+}
+
+/** Sürekli artan toplamdan bu turun payını çıkarır; toplam küçüldüyse (sıfırlanmış) yeni toplamın kendisi sayılır */
+export function toplamFarki(onceki: Toplam, yeni: Toplam): Toplam {
+  const sifirlandi = yeni.usd < onceki.usd - 1e-9 || yeni.token < onceki.token;
+  return sifirlandi ? { ...yeni } : { usd: Math.max(0, yeni.usd - onceki.usd), token: Math.max(0, yeni.token - onceki.token) };
+}
 
 export type MesajKaynagi = { tur: "kurul" } | { tur: "ajan"; ad: string; id: string } | { tur: "sistem" };
 
@@ -37,8 +55,14 @@ export interface OturumBaglami {
   akis(oge: AkisOgesi): void;
   durum(durum: AjanDurumu, aciklama?: string): void;
   oturumKimligi(id: string): void;
-  maliyet(deltaUsd: number): void;
-  pencere(bilgi: { tur: string; durum: string; sifirlanma: string | null }): void;
+  /** Bu turda eklenen tahmini API karşılığı ve işlenen token */
+  kullanim(delta: { usd: number; token: number }): void;
+  pencere(bilgi: { tur: string; durum: string; sifirlanma: string | null; yuzde: number | null }): void;
+  girisYontemi(): GirisYontemi;
+  /** Oturumun Claude Code'a göre son toplamı; sürdürülen oturumda çift sayımı önler */
+  oturumToplami: { oku(oturumId: string): Toplam | null; yaz(oturumId: string, t: Toplam): void };
+  /** Claude Code'un kullandığı kimlik bilgisinin kaynağı (init mesajı) */
+  girisKaynagi(kaynak: string): void;
   bitti(hata: string | null): void;
 }
 
@@ -77,7 +101,8 @@ function kaynakEtiketi(k: MesajKaynagi): string {
 export class AjanOturumu {
   private kuyruk: AkanKuyruk<SDKUserMessage> | null = null;
   private sorgu: Query | null = null;
-  private sonToplamUsd = 0;
+  private sonToplam: Toplam = { usd: 0, token: 0 };
+  private oturumNo: string | null = null;
   private stderrSon: string[] = [];
   private sonDurum: AjanDurumu = "kapali";
   private kapatiliyor = false;
@@ -88,6 +113,18 @@ export class AjanOturumu {
 
   get acik(): boolean {
     return this.sorgu !== null;
+  }
+
+  /** Açık oturum üzerinden plan kullanımını sorar (yeni süreç açmadan); oturum yoksa null */
+  async kullanimSor(): Promise<{ hesap: Awaited<ReturnType<Query["accountInfo"]>>; kullanim: Awaited<ReturnType<Query["usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET"]>> } | null> {
+    const q = this.sorgu;
+    if (!q || !this.initGoruldu) return null;
+    try {
+      const [hesap, kullanim] = await Promise.all([q.accountInfo(), q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })]);
+      return { hesap, kullanim };
+    } catch {
+      return null;
+    }
   }
 
   get durum(): AjanDurumu {
@@ -122,7 +159,7 @@ export class AjanOturumu {
         permissionMode: izinModu,
         allowDangerouslySkipPermissions: bypass,
         ...(this.b.claudeYolu ? { pathToClaudeCodeExecutable: this.b.claudeYolu } : {}),
-        env: temizOrtam({
+        env: ajanOrtami(this.b.girisYontemi(), {
           IS_SANDBOX: rootMu() ? "1" : undefined,
           ARNORG_AJAN: ajan.id,
           CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: "1",
@@ -180,7 +217,8 @@ export class AjanOturumu {
       priority: oncelik,
       ...(kaynak.tur === "kurul" ? { origin: { kind: "human" as const } } : {}),
     });
-    this.sonToplamUsd = 0;
+    this.sonToplam = { usd: 0, token: 0 };
+    this.oturumNo = null;
     this.stderrSon = [];
     this.kapatiliyor = false;
     this.sorgu = this.sorguOlustur(ajan, ajan.oturumId);
@@ -269,6 +307,13 @@ export class AjanOturumu {
       case "system": {
         if (m.subtype === "init") {
           this.b.oturumKimligi(m.session_id);
+          if (this.oturumNo !== m.session_id) {
+            // Sürdürülen oturumun ilk sonucu önceki turların toplamını taşır; kaldığımız yerden sayılır
+            this.oturumNo = m.session_id;
+            this.sonToplam = this.b.oturumToplami.oku(m.session_id) ?? { usd: 0, token: 0 };
+          }
+          const kaynak = (m as { apiKeySource?: string }).apiKeySource;
+          if (kaynak) this.b.girisKaynagi(kaynak);
           if (!this.initGoruldu) this.akisYaz({ tur: "sistem", metin: `Oturum açıldı · ${m.model} · ${m.permissionMode}` });
           this.initGoruldu = true;
           this.durumYaz("calisiyor", "Çalışıyor");
@@ -326,10 +371,12 @@ export class AjanOturumu {
         return;
       }
       case "result": {
-        const toplam = m.total_cost_usd ?? 0;
-        const delta = Math.max(0, toplam - this.sonToplamUsd);
-        this.sonToplamUsd = toplam;
-        if (delta > 0) this.b.maliyet(delta);
+        const yeni: Toplam = { usd: m.total_cost_usd ?? 0, token: islenenToken((m as { modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number }> }).modelUsage) };
+        const fark = toplamFarki(this.sonToplam, yeni);
+        this.sonToplam = yeni;
+        if (this.oturumNo) this.b.oturumToplami.yaz(this.oturumNo, yeni);
+        if (fark.usd > 0 || fark.token > 0) this.b.kullanim(fark);
+        const delta = fark.usd;
         const metin =
           m.subtype === "success"
             ? kisalt(String((m as { result?: string }).result ?? ""), 600)
@@ -345,8 +392,16 @@ export class AjanOturumu {
         return;
       }
       case "rate_limit_event": {
-        const r = (m as { rate_limit_info?: { status?: string; rateLimitType?: string; resetsAt?: number } }).rate_limit_info;
-        if (r) this.b.pencere({ tur: r.rateLimitType ?? "", durum: r.status ?? "", sifirlanma: r.resetsAt ? new Date(r.resetsAt * 1000).toISOString() : null });
+        const r = (m as { rate_limit_info?: { status?: string; rateLimitType?: string; resetsAt?: number; utilization?: number } }).rate_limit_info;
+        if (r) {
+          this.b.pencere({
+            tur: r.rateLimitType ?? "",
+            durum: r.status ?? "",
+            sifirlanma: r.resetsAt ? new Date(r.resetsAt * 1000).toISOString() : null,
+            // utilization kesir (0–1) ya da yüzde olarak gelebilir
+            yuzde: typeof r.utilization === "number" ? (r.utilization <= 1 ? r.utilization * 100 : r.utilization) : null,
+          });
+        }
         return;
       }
       default:

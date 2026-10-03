@@ -30,6 +30,19 @@ export function kucukPara(n: number | null | undefined): string {
   return d > 0 && d < 0.1 ? kucukParaBicimi.format(d) : paraBicimi.format(d);
 }
 
+/** Token sayısı: 950, 48 bin, 1,3 milyon */
+export function token(n: number | null | undefined): string {
+  const d = n ?? 0;
+  if (d >= 1_000_000) return `${(d / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} milyon`;
+  if (d >= 1000) return `${Math.round(d / 1000).toLocaleString("tr-TR")} bin`;
+  return String(Math.round(d));
+}
+
+/** Yüzde: %12 */
+export function yuzde(n: number | null | undefined): string {
+  return n === null || n === undefined ? "—" : `%${Math.round(n)}`;
+}
+
 export function sayi(n: number): string {
   return sayiBicimi.format(n);
 }

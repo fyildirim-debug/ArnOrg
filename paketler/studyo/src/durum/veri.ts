@@ -4,6 +4,7 @@ import type {
   AkisOgesi,
   DenetimKaydi,
   Gorev,
+  HesapDurumu,
   Kanal,
   MaliyetOzeti,
   Mesaj,
@@ -33,6 +34,8 @@ export interface CanliOlay {
 
 export interface VeriDurumu {
   saglik: Saglik | null;
+  /** Claude girişi ve abonelik kullanım pencereleri */
+  hesap: HesapDurumu | null;
   wsDurumu: WsDurumu;
   projeler: ProjeOzeti[];
   projelerYukleme: Yukleme;
@@ -83,6 +86,7 @@ const projeVerisiBos = {
 
 export const useVeri = create<VeriDurumu>()(() => ({
   saglik: null,
+  hesap: null,
   wsDurumu: "baglaniyor",
   projeler: [],
   projelerYukleme: "bos",
@@ -137,6 +141,21 @@ export async function sagligiYukle() {
   } catch {
     // Sağlık bilgisi isteğe bağlı; Ayarlar ekranı kendi hatasını gösterir
   }
+  void hesabiYukle();
+}
+
+/** Claude girişi ve abonelik kullanımı; tazele=true Claude Code'a yeniden sorar */
+export async function hesabiYukle(tazele = false) {
+  try {
+    ayarla({ hesap: await api.hesap(tazele) });
+  } catch {
+    // Hesap bilgisi isteğe bağlı; üst çubuk yalnız gizlenir
+  }
+}
+
+/** Abonelikte ücret alınmaz; arayüz dolar yerine kullanım gösterir */
+export function abonelikMi(d: Pick<VeriDurumu, "hesap" | "maliyet">): boolean {
+  return (d.maliyet?.girisYontemi ?? d.hesap?.girisYontemi ?? "abonelik") === "abonelik";
 }
 
 export async function projeleriYukle() {

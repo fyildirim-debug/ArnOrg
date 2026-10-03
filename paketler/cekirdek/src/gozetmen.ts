@@ -13,6 +13,12 @@ const GUN_MS = 86_400_000;
 // ===================================================================
 
 const para = (usd: number) => `$${usd.toFixed(2)}`;
+/** 1234567 → "1,2 milyon", 48200 → "48 bin" */
+export function tokenMetni(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} milyon`;
+  if (n >= 1000) return `${Math.round(n / 1000).toLocaleString("tr-TR")} bin`;
+  return String(Math.round(n));
+}
 const tarih = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -43,6 +49,8 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
 
   const maliyetler = sirket.depo.donemMaliyeti(projeId, baslangicGun);
   const donemToplami = maliyetler.reduce((t, m) => t + m.usd, 0);
+  const donemTokeni = maliyetler.reduce((t, m) => t + m.token, 0);
+  const abonelik = sirket.abonelik;
   const denetim = sirket.depo.denetimSayilari(projeId, baslangicAni);
   const bekleyenOnaylar = sirket.depo.onaylar(projeId, "bekliyor");
   const sonuclananlar = sirket.depo.onaylar(projeId).filter((o) => o.durum !== "bekliyor" && (o.sonuclanma ?? "") >= baslangicAni);
@@ -55,7 +63,13 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   b.push(`${proje.ad} · ${donem === 1 ? "bugün" : `son ${donem} gün (${baslangicGun} itibarıyla)`}`, "");
   b.push("## Özet", "");
   b.push(`- Tamamlanan görev: ${tamamlanan.length} · süren: ${suren.length} · incelemede: ${incelemede.length} · açık: ${acik.length}`);
-  b.push(`- Harcama: ${para(donemToplami)} (bugün ${para(sirket.depo.projeMaliyeti(projeId, bugun()))}, toplam ${para(sirket.depo.projeMaliyeti(projeId))})`);
+  if (abonelik) {
+    b.push(`- Kullanım: ${tokenMetni(donemTokeni)} token (bugün ${tokenMetni(sirket.depo.projeTokeni(projeId, bugun()))}); abonelikle çalışıldı, ücret alınmadı`);
+    const pencereler = sirket.hesap.mevcut.pencereler.filter((p) => p.tur === "bes_saat" || p.tur === "haftalik");
+    if (pencereler.length) b.push(`- Abonelik: ${pencereler.map((p) => `${p.ad.toLocaleLowerCase("tr")} %${Math.round(p.yuzde ?? 0)}`).join(", ")}`);
+  } else {
+    b.push(`- Harcama: ${para(donemToplami)} (bugün ${para(sirket.depo.projeMaliyeti(projeId, bugun()))}, toplam ${para(sirket.depo.projeMaliyeti(projeId))})`);
+  }
   const denetimOzeti = (Object.keys(KARAR_ADLARI) as Karar[]).filter((k) => denetim[k]).map((k) => `${KARAR_ADLARI[k].toLocaleLowerCase("tr")} ${denetim[k]}`);
   b.push(`- Denetim: ${denetimOzeti.length ? denetimOzeti.join(", ") : "kayıt yok"}`);
   b.push(`- Birleştirme: ${birlesenler.length} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`, "");
@@ -74,12 +88,13 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   );
   bolum("Birleştirilenler", birlesenler.map((o) => `- ${o.baslik} · ${tarih(o.sonuclanma ?? o.olusturma)}`));
 
-  b.push("## Ekip", "", "| Çalışan | Rol | Durum | Dönem harcaması |", "|---|---|---|---|");
+  b.push("## Ekip", "", `| Çalışan | Rol | Durum | ${abonelik ? "Dönem kullanımı" : "Dönem harcaması"} |`, "|---|---|---|---|");
   for (const a of ajanlar) {
-    const usd = maliyetler.find((m) => m.ajanId === a.id)?.usd ?? 0;
+    const m = maliyetler.find((x) => x.ajanId === a.id);
+    const kullanim = abonelik ? `${tokenMetni(m?.token ?? 0)} token` : para(m?.usd ?? 0);
     const gorev = a.gorevId ? gorevler.find((g) => g.id === a.gorevId) : null;
     const durum = gorev && gorev.durum !== "tamam" ? `${gorev.kod} ${GOREV_DURUM_ADLARI[gorev.durum].toLocaleLowerCase("tr")}` : "görevsiz";
-    b.push(`| ${a.ad} | ${a.rolAdi} | ${durum} | ${para(usd)} |`);
+    b.push(`| ${a.ad} | ${a.rolAdi} | ${durum} | ${kullanim} |`);
   }
   b.push("");
   return { baslik, yol: `raporlar/${bugun()}.md`, baslangic: baslangicAni, markdown: b.join("\n") };
@@ -130,7 +145,8 @@ export class Gozetmen {
   /** Tüm projelerdeki süren ve incelemedeki görevleri denetler; yapılan eylemleri döner */
   async denetle(simdiMs = Date.now()): Promise<GozetmenEylemi[]> {
     const esikDk = this.sirket.yapilandirma.ayarlar.tikanmaDakika;
-    if (!(esikDk > 0) || this.calisiyor) return [];
+    // Abonelik sınırındayken kimse dürtülmez; pencere açılınca şirket ajanları kendisi uyandırır
+    if (!(esikDk > 0) || this.calisiyor || this.sirket.hesap.sinir) return [];
     this.calisiyor = true;
     const eylemler: GozetmenEylemi[] = [];
     try {

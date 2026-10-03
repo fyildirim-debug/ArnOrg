@@ -17,6 +17,7 @@ import type {
   Gorev,
   GorevGuncelleIstegi,
   GorevOlusturIstegi,
+  HesapDurumu,
   IzinModu,
   Kanal,
   MaliyetOzeti,
@@ -48,6 +49,7 @@ export const api = {
   saglik: () => istek<Saglik>("/api/saglik"),
   ayarlar: () => istek<Ayarlar>("/api/ayarlar"),
   ayarlariKaydet: (a: Partial<Ayarlar>) => istek<Ayarlar>("/api/ayarlar", { method: "PUT", govde: a }),
+  hesap: (tazele = false) => istek<HesapDurumu>(`/api/hesap${tazele ? "?tazele=1" : ""}`),
   roller: () => istek<Rol[]>("/api/roller"),
 
   // Projeler

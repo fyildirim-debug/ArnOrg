@@ -8,7 +8,8 @@ import { GorevDagilimi } from "../bilesenler/GorevDagilimi";
 import { AjanAvatar, AjanDurum } from "../bilesenler/Kisi";
 import { Markdown } from "../bilesenler/Markdown";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
-import { ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
+import { KullanimPaneli } from "../bilesenler/Kullanim";
+import { abonelikMi, ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
 import { akilliZaman, para, yonelme } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
@@ -33,6 +34,7 @@ export function Karargah() {
   const gorevler = useVeri((d) => d.gorevler);
   const onaylar = useVeri((d) => d.onaylar);
   const maliyet = useVeri((d) => d.maliyet);
+  const abonelik = useVeri(abonelikMi);
   const proje = projeler.find((p) => p.id === aktifProjeId);
   const ceo = ceoBul(ajanlar);
 
@@ -74,32 +76,36 @@ export function Karargah() {
       <div className="karargah-ust">
         <CeoRaporu />
         <aside className="karargah-ozet" aria-label="Özet">
-          <dl className="ozet-sayac">
-            <div>
-              <dt>Bugün</dt>
-              <dd>
-                <b>{para(maliyet?.bugunUsd ?? 0)}</b>
-                {maliyet?.gunlukButceUsd ? <small> / {para(maliyet.gunlukButceUsd)}</small> : null}
-              </dd>
-            </div>
-            <div>
-              <dt>Toplam</dt>
-              <dd>
-                <b>{para(maliyet?.toplamUsd ?? 0)}</b>
-              </dd>
-            </div>
-            {maliyet?.pencere ? (
-              <div className="ozet-metin">
-                <dt>{PENCERE_TURLERI[maliyet.pencere.tur] ?? "Abonelik penceresi"}</dt>
+          {abonelik ? (
+            <KullanimPaneli />
+          ) : (
+            <dl className="ozet-sayac">
+              <div>
+                <dt>Bugün</dt>
                 <dd>
-                  <b className={maliyet.pencere.durum === "allowed" ? undefined : "vurgu"}>
-                    {PENCERE_DURUMLARI[maliyet.pencere.durum] ?? maliyet.pencere.durum}
-                  </b>
-                  {maliyet.pencere.sifirlanma ? <small>Sıfırlanma {akilliZaman(maliyet.pencere.sifirlanma)}</small> : null}
+                  <b>{para(maliyet?.bugunUsd ?? 0)}</b>
+                  {maliyet?.gunlukButceUsd ? <small> / {para(maliyet.gunlukButceUsd)}</small> : null}
                 </dd>
               </div>
-            ) : null}
-          </dl>
+              <div>
+                <dt>Toplam</dt>
+                <dd>
+                  <b>{para(maliyet?.toplamUsd ?? 0)}</b>
+                </dd>
+              </div>
+              {maliyet?.pencere ? (
+                <div className="ozet-metin">
+                  <dt>{PENCERE_TURLERI[maliyet.pencere.tur] ?? "Abonelik penceresi"}</dt>
+                  <dd>
+                    <b className={maliyet.pencere.durum === "allowed" ? undefined : "vurgu"}>
+                      {PENCERE_DURUMLARI[maliyet.pencere.durum] ?? maliyet.pencere.durum}
+                    </b>
+                    {maliyet.pencere.sifirlanma ? <small>Sıfırlanma {akilliZaman(maliyet.pencere.sifirlanma)}</small> : null}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          )}
           <div className="dugme-satir">
             <button type="button" className={`dugme${bekleyenOnay ? " dugme-ana" : ""}`} onClick={() => git("onaylar")}>
               {bekleyenOnay ? `Onay bekleyen ${bekleyenOnay} karar` : "Bekleyen onay yok"}
@@ -133,7 +139,13 @@ export function Karargah() {
           </button>
         </span>
       </h2>
-      {ajanlar.length ? <EkipTablosu ajanlar={ajanlar} /> : <Bos kucuk baslik="Ekip boş">CEO işe alım teklif edince ekip burada görünür.</Bos>}
+      {ajanlar.length ? (
+        <EkipTablosu ajanlar={ajanlar} />
+      ) : (
+        <Bos kucuk baslik="Ekip boş">
+          CEO işe alım teklif edince ekip burada görünür.
+        </Bos>
+      )}
     </>
   );
 }
@@ -196,7 +208,9 @@ function CeoRaporu() {
   if (!ceo) {
     return (
       <section className="rapor">
-        <Bos kucuk baslik="CEO yok">Bu projede CEO ajanı bulunamadı. Ekip ekranından CEO rolüyle birini işe alın.</Bos>
+        <Bos kucuk baslik="CEO yok">
+          Bu projede CEO ajanı bulunamadı. Ekip ekranından CEO rolüyle birini işe alın.
+        </Bos>
       </section>
     );
   }

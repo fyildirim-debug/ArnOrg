@@ -50,6 +50,7 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   const terminaller = new TerminalYoneticisi();
   const gozetmen = new Gozetmen(sirket);
   gozetmen.baslat();
+  sirket.hesap.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {
     const d = sirket.duzenlemeler.get(tam);
     return d && Date.now() - d.zaman < 15_000 ? d.ajanId : null;

@@ -2,13 +2,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { bildir } from "../../durum/arayuz";
-import { ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
+import { abonelikMi, ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu, Yukleniyor } from "../Durumlar";
 import { modelAdi } from "../Kisi";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
+  const abonelik = useVeri(abonelikMi);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const roller = useVeri((d) => d.roller);
   const ajanlar = useVeri((d) => d.ajanlar);
@@ -36,7 +37,11 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
 
   const secilenRol = roller.find((r) => r.kimlik === rol);
   const butceSayi = Number(butce.replace(",", "."));
-  const adHata = !ad.trim() ? "Ad gerekli." : ajanlar.some((a) => a.ad.toLocaleLowerCase("tr-TR") === ad.trim().toLocaleLowerCase("tr-TR")) ? "Bu adda bir çalışan zaten var." : null;
+  const adHata = !ad.trim()
+    ? "Ad gerekli."
+    : ajanlar.some((a) => a.ad.toLocaleLowerCase("tr-TR") === ad.trim().toLocaleLowerCase("tr-TR"))
+      ? "Bu adda bir çalışan zaten var."
+      : null;
   const butceHata = !Number.isFinite(butceSayi) || butceSayi <= 0 ? "Sıfırdan büyük bir tutar yazın." : null;
 
   const gonder = (e?: FormEvent) => {
@@ -139,18 +144,20 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             ))}
           </select>
         </div>
-        <div className="alan">
-          <label htmlFor="ise-butce">Günlük bütçe (USD)</label>
-          <input
-            id="ise-butce"
-            className="girdi"
-            inputMode="decimal"
-            value={butce}
-            onChange={(e) => setButce(e.target.value)}
-            aria-invalid={denendi && butceHata ? true : undefined}
-          />
-          {denendi && butceHata ? <span className="alan-hata">{butceHata}</span> : null}
-        </div>
+        {abonelik ? null : (
+          <div className="alan">
+            <label htmlFor="ise-butce">Günlük bütçe (USD)</label>
+            <input
+              id="ise-butce"
+              className="girdi"
+              inputMode="decimal"
+              value={butce}
+              onChange={(e) => setButce(e.target.value)}
+              aria-invalid={denendi && butceHata ? true : undefined}
+            />
+            {denendi && butceHata ? <span className="alan-hata">{butceHata}</span> : null}
+          </div>
+        )}
         <div className="alan tam">
           <label htmlFor="ise-talimat">Ek talimat (isteğe bağlı)</label>
           <textarea

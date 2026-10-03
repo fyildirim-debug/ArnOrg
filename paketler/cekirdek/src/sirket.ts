@@ -18,6 +18,7 @@ import {
   type GorevDurumu,
   type GorevGuncelleIstegi,
   type GorevOlusturIstegi,
+  type HesapDurumu,
   type IzinModu,
   type Karar,
   type MaliyetOzeti,
@@ -30,7 +31,8 @@ import {
   type ProjeOlusturIstegi,
   type ProjeOzeti,
 } from "@arnorg/ortak";
-import { AjanOturumu, type MesajKaynagi } from "./ajan-oturumu.js";
+import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
+import { HesapIzleyici } from "./hesap.js";
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
@@ -76,6 +78,10 @@ export class Sirket {
   /** Ajan kimliği → son akış ya da çalışma anı (tıkanma koruması için) */
   readonly sonEtkinlik = new Map<string, number>();
   pencere: Pencere | null = null;
+  /** Claude girişi ve abonelik kullanım pencereleri */
+  readonly hesap: HesapIzleyici;
+  /** Abonelik sınırı yüzünden durdurulan ajanlar ve bu sürede onlara gelen mesajlar; sıfırlanınca teslim edilir */
+  private readonly sinirdaBekleyenler = new Map<string, string[]>();
 
   constructor(
     readonly depo: Depo,
@@ -87,6 +93,51 @@ export class Sirket {
   ) {
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat();
+    this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
+    this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
+  }
+
+  /** Abonelikte dolar bütçeleri uygulanmaz; ücret alınmaz */
+  get abonelik(): boolean {
+    return this.yapilandirma.ayarlar.girisYontemi === "abonelik";
+  }
+
+  private async acikOturumdanKullanim() {
+    for (const o of this.oturumlar.values()) {
+      if (!o.acik) continue;
+      const k = await o.kullanimSor();
+      if (k) return k;
+    }
+    return null;
+  }
+
+  /** Abonelik penceresi ayardaki sınırı aştı ya da sıfırlandı */
+  private async kullanimSiniriDegisti(sinir: HesapDurumu["sinir"]): Promise<void> {
+    if (sinir) {
+      const sifirlanma = sinir.sifirlanma ? new Date(sinir.sifirlanma).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "pencere sıfırlanınca";
+      const metin = `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (sınır %${sinir.sinirYuzde}). Ajanlar durduruldu; ${sifirlanma} kaldıkları yerden sürecekler.`;
+      for (const [id, o] of this.oturumlar) {
+        const a = this.depo.ajan(id);
+        if (!o.acik || !a) continue;
+        if (!this.sinirdaBekleyenler.has(id)) this.sinirdaBekleyenler.set(id, []);
+        if (a.durum === "calisiyor" || a.durum === "karar_bekliyor") await o.kes().catch(() => undefined);
+      }
+      for (const p of this.depo.projeler()) {
+        this.kanalMesaji(p.id, "genel", { id: "arnorg", ad: "ArnOrg" }, metin);
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin, projeId: p.id });
+      }
+      return;
+    }
+    // Sınır açıldı: duran ajanlar kuyruktaki mesajlarla uyanır
+    const bekleyenler = [...this.sinirdaBekleyenler.entries()];
+    this.sinirdaBekleyenler.clear();
+    for (const [id, mesajlar] of bekleyenler) {
+      const a = this.depo.ajan(id);
+      if (!a) continue;
+      const ek = mesajlar.length ? `\n\nBu sürede gelen mesajlar:\n${mesajlar.map((m) => `- ${m}`).join("\n")}` : "";
+      await this.uyandir(id, `Abonelik kullanım penceresi açıldı. Kaldığın yerden devam et.${ek}`, null);
+    }
+    if (bekleyenler.length) this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: "Abonelik penceresi açıldı; ajanlar kaldıkları yerden sürüyor." });
   }
 
   get claudeYolu(): string | null {
@@ -394,6 +445,7 @@ export class Sirket {
       araclar: () => arnorgAraclari(this, id),
       yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []),
       kalanButceUsd: () => {
+        if (this.abonelik) return 0;
         const a = this.ajan(id);
         return a.gunlukButceUsd > 0 ? Math.max(0.05, a.gunlukButceUsd - a.bugunHarcananUsd) : 0;
       },
@@ -406,10 +458,20 @@ export class Sirket {
       oturumKimligi: (oid) => {
         this.depo.ajanGuncelle(id, { oturumId: oid || null });
       },
-      maliyet: (delta) => this.maliyetEkle(id, delta),
+      kullanim: (delta) => this.kullanimEkle(id, delta),
       pencere: (p) => {
-        this.pencere = p;
+        this.pencere = { tur: p.tur, durum: p.durum, sifirlanma: p.sifirlanma };
+        this.hesap.pencereOlayi(p);
       },
+      girisYontemi: () => this.yapilandirma.ayarlar.girisYontemi,
+      oturumToplami: {
+        oku: (oturumId) => {
+          const d = this.depo.deger(`oturum-toplam:${oturumId}`);
+          return d ? (JSON.parse(d) as Toplam) : null;
+        },
+        yaz: (oturumId, t) => this.depo.degerYaz(`oturum-toplam:${oturumId}`, JSON.stringify(t)),
+      },
+      girisKaynagi: (k) => this.hesap.girisKaynagi(k),
       bitti: (hata) => {
         if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? "Ajan"}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
       },
@@ -443,6 +505,14 @@ export class Sirket {
   async ajanaMesaj(id: string, metin: string, oncelik: MesajOnceligi = "next", kaynak: MesajKaynagi = { tur: "kurul" }): Promise<void> {
     if (!metin.trim()) throw new ArnorgHatasi("Mesaj boş olamaz.");
     const a = this.ajan(id);
+    // Abonelik sınırında ajan uyandırılmaz; mesaj saklanır, pencere açılınca teslim edilir. Kurulun kendi mesajı geçer.
+    const sinir = this.hesap.sinir;
+    if (sinir && kaynak.tur !== "kurul") {
+      const kuyruk = this.sinirdaBekleyenler.get(id) ?? [];
+      kuyruk.push(kisalt(metin, 1500));
+      this.sinirdaBekleyenler.set(id, kuyruk);
+      throw new ArnorgHatasi(`Abonelik kullanımı sınırda (${sinir.pencere} %${sinir.yuzde}); ${a.ad} pencere açılınca uyanacak.`, 429);
+    }
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
       oturum.gonder(metin, oncelik, kaynak);
@@ -537,12 +607,20 @@ export class Sirket {
     if (onceki.durum !== durum) this.projeYayinla(onceki.projeId);
   }
 
-  private maliyetEkle(ajanId: string, delta: number): void {
+  private kullanimEkle(ajanId: string, delta: Toplam): void {
     const a = this.depo.ajan(ajanId);
     if (!a) return;
-    this.depo.maliyetEkle(a.projeId, ajanId, delta);
+    this.depo.maliyetEkle(a.projeId, ajanId, delta.usd, delta.token);
     const y = this.depo.ajan(ajanId)!;
-    this.olaylar.yayinla({ tur: "maliyet", projeId: a.projeId, ajanId, bugunUsd: y.bugunHarcananUsd, toplamUsd: y.toplamHarcananUsd });
+    this.olaylar.yayinla({
+      tur: "maliyet",
+      projeId: a.projeId,
+      ajanId,
+      bugunUsd: y.bugunHarcananUsd,
+      toplamUsd: y.toplamHarcananUsd,
+      bugunToken: y.bugunToken,
+      toplamToken: y.toplamToken,
+    });
     this.ajanYayinla(ajanId);
   }
 
@@ -601,15 +679,24 @@ export class Sirket {
     const proje = this.proje(ajan.projeId);
     const cwd = ajan.calismaAlani ?? proje.yol;
 
-    // Bütçe
-    if (ajan.gunlukButceUsd > 0 && ajan.bugunHarcananUsd >= ajan.gunlukButceUsd) {
+    // Abonelik kullanım sınırı: ajan işini bırakır, pencere açılınca ArnOrg uyandırır
+    const sinir = this.hesap.sinir;
+    if (sinir) {
+      if (!this.sinirdaBekleyenler.has(ajanId)) this.sinirdaBekleyenler.set(ajanId, []);
+      const neden = `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (kurulun sınırı %${sinir.sinirYuzde}). Başka araç çağırma; ne yaptığını ve sıradaki adımı iki cümleyle yaz ve dur. Pencere açılınca ArnOrg seni uyandıracak.`;
+      this.denetimKaydet(ajan, arac, girdi, "ret", "Kullanım sınırı", neden, aracKimligi);
+      return this.ret(neden);
+    }
+
+    // Bütçe (yalnız API girişinde; abonelikte ücret alınmaz)
+    if (!this.abonelik && ajan.gunlukButceUsd > 0 && ajan.bugunHarcananUsd >= ajan.gunlukButceUsd) {
       this.butceOnayiIste(ajan);
       const neden = `Günlük bütçen doldu ($${ajan.bugunHarcananUsd.toFixed(2)} / $${ajan.gunlukButceUsd.toFixed(2)}). Yönetim kurulu onayı bekleniyor; işini özetleyip dur.`;
       this.denetimKaydet(ajan, arac, girdi, "ret", "Bütçe", neden, aracKimligi);
       return this.ret(neden);
     }
     const sirketButcesi = this.yapilandirma.ayarlar.gunlukButceUsd;
-    if (sirketButcesi > 0 && this.depo.sirketMaliyeti(bugun()) >= sirketButcesi) {
+    if (!this.abonelik && sirketButcesi > 0 && this.depo.sirketMaliyeti(bugun()) >= sirketButcesi) {
       const neden = `Şirketin günlük bütçesi ($${sirketButcesi.toFixed(2)}) doldu. Yarın ya da kurul bütçeyi artırınca devam edilir.`;
       this.denetimKaydet(ajan, arac, girdi, "ret", "Şirket bütçesi", neden, aracKimligi);
       return this.ret(neden);
@@ -1044,10 +1131,20 @@ export class Sirket {
     this.proje(projeId);
     const ajanlar = this.depo.ajanlar(projeId);
     return {
+      girisYontemi: this.yapilandirma.ayarlar.girisYontemi,
       bugunUsd: this.depo.projeMaliyeti(projeId, bugun()),
       toplamUsd: this.depo.projeMaliyeti(projeId),
       gunlukButceUsd: this.yapilandirma.ayarlar.gunlukButceUsd,
-      ajanlar: ajanlar.map((a) => ({ ajanId: a.id, ad: a.ad, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd })),
+      bugunToken: this.depo.projeTokeni(projeId, bugun()),
+      toplamToken: this.depo.projeTokeni(projeId),
+      ajanlar: ajanlar.map((a) => ({
+        ajanId: a.id,
+        ad: a.ad,
+        bugunUsd: a.bugunHarcananUsd,
+        toplamUsd: a.toplamHarcananUsd,
+        bugunToken: a.bugunToken,
+        toplamToken: a.toplamToken,
+      })),
       pencere: this.pencere,
     };
   }
@@ -1057,6 +1154,7 @@ export class Sirket {
   // ===================================================================
 
   kapat(): void {
+    this.hesap.durdur();
     for (const o of this.oturumlar.values()) o.kapat();
     for (const z of this.bostaZamanlayicilari.values()) clearTimeout(z);
     for (const b of this.bekleyenKararlar.values()) {

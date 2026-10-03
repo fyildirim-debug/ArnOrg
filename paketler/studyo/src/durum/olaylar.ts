@@ -39,6 +39,10 @@ export function olayUygula(olay: SunucuOlayi) {
       projeUygula(olay.proje);
       return;
 
+    case "hesap.guncellendi":
+      useVeri.setState({ hesap: olay.hesap });
+      return;
+
     case "ajan.guncellendi":
       ajanUygula(olay.ajan);
       return;
@@ -133,23 +137,33 @@ export function olayUygula(olay: SunucuOlayi) {
 
     case "maliyet": {
       if (olay.projeId !== pid) return;
-      // Olaydaki tutarlar ajanın kendi bugünkü ve toplam harcamasıdır; proje toplamı farkla güncellenir
+      // Olaydaki değerler ajanın kendi bugünkü ve toplam kullanımıdır; proje toplamı farkla güncellenir
       useVeri.setState((s) => {
         const ajan = s.ajanlar.find((a) => a.id === olay.ajanId);
-        const farkBugun = ajan ? olay.bugunUsd - ajan.bugunHarcananUsd : 0;
-        const farkToplam = ajan ? olay.toplamUsd - ajan.toplamHarcananUsd : 0;
+        const fark = {
+          bugunUsd: ajan ? olay.bugunUsd - ajan.bugunHarcananUsd : 0,
+          toplamUsd: ajan ? olay.toplamUsd - ajan.toplamHarcananUsd : 0,
+          bugunToken: ajan ? olay.bugunToken - ajan.bugunToken : 0,
+          toplamToken: ajan ? olay.toplamToken - ajan.toplamToken : 0,
+        };
         const ajanlar = ajan
           ? s.ajanlar.map((a) =>
-              a.id === olay.ajanId ? { ...a, bugunHarcananUsd: olay.bugunUsd, toplamHarcananUsd: olay.toplamUsd } : a,
+              a.id === olay.ajanId
+                ? { ...a, bugunHarcananUsd: olay.bugunUsd, toplamHarcananUsd: olay.toplamUsd, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken }
+                : a,
             )
           : s.ajanlar;
         const maliyet = s.maliyet
           ? {
               ...s.maliyet,
-              bugunUsd: Math.max(0, s.maliyet.bugunUsd + farkBugun),
-              toplamUsd: Math.max(0, s.maliyet.toplamUsd + farkToplam),
+              bugunUsd: Math.max(0, s.maliyet.bugunUsd + fark.bugunUsd),
+              toplamUsd: Math.max(0, s.maliyet.toplamUsd + fark.toplamUsd),
+              bugunToken: Math.max(0, s.maliyet.bugunToken + fark.bugunToken),
+              toplamToken: Math.max(0, s.maliyet.toplamToken + fark.toplamToken),
               ajanlar: s.maliyet.ajanlar.map((x) =>
-                x.ajanId === olay.ajanId ? { ...x, bugunUsd: olay.bugunUsd, toplamUsd: olay.toplamUsd } : x,
+                x.ajanId === olay.ajanId
+                  ? { ...x, bugunUsd: olay.bugunUsd, toplamUsd: olay.toplamUsd, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken }
+                  : x,
               ),
             }
           : s.maliyet;

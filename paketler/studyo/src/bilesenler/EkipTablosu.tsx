@@ -1,7 +1,8 @@
-// Ekip tablosu: durum, şu anki iş ve bugünkü bütçe
+// Ekip tablosu: durum, şu anki iş ve bugünkü kullanım (abonelikte token, API'de bütçe)
 import type { Ajan } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
-import { para } from "../yardimcilar/bicim";
+import { abonelikMi, useVeri } from "../durum/veri";
+import { para, token } from "../yardimcilar/bicim";
 import { AjanDurum, AjanKisi } from "./Kisi";
 
 export function ButceCubugu({ harcanan, butce }: { harcanan: number; butce: number }) {
@@ -22,6 +23,8 @@ export function ButceCubugu({ harcanan, butce }: { harcanan: number; butce: numb
 }
 
 export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
+  const abonelik = useVeri(abonelikMi);
+  const enCok = Math.max(0, ...ajanlar.map((a) => a.bugunToken));
   return (
     <div className="tablo-sar">
       <table className="tablo tablo-tik ekip-tablo">
@@ -30,7 +33,7 @@ export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
             <th scope="col">Çalışan</th>
             <th scope="col">Durum</th>
             <th scope="col">Şu an</th>
-            <th scope="col">Bugünkü bütçe</th>
+            <th scope="col">{abonelik ? "Bugünkü kullanım" : "Bugünkü bütçe"}</th>
           </tr>
         </thead>
         <tbody>
@@ -55,10 +58,19 @@ export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
               </td>
               <td className="td-is">{a.isAciklamasi || <span className="soluk">—</span>}</td>
               <td className="td-butce">
-                <ButceCubugu harcanan={a.bugunHarcananUsd} butce={a.gunlukButceUsd} />
-                <small className="sayi">
-                  {para(a.bugunHarcananUsd)} / {para(a.gunlukButceUsd)}
-                </small>
+                {abonelik ? (
+                  <>
+                    <ButceCubugu harcanan={a.bugunToken} butce={enCok} />
+                    <small className="sayi">{token(a.bugunToken)} token</small>
+                  </>
+                ) : (
+                  <>
+                    <ButceCubugu harcanan={a.bugunHarcananUsd} butce={a.gunlukButceUsd} />
+                    <small className="sayi">
+                      {para(a.bugunHarcananUsd)} / {para(a.gunlukButceUsd)}
+                    </small>
+                  </>
+                )}
               </td>
             </tr>
           ))}
