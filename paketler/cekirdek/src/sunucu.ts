@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { ARNORG_SURUMU, KURUL, type IstemciOlayi, type OnayDurumu, type Saglik, type SunucuOlayi, type TerminalIstemciMesaji } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
+import { fsUclariniKur } from "./fs-api.js";
 import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
 import { claudeSurumu, temizOrtam } from "./ortam.js";
@@ -309,6 +310,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return aktif && Date.now() - d.zaman < 5 * 60_000 ? d.ajanId : null;
   };
   app.get("/api/projeler/:pid/calisma-alanlari", async (i) => sirket.calismaAlanlari(param(i, "pid")));
+  fsUclariniKur(app, sirket);
   app.get("/api/projeler/:pid/dosyalar", async (i) => dosyaAgaci(sirket.alanYolu(param(i, "pid"), sorgu(i, "alan") ?? "ana")));
   app.get("/api/projeler/:pid/dosya", async (i) => {
     const kok = sirket.alanYolu(param(i, "pid"), sorgu(i, "alan") ?? "ana");

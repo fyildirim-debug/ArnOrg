@@ -1,7 +1,7 @@
 // Çalışma alanı dosya ağacı: klasör aç/kapa, M/A/D işaretleri
 import type { DosyaDegisikligi, DosyaDugumu } from "@arnorg/ortak";
 import { memo, useMemo } from "react";
-import { Simge } from "../Simge";
+import { Simge } from "./Simge";
 
 const DEGISIKLIK_ADLARI: Record<DosyaDegisikligi, string> = {
   M: "Değişti",
