@@ -65,6 +65,7 @@ export function ekipDosyasiYaz(kok: string, ajan: Ajan, yoneticiAd: string | nul
     gunluk_butce_usd: ajan.gunlukButceUsd,
     izin_modu: ajan.izinModu,
     dal: ajan.dal,
+    karakter: ajan.karakter,
   };
   const govde = ajan.talimatEki.trim() ? `\n${ajan.talimatEki.trim()}\n` : "\n";
   const dosya = ekipDosyasi(kok, ajan.ad);
@@ -83,6 +84,7 @@ export interface EkipKaydi {
   yonetici: string | null;
   gunlukButceUsd: number;
   talimatEki: string;
+  karakter: string | null;
 }
 
 export function ekipDosyalariniOku(kok: string): EkipKaydi[] {
@@ -104,6 +106,7 @@ export function ekipDosyalariniOku(kok: string): EkipKaydi[] {
         yonetici: typeof on.yonetici === "string" ? on.yonetici : null,
         gunlukButceUsd: typeof on.gunluk_butce_usd === "number" ? on.gunluk_butce_usd : 5,
         talimatEki: (m[2] ?? "").trim(),
+        karakter: typeof on.karakter === "string" && /^(k\d{2}|u-[a-z0-9-]{4,64})$/.test(on.karakter) ? on.karakter : null,
       });
     } catch {
       // Bozuk kimlik dosyası atlanır

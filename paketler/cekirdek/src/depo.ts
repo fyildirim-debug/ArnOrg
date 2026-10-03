@@ -156,6 +156,8 @@ export class Depo {
   private gocEt(): void {
     const sutunlar = (this.db.prepare("PRAGMA table_info(maliyet)").all() as Satir[]).map((s) => String(s.name));
     if (!sutunlar.includes("token")) this.db.exec("ALTER TABLE maliyet ADD COLUMN token INTEGER NOT NULL DEFAULT 0");
+    const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
+    if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
   }
 
   kapat(): void {
@@ -239,6 +241,7 @@ export class Depo {
       bugunToken: this.ajanTokeni(projeId, id, bugun()),
       toplamToken: this.ajanTokeni(projeId, id),
       talimatEki: String(s.talimat_eki),
+      karakter: (s.karakter as string | null) ?? null,
       olusturma: String(s.olusturma),
     };
   }
@@ -248,12 +251,12 @@ export class Depo {
     this.db
       .prepare(
         `INSERT INTO ajanlar (id, proje_id, ad, rol, rol_adi, model, yonetici_id, durum, is_aciklamasi, gorev_id, oturum_id,
-          calisma_alani, dal, izin_modu, gunluk_butce, talimat_eki, olusturma)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          calisma_alani, dal, izin_modu, gunluk_butce, talimat_eki, karakter, olusturma)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, a.projeId, a.ad, a.rol, a.rolAdi, a.model, a.yoneticiId, a.durum, a.isAciklamasi, a.gorevId, a.oturumId,
-        a.calismaAlani, a.dal, a.izinModu, a.gunlukButceUsd, a.talimatEki, simdi(),
+        a.calismaAlani, a.dal, a.izinModu, a.gunlukButceUsd, a.talimatEki, a.karakter ?? null, simdi(),
       );
     return this.ajan(id)!;
   }
@@ -290,6 +293,7 @@ export class Depo {
       izinModu: "izin_modu",
       gunlukButceUsd: "gunluk_butce",
       talimatEki: "talimat_eki",
+      karakter: "karakter",
     };
     const parcalar: string[] = [];
     const degerler: unknown[] = [];

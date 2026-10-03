@@ -1,0 +1,235 @@
+{
+ "surum": 1,
+ "karakterler": [
+  {
+   "id": "k01",
+   "ad": "Bob saçlı yönetici",
+   "roller": [
+    "ceo"
+   ],
+   "dosya": "karakterler/k01.png",
+   "en": 127,
+   "boy": 360
+  },
+  {
+   "id": "k02",
+   "ad": "Gözlüklü sakallı teknik lider",
+   "roller": [
+    "cto"
+   ],
+   "dosya": "karakterler/k02.png",
+   "en": 122,
+   "boy": 360
+  },
+  {
+   "id": "k03",
+   "ad": "Kulaklıklı geliştirici",
+   "roller": [
+    "backend",
+    "fullstack"
+   ],
+   "dosya": "karakterler/k03.png",
+   "en": 126,
+   "boy": 360
+  },
+  {
+   "id": "k04",
+   "ad": "At kuyruklu geliştirici",
+   "roller": [
+    "frontend",
+    "fullstack"
+   ],
+   "dosya": "karakterler/k04.png",
+   "en": 133,
+   "boy": 360
+  },
+  {
+   "id": "k05",
+   "ad": "Örgü saçlı testçi",
+   "roller": [
+    "test"
+   ],
+   "dosya": "karakterler/k05.png",
+   "en": 133,
+   "boy": 360
+  },
+  {
+   "id": "k06",
+   "ad": "Kır saçlı inceleyici",
+   "roller": [
+    "inceleme"
+   ],
+   "dosya": "karakterler/k06.png",
+   "en": 118,
+   "boy": 360
+  },
+  {
+   "id": "k07",
+   "ad": "Yarım tıraşlı güvenlikçi",
+   "roller": [
+    "guvenlik"
+   ],
+   "dosya": "karakterler/k07.png",
+   "en": 125,
+   "boy": 360
+  },
+  {
+   "id": "k08",
+   "ad": "Bereli altyapıcı",
+   "roller": [
+    "devops"
+   ],
+   "dosya": "karakterler/k08.png",
+   "en": 128,
+   "boy": 360
+  },
+  {
+   "id": "k09",
+   "ad": "Kızıl kıvırcık tasarımcı",
+   "roller": [
+    "tasarim"
+   ],
+   "dosya": "karakterler/k09.png",
+   "en": 147,
+   "boy": 360
+  },
+  {
+   "id": "k10",
+   "ad": "Atkılı yazar",
+   "roller": [
+    "yazar"
+   ],
+   "dosya": "karakterler/k10.png",
+   "en": 120,
+   "boy": 360
+  },
+  {
+   "id": "k11",
+   "ad": "Başörtülü araştırmacı",
+   "roller": [
+    "arastirmaci"
+   ],
+   "dosya": "karakterler/k11.png",
+   "en": 121,
+   "boy": 360
+  },
+  {
+   "id": "k12",
+   "ad": "Topuzlu tam yığın geliştirici",
+   "roller": [
+    "fullstack",
+    "backend"
+   ],
+   "dosya": "karakterler/k12.png",
+   "en": 131,
+   "boy": 360
+  },
+  {
+   "id": "k13",
+   "ad": "Renkli saçlı genç geliştirici",
+   "roller": [
+    "frontend",
+    "backend"
+   ],
+   "dosya": "karakterler/k13.png",
+   "en": 141,
+   "boy": 360
+  },
+  {
+   "id": "k14",
+   "ad": "Kısa saçlı veri mühendisi",
+   "roller": [
+    "backend",
+    "devops"
+   ],
+   "dosya": "karakterler/k14.png",
+   "en": 121,
+   "boy": 360
+  },
+  {
+   "id": "k15",
+   "ad": "Trençkotlu mobil geliştirici",
+   "roller": [
+    "frontend",
+    "fullstack"
+   ],
+   "dosya": "karakterler/k15.png",
+   "en": 133,
+   "boy": 360
+  },
+  {
+   "id": "k16",
+   "ad": "Gümüş saçlı mimar",
+   "roller": [
+    "cto",
+    "inceleme",
+    "ceo"
+   ],
+   "dosya": "karakterler/k16.png",
+   "en": 136,
+   "boy": 360
+  }
+ ],
+ "esyalar": {
+  "beyaz-tahta": {
+   "dosya": "esyalar/beyaz-tahta.png",
+   "en": 313,
+   "boy": 298
+  },
+  "bitki-buyuk": {
+   "dosya": "esyalar/bitki-buyuk.png",
+   "en": 217,
+   "boy": 300
+  },
+  "bitki-kucuk": {
+   "dosya": "esyalar/bitki-kucuk.png",
+   "en": 146,
+   "boy": 192
+  },
+  "kahve": {
+   "dosya": "esyalar/kahve.png",
+   "en": 125,
+   "boy": 149
+  },
+  "kanepe": {
+   "dosya": "esyalar/kanepe.png",
+   "en": 320,
+   "boy": 216
+  },
+  "kitaplik": {
+   "dosya": "esyalar/kitaplik.png",
+   "en": 111,
+   "boy": 171
+  },
+  "lamba": {
+   "dosya": "esyalar/lamba.png",
+   "en": 230,
+   "boy": 289
+  },
+  "masa": {
+   "dosya": "esyalar/masa.png",
+   "en": 320,
+   "boy": 258
+  },
+  "sandalye": {
+   "dosya": "esyalar/sandalye.png",
+   "en": 174,
+   "boy": 281
+  },
+  "su": {
+   "dosya": "esyalar/su.png",
+   "en": 114,
+   "boy": 314
+  },
+  "sunucu": {
+   "dosya": "esyalar/sunucu.png",
+   "en": 199,
+   "boy": 314
+  },
+  "toplanti-masasi": {
+   "dosya": "esyalar/toplanti-masasi.png",
+   "en": 320,
+   "boy": 182
+  }
+ }
+}

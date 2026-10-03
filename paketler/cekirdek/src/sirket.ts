@@ -225,7 +225,7 @@ export class Sirket {
     const kayitlar = ekipDosyalariniOku(kok);
     for (const k of kayitlar) {
       if (!rolBul(k.rol)) continue;
-      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, gunlukButceUsd: k.gunlukButceUsd, talimatEki: k.talimatEki }, false);
+      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, gunlukButceUsd: k.gunlukButceUsd, talimatEki: k.talimatEki, karakter: k.karakter }, false);
     }
     for (const k of kayitlar) {
       if (!k.yonetici) continue;
@@ -296,6 +296,7 @@ export class Sirket {
       izinModu: this.yapilandirma.ayarlar.varsayilanIzinModu,
       gunlukButceUsd: typeof istek.gunlukButceUsd === "number" ? Math.max(0, istek.gunlukButceUsd) : rol.yonetici ? 10 : 5,
       talimatEki: istek.talimatEki?.trim() ?? "",
+      karakter: istek.karakter ?? null,
     });
     if (dosyaYaz) this.kimlikDosyasiYaz(ajan, proje);
     this.ajanYayinla(ajan.id);
@@ -323,6 +324,7 @@ export class Sirket {
       alanlar.yoneticiId = istek.yoneticiId;
     }
     if (istek.talimatEki !== undefined) alanlar.talimatEki = istek.talimatEki;
+    if (istek.karakter !== undefined) alanlar.karakter = istek.karakter;
     const yeni = this.depo.ajanGuncelle(id, alanlar);
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {

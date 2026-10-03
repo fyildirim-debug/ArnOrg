@@ -143,6 +143,8 @@ export interface Ajan {
   toplamToken: number;
   /** Kuruldan ya da CEO'dan gelen ek talimat */
   talimatEki: string;
+  /** Ofis karakteri: hazır kütüphaneden "k07" ya da üretilmiş "u-<kimlik>"; boşsa ada göre seçilir */
+  karakter: string | null;
   olusturma: Zaman;
 }
 
@@ -153,6 +155,7 @@ export interface AjanIseAlIstegi {
   yoneticiId?: string | null;
   gunlukButceUsd?: number;
   talimatEki?: string;
+  karakter?: string | null;
 }
 
 export interface AjanGuncelleIstegi {
@@ -161,6 +164,7 @@ export interface AjanGuncelleIstegi {
   izinModu?: IzinModu;
   yoneticiId?: string | null;
   talimatEki?: string;
+  karakter?: string | null;
 }
 
 export interface AjanBaslatIstegi {

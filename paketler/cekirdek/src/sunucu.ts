@@ -32,6 +32,9 @@ export interface SunucuSecenekleri {
 const izinModu = z.enum(["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"]);
 const gorevDurumu = z.enum(["bekleyen", "planlandi", "calisiliyor", "inceleme", "tamam", "iptal"]);
 
+/** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>) */
+const karakterSemasi = z.string().regex(/^(k\d{2}|u-[a-z0-9-]{4,64})$/, "Geçersiz karakter kimliği.");
+
 const semalar = {
   proje: z.object({ ad: z.string().min(1).max(80), yol: z.string().min(1), olustur: z.boolean(), aciklama: z.string().max(2000).optional() }),
   iseAl: z.object({
@@ -41,6 +44,7 @@ const semalar = {
     yoneticiId: z.string().nullable().optional(),
     gunlukButceUsd: z.number().min(0).max(10_000).optional(),
     talimatEki: z.string().max(8000).optional(),
+    karakter: karakterSemasi.nullable().optional(),
   }),
   ajanGuncelle: z.object({
     model: z.string().max(80).optional(),
@@ -48,6 +52,7 @@ const semalar = {
     izinModu: izinModu.optional(),
     yoneticiId: z.string().nullable().optional(),
     talimatEki: z.string().max(8000).optional(),
+    karakter: karakterSemasi.nullable().optional(),
   }),
   baslat: z.object({ talimat: z.string().max(20_000).optional(), gorevId: z.string().optional() }),
   mesaj: z.object({ metin: z.string().min(1).max(20_000), oncelik: z.enum(["next", "now"]).optional() }),
