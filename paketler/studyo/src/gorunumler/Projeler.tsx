@@ -8,7 +8,7 @@ import { OnaySor } from "../bilesenler/OnaySor";
 import { Simge } from "../bilesenler/Simge";
 import { bildir, git, hataBildir, useArayuz } from "../durum/arayuz";
 import { projeleriYukle, projeUygula, projeyiSec, useVeri } from "../durum/veri";
-import { para, tarih } from "../yardimcilar/bicim";
+import { tarih, token } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
 export function Projeler() {
@@ -31,7 +31,7 @@ export function Projeler() {
       <div className="baslik">
         <div className="baslik-metin">
           <h1>Projeler</h1>
-          <p>Her proje bir git deposu; kendi ekibi, panosu, bütçesi ve denetim politikası olur</p>
+          <p>Her proje bir git deposu; kendi ekibi, panosu, hafızası ve denetim politikası olur</p>
         </div>
         {!formAcik && !bos ? (
           <div className="baslik-eylem">
@@ -112,7 +112,7 @@ function ProjeSatiri({ proje: p }: { proje: ProjeOzeti }) {
         </div>
         <div>
           <dt>Bugün</dt>
-          <dd>{para(p.bugunMaliyetUsd)}</dd>
+          <dd title="Bugün işlenen token">{token(p.bugunToken)}</dd>
         </div>
       </dl>
       <div className="proje-eylem">

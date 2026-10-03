@@ -1,21 +1,20 @@
-// Ekip tablosu: durum, şu anki iş ve bugünkü kullanım (abonelikte token, API'de bütçe)
+// Ekip tablosu: durum, şu anki iş ve bugünkü token kullanımı
 import type { Ajan } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
-import { abonelikMi, useVeri } from "../durum/veri";
-import { para, token } from "../yardimcilar/bicim";
+import { token } from "../yardimcilar/bicim";
 import { AjanDurum, AjanKisi } from "./Kisi";
 
-export function ButceCubugu({ harcanan, butce }: { harcanan: number; butce: number }) {
-  const oran = butce > 0 ? Math.min(100, Math.round((harcanan / butce) * 100)) : 0;
-  const sinif = oran >= 100 ? " butce-asim" : oran >= 80 ? " butce-sinir" : "";
+/** Bugünkü token payı; çubuk ekipte en çok kullanana göre ölçeklenir */
+export function PayCubugu({ deger, enCok }: { deger: number; enCok: number }) {
+  const oran = enCok > 0 ? Math.min(100, Math.round((deger / enCok) * 100)) : 0;
   return (
     <span
-      className={`butce${sinif}`}
+      className="pay-cubuk"
       role="meter"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={oran}
-      aria-label={`Bütçenin yüzde ${oran} kullanıldı`}
+      aria-label={`Ekipte en çok kullananın yüzde ${oran} kadarı`}
     >
       <span style={{ width: `${oran}%` }} />
     </span>
@@ -23,7 +22,6 @@ export function ButceCubugu({ harcanan, butce }: { harcanan: number; butce: numb
 }
 
 export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
-  const abonelik = useVeri(abonelikMi);
   const enCok = Math.max(0, ...ajanlar.map((a) => a.bugunToken));
   return (
     <div className="tablo-sar">
@@ -33,7 +31,7 @@ export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
             <th scope="col">Çalışan</th>
             <th scope="col">Durum</th>
             <th scope="col">Şu an</th>
-            <th scope="col">{abonelik ? "Bugünkü kullanım" : "Bugünkü bütçe"}</th>
+            <th scope="col">Bugünkü kullanım</th>
           </tr>
         </thead>
         <tbody>
@@ -57,20 +55,9 @@ export function EkipTablosu({ ajanlar }: { ajanlar: Ajan[] }) {
                 <AjanDurum durum={a.durum} />
               </td>
               <td className="td-is">{a.isAciklamasi || <span className="soluk">—</span>}</td>
-              <td className="td-butce">
-                {abonelik ? (
-                  <>
-                    <ButceCubugu harcanan={a.bugunToken} butce={enCok} />
-                    <small className="sayi">{token(a.bugunToken)} token</small>
-                  </>
-                ) : (
-                  <>
-                    <ButceCubugu harcanan={a.bugunHarcananUsd} butce={a.gunlukButceUsd} />
-                    <small className="sayi">
-                      {para(a.bugunHarcananUsd)} / {para(a.gunlukButceUsd)}
-                    </small>
-                  </>
-                )}
+              <td className="td-kullanim">
+                <PayCubugu deger={a.bugunToken} enCok={enCok} />
+                <small className="sayi">{token(a.bugunToken)} token</small>
               </td>
             </tr>
           ))}

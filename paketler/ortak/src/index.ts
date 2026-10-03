@@ -26,13 +26,6 @@ export interface Saglik {
   veriDizini: string;
 }
 
-/**
- * Ajanların Claude'a girişi.
- * abonelik: makinedeki Claude Code girişi (claude.ai Pro/Max/Team); ücret alınmaz, plan kullanım pencereleri sayılır.
- * api: API anahtarı; token başına ücretlendirilir, dolar bütçeleri uygulanır.
- */
-export type GirisYontemi = "abonelik" | "api";
-
 export interface Ayarlar {
   /** Kurulu Claude Code yolu; boşsa önce PATH, sonra SDK ile gelen ikili denenir */
   claudeYolu: string | null;
@@ -40,16 +33,13 @@ export interface Ayarlar {
   varsayilanIzinModu: IzinModu;
   /** Karar bekleyen araç çağrısı için süre (saniye); dolunca reddedilir */
   onaySuresiSn: number;
-  /** Şirket geneli günlük bütçe (USD) */
-  gunlukButceUsd: number;
   /** Dış editör komutu (codium, code, cursor) */
   disEditor: string;
   /** Görev bu kadar dakika ilerlemezse sorumlu hatırlatılır, sonra yöneticiye ve kurula yükseltilir; 0 kapalı */
   tikanmaDakika: number;
-  girisYontemi: GirisYontemi;
-  /** Abonelikte ajanlar 5 saatlik pencerenin en çok bu yüzdesine kadar çalışır; 0 sınırsız */
+  /** Ajanlar Claude aboneliğinin 5 saatlik penceresinin en çok bu yüzdesine kadar çalışır; 0 sınırsız */
   besSaatlikSinirYuzde: number;
-  /** Abonelikte haftalık pencere için üst sınır yüzdesi; 0 sınırsız */
+  /** Haftalık pencere için üst sınır yüzdesi; 0 sınırsız */
   haftalikSinirYuzde: number;
   /** Kod zekâsının anlamsal arama modeli; kapali iken yalnız anahtar sözcükle aranır */
   kodZekasiModeli: KodZekasiModeli;
@@ -76,7 +66,8 @@ export interface ProjeOzeti extends Proje {
   aktifAjanSayisi: number;
   gorevSayilari: Record<GorevDurumu, number>;
   bekleyenOnay: number;
-  bugunMaliyetUsd: number;
+  /** Bugün işlenen token (tüm ajanlar) */
+  bugunToken: number;
 }
 
 export interface ProjeOlusturIstegi {
@@ -138,10 +129,6 @@ export interface Ajan {
   calismaAlani: string | null;
   dal: string | null;
   izinModu: IzinModu;
-  gunlukButceUsd: number;
-  /** API karşılığı tahmini harcama; abonelikte ücret alınmaz */
-  bugunHarcananUsd: number;
-  toplamHarcananUsd: number;
   /** Bugün ve toplam işlenen token (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç) */
   bugunToken: number;
   toplamToken: number;
@@ -157,14 +144,12 @@ export interface AjanIseAlIstegi {
   rol: string;
   model?: ModelAdi;
   yoneticiId?: string | null;
-  gunlukButceUsd?: number;
   talimatEki?: string;
   karakter?: string | null;
 }
 
 export interface AjanGuncelleIstegi {
   model?: ModelAdi;
-  gunlukButceUsd?: number;
   izinModu?: IzinModu;
   yoneticiId?: string | null;
   talimatEki?: string;
@@ -207,7 +192,8 @@ export interface AkisOgesi {
   hata?: boolean;
   /** Alt ajandan geliyorsa onu başlatan araç çağrısı */
   ustAracKimligi?: string | null;
-  maliyetUsd?: number;
+  /** Tur sonunda: bu turda işlenen token */
+  token?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,13 +347,12 @@ export interface DenetimKaydi {
   zaman: Zaman;
 }
 
-export type OnayTuru = "arac" | "ise_alim" | "butce" | "birlestirme" | "genel";
+export type OnayTuru = "arac" | "ise_alim" | "birlestirme" | "genel";
 export type OnayDurumu = "bekliyor" | "onaylandi" | "reddedildi" | "zaman_asimi";
 
 export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
   arac: "Araç çağrısı",
   ise_alim: "İşe alım",
-  butce: "Bütçe",
   birlestirme: "main'e birleştirme",
   genel: "Karar",
 };
@@ -446,19 +431,13 @@ export interface FarkSonucu {
 }
 
 // ---------------------------------------------------------------------------
-// Maliyet
+// Kullanım: ajanlar yalnız Claude aboneliğiyle (makinedeki Claude Code girişi) çalışır; token ve plan pencereleri sayılır
 // ---------------------------------------------------------------------------
 
-export interface MaliyetOzeti {
-  girisYontemi: GirisYontemi;
-  /** API karşılığı tahmini harcama; abonelikte ücret alınmaz */
-  bugunUsd: number;
-  toplamUsd: number;
-  /** Yalnız API girişinde uygulanır */
-  gunlukButceUsd: number;
+export interface KullanimOzeti {
   bugunToken: number;
   toplamToken: number;
-  ajanlar: { ajanId: string; ad: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }[];
+  ajanlar: { ajanId: string; ad: string; bugunToken: number; toplamToken: number }[];
   /** Son bilinen abonelik penceresi olayı (Claude Code rate_limit_event) */
   pencere: { tur: string; durum: string; sifirlanma: Zaman | null } | null;
 }
@@ -477,8 +456,6 @@ export interface KullanimPenceresi {
 /** Claude Code'un fiilen kullandığı giriş ve abonelik kullanım durumu (GET /api/hesap) */
 export interface HesapDurumu {
   durum: "bilinmiyor" | "hazir" | "hata";
-  /** Ayarlardaki seçim */
-  girisYontemi: GirisYontemi;
   /** Claude Code'un bildirdiği plan: Max, Pro, Team, Enterprise ya da API */
   plan: string | null;
   eposta: string | null;
@@ -493,7 +470,7 @@ export interface HesapDurumu {
   sinirYuzdeleri: { besSaatlik: number; haftalik: number };
   /** Ayardaki üst sınır aşıldıysa: ajanlar yeni iş almaz, sıfırlanınca kaldıkları yerden sürer */
   sinir: { pencere: string; yuzde: number; sinirYuzde: number; sifirlanma: Zaman | null } | null;
-  /** Ayar ile fiili giriş uyuşmuyorsa açıklama */
+  /** Claude Code abonelik dışı bir girişle (API anahtarı, bulut sağlayıcı) çalışıyorsa açıklama */
   uyari: string | null;
   guncelleme: Zaman | null;
   hata: string | null;
@@ -593,7 +570,7 @@ export type SunucuOlayi =
   | { tur: "onay.sonuc"; onay: Onay }
   | { tur: "gorev.guncellendi"; gorev: Gorev }
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
-  | { tur: "maliyet"; projeId: string; ajanId: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }
+  | { tur: "kullanim"; projeId: string; ajanId: string; bugunToken: number; toplamToken: number }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
   | { tur: "hafiza.yeni"; kayit: HafizaKaydi }
   | { tur: "hafiza.silindi"; projeId: string; id: string }

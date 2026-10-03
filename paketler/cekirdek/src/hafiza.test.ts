@@ -130,7 +130,7 @@ describe("ajanlar arası sorular", () => {
 
   it("uyandırılamayan ajana soru hemen zaman aşımına düşer", async () => {
     const deniz = depo.ajanAdla(pid, "Deniz")!;
-    const s = await sirket.ajanaSor(deniz.id, "Ada", "Bütçe ne kadar?", 5);
+    const s = await sirket.ajanaSor(deniz.id, "Ada", "Sürüm ne zaman çıkıyor?", 5);
     expect(s.durum).toBe("zaman_asimi");
   });
 });

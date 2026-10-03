@@ -3,24 +3,24 @@
 Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır ve size rapor verir. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
 
 - Windows ve Linux'ta çalışan masaüstü uygulaması + sunucu modu
-- Claude aboneliğiyle çalışır (Pro/Max): ücret alınmaz, üst çubukta 5 saatlik ve haftalık pencere yüzdesi; ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer. İsterseniz API anahtarı ve dolar bütçesiyle de çalışır
+- Yalnız Claude aboneliğiyle çalışır (Pro, Max ya da Team): ajanlar makinedeki Claude Code girişini kullanır. Üst çubukta 5 saatlik ve haftalık pencere yüzdesi görünür; ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer. Kullanım token olarak sayılır
 - Proje başına notlar, kararlar ve ekip kimlikleri; repo içinde `.arnorg/` altında sürümlü
 - Proje bazlı kalıcı hafıza: kurul tercihleri, kararlar, öğrenilen hatalar, kim neyi biliyor. Ajan her oturumda okur; çalışırken doğru anda hatırlar (ekipten yeni kayıt, aynı hata, dokunduğu dosya). Her ajanın kendi defteri vardır; bilmediğini ekip arkadaşına sorar, kime soracağını bilmezse ArnOrg uzmanı bulur, aynı soru ikinci kez sorulursa önceki yanıt döner. Toplantıda görüşler paralel toplanır, karar hafızaya yazılır; devralınan görev önceki sahibin defteriyle gelir
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
-- Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
+- Kanallar, `@anma` ile uyandırma, görev panosu ve onay kapıları
 - Ofis: şirketin canlı 2D hâli. Ajanlar masalarında çalışır, birbirine yürüyüp konuşur, toplantı odasına gelir, kararınızı kurul masasında bekler; yeni gelen kapıdan girer, onaylanan iş sunucu odasında main'e birleşir. Hepsi çekirdeğin gerçek olaylarıyla
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
 - Yerleşik VS Code tezgâhı (Türkçe): ana repo ve her ajan worktree'si ayrı kök; terminal, arama, kaynak denetimi, ajan rozetleri, "Duraklat ve düzenle"
 - Kod zekâsı: kod tarayıcı, sembol ve bağımlılık haritası, anlamsal (vektörel) kod dizini. Türkçe ya da İngilizce doğal dille ("ajanlar arası soru nasıl yönlendiriliyor") kod aranır; anlamsal arama, anahtar sözcük ve sembol adı birleşir. Model (EmbeddingGemma ya da e5-small) makinede çalışır, kod dışarı gitmez. Ajanlar `kod_ara`, `sembol_bul`, `kod_haritasi`, `bagimliliklar`, `benzer_kod` araçlarıyla aynı dizini kullanır; görev verilirken ilgili kod konumları mesaja eklenir. Dizin artımlıdır ve ajan worktree'leri arasında paylaşılır
 - Tıkanma koruması: ilerlemeyen görev önce sorumluya hatırlatılır, sonra yöneticiye ve kurula iletilir
-- Dönem raporu: biten, süren, tıkanan işler, harcama ve denetim özeti notlara yazılır
+- Dönem raporu: biten, süren, tıkanan işler, token ve abonelik kullanımı, denetim özeti notlara yazılır
 - Ajan commit'leri makinedeki git kimliğinizle atılır; Claude imzası (Co-Authored-By) eklenmez, elle yazılırsa denetim kapısı siler
 
 ![Karargâh](docs/gorseller/karargah.png)
 
 ## Durum
 
-Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: Stüdyo'dan proje açılır, brief verilir, CEO işe alım teklif eder, onaylanınca görev açılıp çalışan başlar, çalışan kendi worktree'sinde kodu yazıp test eder, CEO farkı inceleyip birleştirme ister, kurul onaylayınca iş main'e girer. Gerçek bir Claude Code oturumuyla (haiku) bu döngü yaklaşık iki dakika ve $0,25 tuttu.
+Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: Stüdyo'dan proje açılır, brief verilir, CEO işe alım teklif eder, onaylanınca görev açılıp çalışan başlar, çalışan kendi worktree'sinde kodu yazıp test eder, CEO farkı inceleyip birleştirme ister, kurul onaylayınca iş main'e girer. Gerçek bir Claude Code oturumuyla (haiku) bu döngü yaklaşık iki dakika sürdü.
 
 | Ekran | |
 |---|---|
@@ -63,7 +63,7 @@ npm test               # birim ve entegrasyon testleri (Claude çağırmaz)
 
 Sunucu modu: `node paketler/cekirdek/dist/cli.js serve --host 0.0.0.0 --izinli-host arnorg.ornek.com --veri /var/lib/arnorg`. Dışarıya açarken önüne Cloudflare Access gibi bir kimlik katmanı koyun.
 
-Deneme için tüm ajanları ucuz modelle çalıştırmak: `ARNORG_MODEL_ZORLA=haiku npm run serve`.
+Deneme için tüm ajanları hafif modelle çalıştırmak (abonelik penceresini daha az doldurur): `ARNORG_MODEL_ZORLA=haiku npm run serve`.
 
 ## Belgeler
 

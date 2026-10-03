@@ -3,10 +3,9 @@ import type { Ajan, IzinModu } from "@arnorg/ortak";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
-import { abonelikMi, ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
-import { belirtme, para, tarih, token } from "../../yardimcilar/bicim";
+import { ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
+import { belirtme, tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
-import { ButceCubugu } from "../EkipTablosu";
 import { KarakterSecici } from "../KarakterSecici";
 import { AjanAvatar, AjanDurum, IZIN_MODU_ADLARI, izinModuAdi, modelAdi } from "../Kisi";
 import { OnaySor } from "../OnaySor";
@@ -21,7 +20,6 @@ const oncekiModlar = new Map<string, IzinModu>();
 
 /** mesaj: false ise "Mesaj gönder" bölümü gösterilmez (çağıran kendi mesaj kutusunu koyar) */
 export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolean }) {
-  const abonelik = useVeri(abonelikMi);
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const yonetici = ajanlar.find((a) => a.id === ajan.yoneticiId);
@@ -49,26 +47,10 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
       <OturumDugmeleri ajan={ajan} kucuk />
 
       <dl className="kv">
-        {abonelik ? (
-          <>
-            <dt>Bugün</dt>
-            <dd className="sayi">{token(ajan.bugunToken)} token</dd>
-            <dt>Toplam</dt>
-            <dd className="sayi">{token(ajan.toplamToken)} token</dd>
-          </>
-        ) : (
-          <>
-            <dt>Bugün</dt>
-            <dd className="kv-butce">
-              <ButceCubugu harcanan={ajan.bugunHarcananUsd} butce={ajan.gunlukButceUsd} />
-              <span className="sayi">
-                {para(ajan.bugunHarcananUsd)} / {para(ajan.gunlukButceUsd)}
-              </span>
-            </dd>
-            <dt>Toplam</dt>
-            <dd className="sayi">{para(ajan.toplamHarcananUsd)}</dd>
-          </>
-        )}
+        <dt>Bugün</dt>
+        <dd className="sayi">{token(ajan.bugunToken)} token</dd>
+        <dt>Toplam</dt>
+        <dd className="sayi">{token(ajan.toplamToken)} token</dd>
         <dt>İzin modu</dt>
         <dd>{izinModuAdi(ajan.izinModu)}</dd>
         <dt>Yönetici</dt>
@@ -106,25 +88,20 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
 }
 
 function AjanAyarlari({ ajan }: { ajan: Ajan }) {
-  const abonelik = useVeri(abonelikMi);
   const ajanlar = useVeri((d) => d.ajanlar);
   const { suruyor, calistir } = useIslem();
-  const [butce, setButce] = useState(String(ajan.gunlukButceUsd));
   const [yoneticiId, setYoneticiId] = useState(ajan.yoneticiId ?? "");
   const [talimat, setTalimat] = useState(ajan.talimatEki);
   const [ozelModel, setOzelModel] = useState(MODELLER.includes(ajan.model) ? "" : ajan.model);
 
   // Başka bir ajan seçilince ya da sunucudan güncelleme gelince alanları tazele
   useEffect(() => {
-    setButce(String(ajan.gunlukButceUsd));
     setYoneticiId(ajan.yoneticiId ?? "");
     setTalimat(ajan.talimatEki);
-  }, [ajan.id, ajan.gunlukButceUsd, ajan.yoneticiId, ajan.talimatEki]);
+  }, [ajan.id, ajan.yoneticiId, ajan.talimatEki]);
 
   const planda = ajan.izinModu === "plan";
-  const butceSayi = Number(butce.replace(",", "."));
-  const butceGecersiz = !Number.isFinite(butceSayi) || butceSayi < 0;
-  const degisti = (!butceGecersiz && butceSayi !== ajan.gunlukButceUsd) || (yoneticiId || null) !== ajan.yoneticiId || talimat !== ajan.talimatEki;
+  const degisti = (yoneticiId || null) !== ajan.yoneticiId || talimat !== ajan.talimatEki;
 
   const modelDegistir = (model: string) =>
     calistir("model", async () => {
@@ -141,11 +118,9 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (butceGecersiz) return;
     void calistir("kaydet", async () => {
       ajanUygula(
         await api.ajanGuncelle(ajan.id, {
-          gunlukButceUsd: butceSayi,
           yoneticiId: yoneticiId || null,
           talimatEki: talimat,
         }),
@@ -232,19 +207,6 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
 
       <form className="ajan-ayar-form" onSubmit={kaydet}>
         <div className="ayar-satir">
-          {abonelik ? null : (
-            <div className="alan">
-              <label htmlFor={`butce-${ajan.id}`}>Günlük bütçe (USD)</label>
-              <input
-                id={`butce-${ajan.id}`}
-                className="girdi"
-                inputMode="decimal"
-                value={butce}
-                onChange={(e) => setButce(e.target.value)}
-                aria-invalid={butceGecersiz ? true : undefined}
-              />
-            </div>
-          )}
           <div className="alan">
             <label htmlFor={`yonetici-${ajan.id}`}>Yönetici</label>
             <select id={`yonetici-${ajan.id}`} className="secim" value={yoneticiId} onChange={(e) => setYoneticiId(e.target.value)}>
@@ -271,7 +233,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           />
         </div>
         <div className="dugme-satir">
-          <button type="submit" className="dugme dugme-kucuk" disabled={!degisti || butceGecersiz || suruyor !== null}>
+          <button type="submit" className="dugme dugme-kucuk" disabled={!degisti || suruyor !== null}>
             {suruyor === "kaydet" ? <span className="doner" aria-hidden="true" /> : null}
             Değişiklikleri kaydet
           </button>

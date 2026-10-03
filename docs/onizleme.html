@@ -261,11 +261,10 @@ code { font-family: var(--font-mono); font-size: .95em; }
 .tablo td { padding: .625rem .75rem .625rem 0; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--paper); }
 .tablo .sayi { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .td-is { min-width: 12rem; }
-.td-butce { min-width: 8.5rem; }
-.td-butce small { display: block; margin-top: .25rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.butce { display: block; height: 3px; background: var(--ink-4); }
-.butce span { display: block; height: 100%; background: var(--paper); }
-.butce-sinir span { background: var(--warn); }
+.td-kullanim { min-width: 8.5rem; }
+.td-kullanim small { display: block; margin-top: .25rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pay { display: block; height: 3px; background: var(--ink-4); }
+.pay span { display: block; height: 100%; background: var(--paper); }
 
 /* ekip */
 .ekip-yerlesim { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
@@ -523,7 +522,7 @@ code { font-family: var(--font-mono); font-size: .95em; }
       </div>
       <div class="sb-sag">
         <span class="sb-metre" id="m-ajan">4 aktif · 7 çalışan</span>
-        <span class="sb-metre">Bugün <b id="m-maliyet">$14,20</b> / $40,00</span>
+        <span class="sb-metre">Bugün <b id="m-token">852 bin</b> token · 5 sa <b id="m-pencere">%42</b></span>
         <button class="btn-ghost" id="btn-mesai" aria-pressed="false">Mesaiyi durdur</button>
       </div>
     </div>
@@ -553,8 +552,8 @@ code { font-family: var(--font-mono); font-size: .95em; }
       <ol class="adimlar">
         <li><b>Proje açılır</b><p>Var olan bir repo bağlanır ya da sıfırdan açılır. ArnOrg kod tabanını tarar ve <code>.arnorg/notlar/</code> altına ilk vizyon ve mimari notlarını yazar.</p></li>
         <li><b>Brief verilir</b><p>Ne istediğinizi düz metinle yazarsınız. CEO eksik noktaları sorar, hedefleri ve kabul ölçütlerini çıkarır.</p></li>
-        <li><b>Plan ve kadro</b><p>CEO işi epik ve görevlere böler, bağımlılıkları sıralar, gereken rolleri ve bütçeyi önerir. Siz onaylarsınız.</p></li>
-        <li><b>İşe alım</b><p>Onaylanan her rol için bir ajan doğar: kimlik dosyası, modeli, araç izinleri, günlük bütçesi ve kendi git çalışma alanı.</p></li>
+        <li><b>Plan ve kadro</b><p>CEO işi epik ve görevlere böler, bağımlılıkları sıralar, gereken rolleri ve modelleri önerir. Siz onaylarsınız.</p></li>
+        <li><b>İşe alım</b><p>Onaylanan her rol için bir ajan doğar: kimlik dosyası, modeli, araç izinleri ve kendi git çalışma alanı.</p></li>
         <li><b>Mesai</b><p>Ajanlar görev alır, kod yazar, test çalıştırır, kanallarda birbirine yazar. ArnOrg her araç çağrısını politikaya göre denetler. CEO günlük durum toplantısını yönetir, tıkanan işi çözer.</p></li>
         <li><b>İnceleme ve teslim</b><p>İnceleyici ajan kodu denetler, testler geçer, birleştirme sizin onayınızla main'e girer. CEO sprint raporunu yazar.</p></li>
       </ol>
@@ -568,14 +567,14 @@ code { font-family: var(--font-mono); font-size: .95em; }
         <table class="kiyas kiyas-ornek">
           <thead><tr><th>Proje</th><th>Aldığımız fikir</th><th>Eksik bıraktığı</th></tr></thead>
           <tbody>
-            <tr><td><b>Paperclip</b><small>MIT · ~96k · Node + React + Postgres, web</small></td><td class="al">CEO'nun işe alımı yönetim kurulu onayından geçer. Ajanlar kısa uyanışlarla (heartbeat) çalışır. Bir görevi aynı anda tek ajan kilitler. Şirket, proje ve ajan düzeyinde bütçe ve sert durdurma.</td><td class="eksik">Proje hafızası henüz yok. CEO işe alım döngüsüne takılabiliyor. Masaüstü uygulaması yok; Windows desteği yeni ve yol hataları var.</td></tr>
+            <tr><td><b>Paperclip</b><small>MIT · ~96k · Node + React + Postgres, web</small></td><td class="al">CEO'nun işe alımı yönetim kurulu onayından geçer. Ajanlar kısa uyanışlarla (heartbeat) çalışır. Bir görevi aynı anda tek ajan kilitler. Sınıra gelince sert durdurma.</td><td class="eksik">Proje hafızası henüz yok. CEO işe alım döngüsüne takılabiliyor. Masaüstü uygulaması yok; Windows desteği yeni ve yol hataları var.</td></tr>
             <tr><td><b>Multica</b><small>~52k · Go daemon + Electron + mobil</small></td><td class="al">Masaüstü uygulaması + yerel daemon biçimi Windows'ta yerel çalışıyor. Göreve ajan atamak bir ekip arkadaşına atamak gibi. Çalışan ajana iş sırasında yön verilebiliyor. Mükerrer çalıştırmalar birleştirilerek döngü önleniyor.</td><td class="eksik">Organizasyon modeli zayıf: lider ajan yalnız anma ile iş yönlendiriyor. Planlama ve hafıza ikinci planda.</td></tr>
-            <tr><td><b>Gas Town</b><small>MIT · ~18k · Go CLI + tmux</small></td><td class="al">Kalıcı kimlik, kısa ömürlü oturum. Durum git'te tutulur, çökme veri kaybettirmez. Takılan ajanı yakalayan gözcü katmanları. Testten geçmeyen işi ayıklayan birleştirme kuyruğu.</td><td class="eksik">tmux'a bağlı; Windows'ta WSL ister. Bütçe denetimi yok ve yazarına göre çok pahalı. Kendine özgü jargonu en çok eleştirilen yanı.</td></tr>
+            <tr><td><b>Gas Town</b><small>MIT · ~18k · Go CLI + tmux</small></td><td class="al">Kalıcı kimlik, kısa ömürlü oturum. Durum git'te tutulur, çökme veri kaybettirmez. Takılan ajanı yakalayan gözcü katmanları. Testten geçmeyen işi ayıklayan birleştirme kuyruğu.</td><td class="eksik">tmux'a bağlı; Windows'ta WSL ister. Kullanım sınırı denetimi yok. Kendine özgü jargonu en çok eleştirilen yanı.</td></tr>
             <tr><td><b>Claude Code Agent Teams</b><small>Anthropic · deneysel</small></td><td class="al">Ajan başına posta kutusu, bağımlılıklı ortak görev listesi, dosya kilidiyle görev alma. Görev bitince ve ajan boşa çıkınca çalışan kalite kapısı kancaları.</td><td class="eksik">Agent SDK ve <code>-p</code> modunda çalışmıyor. Oturum sürdürülünce ekip geri gelmiyor. Bölünmüş paneller Windows Terminal'de yok.</td></tr>
-            <tr><td><b>Claude Projects · Code sekmesi</b><small>Anthropic · masaüstü</small></td><td class="al">Duruma göre gruplanmış dikkat kutusu: sizi bekliyor, incelemeye hazır, çalışıyor. Satıra toplu yorum yazılan diff incelemesi. Koordinatör sohbetinden doğan canlı görev kartları.</td><td class="eksik">Şirket hiyerarşisi, işe alım, rol ve bütçe kavramı yok. Ajanlar birbirine değil koordinatöre bağlı.</td></tr>
+            <tr><td><b>Claude Projects · Code sekmesi</b><small>Anthropic · masaüstü</small></td><td class="al">Duruma göre gruplanmış dikkat kutusu: sizi bekliyor, incelemeye hazır, çalışıyor. Satıra toplu yorum yazılan diff incelemesi. Koordinatör sohbetinden doğan canlı görev kartları.</td><td class="eksik">Şirket hiyerarşisi, işe alım ve rol kavramı yok. Ajanlar birbirine değil koordinatöre bağlı.</td></tr>
             <tr><td><b>Vibe Kanban · Cline Kanban · Emdash</b><small>Apache-2.0 · Rust/Node + React, Electron</small></td><td class="al">Kart eşittir çalışma alanı: worktree, terminal ve ajan karta bağlı. Bağımlılığı biten kart kendiliğinden başlar. Ajan durumu terminali okuyarak değil kancalardan gelir. Önceden hazırlanmış worktree havuzu.</td><td class="eksik">Tek seviyeli: planlayan bir yönetici yok, ajanlar birbiriyle konuşmuyor. Vibe Kanban'ın şirketi Nisan 2026'da kapandı.</td></tr>
             <tr><td><b>Conductor</b><small>kapalı kaynak · Tauri + Rust · yalnız macOS</small></td><td class="al">Boşta kalan ajan kapatılır, gerektiğinde <code>--resume</code> ile sürdürülür. SQLite tek doğruluk kaynağı. Kontrol noktaları arka planda alınır, arayüzü bekletmez.</td><td class="eksik">Yalnız macOS. Paralel dallar birleştirmede çakışmaya devam ediyor.</td></tr>
-            <tr><td><b>CloudCLI · opcode · Claude Squad</b><small>AGPL · tek oturum arayüzleri</small></td><td class="al">Agent SDK + node-pty + WebSocket yığını (CloudCLI). Maliyet paneli ve dallanabilen kontrol noktası zaman çizelgesi (opcode).</td><td class="eksik">Orkestrasyon yok. opcode Ağustos 2025'ten beri güncellenmiyor. Claude Squad tmux yüzünden Windows'ta yalnız WSL ile çalışıyor.</td></tr>
+            <tr><td><b>CloudCLI · opcode · Claude Squad</b><small>AGPL · tek oturum arayüzleri</small></td><td class="al">Agent SDK + node-pty + WebSocket yığını (CloudCLI). Kullanım paneli ve dallanabilen kontrol noktası zaman çizelgesi (opcode).</td><td class="eksik">Orkestrasyon yok. opcode Ağustos 2025'ten beri güncellenmiyor. Claude Squad tmux yüzünden Windows'ta yalnız WSL ile çalışıyor.</td></tr>
             <tr><td><b>ChatDev 2.0 · MetaGPT</b><small>Apache-2.0 / MIT · Python</small></td><td class="al">Roller arası belge devri (gereksinim → tasarım → API) gevezeliği azaltır. Sanal yazılım şirketi fikrinin ilk örnekleri.</td><td class="eksik">Gerçek repo, PR ve inceleme döngüsü yok. Claude Code'u yönetmiyor. MetaGPT'nin geliştirmesi büyük ölçüde durdu.</td></tr>
             <tr><td><b>CrewAI · Microsoft Agent Framework</b><small>MIT · kütüphane</small></td><td class="al">Görev defteri ve ilerleme defteri; ilerleme yoksa yeniden planlama (Magentic). Kapsamlı hafıza: proje ve ajan için ayrı alanlar.</td><td class="eksik">Kütüphane olarak kalıyor; kod ajanlarını, repoyu ve masaüstünü yönetmiyor.</td></tr>
           </tbody>
@@ -585,12 +584,12 @@ code { font-family: var(--font-mono); font-size: .95em; }
       <div class="izgara">
         <div><b>Ekip katmanı bizim</b><p>Agent Teams SDK modunda çalışmadığı için posta kutusu, görev listesi ve görev kilidi ArnOrg'da yaşar.</p></div>
         <div><b>Kısa uyanış, kalıcı kimlik</b><p>Ajan sürekli açık durmaz. Olayla uyanır, oturumunu sürdürür, iş bitince kapanır. Mükerrer uyandırmalar birleşir.</p></div>
-        <div><b>CEO önerir, siz onaylarsınız</b><p>İşe alım, plan ve bütçe varsayılan olarak onaydan geçer. Özerklik proje bazında genişletilir.</p></div>
-        <div><b>Bütçe platformda</b><p>Sınır talimata yazılmaz, çekirdek uygular: uyarı eşiği ve sert durdurma, ajan, görev ve proje düzeyinde.</p></div>
+        <div><b>CEO önerir, siz onaylarsınız</b><p>İşe alım ve plan varsayılan olarak onaydan geçer. Özerklik proje bazında genişletilir.</p></div>
+        <div><b>Kullanım sınırı platformda</b><p>Sınır talimata yazılmaz, çekirdek uygular: abonelik penceresi kurulun belirlediği yüzdeye gelince ajanlar durur, pencere açılınca sürer.</p></div>
         <div><b>Döngüye karşı koruma</b><p>İlerleme defteri, tıkanma sayacı, en fazla tur ve yeniden planlama. Paperclip'teki işe alım döngüsü gerçek bir hata.</p></div>
         <div><b>Hafıza birinci sınıf</b><p>Notlar ve kararlar repo içinde sürümlenir. Paperclip'te hâlâ eksik olan parça bu.</p></div>
         <div><b>tmux ve bash sarmalayıcısı yok</b><p>Windows'ta çöken araçların ortak sebebi. Süreçler doğrudan başlatılır ve izlenir.</p></div>
-        <div><b>Sade sözlük</b><p>Proje, hedef, görev, çalışan, rol. Özel jargon öğrenme maliyeti yaratır.</p></div>
+        <div><b>Sade sözlük</b><p>Proje, hedef, görev, çalışan, rol. Özel jargon öğrenmeyi zorlaştırır.</p></div>
         <div><b>Her şey kayıtlı</b><p>Tekrar oynatılabilir çalışma kayıtları, yalnız eklenebilen denetim günlüğü, yasak geçişi reddeden görev durum makinesi.</p></div>
       </div>
     </div>
@@ -600,7 +599,7 @@ code { font-family: var(--font-mono); font-size: .95em; }
     <div class="bolum-ic">
       <p>Her şirketin bir CEO'su vardır ve yalnız size bağlıdır. CEO kod yazmaz; planlar, işe alır, önceliklendirir ve rapor verir. Büyüyen projelerde bir CTO ya da takım lideri atar ve geliştiriciler ona bağlanır. Çalışanlar düzenlenebilir bir rol kataloğundan gelir; projeye özel rol eklemek bir markdown dosyası yazmak kadar kolaydır.</p>
       <div class="izgara">
-        <div><b>CEO</b><p>Brief'i hedefe çevirir, kadroyu ve bütçeyi önerir, toplantıları yönetir, size rapor verir. Varsayılan model Opus.</p></div>
+        <div><b>CEO</b><p>Brief'i hedefe çevirir, kadroyu önerir, toplantıları yönetir, size rapor verir. Varsayılan model Opus.</p></div>
         <div><b>CTO · takım lideri</b><p>Mimari kararları ADR olarak yazar, görevleri teknik olarak böler, kod standartlarını belirler.</p></div>
         <div><b>Geliştirici</b><p>Backend, frontend, mobil ya da veri. Kendi çalışma alanında kod yazar, test ekler, commit atar.</p></div>
         <div><b>Test mühendisi</b><p>Kabul ölçütlerinden test yazar, uçtan uca senaryoları çalıştırır, hatayı görev olarak açar.</p></div>
@@ -608,14 +607,13 @@ code { font-family: var(--font-mono); font-size: .95em; }
         <div><b>Uzmanlar</b><p>Güvenlik, DevOps, tasarım, teknik yazarlık ve araştırma. Gerektiğinde alınır, iş bitince serbest bırakılır.</p></div>
       </div>
       <h3>Bir çalışan neden oluşur</h3>
-      <p>İşe alım bir kimlik dosyası üretir. ArnOrg bu dosyayı ajan oturumunun sistem talimatına, araç izinlerine ve bütçe sınırına çevirir. Dosya repo içinde durduğu için ekip, kodla birlikte sürümlenir.</p>
+      <p>İşe alım bir kimlik dosyası üretir. ArnOrg bu dosyayı ajan oturumunun sistem talimatına ve araç izinlerine çevirir. Dosya repo içinde durduğu için ekip, kodla birlikte sürümlenir.</p>
 <pre class="agac-kod"><span class="ac"># .arnorg/ekip/deniz.md</span>
 ---
 ad: Deniz
 rol: backend
 model: sonnet
 yonetici: kerem
-butce_gunluk_usd: 5
 araclar: [Read, Edit, Write, Bash, Grep, Glob, arnorg]
 yasak: ["git push", "rm -rf", "npm publish"]
 beceriler: [api-tasarimi, postgres, vitest]
@@ -636,7 +634,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         <div><b>Görev konuşması</b><p>Her görevin kendi yorum akışı vardır. Varılan karar konuşmada kalmaz, notlara ADR olarak taşınır.</p></div>
         <div><b>Toplantılar</b><p>Günlük durum: CEO her ajandan üç satır ister ve özetler. Sprint planlama ve retrospektif aynı düzenle yapılır.</p></div>
         <div><b>Size yükseltme</b><p>Ajan çözemediği konuyu <code>onay_iste</code> ile size getirir. Onaylar kutusuna düşer, isterseniz telefona bildirim gider.</p></div>
-        <div><b>Gürültü sınırı</b><p>Her ajanın mesaj bütçesi vardır. Uzun tartışmayı CEO keser, kararı verir ya da size taşır.</p></div>
+        <div><b>Gürültü sınırı</b><p>Her ajanın mesaj sınırı vardır. Uzun tartışmayı CEO keser, kararı verir ya da size taşır.</p></div>
       </div>
       <h3>Ajanların kullandığı araçlar</h3>
       <p>Bu yetenekler ArnOrg'un kendi MCP sunucusunda araç olarak tanımlıdır ve her ajan oturumuna rolüne göre eklenir:</p>
@@ -649,10 +647,10 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     <div class="bolum-ic">
       <p>ArnOrg her ajanı kendisi başlatır. Claude Code ile arasında satır satır JSON akan iki yönlü bir kanal açılır. Ajanın her düşüncesi, her araç çağrısı ve sonucu bu kanaldan anında gelir. ArnOrg aynı kanaldan izin verir, reddeder, araç girdisini değiştirir, araya mesaj sokar, keser, izin modunu ve modeli değiştirir. Ajan döngüsü Claude Code'da kalır; ArnOrg yalnız kapıyı tutar.</p>
       <div class="izgara izgara-2">
-        <div><b>Akış</b><p>Asistan ve araç mesajları, tur sonucu ve maliyet, <code>session_state_changed</code> ile çalışıyor / karar bekliyor / boşta durumu, arka plan görevleri, hız sınırı olayları.</p></div>
+        <div><b>Akış</b><p>Asistan ve araç mesajları, tur sonucu ve token, <code>session_state_changed</code> ile çalışıyor / karar bekliyor / boşta durumu, arka plan görevleri, hız sınırı olayları.</p></div>
         <div><b>Kontrol protokolü</b><p>Claude Code sorar: <code>can_use_tool</code>, <code>hook_callback</code>, <code>mcp_message</code>. ArnOrg komut verir: <code>interrupt</code>, <code>set_permission_mode</code>, <code>set_model</code>, <code>stop_task</code>, <code>rewind_files</code>.</p></div>
         <div><b>Kancalar</b><p><code>PreToolUse</code> her araç çağrısında çalışır ve tek güvenilir kapıdır. ArnOrg dışında açılan oturumlara aynı politika, gözcüye ulaşamayınca engelleyen bir kanca köprüsüyle uygulanır.</p></div>
-        <div><b>Gözlem ve tekrar</b><p>OpenTelemetry ile ajan etiketli maliyet ve token ölçümü; oturum kayıtlarından (JSONL) adım adım tekrar oynatma.</p></div>
+        <div><b>Gözlem ve tekrar</b><p>OpenTelemetry ile ajan etiketli token ölçümü; oturum kayıtlarından (JSONL) adım adım tekrar oynatma.</p></div>
       </div>
       <h3>Doğrulanan deneyler</h3>
       <div class="tablo-kap">
@@ -677,7 +675,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         <div><b>Erken çıkışı yakala</b><p>Root kullanıcısında bypass reddedildi, süreç sessizce çıktı ve gözcü bekledi. Hata çıktısı ve süreç çıkışı her zaman izlenir.</p></div>
         <div><b>Sistem talimatı</b><p>SDK varsayılan olarak boş sistem talimatı gönderir. Ajanlara Claude Code'un kendi talimatı ve ArnOrg rol metni birlikte verilmeli.</p></div>
         <div><b>Zincirli komutlar</b><p>Ajanlar komutları <code>&amp;&amp;</code> ile birleştiriyor. Yasak listesi komutun tamamına bakar; izin listesi zinciri parçalayıp her parçayı ayrı değerlendirir.</p></div>
-        <div><b>Maliyet birikimli gelir</b><p>Sonuçtaki maliyet o ana kadarki toplamdır; her sonuçta üzerine yazılır, toplanmaz. Abonelikte asıl sınır 5 saatlik ve haftalık pencerelerdir.</p></div>
+        <div><b>Kullanım birikimli gelir</b><p>Sonuçtaki token sayısı o ana kadarki toplamdır; her sonuçta üzerine yazılır, toplanmaz. Sınır aboneliğin 5 saatlik ve haftalık pencereleridir.</p></div>
         <div><b>Yanıtsız soru turu kilitler</b><p>İzin isteğinin zaman aşımı yok. ArnOrg her karar için süre tutar; süre dolunca politikaya göre reddeder ve size bildirir.</p></div>
       </div>
       <p>Protokolün tamamı repoda: <code>docs/PROTOKOLLER.md</code>. Denemeyi kendi makinenizde <code>deneyler/gozcu</code> ile çalıştırabilirsiniz.</p>
@@ -685,15 +683,15 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   </section>
 
   <section class="bolum" id="planlama">
-    <header><h2>Planlama ve yönetişim</h2><p>Hedeften göreve, bütçeden onaya</p></header>
+    <header><h2>Planlama ve yönetişim</h2><p>Hedeften göreve, kullanımdan onaya</p></header>
     <div class="bolum-ic">
       <div class="izgara">
         <div><b>Hedef → epik → görev</b><p>CEO brief'i hedeflere, hedefleri epiklere, epikleri tek oturumda bitebilecek görevlere böler. Her görevin kabul ölçütü vardır.</p></div>
         <div><b>Bağımlılık</b><p>Görevler arası bağımlılık grafiği tutulur. Bağımlılığı bitmemiş görev kimseye atanmaz; Mert, T-24 bitene kadar bekler.</p></div>
-        <div><b>Sprint</b><p>İş dönemlere ayrılır. Dönem sonunda CEO raporu yazar: biten, kayan, öğrenilen, harcanan.</p></div>
+        <div><b>Sprint</b><p>İş dönemlere ayrılır. Dönem sonunda CEO raporu yazar: biten, kayan, öğrenilen, kullanılan.</p></div>
         <div><b>Mesai</b><p>Ajanlar sürekli açık durmaz. Zamanlayıcı onları görev geldiğinde, anıldığında ya da belirli aralıklarla uyandırır.</p></div>
-        <div><b>Bütçe</b><p>Şirket, proje ve ajan düzeyinde günlük ve aylık sınır. Sınıra yaklaşan ajan yavaşlar, aşınca durur ve size sorar.</p></div>
-        <div><b>Onay kapıları</b><p>İşe alım, bütçe artışı, main'e birleştirme, dışarı push, deploy ve geri alınamaz komutlar varsayılan olarak sizden geçer.</p></div>
+        <div><b>Kullanım</b><p>Yalnız Claude aboneliği. Token ajan ve proje başına sayılır; 5 saatlik ya da haftalık pencere kurulun belirlediği yüzdeye gelince ajanlar durur, pencere açılınca kaldıkları yerden sürer.</p></div>
+        <div><b>Onay kapıları</b><p>İşe alım, main'e birleştirme, dışarı push, deploy ve geri alınamaz komutlar varsayılan olarak sizden geçer.</p></div>
       </div>
     </div>
   </section>
@@ -701,10 +699,10 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   <section class="bolum" id="hafiza">
     <header><h2>Notlar, hafıza ve kod</h2><p>Proje bilgisi repo içinde, çalışma verisi uygulamada</p></header>
     <div class="bolum-ic">
-      <p>Proje notları markdown olarak repo içinde yaşar ve kodla birlikte sürümlenir. Böylece ArnOrg'u kapatsanız bile ekip, kararlar ve hafıza projede kalır. Mesajlar, olaylar ve maliyet kayıtları ise uygulamanın kendi veritabanındadır.</p>
+      <p>Proje notları markdown olarak repo içinde yaşar ve kodla birlikte sürümlenir. Böylece ArnOrg'u kapatsanız bile ekip, kararlar ve hafıza projede kalır. Mesajlar, olaylar ve kullanım kayıtları ise uygulamanın kendi veritabanındadır.</p>
 <pre class="agac-kod">siparis-paneli/
 ├─ .arnorg/
-│  ├─ proje.yaml            <span class="ac">bütçe, onay kuralları, birleştirme politikası</span>
+│  ├─ proje.yaml            <span class="ac">proje adı, onay kuralları, birleştirme politikası</span>
 │  ├─ ekip/                 <span class="ac">çalışan kimlikleri</span>
 │  │  ├─ ada.md
 │  │  └─ deniz.md
@@ -747,7 +745,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   <section class="bolum" id="mimari">
     <header><h2>Mimari</h2><p>Ajan döngüsünü yeniden yazmıyoruz, etrafına şirketi kuruyoruz</p></header>
     <div class="bolum-ic">
-      <p>Kod yazan, araç çağıran ve bağlamı yöneten şey değiştirilmemiş Claude Code'dur. ArnOrg onun etrafındaki şirketi yönetir: kim çalışacak, hangi işi alacak, hangi bütçeyle, kime rapor vererek. Aynı çekirdek masaüstünde uygulamanın içinde, sunucuda ise tek başına çalışır.</p>
+      <p>Kod yazan, araç çağıran ve bağlamı yöneten şey değiştirilmemiş Claude Code'dur. ArnOrg onun etrafındaki şirketi yönetir: kim çalışacak, hangi işi alacak, hangi modelle, kime rapor vererek. Aynı çekirdek masaüstünde uygulamanın içinde, sunucuda ise tek başına çalışır.</p>
       <div class="mimari" role="img" aria-label="ArnOrg katmanları: Stüdyo arayüzü, çekirdek, ajan oturumları ve depolama">
         <div class="katman">
           <div class="katman-ad"><b>Stüdyo</b><small>React · Electron ya da tarayıcı</small></div>
@@ -756,7 +754,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         <p class="baglanti">↓ WebSocket olay akışı + HTTP API · yerel ya da uzak çekirdeğe</p>
         <div class="katman">
           <div class="katman-ad"><b>Çekirdek</b><small>arnorg-server · Node.js 22</small></div>
-          <div class="moduller"><span class="modul">Orkestratör</span><span class="modul">Uyandırma kuyruğu</span><span class="modul">Görev durum makinesi</span><span class="modul">Posta kutusu</span><span class="modul">Bütçe ve onay</span><span class="modul">Worktree havuzu</span><span class="modul">Birleştirme kuyruğu</span><span class="modul">Hafıza ve arama</span><span class="modul">Olay günlüğü</span><span class="modul modul-vurgu">arnorg MCP araçları</span></div>
+          <div class="moduller"><span class="modul">Orkestratör</span><span class="modul">Uyandırma kuyruğu</span><span class="modul">Görev durum makinesi</span><span class="modul">Posta kutusu</span><span class="modul">Kullanım sınırı ve onay</span><span class="modul">Worktree havuzu</span><span class="modul">Birleştirme kuyruğu</span><span class="modul">Hafıza ve arama</span><span class="modul">Olay günlüğü</span><span class="modul modul-vurgu">arnorg MCP araçları</span></div>
         </div>
         <p class="baglanti">↓ Claude Agent SDK · her çalışan bir oturum · akış + kontrol protokolü + PreToolUse kapısı</p>
         <div class="katman">
@@ -765,11 +763,11 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         </div>
         <div class="katman">
           <div class="katman-ad"><b>Depolama</b><small>yerel, kurulumsuz</small></div>
-          <div class="moduller"><span class="modul">SQLite (WAL): mesaj, olay, maliyet</span><span class="modul">Repo içi .arnorg/: ekip, notlar</span><span class="modul">Git worktree'leri</span><span class="modul">Sunucu modunda isteğe bağlı PostgreSQL</span></div>
+          <div class="moduller"><span class="modul">SQLite (WAL): mesaj, olay, kullanım</span><span class="modul">Repo içi .arnorg/: ekip, notlar</span><span class="modul">Git worktree'leri</span><span class="modul">Sunucu modunda isteğe bağlı PostgreSQL</span></div>
         </div>
       </div>
       <h3>Bir mesaj nasıl yol alır</h3>
-      <p>Deniz <code>mesaj_gonder</code> aracıyla Mert'e yazar. Araç ArnOrg'un kendi MCP sunucusundadır; mesaj veritabanına ve olay günlüğüne düşer, Stüdyo'da anında görünür. Mert uyuyorsa uyandırma kuyruğu onun oturumunu sürdürür ve mesajı ilk girdi olarak verir; çalışıyorsa mesaj akış girdisiyle sıradaki turuna eklenir. Bütçe ve izin denetimi her araç çağrısından önce çekirdekte yapılır.</p>
+      <p>Deniz <code>mesaj_gonder</code> aracıyla Mert'e yazar. Araç ArnOrg'un kendi MCP sunucusundadır; mesaj veritabanına ve olay günlüğüne düşer, Stüdyo'da anında görünür. Mert uyuyorsa uyandırma kuyruğu onun oturumunu sürdürür ve mesajı ilk girdi olarak verir; çalışıyorsa mesaj akış girdisiyle sıradaki turuna eklenir. Kullanım sınırı ve izin denetimi her araç çağrısından önce çekirdekte yapılır.</p>
     </div>
   </section>
 
@@ -780,7 +778,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         <table class="kiyas kiyas-yigin">
           <thead><tr><th>Katman</th><th>Seçim</th><th>Neden</th></tr></thead>
           <tbody>
-            <tr><td><b>Ajan motoru</b></td><td>Claude Agent SDK (TypeScript), sürümü sabitlenmiş</td><td class="eksik">Kancalar, süreç içi MCP araçları, izin geri çağrısı, oturum sürdürme ve akış girdisi yalnız burada eksiksiz. Maliyet her sonuçta raporlanıyor.</td></tr>
+            <tr><td><b>Ajan motoru</b></td><td>Claude Agent SDK (TypeScript), sürümü sabitlenmiş</td><td class="eksik">Kancalar, süreç içi MCP araçları, izin geri çağrısı, oturum sürdürme ve akış girdisi yalnız burada eksiksiz. Token kullanımı her sonuçta raporlanıyor.</td></tr>
             <tr><td><b>Çekirdek</b></td><td>Node.js 22 LTS + TypeScript</td><td class="eksik">SDK ve node-pty Node ister. Masaüstü ve sunucu aynı kodu çalıştırır.</td></tr>
             <tr><td><b>Veri</b></td><td>SQLite (better-sqlite3, WAL) + Drizzle</td><td class="eksik">Kurulumsuz tek dosya, kolay yedek. FTS5 ile not ve mesaj araması. Sunucu modunda PostgreSQL seçeneği.</td></tr>
             <tr><td><b>Arayüz</b></td><td>React 19, Vite, TanStack Router ve Query, Zustand</td><td class="eksik">Conductor, Nimbalyst ve CloudCLI'de kanıtlanmış yığın.</td></tr>
@@ -788,7 +786,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
             <tr><td><b>Masaüstü</b></td><td>Electron + electron-builder</td><td class="eksik">Node zaten şart; Chromium her dağıtımda aynı çizer. NSIS, MSI, AppImage, deb, rpm ve otomatik güncelleme tek araçla. Codex uygulaması, Nimbalyst ve Emdash aynı yolu seçti.</td></tr>
             <tr><td><b>Terminal</b></td><td>node-pty (Windows'ta ConPTY)</td><td class="eksik">Ajan çalışma alanına bakan gerçek terminal.</td></tr>
             <tr><td><b>Git</b></td><td>Sistem git'i + worktree havuzu</td><td class="eksik">Ajan başına yalıtılmış çalışma alanı; havuz sayesinde görev anında başlar.</td></tr>
-            <tr><td><b>Gözlem</b></td><td>OpenTelemetry + kanca olayları</td><td class="eksik">Ajan ve proje etiketli maliyet ve token ölçümü. Durum bilgisi terminal okunarak değil olaylardan gelir.</td></tr>
+            <tr><td><b>Gözlem</b></td><td>OpenTelemetry + kanca olayları</td><td class="eksik">Ajan ve proje etiketli token ölçümü. Durum bilgisi terminal okunarak değil olaylardan gelir.</td></tr>
             <tr><td><b>Depo ve CI</b></td><td>pnpm monorepo, GitHub Actions</td><td class="eksik">Her commit windows-latest ve ubuntu-latest üzerinde derlenir ve test edilir.</td></tr>
           </tbody>
         </table>
@@ -817,9 +815,9 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     <div class="bolum-ic">
       <ol class="fazlar">
         <li class="faz"><div class="faz-ad">Faz 0<small>Temel</small></div><ul><li>pnpm monorepo, çekirdek iskeleti, SQLite şeması</li><li>Tek çalışan oturumu: Agent SDK, akış girdisi, oturum sürdürme</li><li>Gözcü: canlı akış, PreToolUse politika kapısı, araya girme, kesme, temiz ortam</li><li>Proje açma: var olan repoyu bağlama ya da sıfırdan başlatma</li><li>Stüdyo kabuğu FY tasarım diliyle</li><li>Windows ve Linux'ta CI ve kurulum paketleri</li></ul><div class="faz-cikti"><b>Çıktı</b>Tek ajanla konuşulan, kod yazdıran masaüstü uygulaması.</div></li>
-        <li class="faz"><div class="faz-ad">Faz 1<small>Ekip</small></div><ul><li>Rol kataloğu ve çalışan kimlik dosyaları</li><li>İşe alım akışı ve worktree havuzu</li><li>arnorg MCP: mesaj, görev, not araçları</li><li>Görev durum makinesi, pano, kanallar</li><li>Canlı akış ve maliyet sayacı</li></ul><div class="faz-cikti"><b>Çıktı</b>Elle kurulan bir ekip aynı repoda birlikte çalışır ve birbirine yazar.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 1<small>Ekip</small></div><ul><li>Rol kataloğu ve çalışan kimlik dosyaları</li><li>İşe alım akışı ve worktree havuzu</li><li>arnorg MCP: mesaj, görev, not araçları</li><li>Görev durum makinesi, pano, kanallar</li><li>Canlı akış ve kullanım sayacı</li></ul><div class="faz-cikti"><b>Çıktı</b>Elle kurulan bir ekip aynı repoda birlikte çalışır ve birbirine yazar.</div></li>
         <li class="faz"><div class="faz-ad">Faz 2<small>CEO</small></div><ul><li>Brief → plan → kadro döngüsü</li><li>Onay kapıları ve uyandırma kuyruğu</li><li>Günlük durum toplantısı, ilerleme defteri, tıkanma koruması</li><li>İnceleme ve birleştirme kuyruğu</li><li>Sprint raporu</li></ul><div class="faz-cikti"><b>Çıktı</b>Tek paragraflık brief'ten planlanan, onaylanan ve main'e giren bir özellik.</div></li>
-        <li class="faz"><div class="faz-ad">Faz 3<small>Şirket</small></div><ul><li>Bütçe politikaları ve abonelik penceresi takibi</li><li>Hafıza araması ve oturum tekrarı</li><li>Şirket ve proje şablonları, içe ve dışa aktarma</li><li>Sunucu modu ve uzak bağlantı</li><li>Telefona bildirim, otomatik güncelleme</li></ul><div class="faz-cikti"><b>Çıktı</b>1.0 sürümü.</div></li>
+        <li class="faz"><div class="faz-ad">Faz 3<small>Şirket</small></div><ul><li>Abonelik penceresi takibi ve kullanım sınırları</li><li>Hafıza araması ve oturum tekrarı</li><li>Şirket ve proje şablonları, içe ve dışa aktarma</li><li>Sunucu modu ve uzak bağlantı</li><li>Telefona bildirim, otomatik güncelleme</li></ul><div class="faz-cikti"><b>Çıktı</b>1.0 sürümü.</div></li>
         <li class="faz"><div class="faz-ad">Faz 4<small>Genişleme</small></div><ul><li>Eklentiler ve rol pazarı</li><li>AXConnector köprüsü: ortak hafıza ve Kasa</li><li>Başka ajan motorları için adaptör</li><li>Birden çok şirket</li></ul><div class="faz-cikti"><b>Çıktı</b>ArnOrg'un dışa açılan ekosistemi.</div></li>
       </ol>
     </div>
@@ -829,11 +827,11 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     <header><h2>Karar bekleyenler</h2><p>Her biri için önerim hazır; itiraz yoksa Faz 0 bu önerilerle başlar</p></header>
     <div class="bolum-ic">
       <ul class="kararlar">
-        <li class="karar"><div><b>Claude'a giriş</b><p>Anthropic, üçüncü taraf ürünlerin claude.ai girişi sunmasına ve kimlik bilgisi tutmasına izin vermiyor. Kişinin kendi bilgisayarında, kendi girişiyle, değiştirilmemiş Claude Code'u kullanması serbest. 15 Haziran duyurusuna göre Agent SDK ve <code>claude -p</code> kullanımı şimdilik abonelik limitinden düşüyor.</p></div><p class="oneri"><span>Öneri:</span> ArnOrg kimlik bilgisine hiç dokunmaz. Kişisel kullanımda ajanlar makinedeki Claude Code girişinizle çalışır. Ürünü başkalarına dağıtırsak her kullanıcı kendi API anahtarını kullanır. Giriş katmanı değiştirilebilir tutulur, çünkü politika değişebilir.</p></li>
+        <li class="karar"><div><b>Claude'a giriş</b><p>Anthropic, üçüncü taraf ürünlerin claude.ai girişi sunmasına ve kimlik bilgisi tutmasına izin vermiyor. Kişinin kendi bilgisayarında, kendi girişiyle, değiştirilmemiş Claude Code'u kullanması serbest. 15 Haziran duyurusuna göre Agent SDK ve <code>claude -p</code> kullanımı şimdilik abonelik limitinden düşüyor.</p></div><p class="oneri"><span>Öneri:</span> ArnOrg kimlik bilgisine hiç dokunmaz ve yalnız Claude aboneliğiyle çalışır: ajanlar makinedeki Claude Code girişinizle çalışır, API anahtarı kullanılmaz. Her kullanıcı kendi makinesinde <code>claude</code> açıp <code>/login</code> ile kendi hesabına girer.</p></li>
         <li class="karar"><div><b>Masaüstü kabuğu</b><p>Electron mu, Tauri 2 mi.</p></div><p class="oneri"><span>Öneri:</span> Electron. Tauri'de Node yan süreç olarak gelir ve node-pty gibi yerel modüller paketlenemez. Linux'ta sistem WebKitGTK'sı boş pencere ve işlemci sorunları çıkarıyor. Tauri güncelleyicisi deb ve rpm desteklemiyor. Boyut farkı önemsiz: SDK'nın getirdiği Claude ikili dosyası tek başına yaklaşık 230 MB.</p></li>
         <li class="karar"><div><b>Ajanlar arası iletişim</b><p>Claude Code'un yerleşik Agent Teams özelliği mi, ArnOrg'un kendi posta kutusu mu.</p></div><p class="oneri"><span>Öneri:</span> Kendi posta kutumuz. Agent Teams deneysel, SDK modunda çalışmıyor ve oturum sürdürmede ekip kayboluyor. Her ajanın içinde odaklı alt işler için yerel alt ajanlar serbest kalır.</p></li>
         <li class="karar"><div><b>Denetim kapısı</b><p>Araç çağrıları nerede durdurulur.</p></div><p class="oneri"><span>Öneri:</span> Ajanlar tam yetki tercihinize uygun olarak bypassPermissions modunda, soru sormadan çalışır. Her araç çağrısı ArnOrg'un <code>PreToolUse</code> kancasından geçer; yıkıcı komut, gizli dosya ve dışarı push gibi kurallar orada uygulanır, yalnız "onaya sor" kuralına takılan çağrı size gelir.</p></li>
-        <li class="karar"><div><b>Ajan oturumu</b><p>Sürekli açık mı, kısa uyanış mı.</p></div><p class="oneri"><span>Öneri:</span> Kısa uyanış. Kalıcı kimlik ve sürdürülen oturum; olay gelince uyanır, iş bitince kapanır. Boşta maliyet sıfır.</p></li>
+        <li class="karar"><div><b>Ajan oturumu</b><p>Sürekli açık mı, kısa uyanış mı.</p></div><p class="oneri"><span>Öneri:</span> Kısa uyanış. Kalıcı kimlik ve sürdürülen oturum; olay gelince uyanır, iş bitince kapanır. Boştayken abonelik penceresi dolmaz.</p></li>
         <li class="karar"><div><b>Git politikası</b><p>Ajan işleri main'e nasıl girer.</p></div><p class="oneri"><span>Öneri:</span> Ajanlar main'e doğrudan yazmaz. Onaylanan iş birleştirme kuyruğundan main'e girer, sonra main GitHub'a push edilir. PR akışı proje ayarı olarak açılabilir.</p></li>
         <li class="karar"><div><b>Sunucu modu</b><p>Uzun işler nerede koşacak.</p></div><p class="oneri"><span>Öneri:</span> arnex.codes geliştirme sunucusunda systemd hizmeti; Windows dizüstünden masaüstü uygulamasıyla bağlanılır, dışarıya Cloudflare Access arkasından açılır.</p></li>
         <li class="karar"><div><b>Arayüz dili</b><p>Türkçe mi, çok dilli mi.</p></div><p class="oneri"><span>Öneri:</span> Türkçe. Metinler baştan çeviri dosyalarında tutulur, İngilizce sonra eklenir.</p></li>
@@ -854,16 +852,16 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   var hareketAz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var ajanlar = [
-    { id: "ada", ad: "Ada", rol: "CEO", model: "Opus", yonetici: null, durum: "calisiyor", is: "Sprint 3 ilerlemesini derliyor", harcanan: 3.1, limit: 10 },
-    { id: "kerem", ad: "Kerem", rol: "CTO", model: "Opus", yonetici: "ada", durum: "calisiyor", is: "T-21 Jeton yenileme mimarisi", harcanan: 2.6, limit: 8 },
-    { id: "sena", ad: "Sena", rol: "Tasarım", model: "Sonnet", yonetici: "ada", durum: "bosta", is: "Yeni görev bekliyor", harcanan: 0.9, limit: 4 },
-    { id: "deniz", ad: "Deniz", rol: "Backend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-24 Sipariş API uç noktaları", harcanan: 4.25, limit: 5 },
-    { id: "ece", ad: "Ece", rol: "Frontend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-26 Sipariş listesi ekranı", harcanan: 2.2, limit: 5 },
-    { id: "mert", ad: "Mert", rol: "Test", model: "Sonnet", yonetici: "kerem", durum: "bekliyor", is: "T-27 için T-24'ü bekliyor", harcanan: 0.4, limit: 3 },
-    { id: "onur", ad: "Onur", rol: "Kod inceleme", model: "Opus", yonetici: "kerem", durum: "bekliyor", is: "T-19 düzeltmelerini bekliyor", harcanan: 0.75, limit: 5 }
+    { id: "ada", ad: "Ada", rol: "CEO", model: "Opus", yonetici: null, durum: "calisiyor", is: "Sprint 3 ilerlemesini derliyor", token: 186000 },
+    { id: "kerem", ad: "Kerem", rol: "CTO", model: "Opus", yonetici: "ada", durum: "calisiyor", is: "T-21 Jeton yenileme mimarisi", token: 156000 },
+    { id: "sena", ad: "Sena", rol: "Tasarım", model: "Sonnet", yonetici: "ada", durum: "bosta", is: "Yeni görev bekliyor", token: 54000 },
+    { id: "deniz", ad: "Deniz", rol: "Backend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-24 Sipariş API uç noktaları", token: 255000 },
+    { id: "ece", ad: "Ece", rol: "Frontend", model: "Sonnet", yonetici: "kerem", durum: "calisiyor", is: "T-26 Sipariş listesi ekranı", token: 132000 },
+    { id: "mert", ad: "Mert", rol: "Test", model: "Sonnet", yonetici: "kerem", durum: "bekliyor", is: "T-27 için T-24'ü bekliyor", token: 24000 },
+    { id: "onur", ad: "Onur", rol: "Kod inceleme", model: "Opus", yonetici: "kerem", durum: "bekliyor", is: "T-19 düzeltmelerini bekliyor", token: 45000 }
   ];
 
-  var aday = { id: "aras", ad: "Aras", rol: "Güvenlik", model: "Sonnet", yonetici: "kerem", durum: "bosta", is: "İşe başlama: OWASP taraması", harcanan: 0, limit: 6 };
+  var aday = { id: "aras", ad: "Aras", rol: "Güvenlik", model: "Sonnet", yonetici: "kerem", durum: "bosta", is: "İşe başlama: OWASP taraması", token: 0 };
 
   var sutunlar = [
     { id: "bekleyen", ad: "Bekleyen" },
@@ -909,31 +907,32 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   var aktifKanal = "genel";
 
   var onaylar = [
-    { id: "o1", tur: "İşe alım", baslik: "Aras · Güvenlik uzmanı", ayrinti: "Sonnet · günlük $6 · Kerem'e bağlı", gerekce: "Ödeme entegrasyonu öncesi OWASP denetimi ve bağımlılık taraması. Teklif eden: Ada (CEO).", durum: "bekliyor" },
+    { id: "o1", tur: "İşe alım", baslik: "Aras · Güvenlik uzmanı", ayrinti: "Sonnet · Kerem'e bağlı", gerekce: "Ödeme entegrasyonu öncesi OWASP denetimi ve bağımlılık taraması. Teklif eden: Ada (CEO).", durum: "bekliyor" },
     { id: "o2", tur: "main'e birleştirme", baslik: "T-22 Ürün kataloğu API", ayrinti: "6 dosya · +214 −12 · testler geçti", gerekce: "Onur iki turda inceledi ve onayladı. Çakışma yok.", durum: "bekliyor" },
-    { id: "o3", tur: "Bütçe artışı", baslik: "Deniz · +$3 günlük", ayrinti: "Kullanım: $4,25 / $5", gerekce: "T-24 sayfalama testleri beklenenden uzun sürdü. Kalan iş: tahmini 40 dk.", durum: "bekliyor" }
+    { id: "o3", tur: "Karar", baslik: "Deniz · siparişler tablosuna dizin göçü", ayrinti: "Geri alınabilir · kısa yazma kilidi", gerekce: "İmleç tabanlı sayfalama için siparisler(olusturma, id) dizini gerekiyor.", durum: "bekliyor" }
   ];
 
   var akisKaynak = [
-    ["deniz", "Edit", "src/api/siparisler.ts", 0.04],
-    ["ece", "Bash", "pnpm vitest run liste", 0.02],
-    ["kerem", "not_yaz", "kararlar/ADR-004-jeton-yenileme.md", 0.05],
-    ["deniz", "Bash", "pnpm test api/siparisler", 0.03],
-    ["ada", "gorev_guncelle", "T-27 → Planlandı", 0.01],
-    ["ece", "Read", "src/bilesenler/Tablo.tsx", 0.01],
-    ["mert", "mesaj_gonder", "#backend · T-24 şeması değişti mi?", 0.01],
-    ["kerem", "Grep", "\"refreshToken\" src/", 0.01],
-    ["ece", "Edit", "src/ekranlar/SiparisListesi.tsx", 0.05],
-    ["deniz", "mesaj_gonder", "@Mert · Değişmedi, sayfalama eklendi.", 0.01],
-    ["ada", "hafiza_ara", "\"ödeme sağlayıcısı\"", 0.01],
-    ["ece", "Bash", "pnpm lint", 0.01],
-    ["deniz", "Write", "tests/api/sayfalama.test.ts", 0.04],
-    ["kerem", "Read", "src/auth/jeton.ts", 0.01],
+    ["deniz", "Edit", "src/api/siparisler.ts", 2400],
+    ["ece", "Bash", "pnpm vitest run liste", 1200],
+    ["kerem", "not_yaz", "kararlar/ADR-004-jeton-yenileme.md", 3000],
+    ["deniz", "Bash", "pnpm test api/siparisler", 1800],
+    ["ada", "gorev_guncelle", "T-27 → Planlandı", 600],
+    ["ece", "Read", "src/bilesenler/Tablo.tsx", 600],
+    ["mert", "mesaj_gonder", "#backend · T-24 şeması değişti mi?", 600],
+    ["kerem", "Grep", "\"refreshToken\" src/", 600],
+    ["ece", "Edit", "src/ekranlar/SiparisListesi.tsx", 3000],
+    ["deniz", "mesaj_gonder", "@Mert · Değişmedi, sayfalama eklendi.", 600],
+    ["ada", "hafiza_ara", "\"ödeme sağlayıcısı\"", 600],
+    ["ece", "Bash", "pnpm lint", 600],
+    ["deniz", "Write", "tests/api/sayfalama.test.ts", 2400],
+    ["kerem", "Read", "src/auth/jeton.ts", 600],
     ["mert", "reddedildi", "Bash · rm -rf tests/eski · yıkıcı komut", 0]
   ];
   var akis = [];
   var akisIndeks = 0;
-  var maliyet = 14.2;
+  var bugunToken = 852000;
+  var besSaat = 42;
   var mesaide = true;
   var aktifGorunum = "karargah";
   var secilenNot = "kararlar/ADR-004-jeton-yenileme.md";
@@ -949,7 +948,11 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     for (var i = 0; i < ajanlar.length; i++) if (ajanlar[i].id === id) return ajanlar[i];
     return id === aday.id ? aday : null;
   }
-  function para(n) { return "$" + n.toFixed(2).replace(".", ","); }
+  function tokenYaz(n) {
+    if (n >= 1000000) return (Math.round(n / 100000) / 10).toString().replace(".", ",") + " milyon";
+    if (n >= 1000) return Math.round(n / 1000) + " bin";
+    return String(Math.round(n));
+  }
   // Maket kendi saatini tutar: her olay bir dakika ilerletir
   var dakika = 10 * 60 + 31;
   function saatSimdi(ilerlet) {
@@ -980,12 +983,13 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
       return '<li><span class="sw seg-' + s.id + '"></span>' + s.ad + " <b>" + say[s.id] + "</b></li>";
     }).join("");
     var bekleyenOnay = onaylar.filter(function (o) { return o.durum === "bekliyor"; }).length;
+    var enCok = Math.max.apply(null, ajanlar.map(function (a) { return a.token; }).concat([1]));
     var satirlar = ajanlar.map(function (a) {
-      var oran = Math.min(100, Math.round((a.harcanan / a.limit) * 100));
+      var oran = Math.min(100, Math.round((a.token / enCok) * 100));
       return '<tr><td><span class="kisi">' + avatar(a, true) + "<span><b>" + kacis(a.ad) + "</b><small>" + kacis(a.rol) + " · " + a.model + "</small></span></span></td>" +
         "<td>" + durumPill(a.durum) + "</td>" +
         '<td class="td-is">' + kacis(a.is) + "</td>" +
-        '<td class="td-butce"><span class="butce' + (oran >= 80 ? " butce-sinir" : "") + '"><span style="width:' + oran + '%"></span></span><small>' + para(a.harcanan) + " / " + para(a.limit) + "</small></td></tr>";
+        '<td class="td-kullanim"><span class="pay"><span style="width:' + oran + '%"></span></span><small>' + tokenYaz(a.token) + " token</small></td></tr>";
     }).join("");
     return (
       '<div class="v-baslik"><h3>Karargâh</h3><p>Sprint 3 · 2. gün · hedef: sipariş akışı uçtan uca</p></div>' +
@@ -998,7 +1002,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
       '<div class="ilerleme" role="img" aria-label="Görev dağılımı">' + bar + "</div>" +
       '<ul class="lejant">' + lejant + "</ul>" +
       '<h4 class="ara-baslik">Ekip <small>' + ajanlar.length + " çalışan</small></h4>" +
-      '<div class="tablo-sar"><table class="tablo"><thead><tr><th>Çalışan</th><th>Durum</th><th>Şu an</th><th>Bugünkü bütçe</th></tr></thead><tbody>' + satirlar + "</tbody></table></div>"
+      '<div class="tablo-sar"><table class="tablo"><thead><tr><th>Çalışan</th><th>Durum</th><th>Şu an</th><th>Bugünkü kullanım</th></tr></thead><tbody>' + satirlar + "</tbody></table></div>"
     );
   };
 
@@ -1022,7 +1026,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
       : alindi
       ? '<div class="teklif teklif-ok"><b>Aras işe alındı.</b><p>Çalışma alanı açıldı: <code>arnorg/aras/guvenlik-denetimi</code>. İlk görevi Kerem atadı.</p></div>'
       : '<div class="teklif"><div class="teklif-ust"><span class="etiket">CEO teklifi</span><b>Güvenlik uzmanı · Aras</b></div>' +
-        '<dl class="kv"><dt>Model</dt><dd>Sonnet</dd><dt>Yönetici</dt><dd>Kerem (CTO)</dd><dt>Günlük bütçe</dt><dd>$6</dd><dt>Araçlar</dt><dd>Read, Grep, Bash (salt okuma), arnorg</dd><dt>Becerileri</dt><dd>OWASP denetimi, bağımlılık taraması</dd></dl>' +
+        '<dl class="kv"><dt>Model</dt><dd>Sonnet</dd><dt>Yönetici</dt><dd>Kerem (CTO)</dd><dt>Araçlar</dt><dd>Read, Grep, Bash (salt okuma), arnorg</dd><dt>Becerileri</dt><dd>OWASP denetimi, bağımlılık taraması</dd></dl>' +
         "<p>Gerekçe: ödeme entegrasyonuna geçmeden önce oturum ve jeton akışlarının bağımsız denetimi.</p>" +
         '<div class="btn-satir"><button class="btn" data-ise-al>İşe al</button><button class="btn-ghost" data-git="onaylar">Onaylar\'da gör</button></div></div>';
     return (
@@ -1318,7 +1322,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
         : '<span class="pill ' + (o.durum === "onaylandi" ? "pill-ok" : "pill-bosta") + '"><i></i>' + (o.durum === "onaylandi" ? "Onaylandı" : "Reddedildi") + "</span>";
       return '<li class="onay"><div><span class="etiket">' + kacis(o.tur) + "</span><b>" + kacis(o.baslik) + "</b><small>" + kacis(o.ayrinti) + "</small><p>" + kacis(o.gerekce) + "</p></div>" + sag + "</li>";
     }).join("");
-    return '<div class="v-baslik"><h3>Onaylar</h3><p>İşe alım, bütçe, main\'e birleştirme ve geri alınamaz komutlar sizden geçer</p></div><ul class="onay-liste">' + satirlar + "</ul>";
+    return '<div class="v-baslik"><h3>Onaylar</h3><p>İşe alım, main\'e birleştirme ve geri alınamaz komutlar sizden geçer</p></div><ul class="onay-liste">' + satirlar + "</ul>";
   };
 
 
@@ -1338,7 +1342,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     ["Çalışma alanı dışına yazma", "worktree dışındaki her yol", "ret"],
     ["Dışarı push ve deploy", "git push, dokploy, npm publish", "sor"],
     ["Ağ erişimi", "izinli alan adları dışı", "sor"],
-    ["Bütçe", "%90'da yavaşlat, %100'de durdur", "sınır"]
+    ["Kullanım sınırı", "5 saatlik pencere %90, haftalık %95: dur", "sınır"]
   ];
   var kararAd = { izin: "İzin", ret: "Ret", degisti: "Girdi değişti", sor: "Onaya sor", "sınır": "Sınır", bekliyor: "Bekliyor" };
   var secilenAjan = "deniz";
@@ -1398,7 +1402,7 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     kanallar.genel.push({ kim: "ada", saat: saatSimdi(), metin: "Aras ekibe katıldı. @Kerem ilk görevini sen ata; ödeme işine geçmeden oturum ve jeton akışlarını denetlesin." });
     var o = onaylar[0];
     if (o.durum === "bekliyor") o.durum = "onaylandi";
-    olayEkle(["aras", "oturum_basladi", "arnorg/aras/guvenlik-denetimi", 0.0]);
+    olayEkle(["aras", "oturum_basladi", "arnorg/aras/guvenlik-denetimi", 0]);
     sayaclariYaz();
   }
 
@@ -1409,12 +1413,9 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     o.durum = kabul ? "onaylandi" : "reddedildi";
     if (id === "o2" && kabul) {
       gorevler.forEach(function (g) { if (g.id === "T-22") { g.sutun = "tamam"; g.not = null; } });
-      olayEkle(["onur", "birlestir", "T-22 → main", 0.0]);
+      olayEkle(["onur", "birlestir", "T-22 → main", 0]);
     }
-    if (id === "o3" && kabul) {
-      var d = ajan("deniz");
-      d.limit += 3;
-    }
+    if (id === "o3" && kabul) olayEkle(["deniz", "Bash", "pnpm db:goc siparis-dizini", 1800]);
     sayaclariYaz();
   }
 
@@ -1434,8 +1435,8 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     var kisa = metin.length > 48 ? metin.slice(0, 46) + "…" : metin;
     gorevler.unshift({ id: "T-" + no, baslik: kisa, kim: null, sutun: "bekleyen", etiket: "yeni" });
     setTimeout(function () {
-      kanallar[aktifKanal].push({ kim: "ada", saat: saatSimdi(), metin: "Not aldım. T-" + no + " olarak panoya ekledim, kapsamını Kerem'le netleştirip bu sprintin sonuna planlıyorum. Tahmini maliyet $2–4." });
-      olayEkle(["ada", "gorev_ac", "T-" + no + " · " + kisa, 0.01]);
+      kanallar[aktifKanal].push({ kim: "ada", saat: saatSimdi(), metin: "Not aldım. T-" + no + " olarak panoya ekledim, kapsamını Kerem'le netleştirip bu sprintin sonuna planlıyorum. Tahmini süre iki gün." });
+      olayEkle(["ada", "gorev_ac", "T-" + no + " · " + kisa, 600]);
       if (aktifGorunum === "kanallar") ciz();
     }, hareketAz ? 200 : 1100);
   }
@@ -1446,7 +1447,9 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
     var a = ajan(o[0]);
     akis.unshift({ ajan: a, arac: o[1], hedef: o[2], saat: saatSimdi(true), yeni: true });
     if (akis.length > 14) akis.pop();
-    maliyet += o[3];
+    bugunToken += o[3];
+    besSaat = Math.min(100, besSaat + o[3] / 150000);
+    if (o[3] && a) a.token += o[3];
     akisCiz();
     sayaclariYaz();
   }
@@ -1462,7 +1465,8 @@ Görevini panodan al, kararları notlara yaz, takıldığında #backend'e sor.</
   function sayaclariYaz() {
     var aktif = ajanlar.filter(function (a) { return a.durum === "calisiyor"; }).length;
     $("#m-ajan").textContent = mesaide ? aktif + " aktif · " + ajanlar.length + " çalışan" : "Mesai durdu · " + ajanlar.length + " çalışan";
-    $("#m-maliyet").textContent = para(maliyet);
+    $("#m-token").textContent = tokenYaz(bugunToken);
+    $("#m-pencere").textContent = "%" + Math.round(besSaat);
     var bekleyen = onaylar.filter(function (o) { return o.durum === "bekliyor"; }).length;
     var rozet = $("#rozet-onay");
     rozet.textContent = bekleyen;

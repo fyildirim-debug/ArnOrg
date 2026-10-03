@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS ajanlar (
   calisma_alani TEXT,
   dal TEXT,
   izin_modu TEXT NOT NULL,
-  gunluk_butce REAL NOT NULL DEFAULT 5,
   talimat_eki TEXT NOT NULL DEFAULT '',
   olusturma TEXT NOT NULL,
   silindi INTEGER NOT NULL DEFAULT 0
@@ -123,11 +122,11 @@ CREATE TABLE IF NOT EXISTS akis (
   veri TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS akis_ajan ON akis(ajan_id, sira);
-CREATE TABLE IF NOT EXISTS maliyet (
+CREATE TABLE IF NOT EXISTS kullanim (
   proje_id TEXT NOT NULL,
   ajan_id TEXT NOT NULL,
   gun TEXT NOT NULL,
-  usd REAL NOT NULL DEFAULT 0,
+  token INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (proje_id, ajan_id, gun)
 );
 CREATE TABLE IF NOT EXISTS politika (
@@ -193,12 +192,29 @@ export class Depo {
     this.gocEt();
   }
 
-  /** Eski veri dosyalarına sonradan eklenen sütunlar */
+  /** Eski veri dosyalarının göçü: sonradan eklenen sütunlar; kaldırılan API girişi ve dolar bütçesinin izleri silinir */
   private gocEt(): void {
-    const sutunlar = (this.db.prepare("PRAGMA table_info(maliyet)").all() as Satir[]).map((s) => String(s.name));
-    if (!sutunlar.includes("token")) this.db.exec("ALTER TABLE maliyet ADD COLUMN token INTEGER NOT NULL DEFAULT 0");
+    const tablolar = new Set((this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Satir[]).map((s) => String(s.name)));
+    if (tablolar.has("maliyet")) {
+      // Eski maliyet tablosu: token sayıları kullanim tablosuna taşınır, dolar tutarları silinir
+      const sutunlar = (this.db.prepare("PRAGMA table_info(maliyet)").all() as Satir[]).map((s) => String(s.name));
+      const tasi = this.db.transaction(() => {
+        if (sutunlar.includes("token")) {
+          this.db.exec("INSERT OR IGNORE INTO kullanim (proje_id, ajan_id, gun, token) SELECT proje_id, ajan_id, gun, token FROM maliyet WHERE token > 0");
+        }
+        this.db.exec("DROP TABLE maliyet");
+      });
+      tasi();
+    }
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
     if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
+    if (ajanSutunlari.includes("gunluk_butce")) this.db.exec("ALTER TABLE ajanlar DROP COLUMN gunluk_butce");
+    this.db.prepare("DELETE FROM onaylar WHERE tur = 'butce'").run();
+    // Eski işe alım tekliflerinin verisindeki günlük bütçe alanı
+    this.db
+      .prepare("UPDATE onaylar SET veri = json_remove(veri, '$.gunlukButceUsd') WHERE json_valid(veri) AND json_type(veri, '$.gunlukButceUsd') IS NOT NULL")
+      .run();
+    this.db.prepare("DELETE FROM denetim WHERE kural IN ('Bütçe', 'Şirket bütçesi')").run();
   }
 
   kapat(): void {
@@ -248,7 +264,7 @@ export class Depo {
 
   projeSil(id: string): void {
     const sil = this.db.transaction(() => {
-      for (const t of ["ajanlar", "gorevler", "kanallar", "mesajlar", "denetim", "onaylar", "akis", "maliyet", "politika"]) {
+      for (const t of ["ajanlar", "gorevler", "kanallar", "mesajlar", "denetim", "onaylar", "akis", "kullanim", "politika"]) {
         this.db.prepare(`DELETE FROM ${t} WHERE proje_id = ?`).run(id);
       }
       this.db.prepare("DELETE FROM projeler WHERE id = ?").run(id);
@@ -276,9 +292,6 @@ export class Depo {
       calismaAlani: (s.calisma_alani as string | null) ?? null,
       dal: (s.dal as string | null) ?? null,
       izinModu: String(s.izin_modu) as IzinModu,
-      gunlukButceUsd: Number(s.gunluk_butce),
-      bugunHarcananUsd: this.ajanMaliyeti(projeId, id, bugun()),
-      toplamHarcananUsd: this.ajanMaliyeti(projeId, id),
       bugunToken: this.ajanTokeni(projeId, id, bugun()),
       toplamToken: this.ajanTokeni(projeId, id),
       talimatEki: String(s.talimat_eki),
@@ -287,17 +300,17 @@ export class Depo {
     };
   }
 
-  ajanEkle(a: Omit<Ajan, "id" | "olusturma" | "bugunHarcananUsd" | "toplamHarcananUsd" | "bugunToken" | "toplamToken">): Ajan {
+  ajanEkle(a: Omit<Ajan, "id" | "olusturma" | "bugunToken" | "toplamToken">): Ajan {
     const id = kimlik();
     this.db
       .prepare(
         `INSERT INTO ajanlar (id, proje_id, ad, rol, rol_adi, model, yonetici_id, durum, is_aciklamasi, gorev_id, oturum_id,
-          calisma_alani, dal, izin_modu, gunluk_butce, talimat_eki, karakter, olusturma)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          calisma_alani, dal, izin_modu, talimat_eki, karakter, olusturma)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, a.projeId, a.ad, a.rol, a.rolAdi, a.model, a.yoneticiId, a.durum, a.isAciklamasi, a.gorevId, a.oturumId,
-        a.calismaAlani, a.dal, a.izinModu, a.gunlukButceUsd, a.talimatEki, a.karakter ?? null, simdi(),
+        a.calismaAlani, a.dal, a.izinModu, a.talimatEki, a.karakter ?? null, simdi(),
       );
     return this.ajan(id)!;
   }
@@ -332,7 +345,6 @@ export class Depo {
       calismaAlani: "calisma_alani",
       dal: "dal",
       izinModu: "izin_modu",
-      gunlukButceUsd: "gunluk_butce",
       talimatEki: "talimat_eki",
       karakter: "karakter",
     };
@@ -574,7 +586,15 @@ export class Depo {
 
   akis(ajanId: string, sinir = 300): AkisOgesi[] {
     const satirlar = this.db.prepare("SELECT veri FROM akis WHERE ajan_id = ? ORDER BY sira DESC LIMIT ?").all(ajanId, sinir) as Satir[];
-    return satirlar.reverse().map((s) => jsonOku<AkisOgesi>(s.veri as string, null as unknown as AkisOgesi)).filter(Boolean);
+    return satirlar
+      .reverse()
+      .map((s) => {
+        const o = jsonOku<(AkisOgesi & { maliyetUsd?: number }) | null>(s.veri as string, null);
+        // Eski sürümlerin tur sonu kayıtlarındaki dolar tutarı gösterilmez
+        if (o) delete o.maliyetUsd;
+        return o;
+      })
+      .filter((o): o is AkisOgesi => o !== null);
   }
 
   akisBuda(ajanId: string): void {
@@ -583,58 +603,38 @@ export class Depo {
       .run(ajanId, ajanId, AKIS_SINIRI);
   }
 
-  // ---------------- maliyet ----------------
+  // ---------------- kullanım (işlenen token; abonelik pencereleri Claude Code'dan okunur) ----------------
 
-  maliyetEkle(projeId: string, ajanId: string, usd: number, token = 0): void {
-    const u = usd > 0 ? usd : 0;
+  kullanimEkle(projeId: string, ajanId: string, token: number): void {
     const t = token > 0 ? Math.round(token) : 0;
-    if (!u && !t) return;
+    if (!t) return;
     this.db
       .prepare(
-        `INSERT INTO maliyet (proje_id, ajan_id, gun, usd, token) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(proje_id, ajan_id, gun) DO UPDATE SET usd = usd + excluded.usd, token = token + excluded.token`,
+        `INSERT INTO kullanim (proje_id, ajan_id, gun, token) VALUES (?, ?, ?, ?)
+         ON CONFLICT(proje_id, ajan_id, gun) DO UPDATE SET token = token + excluded.token`,
       )
-      .run(projeId, ajanId, bugun(), u, t);
+      .run(projeId, ajanId, bugun(), t);
   }
 
   ajanTokeni(projeId: string, ajanId: string, gun?: string): number {
     const s = (gun
-      ? this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND ajan_id = ? AND gun = ?").get(projeId, ajanId, gun)
-      : this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND ajan_id = ?").get(projeId, ajanId)) as Satir;
+      ? this.db.prepare("SELECT sum(token) t FROM kullanim WHERE proje_id = ? AND ajan_id = ? AND gun = ?").get(projeId, ajanId, gun)
+      : this.db.prepare("SELECT sum(token) t FROM kullanim WHERE proje_id = ? AND ajan_id = ?").get(projeId, ajanId)) as Satir;
     return Number(s.t ?? 0);
   }
 
   projeTokeni(projeId: string, gun?: string): number {
     const s = (gun
-      ? this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ? AND gun = ?").get(projeId, gun)
-      : this.db.prepare("SELECT sum(token) t FROM maliyet WHERE proje_id = ?").get(projeId)) as Satir;
+      ? this.db.prepare("SELECT sum(token) t FROM kullanim WHERE proje_id = ? AND gun = ?").get(projeId, gun)
+      : this.db.prepare("SELECT sum(token) t FROM kullanim WHERE proje_id = ?").get(projeId)) as Satir;
     return Number(s.t ?? 0);
   }
 
-  ajanMaliyeti(projeId: string, ajanId: string, gun?: string): number {
-    const s = (gun
-      ? this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ? AND ajan_id = ? AND gun = ?").get(projeId, ajanId, gun)
-      : this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ? AND ajan_id = ?").get(projeId, ajanId)) as Satir;
-    return Number(s.t ?? 0);
-  }
-
-  projeMaliyeti(projeId: string, gun?: string): number {
-    const s = (gun
-      ? this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ? AND gun = ?").get(projeId, gun)
-      : this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE proje_id = ?").get(projeId)) as Satir;
-    return Number(s.t ?? 0);
-  }
-
-  /** Verilen günden (dahil) bu yana ajan başına harcama */
-  donemMaliyeti(projeId: string, baslangicGun: string): { ajanId: string; usd: number; token: number }[] {
+  /** Verilen günden (dahil) bu yana ajan başına işlenen token */
+  donemKullanimi(projeId: string, baslangicGun: string): { ajanId: string; token: number }[] {
     return (
-      this.db.prepare("SELECT ajan_id, sum(usd) t, sum(token) k FROM maliyet WHERE proje_id = ? AND gun >= ? GROUP BY ajan_id ORDER BY k DESC, t DESC").all(projeId, baslangicGun) as Satir[]
-    ).map((s) => ({ ajanId: String(s.ajan_id), usd: Number(s.t ?? 0), token: Number(s.k ?? 0) }));
-  }
-
-  sirketMaliyeti(gun: string): number {
-    const s = this.db.prepare("SELECT sum(usd) t FROM maliyet WHERE gun = ?").get(gun) as Satir;
-    return Number(s.t ?? 0);
+      this.db.prepare("SELECT ajan_id, sum(token) k FROM kullanim WHERE proje_id = ? AND gun >= ? GROUP BY ajan_id ORDER BY k DESC").all(projeId, baslangicGun) as Satir[]
+    ).map((s) => ({ ajanId: String(s.ajan_id), token: Number(s.k ?? 0) }));
   }
 
   // ---------------- politika ----------------

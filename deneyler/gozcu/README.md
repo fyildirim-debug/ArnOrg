@@ -13,7 +13,7 @@ ArnOrg'un temel iddiasını kanıtlayan küçük deneme: Claude Code ajanı çal
 
 ## Çalıştırma
 
-Gereken: Node.js 22+, makinede çalışan bir Claude Code girişi (abonelik ya da API anahtarı). Windows'ta Git for Windows önerilir.
+Gereken: Node.js 22+, makinede claude.ai aboneliğiyle (Pro, Max ya da Team) giriş yapılmış Claude Code. Deneme API anahtarını ve bulut sağlayıcı değişkenlerini alt sürece vermez. Windows'ta Git for Windows önerilir.
 
 ```bash
 cd deneyler/gozcu
@@ -23,7 +23,7 @@ npm run denetim     # ya da: npm run kesme, npm run bypass, npm run dis
 
 - `--kayit` bayrağı (npm betiklerinde açık) SDK ile Claude Code arasındaki ham trafiği `kayit/` altına yazar: `<senaryo>.stdin.jsonl`, `<senaryo>.stdout.jsonl`, `<senaryo>.argv.txt`. Kayıt kabuk betiği kullanmaz, Windows'ta da çalışır. Kayıtta hesap bilgisi bulunur; `kayit/` git dışındadır.
 - `CLAUDE_YOLU` ile SDK'nın getirdiği Claude Code yerine kurulu bir sürüm kullanılabilir.
-- `GOZCU_MODEL` varsayılan olarak `haiku`. Her senaryo birkaç sentlik maliyetle biter, `maxBudgetUsd` 0,40'ta sınırlı.
+- `GOZCU_MODEL` varsayılan olarak `haiku`. Her senaryo birkaç turla sınırlıdır (`maxTurns`); abonelik penceresinde az yer tutar. Sonuç satırı turda işlenen tokeni yazar.
 - Linux'ta root kullanıcısıyla `bypass` ve `dis` senaryoları için betik `IS_SANDBOX=1` ekler; Claude Code root'ta bypass modunu aksi halde reddeder.
 - `dis` senaryosu `PATH` içindeki `claude` komutunu kullanır. Windows'ta `claude` bir `.cmd` sarmalayıcısıysa `CLAUDE_YOLU` ile `claude.exe` yolu verilir.
 - `dis` senaryosu 47821 numaralı yerel bağlantı noktasında küçük bir gözcü sunucusu açar.
@@ -35,7 +35,7 @@ npm run denetim     # ya da: npm run kesme, npm run bypass, npm run dis
   9808 izin            {"arac":"Write","karar":"allow","degisti":true}
  10222 izin            {"arac":"Bash","karar":"deny","neden":"ArnOrg politikası: rm -rf yasak. ..."}
  16728 izin            {"arac":"mcp__arnorg__mesaj_gonder","karar":"allow"}
- 19764 sonuç           {"altTur":"success","tur":6,"maliyetUsd":0.0261,"retler":1}
+ 19764 sonuç           {"altTur":"success","tur":6,"retler":1}
  20091 dosya           {"rapor.txt":"# ArnOrg damgası: denetlendi\nArnOrg gözcü testi\nDenetlendi"}
  20091 koruma          {"eski/ duruyor":true}
 ```

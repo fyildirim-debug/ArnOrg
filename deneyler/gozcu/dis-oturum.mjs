@@ -35,15 +35,24 @@ function gozcuBaslat() {
   return new Promise((r) => sunucu.listen(PORT, "127.0.0.1", () => r(sunucu)));
 }
 
-// ---------- temiz ortam (bkz. gozcu.mjs) ----------
-const KORUNAN = new Set(["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_GIT_BASH_PATH", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"]);
+// ---------- temiz ortam (bkz. gozcu.mjs): yalnız abonelik girişi geçer ----------
+const KORUNAN = new Set(["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_GIT_BASH_PATH"]);
+const API_GIRISI = new Set(["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]);
 function temizOrtam(ek = {}) {
   const ortam = {};
   for (const [k, v] of Object.entries(process.env)) {
+    if (API_GIRISI.has(k)) continue;
     if ((k === "CLAUDECODE" || k.startsWith("CLAUDE_")) && !KORUNAN.has(k)) continue;
     ortam[k] = v;
   }
   return { ...ortam, ...ek };
+}
+
+/** Turda işlenen token: girdi + çıktı + önbelleğe yazılan (önbellekten okuma hariç) */
+function islenenToken(modelKullanimi) {
+  let t = 0;
+  for (const k of Object.values(modelKullanimi || {})) t += (k.inputTokens || 0) + (k.outputTokens || 0) + (k.cacheCreationInputTokens || 0);
+  return t;
 }
 
 // ---------- bir "dış" oturum çalıştır ----------
@@ -65,7 +74,7 @@ function disOturum(ad) {
   const argv = [
     "-p", "Sırayla: 1) Bash ile `echo merhaba > selam.txt` çalıştır. 2) Bash ile `rm -rf eski` çalıştır. Onay isteme, iki komutu da dene. Kısa çalış.",
     "--output-format", "stream-json", "--verbose",
-    "--model", process.env.GOZCU_MODEL || "haiku", "--max-turns", "6", "--max-budget-usd", "0.3",
+    "--model", process.env.GOZCU_MODEL || "haiku", "--max-turns", "6",
     "--permission-mode", "bypassPermissions", "--setting-sources=", "--settings", JSON.stringify(ayarlar),
   ];
   return new Promise((bitti) => {
@@ -84,7 +93,7 @@ function disOturum(ad) {
           if (k.type === "text") yaz("metin", { metin: k.text.slice(0, 140) });
           if (k.type === "tool_use") yaz("araç_çağrısı", { ad: k.name, girdi: k.input?.command });
         }
-        if (m.type === "result") yaz("sonuç", { altTur: m.subtype, maliyetUsd: m.total_cost_usd, retler: m.permission_denials?.length });
+        if (m.type === "result") yaz("sonuç", { altTur: m.subtype, token: islenenToken(m.modelUsage), retler: m.permission_denials?.length });
       }
     });
     c.stderr.on("data", (p) => yaz("stderr", { metin: String(p).trim().slice(0, 140) }));

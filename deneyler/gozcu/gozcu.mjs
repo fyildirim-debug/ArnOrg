@@ -39,20 +39,25 @@ function yaz(tur, veri = {}) {
 // ---------- temiz ortam ----------
 // ArnOrg başka bir Claude Code oturumunun içinden çalışırsa (ör. geliştirme sırasında)
 // üst oturumun kimliği alt sürece geçer ve alt ajan aynı oturum kimliğini kullanır.
-// Bu yüzden üst oturuma ait değişkenler silinir; kimlik doğrulama ve platform ayarları kalır.
-const KORUNAN = new Set([
-  "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_GIT_BASH_PATH",
-  "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
-  "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST",
-]);
+// Bu yüzden üst oturuma ait değişkenler silinir; abonelik girişi ve platform ayarları kalır.
+// Deneme yalnız Claude aboneliğiyle çalışır: API anahtarı ve bulut sağlayıcı değişkenleri alt sürece geçmez.
+const KORUNAN = new Set(["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_GIT_BASH_PATH"]);
+const API_GIRISI = new Set(["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]);
 function temizOrtam(ek = {}) {
   const ortam = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (v === undefined) continue;
+    if (v === undefined || API_GIRISI.has(k)) continue;
     if ((k === "CLAUDECODE" || k.startsWith("CLAUDE_") || k === "CLAUDE_PID") && !KORUNAN.has(k)) continue;
     ortam[k] = v;
   }
   return { ...ortam, ...ek };
+}
+
+/** Turda işlenen token: girdi + çıktı + önbelleğe yazılan (önbellekten okuma hariç) */
+function islenenToken(modelKullanimi) {
+  let t = 0;
+  for (const k of Object.values(modelKullanimi || {})) t += (k.inputTokens || 0) + (k.outputTokens || 0) + (k.cacheCreationInputTokens || 0);
+  return t;
 }
 
 // ---------- ham trafik kaydı (Windows ve Linux) ----------
@@ -140,7 +145,6 @@ const q = query({
     cwd: alan,
     model: process.env.GOZCU_MODEL || "haiku",
     maxTurns: 12,
-    maxBudgetUsd: 0.4,
     settingSources: [],
     env: temizOrtam(ekOrtam),
     ...(process.env.CLAUDE_YOLU ? { pathToClaudeCodeExecutable: process.env.CLAUDE_YOLU } : {}),
@@ -191,7 +195,7 @@ for await (const m of q) {
     else if (m.subtype === "session_state_changed") yaz("durum", { durum: m.state });
     else if (m.subtype !== "thinking_tokens") yaz("sistem", { altTur: m.subtype });
   } else if (m.type === "result") {
-    yaz("sonuç", { altTur: m.subtype, tur: m.num_turns, maliyetUsd: m.total_cost_usd, retler: m.permission_denials?.length, metin: String(m.result || "").slice(0, 100) });
+    yaz("sonuç", { altTur: m.subtype, tur: m.num_turns, token: islenenToken(m.modelUsage), retler: m.permission_denials?.length, metin: String(m.result || "").slice(0, 100) });
     break;
   }
 }

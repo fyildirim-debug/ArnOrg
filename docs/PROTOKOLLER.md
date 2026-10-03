@@ -25,7 +25,7 @@ SDK neredeyse her gün yeni sürüm çıkarıyor (her 0.3.N sürümü CLI 2.1.N 
 | İzin modunu, modeli değiştirmek | `set_permission_mode`, `set_model` | [kaynak] |
 | ArnOrg araçları (mesaj, görev, not) | süreç içi MCP → `mcp_message` | [deney] |
 | Alt ajanlar ve arka plan görevleri | `parent_tool_use_id`, `task_*`, `stop_task` | [deney] kısmen |
-| Maliyet ve abonelik penceresi | `result.total_cost_usd`, `modelUsage`, `rate_limit_event` | [deney] |
+| Token kullanımı ve abonelik penceresi | `result.modelUsage`, `rate_limit_event` | [deney] |
 | ArnOrg dışında açılan oturumlar | ayar dosyası kancaları + güvenli kapanan köprü, OpenTelemetry, kayıt dosyaları | [deney] köprü; bölüm 9–11 |
 | Tekrar oynatma | oturum kayıt dosyası (JSONL) | [kaynak] |
 
@@ -177,7 +177,7 @@ Belgelenmemiş başka alt türler de akıyor (`task_summary`, `post_turn_summary
 | `interrupt` | `cancel_queued?` | `{still_queued: []}` **[deney]** | Kes |
 | `set_permission_mode` | `mode` | `{mode}` + `system/status` | Plan moduna al, tam yetki ver |
 | `set_model` | `model` | `{}` | Modeli değiştir |
-| `set_max_thinking_tokens` | `max_thinking_tokens` | `{}` | Düşünme bütçesi |
+| `set_max_thinking_tokens` | `max_thinking_tokens` | `{}` | Düşünme token sınırı |
 | `stop_task` | `task_id` | `{}` + `task_notification: stopped` | Arka plan görevini durdur |
 | `background_tasks` | `tool_use_id?` | `{backgrounded}` | Ön plandaki işi arka plana al |
 | `rewind_files` | `user_message_id`, `dry_run?` | `{canRewind, filesChanged, insertions, deletions}` | Dosyaları geri sar (kontrol noktası açıkken) |
@@ -275,13 +275,12 @@ Matcher kuralları **[kaynak]**: boş, `""` ya da `*` her şeyi eşler; `Bash|Wr
 
 ---
 
-## 8. Maliyet, bütçe, limitler
+## 8. Kullanım ve limitler
 
-- `result.total_cost_usd` ve `result.modelUsage` **birikimli** değerlerdir; her sonuçta üzerine yazılır, toplanmaz **[kaynak]**.
-- `modelUsage[model]` **[deney]**: `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `thinkingTokens`, `costUSD`, `contextWindow`, `costBasis`.
-- Değerler istemci tarafı tahmindir, fatura değildir **[belge]**. Abonelikte asıl sınır 5 saatlik ve haftalık pencerelerdir; `rate_limit_event` bunları bildirir **[deney]**.
-- `maxBudgetUsd` aşılınca tur `error_max_budget_usd` ile biter; yalnız bu `query()` başından beri harcananı sayar, sürdürmede sıfırlanır **[kaynak]**. ArnOrg kendi maliyet defterini tutar ve şirket, proje, ajan bütçesini kancada uygular.
-- Deney maliyetleri **[deney]**: denetim $0,026 · kesme $0,018 · bypass $0,038 (Haiku).
+- `result.modelUsage` **birikimli**dir; her sonuçta üzerine yazılır, toplanmaz **[kaynak]**. ArnOrg oturum başına son toplamı saklar, yalnız farkı sayar.
+- `modelUsage[model]` **[deney]**: `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `thinkingTokens`, `contextWindow`. ArnOrg girdi, çıktı ve önbellek yazımını token olarak sayar; önbellekten okuma sayılmaz.
+- Abonelikte sınır 5 saatlik ve haftalık pencerelerdir; `rate_limit_event` bunları bildirir **[deney]**. ArnOrg kurulun belirlediği yüzdede ajanları durdurur, pencere açılınca sürdürür.
+- ArnOrg yalnız Claude aboneliğiyle çalışır: sonuç mesajındaki tutar alanlarını kullanmaz, `maxBudgetUsd` geçmez, API anahtarını ve bulut sağlayıcı değişkenlerini ajan ortamına vermez.
 
 ---
 
@@ -393,13 +392,13 @@ OTEL_RESOURCE_ATTRIBUTES=arnorg.ajan=deniz,arnorg.gorev=T-24,arnorg.proje=sipari
 
 - Yer: `~/.claude/projects/<kodlanmış-cwd>/<session_id>.jsonl`; alt ajanlar `…/<session_id>/subagents/agent-<id>.jsonl` ve yanında `agent-<id>.meta.json`.
 - Satır türleri: `user`, `assistant`, `attachment`, `system`, `queue-operation`, `last-prompt` ve sürüme göre değişen başkaları. Alanlar: `uuid`, `parentUuid` (ağaç; geri sarma ve çatallamada dallanır), `isSidechain`, `sessionId`, `timestamp`, `gitBranch`, `message` (ham API mesajı ve `usage`).
-- **Bir API yanıtı içerik bloğu başına bir satır olarak yazılır ve `usage` her satırda tekrar eder.** Token ve maliyet toplanmadan önce `message.id` ile tekilleştirilir.
+- **Bir API yanıtı içerik bloğu başına bir satır olarak yazılır ve `usage` her satırda tekrar eder.** Token toplanmadan önce `message.id` ile tekilleştirilir.
 - Dosya yalnız eklenir; canlı izlenebilir. Son satır yarım olabilir, yazım gecikmelidir, `/clear` yeni dosya açar. Biçim resmi olarak iç kullanımdır; ArnOrg ayrıştırıcıyı sürüme bağlar.
 - Kayıt dosyası makinedeki her oturum için vardır; dış oturumları ayarsız görmenin tek yolu budur (CloudCLI bu yöntemi kullanıyor).
 
 ### 10.3 Durum satırı [belge]
 
-Etkileşimli oturumda durum satırı betiğine her mesajdan sonra JSON verilir: `session_id`, `model`, `cost.total_cost_usd`, `cost.total_lines_added/removed`, `context_window.used_percentage`, `rate_limits.five_hour.used_percentage`, `rate_limits.seven_day.used_percentage` ve `resets_at`. Bu JSON'u ArnOrg'a ileten bir durum satırı betiği, dış oturumların maliyetini ve abonelik penceresini pasif olarak toplar. `-p` ve SDK modunda çalışmaz.
+Etkileşimli oturumda durum satırı betiğine her mesajdan sonra JSON verilir: `session_id`, `model`, `cost.total_cost_usd`, `cost.total_lines_added/removed`, `context_window.used_percentage`, `rate_limits.five_hour.used_percentage`, `rate_limits.seven_day.used_percentage` ve `resets_at`. Bu JSON'u ArnOrg'a ileten bir durum satırı betiği, dış oturumların token kullanımını ve abonelik penceresini pasif olarak toplar. `-p` ve SDK modunda çalışmaz.
 
 ### 10.4 Arka plan ajanları [belge][yerel]
 
@@ -426,7 +425,7 @@ Dışarıdan yapılabilenler: listeleme, `claude stop|respawn|rm|attach <id>`. �
 | Oturumlar arası mesaj (`ListAgents`, `SendMessage`) | Aynı makinedeki oturumlar arasında soket ya da adlandırılmış boru; mesaj biçimi belgelenmemiş; mesajlar hiçbir şeyi onaylayamaz **[belge]** | Üzerine kurulmaz. ArnOrg ajanlarında `crossSessionInbound: "refuse"` |
 | Remote Control | Yalnız claude.ai girişiyle; üçüncü taraf API'si yok **[belge]** | Yalnız insan için acil durum kapısı |
 | Channels (araştırma önizlemesi) | MCP sunucusu oturuma mesaj itebilir, izin onay/ret iletebilir (girdi değiştiremez); başlatırken bayrak gerekir **[belge]** | Şimdilik kullanılmaz |
-| Mods (2.1.287 ile yeni) | Süreç içi JS eklentisi: `tool.call`, `tool.check`, `$.prompt.submit` (mesaj ekle), `$.turn.abort` (kes), `$.session.usage()` (maliyet), `$.http.fetch`. `CLAUDE_CODE_PLUGIN_DIRS` ile yüklenir **[belge]** | Dış etkileşimli oturumlarda en zengin denetim yüzeyi; çok yeni, deneysel bayrak arkasında |
+| Mods (2.1.287 ile yeni) | Süreç içi JS eklentisi: `tool.call`, `tool.check`, `$.prompt.submit` (mesaj ekle), `$.turn.abort` (kes), `$.session.usage()` (kullanım), `$.http.fetch`. `CLAUDE_CODE_PLUGIN_DIRS` ile yüklenir **[belge]** | Dış etkileşimli oturumlarda en zengin denetim yüzeyi; çok yeni, deneysel bayrak arkasında |
 
 ---
 
@@ -471,7 +470,7 @@ Hiçbiri dışarıda açılmış bir oturuma canlı bağlanmıyor. ArnOrg'un yak
 |---|---|
 | ArnOrg'un başlattığı ajanlar | Agent SDK (TypeScript), temiz ortam, hiç bitmeyen girdi akışı, `PreToolUse` geri çağrı kancası (`*`), insan kararı için ArnOrg arayüzü, `interrupt`, `set_permission_mode`, `set_model` |
 | Makinedeki diğer oturumlar | `~/.claude/settings.json` içinde güvenli kapanan `PreToolUse` köprüsü; izleme için `PostToolUse`, `Stop`, `Notification`, `SubagentStart/Stop`, `SessionEnd` kancaları. ArnOrg ajanları `ARNORG_AJAN` ile ayırt edilir, aynı çağrı iki kez sayılmaz |
-| Maliyet | SDK `result` + OpenTelemetry (ajan etiketli) + durum satırı (dış oturumlar); hepsi tahmin, abonelikte asıl sınır pencereler |
+| Kullanım | SDK `result.modelUsage` (token) ve `rate_limit_event` (abonelik pencereleri); dış oturumlarda OpenTelemetry (ajan etiketli) ve durum satırı |
 | Takılma tespiti | `session_state_changed`, `claude agents --json` (`blocked` + `waitingFor`), `Notification`, `StopFailure`, `api_retry`, öncesi-sonrası kanca arası süre |
 | Tekrar oynatma ve denetim kaydı | ArnOrg'un kendi olay günlüğü + oturum kayıt dosyaları (sürüme bağlı ayrıştırıcı) |
 | Başka motorlar | ACP (Faz 4) |

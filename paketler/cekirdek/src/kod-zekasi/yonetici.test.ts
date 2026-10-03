@@ -157,7 +157,7 @@ describe("kod zekâsı yöneticisi", () => {
     await expect(kz.bagimliliklar(PID, "ana", "yok.ts")).rejects.toThrow(/dizinde yok/);
     const g = await kz.grafik(PID, "ana", "dosya");
     expect(g.kenarlar).toEqual([{ kaynak: "src/sunucu.ts", hedef: "src/hafiza.ts", agirlik: 1 }]);
-    const metin = await kz.haritaMetni(PID, "ana", { butce: 2000 });
+    const metin = await kz.haritaMetni(PID, "ana", { sinir: 2000 });
     expect(metin).toContain("hafiza.ts");
     expect(metin).toContain("hafizaKaydet()");
   });

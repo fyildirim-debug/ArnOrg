@@ -12,12 +12,12 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Ajan, AjanDurumu, AkisOgesi, GirisYontemi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
+import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
 
+/** Oturumun sürekli artan işlenen token toplamı (Claude Code sonuç mesajındaki modelUsage) */
 export interface Toplam {
-  usd: number;
   token: number;
 }
 
@@ -30,8 +30,7 @@ export function islenenToken(modelKullanimi: Record<string, { inputTokens?: numb
 
 /** Sürekli artan toplamdan bu turun payını çıkarır; toplam küçüldüyse (sıfırlanmış) yeni toplamın kendisi sayılır */
 export function toplamFarki(onceki: Toplam, yeni: Toplam): Toplam {
-  const sifirlandi = yeni.usd < onceki.usd - 1e-9 || yeni.token < onceki.token;
-  return sifirlandi ? { ...yeni } : { usd: Math.max(0, yeni.usd - onceki.usd), token: Math.max(0, yeni.token - onceki.token) };
+  return yeni.token < onceki.token ? { token: yeni.token } : { token: yeni.token - onceki.token };
 }
 
 export type MesajKaynagi = { tur: "kurul" } | { tur: "ajan"; ad: string; id: string } | { tur: "sistem" };
@@ -45,7 +44,6 @@ export interface OturumBaglami {
   araclar(): McpSdkServerConfigWithInstance;
   /** Yazma araçları kapalı roller (CEO) */
   yasakAraclar(): string[];
-  kalanButceUsd(): number;
   onaySuresiSn(): number;
   /** PreToolUse denetim kapısı */
   kapi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, altAjan: string | undefined): Promise<HookJSONOutput>;
@@ -62,10 +60,9 @@ export interface OturumBaglami {
   akis(oge: AkisOgesi): void;
   durum(durum: AjanDurumu, aciklama?: string): void;
   oturumKimligi(id: string): void;
-  /** Bu turda eklenen tahmini API karşılığı ve işlenen token */
-  kullanim(delta: { usd: number; token: number }): void;
+  /** Bu turda işlenen token */
+  kullanim(delta: Toplam): void;
   pencere(bilgi: { tur: string; durum: string; sifirlanma: string | null; yuzde: number | null }): void;
-  girisYontemi(): GirisYontemi;
   /** Oturumun Claude Code'a göre son toplamı; sürdürülen oturumda çift sayımı önler */
   oturumToplami: { oku(oturumId: string): Toplam | null; yaz(oturumId: string, t: Toplam): void };
   /** Claude Code'un kullandığı kimlik bilgisinin kaynağı (init mesajı) */
@@ -108,7 +105,7 @@ function kaynakEtiketi(k: MesajKaynagi): string {
 export class AjanOturumu {
   private kuyruk: AkanKuyruk<SDKUserMessage> | null = null;
   private sorgu: Query | null = null;
-  private sonToplam: Toplam = { usd: 0, token: 0 };
+  private sonToplam: Toplam = { token: 0 };
   private oturumNo: string | null = null;
   private stderrSon: string[] = [];
   private sonDurum: AjanDurumu = "kapali";
@@ -147,7 +144,6 @@ export class AjanOturumu {
     this.initGoruldu = false;
     const izinModu = ajan.izinModu as PermissionMode;
     const bypass = izinModu === "bypassPermissions";
-    const kalan = this.b.kalanButceUsd();
     const kapiKancasi: HookCallback = async (girdi, aracKimligi) => {
       if (girdi.hook_event_name !== "PreToolUse") return {};
       return this.b.kapi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id, girdi.agent_id);
@@ -188,7 +184,7 @@ export class AjanOturumu {
         permissionMode: izinModu,
         allowDangerouslySkipPermissions: bypass,
         ...(this.b.claudeYolu ? { pathToClaudeCodeExecutable: this.b.claudeYolu } : {}),
-        env: ajanOrtami(this.b.girisYontemi(), {
+        env: ajanOrtami({
           IS_SANDBOX: rootMu() ? "1" : undefined,
           ARNORG_AJAN: ajan.id,
           CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: "1",
@@ -212,7 +208,6 @@ export class AjanOturumu {
         },
         canUseTool: this.b.izinSor,
         ...(devam ? { resume: devam } : {}),
-        ...(kalan > 0 ? { maxBudgetUsd: kalan } : {}),
         stderr: (parca: string) => {
           this.stderrSon.push(...parca.split("\n").filter(Boolean));
           if (this.stderrSon.length > 40) this.stderrSon.splice(0, this.stderrSon.length - 40);
@@ -251,7 +246,7 @@ export class AjanOturumu {
       priority: oncelik,
       ...(kaynak.tur === "kurul" ? { origin: { kind: "human" as const } } : {}),
     });
-    this.sonToplam = { usd: 0, token: 0 };
+    this.sonToplam = { token: 0 };
     this.oturumNo = null;
     this.stderrSon = [];
     this.kapatiliyor = false;
@@ -344,7 +339,7 @@ export class AjanOturumu {
           if (this.oturumNo !== m.session_id) {
             // Sürdürülen oturumun ilk sonucu önceki turların toplamını taşır; kaldığımız yerden sayılır
             this.oturumNo = m.session_id;
-            this.sonToplam = this.b.oturumToplami.oku(m.session_id) ?? { usd: 0, token: 0 };
+            this.sonToplam = { token: this.b.oturumToplami.oku(m.session_id)?.token ?? 0 };
           }
           const kaynak = (m as { apiKeySource?: string }).apiKeySource;
           if (kaynak) this.b.girisKaynagi(kaynak);
@@ -405,21 +400,18 @@ export class AjanOturumu {
         return;
       }
       case "result": {
-        const yeni: Toplam = { usd: m.total_cost_usd ?? 0, token: islenenToken((m as { modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number }> }).modelUsage) };
+        const yeni: Toplam = { token: islenenToken((m as { modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number }> }).modelUsage) };
         const fark = toplamFarki(this.sonToplam, yeni);
         this.sonToplam = yeni;
         if (this.oturumNo) this.b.oturumToplami.yaz(this.oturumNo, yeni);
-        if (fark.usd > 0 || fark.token > 0) this.b.kullanim(fark);
-        const delta = fark.usd;
+        if (fark.token > 0) this.b.kullanim(fark);
         const metin =
           m.subtype === "success"
             ? kisalt(String((m as { result?: string }).result ?? ""), 600)
-            : m.subtype === "error_max_budget_usd"
-              ? "Bütçe sınırına ulaşıldı."
-              : m.subtype === "error_max_turns"
-                ? "Tur sınırına ulaşıldı."
-                : "Tur hatayla ya da kesilerek bitti.";
-        this.akisYaz({ tur: "sonuc", metin, maliyetUsd: delta, hata: m.subtype !== "success" });
+            : m.subtype === "error_max_turns"
+              ? "Tur sınırına ulaşıldı."
+              : "Tur hatayla ya da kesilerek bitti.";
+        this.akisYaz({ tur: "sonuc", metin, token: fark.token, hata: m.subtype !== "success" });
         this.devamDenemesi = true;
         // Tur bitti; kuyrukta mesaj varsa yeni tur bunu hemen günceller
         this.durumYaz("bosta", "İş bekliyor");

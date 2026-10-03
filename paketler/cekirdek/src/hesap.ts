@@ -1,7 +1,7 @@
 // Claude girişi ve abonelik kullanımı: plan (Pro/Max), 5 saatlik ve haftalık pencere yüzdeleri, ayardaki üst sınır.
 // Bilgi önce açık bir ajan oturumundan, yoksa mesaj göndermeyen kısa bir Claude Code yoklamasından alınır (token harcanmaz).
 import { query, type AccountInfo, type SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
-import type { GirisYontemi, HesapDurumu, KullanimPenceresi, KullanimPenceresiTuru } from "@arnorg/ortak";
+import type { HesapDurumu, KullanimPenceresi, KullanimPenceresiTuru } from "@arnorg/ortak";
 import type { OlayYolu } from "./olaylar.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import type { Yapilandirma } from "./yapilandirma.js";
@@ -87,7 +87,6 @@ export class HesapIzleyici {
   private bos(): HesapDurumu {
     return {
       durum: "bilinmiyor",
-      girisYontemi: this.yapilandirma.ayarlar.girisYontemi,
       plan: null,
       eposta: null,
       kaynak: null,
@@ -104,12 +103,11 @@ export class HesapIzleyici {
 
   get mevcut(): HesapDurumu {
     const a = this.yapilandirma.ayarlar;
-    return { ...this.durum, girisYontemi: a.girisYontemi, sinirYuzdeleri: { besSaatlik: a.besSaatlikSinirYuzde, haftalik: a.haftalikSinirYuzde } };
+    return { ...this.durum, sinirYuzdeleri: { besSaatlik: a.besSaatlikSinirYuzde, haftalik: a.haftalikSinirYuzde } };
   }
 
   /** Ajanlar abonelik sınırı yüzünden durmalı mı */
   get sinir(): HesapDurumu["sinir"] {
-    if (this.yapilandirma.ayarlar.girisYontemi !== "abonelik") return null;
     return this.durum.sinir;
   }
 
@@ -186,7 +184,6 @@ export class HesapIzleyici {
     const pencereler = kullanim.rate_limits_available ? pencereleriCikar(kullanim.rate_limits) : [];
     const yeni: HesapDurumu = {
       durum: "hazir",
-      girisYontemi: this.yapilandirma.ayarlar.girisYontemi,
       plan: planAdi(kullanim.subscription_type ?? hesap.subscriptionType),
       eposta: hesap.email ?? null,
       kaynak: hesap.apiKeySource ?? hesap.tokenSource ?? this.sonGirisKaynagi,
@@ -220,7 +217,7 @@ export class HesapIzleyici {
         cwd: this.yapilandirma.veriDizini,
         settingSources: [],
         ...(yol ? { pathToClaudeCodeExecutable: yol } : {}),
-        env: ajanOrtami(this.yapilandirma.ayarlar.girisYontemi, { IS_SANDBOX: rootMu() ? "1" : undefined }),
+        env: ajanOrtami({ IS_SANDBOX: rootMu() ? "1" : undefined }),
       },
     });
     const zaman = new Promise<never>((_, red) => setTimeout(() => red(new Error("Claude Code yanıt vermedi (60 sn).")), 60_000).unref());
@@ -242,18 +239,16 @@ export class HesapIzleyici {
 
   private sinirHesapla(pencereler: KullanimPenceresi[]): HesapDurumu["sinir"] {
     const a = this.yapilandirma.ayarlar;
-    if (a.girisYontemi !== "abonelik") return null;
     return sinirAsimi(pencereler, a.besSaatlikSinirYuzde, a.haftalikSinirYuzde);
   }
 
   private uyariHesapla(d: HesapDurumu): string | null {
-    const yontem: GirisYontemi = this.yapilandirma.ayarlar.girisYontemi;
     const apiAnahtari = (d.kaynak && API_KAYNAKLARI.has(d.kaynak)) || d.plan === "API";
-    if (yontem === "abonelik" && d.durum === "hazir" && apiAnahtari) {
-      return "Ajanlar abonelikle çalışacak şekilde ayarlı ama Claude Code bir API girişi kullanıyor; ücret API hesabından düşer. Terminalde `claude` açıp /login ile claude.ai hesabınızla giriş yapın.";
+    if (d.durum === "hazir" && apiAnahtari) {
+      return "ArnOrg yalnız Claude aboneliğiyle çalışır ama Claude Code bu makinede bir API anahtarıyla giriş yapmış. Terminalde `claude` açıp /login ile claude.ai hesabınızla (Pro, Max ya da Team) giriş yapın.";
     }
-    if (yontem === "abonelik" && d.durum === "hazir" && d.saglayici && d.saglayici !== "firstParty") {
-      return `Claude Code ${d.saglayici} sağlayıcısı üzerinden çalışıyor; abonelik pencereleri bu girişte sayılmaz.`;
+    if (d.durum === "hazir" && d.saglayici && d.saglayici !== "firstParty") {
+      return `Claude Code ${d.saglayici} sağlayıcısı üzerinden çalışıyor; ArnOrg yalnız Claude aboneliğiyle çalışır. /login ile claude.ai hesabınızla giriş yapın.`;
     }
     return null;
   }

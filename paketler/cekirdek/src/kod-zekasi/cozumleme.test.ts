@@ -235,12 +235,12 @@ describe("harita ve grafik", () => {
     expect(haritaAgaci(dosyalar, semboller, ice, "src/ui").cocuklar!.map((c) => c.yol)).toEqual(["src/ui/ekran.tsx"]);
   });
 
-  it("metin haritası bütçeye sığar ve çok kullanılan dosya önce girer", () => {
-    const m = haritaMetni(dosyalar, semboller, ice, { butce: 400 });
+  it("metin haritası karakter sınırına sığar ve çok kullanılan dosya önce girer", () => {
+    const m = haritaMetni(dosyalar, semboller, ice, { sinir: 400 });
     expect(m.length).toBeLessThanOrEqual(480);
     expect(m).toContain("depo.ts [300]");
     expect(m).toContain("Depo.kaydet()");
-    const dar = haritaMetni(dosyalar, semboller, ice, { butce: 220 });
+    const dar = haritaMetni(dosyalar, semboller, ice, { sinir: 220 });
     expect(dar).toContain("depo.ts");
     expect(dar).toContain("dosya daha");
   });

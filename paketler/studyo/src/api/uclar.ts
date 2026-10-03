@@ -33,7 +33,7 @@ import type {
   KodSembolu,
   KodZekasiModelBilgisi,
   Kanal,
-  MaliyetOzeti,
+  KullanimOzeti,
   Mesaj,
   ModelAdi,
   NotDosyasi,
@@ -156,8 +156,8 @@ export const api = {
   terminalAc: (pid: string, i: TerminalAcIstegi) => istek<{ id: string }>(`${proje(pid)}/terminaller`, { method: "POST", govde: i }),
   terminalKapat: (tid: string) => istek<Tamam>(`/api/terminaller/${k(tid)}`, { method: "DELETE" }),
 
-  // Maliyet
-  maliyet: (pid: string) => istek<MaliyetOzeti>(`${proje(pid)}/maliyet`),
+  // Kullanım ve rapor
+  kullanim: (pid: string) => istek<KullanimOzeti>(`${proje(pid)}/kullanim`),
   rapor: (pid: string, gun = 7) => istek<Rapor>(`${proje(pid)}/rapor${sorgu({ gun })}`),
   raporKaydet: (pid: string, gun = 7) => istek<Rapor>(`${proje(pid)}/rapor${sorgu({ gun })}`, { method: "POST" }),
 };

@@ -1,4 +1,4 @@
-// Abonelik muhasebesi: token sayımı, kullanım pencereleri, sınır ve ajan ortamı
+// Abonelik: token sayımı, kullanım pencereleri, sınır ve ajan ortamı (ArnOrg yalnız Claude aboneliğiyle çalışır)
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,8 +25,8 @@ describe("token ve toplam", () => {
   });
 
   it("sürdürülen oturumda önceki toplamı çıkarır, sıfırlanmış toplamı kendisi sayar", () => {
-    expect(toplamFarki({ usd: 1, token: 1000 }, { usd: 1.25, token: 1600 })).toEqual({ usd: 0.25, token: 600 });
-    expect(toplamFarki({ usd: 1, token: 1000 }, { usd: 0.1, token: 200 })).toEqual({ usd: 0.1, token: 200 });
+    expect(toplamFarki({ token: 1000 }, { token: 1600 })).toEqual({ token: 600 });
+    expect(toplamFarki({ token: 1000 }, { token: 200 })).toEqual({ token: 200 });
   });
 
   it("token sayısını Türkçe kısaltır", () => {
@@ -64,15 +64,16 @@ describe("kullanım pencereleri", () => {
 
 describe("ajan ortamı", () => {
   const kaynak = { ANTHROPIC_API_KEY: "x", ANTHROPIC_AUTH_TOKEN: "y", CLAUDE_CODE_USE_BEDROCK: "1", ANTHROPIC_BASE_URL: "https://ag", HOME: "/home/f" };
-  it("abonelikte API anahtarı ve bulut sağlayıcı ajana geçmez", () => {
-    expect(ajanOrtami("abonelik", { EK: "1" }, kaynak)).toEqual({ ANTHROPIC_BASE_URL: "https://ag", HOME: "/home/f", EK: "1" });
-  });
-  it("API girişinde anahtar korunur", () => {
-    expect(ajanOrtami("api", {}, kaynak)).toMatchObject({ ANTHROPIC_API_KEY: "x" });
+  it("API anahtarı ve bulut sağlayıcı değişkenleri ajana hiç geçmez", () => {
+    expect(ajanOrtami({ EK: "1" }, kaynak)).toEqual({ ANTHROPIC_BASE_URL: "https://ag", HOME: "/home/f", EK: "1" });
+    expect(ajanOrtami({}, kaynak)).not.toHaveProperty("ANTHROPIC_API_KEY");
+    // Çağıran açıkça verse bile geçmez
+    expect(ajanOrtami({ ANTHROPIC_API_KEY: "z", CLAUDE_CODE_USE_VERTEX: "1" }, kaynak)).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(ajanOrtami({ ANTHROPIC_API_KEY: "z", CLAUDE_CODE_USE_VERTEX: "1" }, kaynak)).not.toHaveProperty("CLAUDE_CODE_USE_VERTEX");
   });
 });
 
-describe("şirket: abonelik sınırı ve bütçe", () => {
+describe("şirket: abonelik sınırı ve kullanım", () => {
   let gecici: string;
   let depo: Depo;
   let sirket: Sirket;
@@ -94,25 +95,19 @@ describe("şirket: abonelik sınırı ve bütçe", () => {
     fs.rmSync(gecici, { recursive: true, force: true });
   });
 
-  it("varsayılan giriş abonelik; dolar bütçesi dolsa da araç çağrısı reddedilmez", async () => {
-    expect(sirket.abonelik).toBe(true);
+  it("kullanım yalnız token olarak sayılır; dolar alanı ve bütçe yok", async () => {
     const p = depo.projeler()[0]!;
     const ceo = depo.ajanlar(p.id)[0]!;
-    depo.ajanGuncelle(ceo.id, { gunlukButceUsd: 1 });
-    depo.maliyetEkle(p.id, ceo.id, 5, 12_000);
+    depo.kullanimEkle(p.id, ceo.id, 12_000);
     const sonuc = await sirket.kapi(ceo.id, "Read", { file_path: "README.md" });
     expect(sonuc).toEqual({});
-    expect(depo.ajan(ceo.id)).toMatchObject({ bugunToken: 12_000, toplamToken: 12_000 });
-    expect(sirket.maliyetOzeti(p.id)).toMatchObject({ girisYontemi: "abonelik", bugunToken: 12_000 });
-  });
-
-  it("API girişinde aynı durum bütçe reddi verir", async () => {
-    const p = depo.projeler()[0]!;
-    const ceo = depo.ajanlar(p.id)[0]!;
-    sirket.yapilandirma.guncelle({ girisYontemi: "api" });
-    const sonuc = await sirket.kapi(ceo.id, "Read", { file_path: "README.md" });
-    expect(sonuc).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
-    sirket.yapilandirma.guncelle({ girisYontemi: "abonelik" });
+    const ajan = depo.ajan(ceo.id)!;
+    expect(ajan).toMatchObject({ bugunToken: 12_000, toplamToken: 12_000 });
+    expect(Object.keys(ajan).some((k) => /usd|butce/i.test(k))).toBe(false);
+    const ozet = sirket.kullanimOzeti(p.id);
+    expect(ozet).toMatchObject({ bugunToken: 12_000, toplamToken: 12_000 });
+    expect(JSON.stringify(ozet)).not.toMatch(/usd|butce/i);
+    expect(Object.keys(sirket.yapilandirma.ayarlar).some((k) => /usd|butce|giris/i.test(k))).toBe(false);
   });
 
   it("5 saatlik pencere sınırı aşınca araç reddedilir, ajan mesajı saklanır; açılınca teslim edilmeye çalışılır", async () => {
@@ -144,7 +139,6 @@ describe("şirket: abonelik sınırı ve bütçe", () => {
     const { raporOlustur } = await import("./gozetmen.js");
     const r = raporOlustur(sirket, depo.projeler()[0]!.id, 7);
     expect(r.markdown).toContain("12 bin token");
-    expect(r.markdown).toContain("ücret alınmadı");
-    expect(r.markdown).not.toMatch(/Harcama: \$/);
+    expect(r.markdown).not.toMatch(/\$|ücret|harcama|bütçe/i);
   });
 });

@@ -46,7 +46,6 @@ export function Ayarlar() {
 
   const kirli = !!ayarlar && !!taslak && JSON.stringify(ayarlar) !== JSON.stringify(taslak);
   const sureGecersiz = !!taslak && (!Number.isFinite(taslak.onaySuresiSn) || taslak.onaySuresiSn < 10);
-  const butceGecersiz = !!taslak && (!Number.isFinite(taslak.gunlukButceUsd) || taslak.gunlukButceUsd < 0);
   const yuzdeGecersiz = (v: number) => !Number.isFinite(v) || v < 0 || v > 100;
   const sinirGecersiz = !!taslak && (yuzdeGecersiz(taslak.besSaatlikSinirYuzde) || yuzdeGecersiz(taslak.haftalikSinirYuzde));
   const hesap = useVeri((d) => d.hesap);
@@ -54,13 +53,11 @@ export function Ayarlar() {
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (!taslak || sureGecersiz || butceGecersiz || tikanmaGecersiz || sinirGecersiz) return;
+    if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz) return;
     void calistir("kaydet", async () => {
       const a = await api.ayarlariKaydet({ ...taslak, claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null });
       setAyarlar(a);
       setTaslak(a);
-      // Giriş yöntemi değiştiyse kullanım göstergeleri hemen ona göre çizilir
-      useVeri.setState((d) => ({ maliyet: d.maliyet ? { ...d.maliyet, girisYontemi: a.girisYontemi } : d.maliyet }));
       bildir("basari", "Ayarlar kaydedildi.");
     });
   };
@@ -108,58 +105,40 @@ export function Ayarlar() {
               </button>
             </div>
             <div className="form-izgara">
-              <div className="alan tam">
-                <span className="alan-ad" id="giris-ad">
-                  Ajanlar nasıl çalışsın
-                </span>
-                <div className="bolumlu" role="group" aria-labelledby="giris-ad">
-                  <button type="button" aria-pressed={taslak.girisYontemi === "abonelik"} onClick={() => degistir({ girisYontemi: "abonelik" })}>
-                    Claude aboneliği
-                  </button>
-                  <button type="button" aria-pressed={taslak.girisYontemi === "api"} onClick={() => degistir({ girisYontemi: "api" })}>
-                    API anahtarı
-                  </button>
-                </div>
-                <span className="alan-ipucu">
-                  {taslak.girisYontemi === "abonelik"
-                    ? "Ajanlar makinedeki Claude Code girişinizle (Pro/Max) çalışır; ücret alınmaz, planın 5 saatlik ve haftalık pencereleri sayılır. API anahtarı ortamda olsa da ajanlara verilmez."
-                    : "Ajanlar ANTHROPIC_API_KEY ile çalışır; token başına ücretlendirilir, dolar bütçeleri uygulanır."}
-                </span>
+              <p className="alan-ipucu tam">
+                ArnOrg yalnız Claude aboneliğiyle çalışır: ajanlar bu makinedeki Claude Code girişinizle (Pro, Max ya da Team) çalışır.
+                Planın 5 saatlik ve haftalık pencereleri sayılır; ortamda API anahtarı olsa da ajanlara verilmez.
+              </p>
+              <div className="alan">
+                <label htmlFor="ay-bes">5 saatlik pencere üst sınırı (%)</label>
+                <input
+                  id="ay-bes"
+                  className="girdi"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={Number.isFinite(taslak.besSaatlikSinirYuzde) ? taslak.besSaatlikSinirYuzde : ""}
+                  onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
+                  aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
+                />
+                <span className="alan-ipucu">Ajanlar bu yüzdede durur, kalanı sizin kullanımınıza kalır. 0 sınırsız.</span>
               </div>
-              {taslak.girisYontemi === "abonelik" ? (
-                <>
-                  <div className="alan">
-                    <label htmlFor="ay-bes">5 saatlik pencere üst sınırı (%)</label>
-                    <input
-                      id="ay-bes"
-                      className="girdi"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={Number.isFinite(taslak.besSaatlikSinirYuzde) ? taslak.besSaatlikSinirYuzde : ""}
-                      onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
-                      aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
-                    />
-                    <span className="alan-ipucu">Ajanlar bu yüzdede durur, kalanı sizin kullanımınıza kalır. 0 sınırsız.</span>
-                  </div>
-                  <div className="alan">
-                    <label htmlFor="ay-hafta">Haftalık pencere üst sınırı (%)</label>
-                    <input
-                      id="ay-hafta"
-                      className="girdi"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={Number.isFinite(taslak.haftalikSinirYuzde) ? taslak.haftalikSinirYuzde : ""}
-                      onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
-                      aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
-                    />
-                    <span className="alan-ipucu">Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.</span>
-                  </div>
-                </>
-              ) : null}
+              <div className="alan">
+                <label htmlFor="ay-hafta">Haftalık pencere üst sınırı (%)</label>
+                <input
+                  id="ay-hafta"
+                  className="girdi"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={Number.isFinite(taslak.haftalikSinirYuzde) ? taslak.haftalikSinirYuzde : ""}
+                  onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
+                  aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
+                />
+                <span className="alan-ipucu">Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.</span>
+              </div>
             </div>
 
             <h2 className="ara-baslik">Çekirdek</h2>
@@ -207,22 +186,6 @@ export function Ayarlar() {
                   {sureGecersiz ? "En az 10 saniye." : "Süre dolunca bekleyen araç çağrısı reddedilir."}
                 </span>
               </div>
-              {taslak.girisYontemi === "abonelik" ? null : (
-                <div className="alan">
-                  <label htmlFor="ay-butce">Şirket günlük bütçesi (USD)</label>
-                  <input
-                    id="ay-butce"
-                    className="girdi"
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={Number.isFinite(taslak.gunlukButceUsd) ? taslak.gunlukButceUsd : ""}
-                    onChange={(e) => degistir({ gunlukButceUsd: e.target.valueAsNumber })}
-                    aria-invalid={butceGecersiz ? true : undefined}
-                  />
-                  {butceGecersiz ? <span className="alan-hata">Geçerli bir tutar yazın.</span> : null}
-                </div>
-              )}
               <div className="alan">
                 <label htmlFor="ay-tikanma">Tıkanma eşiği (dakika)</label>
                 <input
@@ -315,7 +278,7 @@ export function Ayarlar() {
               <button
                 type="submit"
                 className="dugme dugme-ana"
-                disabled={!kirli || suruyor !== null || sureGecersiz || butceGecersiz || tikanmaGecersiz || sinirGecersiz}
+                disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz}
               >
                 {suruyor ? <span className="doner" aria-hidden="true" /> : null}
                 Kaydet

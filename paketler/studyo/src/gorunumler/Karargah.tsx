@@ -10,21 +10,9 @@ import { Markdown } from "../bilesenler/Markdown";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
 import { HafizaNabzi } from "../bilesenler/HafizaNabzi";
 import { KullanimPaneli } from "../bilesenler/Kullanim";
-import { abonelikMi, ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
-import { akilliZaman, para, yonelme } from "../yardimcilar/bicim";
+import { ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
+import { akilliZaman, yonelme } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
-
-// Claude Code rate_limit_event alanları
-const PENCERE_TURLERI: Record<string, string> = {
-  five_hour: "5 saatlik kullanım penceresi",
-  seven_day: "Haftalık kullanım penceresi",
-  seven_day_opus: "Haftalık Opus penceresi",
-};
-const PENCERE_DURUMLARI: Record<string, string> = {
-  allowed: "Açık",
-  allowed_warning: "Sınıra yaklaşıyor",
-  rejected: "Sınıra ulaşıldı",
-};
 
 export function Karargah() {
   const projeler = useVeri((d) => d.projeler);
@@ -34,8 +22,6 @@ export function Karargah() {
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const onaylar = useVeri((d) => d.onaylar);
-  const maliyet = useVeri((d) => d.maliyet);
-  const abonelik = useVeri(abonelikMi);
   const proje = projeler.find((p) => p.id === aktifProjeId);
   const ceo = ceoBul(ajanlar);
 
@@ -77,36 +63,7 @@ export function Karargah() {
       <div className="karargah-ust">
         <CeoRaporu />
         <aside className="karargah-ozet" aria-label="Özet">
-          {abonelik ? (
-            <KullanimPaneli />
-          ) : (
-            <dl className="ozet-sayac">
-              <div>
-                <dt>Bugün</dt>
-                <dd>
-                  <b>{para(maliyet?.bugunUsd ?? 0)}</b>
-                  {maliyet?.gunlukButceUsd ? <small> / {para(maliyet.gunlukButceUsd)}</small> : null}
-                </dd>
-              </div>
-              <div>
-                <dt>Toplam</dt>
-                <dd>
-                  <b>{para(maliyet?.toplamUsd ?? 0)}</b>
-                </dd>
-              </div>
-              {maliyet?.pencere ? (
-                <div className="ozet-metin">
-                  <dt>{PENCERE_TURLERI[maliyet.pencere.tur] ?? "Abonelik penceresi"}</dt>
-                  <dd>
-                    <b className={maliyet.pencere.durum === "allowed" ? undefined : "vurgu"}>
-                      {PENCERE_DURUMLARI[maliyet.pencere.durum] ?? maliyet.pencere.durum}
-                    </b>
-                    {maliyet.pencere.sifirlanma ? <small>Sıfırlanma {akilliZaman(maliyet.pencere.sifirlanma)}</small> : null}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-          )}
+          <KullanimPaneli />
           <div className="dugme-satir">
             <button type="button" className={`dugme${bekleyenOnay ? " dugme-ana" : ""}`} onClick={() => git("onaylar")}>
               {bekleyenOnay ? `Onay bekleyen ${bekleyenOnay} karar` : "Bekleyen onay yok"}

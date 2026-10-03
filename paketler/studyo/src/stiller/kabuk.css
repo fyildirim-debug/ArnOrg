@@ -92,9 +92,6 @@
   color: var(--paper);
   font-weight: 600;
 }
-.metre-asim b {
-  color: var(--warn);
-}
 .metre-ayrac {
   width: 1px;
   height: 1rem;

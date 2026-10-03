@@ -8,15 +8,20 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   claudeYolu: null,
   varsayilanIzinModu: "bypassPermissions",
   onaySuresiSn: 900,
-  gunlukButceUsd: 50,
   disEditor: process.platform === "win32" ? "code" : "codium",
   tikanmaDakika: 20,
-  girisYontemi: "abonelik",
   besSaatlikSinirYuzde: 90,
   haftalikSinirYuzde: 95,
   kodZekasiModeli: "kaliteli",
   kodZekasiOtomatik: true,
 };
+
+/** Yalnız bilinen ayarlar: eski sürümlerden kalan alanlar (ör. kaldırılan API girişi ve dolar bütçesi) okunmaz, açılışta dosyadan silinir */
+function ayikla(a: Ayarlar): Ayarlar {
+  const temiz: Record<string, unknown> = {};
+  for (const k of Object.keys(VARSAYILAN_AYARLAR)) temiz[k] = (a as unknown as Record<string, unknown>)[k];
+  return temiz as unknown as Ayarlar;
+}
 
 export class Yapilandirma {
   private ayarlarDosyasi: string;
@@ -25,12 +30,23 @@ export class Yapilandirma {
   constructor(readonly veriDizini: string) {
     fs.mkdirSync(veriDizini, { recursive: true });
     this.ayarlarDosyasi = path.join(veriDizini, "ayarlar.json");
-    this.mevcut = { ...VARSAYILAN_AYARLAR, ...this.oku() };
+    const okunan = this.oku();
+    this.mevcut = ayikla({ ...VARSAYILAN_AYARLAR, ...okunan });
+    if (Object.keys(okunan).some((k) => !(k in VARSAYILAN_AYARLAR))) this.yaz();
+  }
+
+  private yaz(): void {
+    try {
+      fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
+    } catch {
+      // Salt okunur veri dizini: eski alanlar zaten okunmuyor
+    }
   }
 
   private oku(): Partial<Ayarlar> {
     try {
-      return JSON.parse(fs.readFileSync(this.ayarlarDosyasi, "utf8")) as Partial<Ayarlar>;
+      const v: unknown = JSON.parse(fs.readFileSync(this.ayarlarDosyasi, "utf8"));
+      return v && typeof v === "object" && !Array.isArray(v) ? (v as Partial<Ayarlar>) : {};
     } catch {
       return {};
     }
@@ -45,9 +61,7 @@ export class Yapilandirma {
     if (degisiklik.claudeYolu !== undefined) temiz.claudeYolu = degisiklik.claudeYolu ? String(degisiklik.claudeYolu) : null;
     if (degisiklik.varsayilanIzinModu) temiz.varsayilanIzinModu = degisiklik.varsayilanIzinModu;
     if (typeof degisiklik.onaySuresiSn === "number") temiz.onaySuresiSn = Math.min(Math.max(30, degisiklik.onaySuresiSn), 86_400);
-    if (typeof degisiklik.gunlukButceUsd === "number") temiz.gunlukButceUsd = Math.max(0, degisiklik.gunlukButceUsd);
     if (typeof degisiklik.disEditor === "string") temiz.disEditor = degisiklik.disEditor.trim();
-    if (degisiklik.girisYontemi === "abonelik" || degisiklik.girisYontemi === "api") temiz.girisYontemi = degisiklik.girisYontemi;
     const yuzde = (v: number) => Math.min(Math.max(0, Math.round(v)), 100);
     if (typeof degisiklik.besSaatlikSinirYuzde === "number") temiz.besSaatlikSinirYuzde = yuzde(degisiklik.besSaatlikSinirYuzde);
     if (typeof degisiklik.haftalikSinirYuzde === "number") temiz.haftalikSinirYuzde = yuzde(degisiklik.haftalikSinirYuzde);

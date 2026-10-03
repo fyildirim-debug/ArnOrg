@@ -51,13 +51,10 @@ npm run dev
 }
 `,
   ".arnorg/proje.yaml": `ad: Sipariş Paneli
+aciklama: Küçük işletmeler için sipariş, stok ve kargo takibi
 varsayilan_dal: main
-butce:
-  gunluk_usd: 40
-  uyari_orani: 0.9
-birlestirme:
-  inceleme_gerekli: true
-  testler_gecmeli: true
+birlestirme: yerel
+not: ArnOrg proje ayarları. Ekip kimlikleri ekip/, proje hafızası notlar/ altında tutulur.
 `,
   "src/main.tsx": `import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

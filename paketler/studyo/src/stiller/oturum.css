@@ -29,7 +29,7 @@
   color: var(--muted);
   font-size: var(--t-2xs);
 }
-.oturum-maliyet {
+.oturum-kullanim {
   margin-left: var(--b-2);
 }
 .oturum-eylem {
@@ -294,7 +294,7 @@
 }
 
 @media (max-width: 860px) {
-  .oturum-maliyet {
+  .oturum-kullanim {
     margin-left: 0;
   }
   .oturum-eylem {

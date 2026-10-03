@@ -1,34 +1,11 @@
-// Sayı, para ve zaman biçimleri (Türkçe yerel ayar)
+// Sayı, token ve zaman biçimleri (Türkçe yerel ayar)
 
-const paraBicimi = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const kucukParaBicimi = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 3,
-  maximumFractionDigits: 3,
-});
 const sayiBicimi = new Intl.NumberFormat("tr-TR");
 const saatBicimi = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
 const saniyeliBicim = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const tarihBicimi = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 const kisaTarih = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" });
 const goreliBicim = new Intl.RelativeTimeFormat("tr", { numeric: "auto", style: "short" });
-
-/** $14,22 */
-export function para(n: number | null | undefined): string {
-  return paraBicimi.format(n ?? 0);
-}
-
-/** Küçük tutarlar için üç basamak: $0,042 */
-export function kucukPara(n: number | null | undefined): string {
-  const d = n ?? 0;
-  return d > 0 && d < 0.1 ? kucukParaBicimi.format(d) : paraBicimi.format(d);
-}
 
 /** Token sayısı: 950, 48 bin, 1,3 milyon */
 export function token(n: number | null | undefined): string {

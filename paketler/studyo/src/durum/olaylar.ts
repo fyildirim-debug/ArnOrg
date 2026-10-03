@@ -159,39 +159,30 @@ function depoyaUygula(olay: SunucuOlayi) {
       return;
     }
 
-    case "maliyet": {
+    case "kullanim": {
       if (olay.projeId !== pid) return;
-      // Olaydaki değerler ajanın kendi bugünkü ve toplam kullanımıdır; proje toplamı farkla güncellenir
+      // Olaydaki değerler ajanın kendi bugünkü ve toplam token sayısıdır; proje toplamı farkla güncellenir
       useVeri.setState((s) => {
         const ajan = s.ajanlar.find((a) => a.id === olay.ajanId);
         const fark = {
-          bugunUsd: ajan ? olay.bugunUsd - ajan.bugunHarcananUsd : 0,
-          toplamUsd: ajan ? olay.toplamUsd - ajan.toplamHarcananUsd : 0,
           bugunToken: ajan ? olay.bugunToken - ajan.bugunToken : 0,
           toplamToken: ajan ? olay.toplamToken - ajan.toplamToken : 0,
         };
         const ajanlar = ajan
-          ? s.ajanlar.map((a) =>
-              a.id === olay.ajanId
-                ? { ...a, bugunHarcananUsd: olay.bugunUsd, toplamHarcananUsd: olay.toplamUsd, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken }
-                : a,
-            )
+          ? s.ajanlar.map((a) => (a.id === olay.ajanId ? { ...a, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken } : a))
           : s.ajanlar;
-        const maliyet = s.maliyet
+        const kullanim = s.kullanim
           ? {
-              ...s.maliyet,
-              bugunUsd: Math.max(0, s.maliyet.bugunUsd + fark.bugunUsd),
-              toplamUsd: Math.max(0, s.maliyet.toplamUsd + fark.toplamUsd),
-              bugunToken: Math.max(0, s.maliyet.bugunToken + fark.bugunToken),
-              toplamToken: Math.max(0, s.maliyet.toplamToken + fark.toplamToken),
-              ajanlar: s.maliyet.ajanlar.map((x) =>
-                x.ajanId === olay.ajanId
-                  ? { ...x, bugunUsd: olay.bugunUsd, toplamUsd: olay.toplamUsd, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken }
-                  : x,
+              ...s.kullanim,
+              bugunToken: Math.max(0, s.kullanim.bugunToken + fark.bugunToken),
+              toplamToken: Math.max(0, s.kullanim.toplamToken + fark.toplamToken),
+              ajanlar: s.kullanim.ajanlar.map((x) =>
+                x.ajanId === olay.ajanId ? { ...x, bugunToken: olay.bugunToken, toplamToken: olay.toplamToken } : x,
               ),
             }
-          : s.maliyet;
-        return { ajanlar, maliyet };
+          : s.kullanim;
+        const projeler = s.projeler.map((p) => (p.id === pid ? { ...p, bugunToken: Math.max(0, p.bugunToken + fark.bugunToken) } : p));
+        return { ajanlar, kullanim, projeler };
       });
       return;
     }

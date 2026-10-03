@@ -384,6 +384,7 @@ input[type="number"] {
 }
 .alan {
   display: grid;
+  align-content: start;
   gap: 0.375rem;
   min-width: 0;
 }
@@ -791,25 +792,19 @@ input[type="number"] {
   outline-offset: -2px;
 }
 
-/* bütçe çubuğu */
-.butce {
+/* token payı çubuğu */
+.pay-cubuk {
   display: block;
   height: 3px;
   background: var(--ink-4);
   border-radius: 1px;
   overflow: hidden;
 }
-.butce > span {
+.pay-cubuk > span {
   display: block;
   height: 100%;
   background: var(--paper);
   transition: width var(--hiz-yavas) var(--egri);
-}
-.butce-sinir > span {
-  background: var(--warn);
-}
-.butce-asim > span {
-  background: var(--sil);
 }
 
 /* anahtar–değer listesi */

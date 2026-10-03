@@ -31,7 +31,7 @@ const kopya = (x) => structuredClone(x);
 // ---------------------------------------------------------------------------
 
 const db = {
-  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, gunlukButceUsd: 40, disEditor: "codium", tikanmaDakika: 20, girisYontemi: "abonelik", besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95, kodZekasiModeli: "kaliteli", kodZekasiOtomatik: true },
+  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, disEditor: "codium", tikanmaDakika: 20, besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95, kodZekasiModeli: "kaliteli", kodZekasiOtomatik: true },
   projeler: kopya(V.projeler),
   ajanlar: kopya(V.ajanlar),
   gorevler: kopya(V.gorevler),
@@ -66,7 +66,7 @@ function projeOzeti(p) {
     aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
     gorevSayilari,
     bekleyenOnay: db.onaylar.filter((o) => o.projeId === p.id && o.durum === "bekliyor").length,
-    bugunMaliyetUsd: Math.round(ajanlar.reduce((t, a) => t + a.bugunHarcananUsd, 0) * 100) / 100,
+    bugunToken: ajanlar.reduce((t, a) => t + a.bugunToken, 0),
   };
 }
 
@@ -91,11 +91,10 @@ function hesapCevabi() {
   const a = db.ayarlar;
   const sinirli = hesapDurumu.pencereler.find((p) => {
     const s = p.tur === "bes_saat" ? a.besSaatlikSinirYuzde : a.haftalikSinirYuzde;
-    return a.girisYontemi === "abonelik" && s > 0 && p.yuzde >= s;
+    return s > 0 && p.yuzde >= s;
   });
   return {
     ...hesapDurumu,
-    girisYontemi: a.girisYontemi,
     sinirYuzdeleri: { besSaatlik: a.besSaatlikSinirYuzde, haftalik: a.haftalikSinirYuzde },
     sinir: sinirli
       ? { pencere: sinirli.ad, yuzde: Math.round(sinirli.yuzde), sinirYuzde: sinirli.tur === "bes_saat" ? a.besSaatlikSinirYuzde : a.haftalikSinirYuzde, sifirlanma: sinirli.sifirlanma }
@@ -104,20 +103,14 @@ function hesapCevabi() {
   };
 }
 
-function maliyet(pid) {
+function kullanim(pid) {
   const ajanlar = projeAjanlari(pid);
   return {
-    girisYontemi: db.ayarlar.girisYontemi,
-    bugunUsd: ajanlar.reduce((t, a) => t + a.bugunHarcananUsd, 0),
-    toplamUsd: ajanlar.reduce((t, a) => t + a.toplamHarcananUsd, 0),
-    gunlukButceUsd: db.ayarlar.gunlukButceUsd,
     bugunToken: ajanlar.reduce((t, a) => t + a.bugunToken, 0),
     toplamToken: ajanlar.reduce((t, a) => t + a.toplamToken, 0),
     ajanlar: ajanlar.map((a) => ({
       ajanId: a.id,
       ad: a.ad,
-      bugunUsd: a.bugunHarcananUsd,
-      toplamUsd: a.toplamHarcananUsd,
       bugunToken: a.bugunToken,
       toplamToken: a.toplamToken,
     })),
@@ -386,15 +379,13 @@ function denetimEkle(ajanId, arac, girdiOzeti, karar, kural = null, neden = null
   yay({ tur: "denetim.kaydi", kayit: k }, a.projeId);
 }
 
-function harca(ajanId, usd) {
+function kullan(ajanId, token) {
   const a = ajanBul(ajanId);
   if (!a) return;
-  a.bugunHarcananUsd = Math.round((a.bugunHarcananUsd + usd) * 1000) / 1000;
-  a.toplamHarcananUsd = Math.round((a.toplamHarcananUsd + usd) * 1000) / 1000;
-  a.bugunToken += Math.round(usd * 60_000);
-  a.toplamToken += Math.round(usd * 60_000);
-  hesapDurumu.pencereler[0].yuzde = Math.min(100, Math.round((hesapDurumu.pencereler[0].yuzde + usd * 0.4) * 10) / 10);
-  yay({ tur: "maliyet", projeId: a.projeId, ajanId, bugunUsd: a.bugunHarcananUsd, toplamUsd: a.toplamHarcananUsd, bugunToken: a.bugunToken, toplamToken: a.toplamToken }, a.projeId);
+  a.bugunToken += token;
+  a.toplamToken += token;
+  hesapDurumu.pencereler[0].yuzde = Math.min(100, Math.round((hesapDurumu.pencereler[0].yuzde + token / 150_000) * 10) / 10);
+  yay({ tur: "kullanim", projeId: a.projeId, ajanId, bugunToken: a.bugunToken, toplamToken: a.toplamToken }, a.projeId);
 }
 
 function mesajEkle(pid, kanal, gonderenId, metin) {
@@ -407,14 +398,14 @@ function mesajEkle(pid, kanal, gonderenId, metin) {
   return m;
 }
 
-/** Araç çağrısı + sonuç + denetim kaydı + maliyet */
-function aracCalistir(ajanId, arac, girdi, sonuc, { ozet, hata = false, karar = "izin", kural = null, usd = 0.02 } = {}) {
+/** Araç çağrısı + sonuç + denetim kaydı + token kullanımı */
+function aracCalistir(ajanId, arac, girdi, sonuc, { ozet, hata = false, karar = "izin", kural = null, token = 1200 } = {}) {
   const kimlik = yeniKimlik("toolu");
   akisEkle(ajanId, { tur: "arac_cagrisi", arac, aracKimligi: kimlik, girdi });
   denetimEkle(ajanId, arac, ozet ?? JSON.stringify(girdi).slice(0, 80), karar, kural, karar === "ret" ? "Politika" : null);
   setTimeout(() => {
     akisEkle(ajanId, { tur: "arac_sonucu", aracKimligi: kimlik, metin: sonuc, hata });
-    harca(ajanId, usd);
+    kullan(ajanId, token);
   }, 700);
 }
 
@@ -428,12 +419,12 @@ const K = V.CALISMA_KOKU;
 const sahne = [
   () => calisiyorsa("kerem", () => aracCalistir("kerem", "Read", { file_path: `${K}/kerem/src/auth/jetonDeposu.ts` }, "// Erişim ve yenileme jetonlarını bellekte… (14 satır)", { ozet: "src/auth/jetonDeposu.ts" })),
   () => calisiyorsa("ece", eceDuzenler),
-  () => calisiyorsa("kerem", () => aracCalistir("kerem", "mcp__arnorg__not_yaz", { yol: "kararlar/ADR-004-jeton-yenileme.md", metin: "…" }, "Not güncellendi.", { ozet: "kararlar/ADR-004-jeton-yenileme.md", usd: 0.04 })),
+  () => calisiyorsa("kerem", () => aracCalistir("kerem", "mcp__arnorg__not_yaz", { yol: "kararlar/ADR-004-jeton-yenileme.md", metin: "…" }, "Not güncellendi.", { ozet: "kararlar/ADR-004-jeton-yenileme.md", token: 2400 })),
   () => calisiyorsa("ece", () => aracCalistir("ece", "Bash", { command: "npm run test -- liste", description: "Liste testlerini çalıştır" }, " ✓ tests/liste.test.tsx (4 tests) 88ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)", { ozet: "npm run test -- liste", kural: "Test komutları" })),
   () =>
     calisiyorsa("ada", () => {
       akisEkle("ada", { tur: "dusunce", metin: "T-26 incelemeye yaklaşıyor; Onur'un oturumu kapalı. İnceleme sırası için Kerem'e yazmalıyım." });
-      aracCalistir("ada", "mcp__arnorg__mesaj_gonder", { kanal: "muhendislik", metin: "@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?" }, "Mesaj #muhendislik kanalına yazıldı.", { ozet: "#muhendislik · T-26 incelemesi", usd: 0.03 });
+      aracCalistir("ada", "mcp__arnorg__mesaj_gonder", { kanal: "muhendislik", metin: "@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?" }, "Mesaj #muhendislik kanalına yazıldı.", { ozet: "#muhendislik · T-26 incelemesi", token: 1800 });
       setTimeout(() => mesajEkle("siparis-paneli", "muhendislik", "ada", "@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?"), 800);
     }),
   () => calisiyorsa("kerem", () => aracCalistir("kerem", "Grep", { pattern: "yenileniyor", path: `${K}/kerem/src` }, "src/auth/oturum.ts:6:let yenileniyor: Promise<void> | null = null;", { ozet: "\"yenileniyor\" src/" })),
@@ -444,7 +435,7 @@ const sahne = [
   () =>
     calisiyorsa("kerem", () => {
       mesajEkle("siparis-paneli", "muhendislik", "kerem", "Evet, Onur'u T-26 için uyandırıyorum. @Ece incelemeye geçince haber ver.");
-      harca("kerem", 0.02);
+      kullan("kerem", 1200);
     }),
 ];
 
@@ -466,7 +457,7 @@ function eceDuzenler() {
     zamanlar.set(`ece\0${yol}`, Date.now());
     yay({ tur: "dosya.degisti", projeId: "siparis-paneli", alan: "ece", yol, ajanId: "ece" }, "siparis-paneli");
     akisEkle("ece", { tur: "arac_sonucu", aracKimligi: kimlik, metin: "Dosya güncellendi." });
-    harca("ece", 0.03);
+    kullan("ece", 1800);
   }, 600);
 }
 
@@ -532,7 +523,7 @@ setInterval(() => {
   }
 }, 1000);
 
-setTimeout(() => yay({ tur: "bildirim", seviye: "uyari", metin: "Deniz günlük bütçesinin %85'ine ulaştı.", projeId: "siparis-paneli" }), 25_000);
+setTimeout(() => yay({ tur: "bildirim", seviye: "uyari", metin: "T-24 20 dakikadır ilerlemiyor; Deniz'e hatırlatıldı.", projeId: "siparis-paneli" }), 25_000);
 
 // ---------------------------------------------------------------------------
 // Ofis canlandırması: anmalı mesajlar, #toplanti, görev geçişleri, durum değişimleri,
@@ -556,7 +547,7 @@ const ANMALI = [
 const GENEL = [
   "Sprint panosunu güncelledim; T-27 bağımlılıkları netleşti.",
   "Kargo firması belgelerini okudum, ilk izlenimler notlarda.",
-  "Bugünkü harcama planın altında, sorun yok.",
+  "Kullanım pencereleri rahat; 5 saatlik pencere %50'nin altında.",
 ];
 
 function anmaliMesaj() {
@@ -689,7 +680,7 @@ function isAlimDongusu() {
     tur: "ise_alim",
     baslik: `${v.ad} · ${rol?.ad ?? v.rol}`,
     ayrinti: v.gerekce,
-    veri: { ad: v.ad, rol: v.rol, model: v.model, yoneticiId: "kerem", gunlukButceUsd: 4, talimatEki: "" },
+    veri: { ad: v.ad, rol: v.rol, model: v.model, yoneticiId: "kerem", talimatEki: "" },
     durum: "bekliyor",
     olusturma: simdi(),
     sonGecerlilik: null,
@@ -751,8 +742,8 @@ function cevapla(ajanId, metin, gecikme = 1400) {
     const a = ajanBul(ajanId);
     if (!a || a.durum === "kapali") return;
     akisEkle(ajanId, { tur: "asistan", metin });
-    akisEkle(ajanId, { tur: "sonuc", maliyetUsd: 0.04 });
-    harca(ajanId, 0.04);
+    akisEkle(ajanId, { tur: "sonuc", token: 2400 });
+    kullan(ajanId, 2400);
   }, gecikme);
 }
 
@@ -818,7 +809,7 @@ rota("POST", "/api/projeler", ({ govde }) => {
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
   const p = { id, ad: govde.ad, yol: govde.yol, aciklama: govde.aciklama ?? "", varsayilanDal: "main", olusturma: simdi() };
   db.projeler.push(p);
-  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", gunlukButceUsd: 10, bugunHarcananUsd: 0, toplamHarcananUsd: 0, bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
+  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
   db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "muhendislik", aciklama: "" }, { ad: "toplanti", aciklama: "" }];
   db.notlar[id] = { "vizyon.md": `# Vizyon\n\n${govde.aciklama ?? ""}\n`, "mimari.md": "# Mimari\n\n" };
   db.notZamanlari[id] = { "vizyon.md": simdi(), "mimari.md": simdi() };
@@ -873,9 +864,6 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
     calismaAlani: rol.yonetici ? null : `${pr.id === "siparis-paneli" ? V.CALISMA_KOKU : pr.yol + "/.arnorg/calisma"}/${id}`,
     dal: `arnorg/${id}`,
     izinModu: db.ayarlar.varsayilanIzinModu,
-    gunlukButceUsd: govde.gunlukButceUsd ?? 5,
-    bugunHarcananUsd: 0,
-    toplamHarcananUsd: 0,
     bugunToken: 0,
     toplamToken: 0,
     talimatEki: govde.talimatEki ?? "",
@@ -892,7 +880,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
 rota("PATCH", "/api/ajanlar/:aid", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
   karakterDenetle(govde);
-  for (const k of ["model", "gunlukButceUsd", "izinModu", "yoneticiId", "talimatEki", "karakter"]) if (govde && k in govde) a[k] = govde[k];
+  for (const k of ["model", "izinModu", "yoneticiId", "talimatEki", "karakter"]) if (govde && k in govde) a[k] = govde[k];
   ajanYay(a);
   return a;
 });
@@ -1040,11 +1028,11 @@ rota("POST", "/api/projeler/:pid/kanallar/:kanal/mesajlar", ({ p, govde }) => {
     setTimeout(() => {
       const yanit =
         a.rol === "ceo"
-          ? `Not aldım. Kapsamını Kerem'le netleştirip panoya ekliyorum; tahmini maliyet $2–4. Planı bu akşamki raporda paylaşırım.`
+          ? `Not aldım. Kapsamını Kerem'le netleştirip panoya ekliyorum; tahmini süre iki gün. Planı bu akşamki raporda paylaşırım.`
           : `Aldım, ${m.metin.length > 60 ? "bu notu" : `"${m.metin}"`} hesaba katarak devam ediyorum.`;
       mesajEkle(p.pid, kanal, aid, yanit);
       akisEkle(aid, { tur: "asistan", metin: yanit });
-      harca(aid, 0.03);
+      kullan(aid, 1800);
     }, 1600);
   }
   return m;
@@ -1285,9 +1273,6 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
       calismaAlani: `${V.CALISMA_KOKU}/${v.ad.toLocaleLowerCase("tr-TR")}`,
       dal: `arnorg/${v.ad.toLocaleLowerCase("tr-TR")}`,
       izinModu: db.ayarlar.varsayilanIzinModu,
-      gunlukButceUsd: v.gunlukButceUsd ?? 5,
-      bugunHarcananUsd: 0,
-      toplamHarcananUsd: 0,
       bugunToken: 0,
       toplamToken: 0,
       talimatEki: v.talimatEki ?? "",
@@ -1300,13 +1285,6 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
     akisEkle(yeni.id, { tur: "sistem", metin: `Oturum açıldı · ${yeni.dal} · ${yeni.model}` });
     ajanYay(yeni);
     setTimeout(() => mesajEkle(o.projeId, "genel", "ada", `${yeni.ad} ekibe katıldı. @Kerem ilk görevini sen ata; ödeme işine geçmeden oturum ve jeton akışlarını denetlesin.`), 1200);
-  }
-  if (o.tur === "butce" && kabul && o.veri?.ajanId) {
-    const h = ajanBul(o.veri.ajanId);
-    if (h) {
-      h.gunlukButceUsd = o.veri.istenenUsd ?? h.gunlukButceUsd + 3;
-      ajanYay(h);
-    }
   }
   if (o.tur === "birlestirme" && kabul && o.veri?.gorevId) {
     const g = db.gorevler.find((x) => x.id === o.veri.gorevId);
@@ -1782,13 +1760,19 @@ rota("DELETE", "/api/terminaller/:tid", ({ p }) => {
   return { tamam: true };
 });
 
-rota("GET", "/api/projeler/:pid/maliyet", ({ p }) => (projeGerekli(p.pid), maliyet(p.pid)));
+rota("GET", "/api/projeler/:pid/kullanim", ({ p }) => (projeGerekli(p.pid), kullanim(p.pid)));
 function sahteRapor(pid) {
   projeGerekli(pid);
   const gun = simdi().slice(0, 10);
   const gorevler = db.gorevler.filter((g) => g.projeId === pid);
   const say = (d) => gorevler.filter((g) => g.durum === d).length;
-  const markdown = `# Durum raporu · ${gun}\n\n## Özet\n\n- Tamamlanan: ${say("tamam")} · süren: ${say("calisiliyor")} · incelemede: ${say("inceleme")}\n- Harcama: $${maliyet(pid).bugunUsd.toFixed(2)}\n`;
+  const k = kullanim(pid);
+  const sayi = (n) => n.toLocaleString("tr-TR");
+  const pencereler = hesapDurumu.pencereler
+    .filter((x) => x.tur === "bes_saat" || x.tur === "haftalik")
+    .map((x) => `${x.ad} %${Math.round(x.yuzde)}`)
+    .join(" · ");
+  const markdown = `# Durum raporu · ${gun}\n\n## Özet\n\n- Tamamlanan: ${say("tamam")} · süren: ${say("calisiliyor")} · incelemede: ${say("inceleme")}\n- Kullanım: ${sayi(k.toplamToken)} token (bugün ${sayi(k.bugunToken)})\n- Abonelik: ${pencereler}\n`;
   return { baslik: `Durum raporu · ${gun}`, yol: `raporlar/${gun}.md`, baslangic: simdi(), markdown };
 }
 rota("GET", "/api/projeler/:pid/rapor", ({ p }) => sahteRapor(p.pid));

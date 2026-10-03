@@ -6,8 +6,8 @@ import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { AjanAvatar, AjanDurum, izinModuAdi, modelAdi } from "../bilesenler/Kisi";
 import { Simge } from "../bilesenler/Simge";
 import { git, useArayuz } from "../durum/arayuz";
-import { abonelikMi, ajanAkisiniYukle, useVeri } from "../durum/veri";
-import { para, token } from "../yardimcilar/bicim";
+import { ajanAkisiniYukle, useVeri } from "../durum/veri";
+import { token } from "../yardimcilar/bicim";
 
 const PENCERE = 500;
 const ALT_ESIGI = 64;
@@ -36,7 +36,6 @@ export function AjanOturumu() {
 }
 
 function Oturum({ ajanId }: { ajanId: string }) {
-  const abonelik = useVeri(abonelikMi);
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === ajanId))!;
   const ogeler = useVeri((d) => d.akislar[ajanId]);
   const yukleme = useVeri((d) => d.akisYukleme[ajanId]);
@@ -112,15 +111,9 @@ function Oturum({ ajanId }: { ajanId: string }) {
           </span>
         </div>
         <AjanDurum durum={ajan.durum} />
-        {abonelik ? (
-          <span className="metre oturum-maliyet" title="Bugün / toplam işlenen token (abonelik: ücret alınmaz)">
-            <b>{token(ajan.bugunToken)}</b> token bugün · {token(ajan.toplamToken)} toplam
-          </span>
-        ) : (
-          <span className="metre oturum-maliyet" title="Bugün / toplam harcama">
-            <b>{para(ajan.bugunHarcananUsd)}</b> bugün · {para(ajan.toplamHarcananUsd)} toplam
-          </span>
-        )}
+        <span className="metre oturum-kullanim" title="Bugün ve toplam işlenen token">
+          <b>{token(ajan.bugunToken)}</b> token bugün · {token(ajan.toplamToken)} toplam
+        </span>
         <div className="oturum-eylem">
           <OturumDugmeleri ajan={ajan} kucuk />
         </div>

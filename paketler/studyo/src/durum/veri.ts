@@ -1,4 +1,4 @@
-// Çekirdekten gelen veri: projeler ve etkin projenin ekip, görev, kanal, onay, denetim, maliyet ve akış verisi
+// Çekirdekten gelen veri: projeler ve etkin projenin ekip, görev, kanal, onay, denetim, kullanım ve akış verisi
 import type {
   Ajan,
   AkisOgesi,
@@ -6,7 +6,7 @@ import type {
   Gorev,
   HesapDurumu,
   Kanal,
-  MaliyetOzeti,
+  KullanimOzeti,
   Mesaj,
   Onay,
   ProjeOzeti,
@@ -50,7 +50,8 @@ export interface VeriDurumu {
   okunmamis: Record<string, number>;
   onaylar: Onay[];
   denetim: DenetimKaydi[];
-  maliyet: MaliyetOzeti | null;
+  /** Etkin projenin token kullanımı (bugün ve toplam, ajan başına) */
+  kullanim: KullanimOzeti | null;
   akislar: Record<string, AkisOgesi[]>;
   akisYukleme: Record<string, Yukleme>;
   canli: CanliOlay[];
@@ -78,7 +79,7 @@ const projeVerisiBos = {
   okunmamis: {},
   onaylar: [],
   denetim: [],
-  maliyet: null,
+  kullanim: null,
   akislar: {},
   akisYukleme: {},
   canli: [],
@@ -153,11 +154,6 @@ export async function hesabiYukle(tazele = false) {
   }
 }
 
-/** Abonelikte ücret alınmaz; arayüz dolar yerine kullanım gösterir */
-export function abonelikMi(d: Pick<VeriDurumu, "hesap" | "maliyet">): boolean {
-  return (d.maliyet?.girisYontemi ?? d.hesap?.girisYontemi ?? "abonelik") === "abonelik";
-}
-
 export async function projeleriYukle() {
   if (al().projelerYukleme !== "hazir") ayarla({ projelerYukleme: "yukleniyor" });
   try {
@@ -206,10 +202,10 @@ export async function projeVerisiniYukle(sessiz = false) {
     api.kanallar(pid),
     api.onaylar(pid),
     api.denetim(pid, 300),
-    api.maliyet(pid),
+    api.kullanim(pid),
   ]);
   if (!gecerli()) return;
-  const [ajanlar, gorevler, kanallar, onaylar, denetim, maliyet] = sonuclar;
+  const [ajanlar, gorevler, kanallar, onaylar, denetim, kullanim] = sonuclar;
   const hata = sonuclar.find((s) => s.status === "rejected") as PromiseRejectedResult | undefined;
 
   const yeni: Partial<VeriDurumu> = {};
@@ -218,7 +214,7 @@ export async function projeVerisiniYukle(sessiz = false) {
   if (kanallar.status === "fulfilled") yeni.kanallar = kanallar.value;
   if (onaylar.status === "fulfilled") yeni.onaylar = onaylar.value.slice().sort(onayZamaniSirala);
   if (denetim.status === "fulfilled") yeni.denetim = denetim.value;
-  if (maliyet.status === "fulfilled") yeni.maliyet = maliyet.value;
+  if (kullanim.status === "fulfilled") yeni.kullanim = kullanim.value;
   ayarla({
     ...yeni,
     projeYukleme: ajanlar.status === "fulfilled" ? "hazir" : "hata",

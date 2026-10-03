@@ -72,13 +72,11 @@ const semalar = {
     rol: z.string().min(1),
     model: z.string().max(80).optional(),
     yoneticiId: z.string().nullable().optional(),
-    gunlukButceUsd: z.number().min(0).max(10_000).optional(),
     talimatEki: z.string().max(8000).optional(),
     karakter: karakterSemasi.nullable().optional(),
   }),
   ajanGuncelle: z.object({
     model: z.string().max(80).optional(),
-    gunlukButceUsd: z.number().min(0).max(10_000).optional(),
     izinModu: izinModu.optional(),
     yoneticiId: z.string().nullable().optional(),
     talimatEki: z.string().max(8000).optional(),
@@ -113,10 +111,8 @@ const semalar = {
     claudeYolu: z.string().nullable().optional(),
     varsayilanIzinModu: izinModu.optional(),
     onaySuresiSn: z.number().optional(),
-    gunlukButceUsd: z.number().optional(),
     disEditor: z.string().max(200).optional(),
     tikanmaDakika: z.number().optional(),
-    girisYontemi: z.enum(["abonelik", "api"]).optional(),
     besSaatlikSinirYuzde: z.number().min(0).max(100).optional(),
     haftalikSinirYuzde: z.number().min(0).max(100).optional(),
     kodZekasiModeli: z.enum(["kaliteli", "hizli", "kapali"]).optional(),
@@ -516,8 +512,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return tamam;
   });
 
-  // ---------------- maliyet ----------------
-  app.get("/api/projeler/:pid/maliyet", async (i) => sirket.maliyetOzeti(param(i, "pid")));
+  // ---------------- kullanım (token ve abonelik penceresi) ----------------
+  app.get("/api/projeler/:pid/kullanim", async (i) => sirket.kullanimOzeti(param(i, "pid")));
 
   // ---------------- WebSocket: canlı olaylar ----------------
   app.get("/ws", { websocket: true }, (soket) => {

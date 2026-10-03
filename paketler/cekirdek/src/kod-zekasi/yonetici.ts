@@ -508,11 +508,11 @@ export class KodZekasi {
     return haritaAgaci(dosyalar, semboller, p.depo.tumIceAktarmalar(alan), kok);
   }
 
-  /** Ajanlar için bütçeli metin haritası (önemli dosyalar ve sembolleri önce) */
-  async haritaMetni(projeId: string, alan: string, s: { yol?: string; butce?: number } = {}): Promise<string> {
+  /** Ajanlar için karakter sınırlı metin haritası (önemli dosyalar ve sembolleri önce) */
+  async haritaMetni(projeId: string, alan: string, s: { yol?: string; sinir?: number } = {}): Promise<string> {
     const { p } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
     const yol = s.yol ? this.goreliYol(projeId, alan, s.yol) : "";
-    return haritaMetni(p.depo.dosyalar(alan), p.depo.tumSemboller(alan), p.depo.tumIceAktarmalar(alan), { yol, butce: s.butce ?? 4000 });
+    return haritaMetni(p.depo.dosyalar(alan), p.depo.tumSemboller(alan), p.depo.tumIceAktarmalar(alan), { yol, sinir: s.sinir ?? 4000 });
   }
 
   /** Dosyanın içe aktardıkları ve onu içe aktaranlar */

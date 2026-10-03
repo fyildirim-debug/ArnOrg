@@ -12,7 +12,6 @@ const GUN_MS = 86_400_000;
 // Dönem raporu
 // ===================================================================
 
-const para = (usd: number) => `$${usd.toFixed(2)}`;
 /** 1234567 → "1,2 milyon", 48200 → "48 bin" */
 export function tokenMetni(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} milyon`;
@@ -47,10 +46,8 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
     return [];
   });
 
-  const maliyetler = sirket.depo.donemMaliyeti(projeId, baslangicGun);
-  const donemToplami = maliyetler.reduce((t, m) => t + m.usd, 0);
-  const donemTokeni = maliyetler.reduce((t, m) => t + m.token, 0);
-  const abonelik = sirket.abonelik;
+  const kullanimlar = sirket.depo.donemKullanimi(projeId, baslangicGun);
+  const donemTokeni = kullanimlar.reduce((t, m) => t + m.token, 0);
   const denetim = sirket.depo.denetimSayilari(projeId, baslangicAni);
   const bekleyenOnaylar = sirket.depo.onaylar(projeId, "bekliyor");
   const sonuclananlar = sirket.depo.onaylar(projeId).filter((o) => o.durum !== "bekliyor" && (o.sonuclanma ?? "") >= baslangicAni);
@@ -63,13 +60,9 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   b.push(`${proje.ad} · ${donem === 1 ? "bugün" : `son ${donem} gün (${baslangicGun} itibarıyla)`}`, "");
   b.push("## Özet", "");
   b.push(`- Tamamlanan görev: ${tamamlanan.length} · süren: ${suren.length} · incelemede: ${incelemede.length} · açık: ${acik.length}`);
-  if (abonelik) {
-    b.push(`- Kullanım: ${tokenMetni(donemTokeni)} token (bugün ${tokenMetni(sirket.depo.projeTokeni(projeId, bugun()))}); abonelikle çalışıldı, ücret alınmadı`);
-    const pencereler = sirket.hesap.mevcut.pencereler.filter((p) => p.tur === "bes_saat" || p.tur === "haftalik");
-    if (pencereler.length) b.push(`- Abonelik: ${pencereler.map((p) => `${p.ad.toLocaleLowerCase("tr")} %${Math.round(p.yuzde ?? 0)}`).join(", ")}`);
-  } else {
-    b.push(`- Harcama: ${para(donemToplami)} (bugün ${para(sirket.depo.projeMaliyeti(projeId, bugun()))}, toplam ${para(sirket.depo.projeMaliyeti(projeId))})`);
-  }
+  b.push(`- Kullanım: ${tokenMetni(donemTokeni)} token (bugün ${tokenMetni(sirket.depo.projeTokeni(projeId, bugun()))})`);
+  const pencereler = sirket.hesap.mevcut.pencereler.filter((p) => p.tur === "bes_saat" || p.tur === "haftalik");
+  if (pencereler.length) b.push(`- Abonelik: ${pencereler.map((p) => `${p.ad.toLocaleLowerCase("tr")} %${Math.round(p.yuzde ?? 0)}`).join(", ")}`);
   const denetimOzeti = (Object.keys(KARAR_ADLARI) as Karar[]).filter((k) => denetim[k]).map((k) => `${KARAR_ADLARI[k].toLocaleLowerCase("tr")} ${denetim[k]}`);
   b.push(`- Denetim: ${denetimOzeti.length ? denetimOzeti.join(", ") : "kayıt yok"}`);
   b.push(`- Birleştirme: ${birlesenler.length} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`, "");
@@ -88,10 +81,10 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   );
   bolum("Birleştirilenler", birlesenler.map((o) => `- ${o.baslik} · ${tarih(o.sonuclanma ?? o.olusturma)}`));
 
-  b.push("## Ekip", "", `| Çalışan | Rol | Durum | ${abonelik ? "Dönem kullanımı" : "Dönem harcaması"} |`, "|---|---|---|---|");
+  b.push("## Ekip", "", "| Çalışan | Rol | Durum | Dönem kullanımı |", "|---|---|---|---|");
   for (const a of ajanlar) {
-    const m = maliyetler.find((x) => x.ajanId === a.id);
-    const kullanim = abonelik ? `${tokenMetni(m?.token ?? 0)} token` : para(m?.usd ?? 0);
+    const m = kullanimlar.find((x) => x.ajanId === a.id);
+    const kullanim = `${tokenMetni(m?.token ?? 0)} token`;
     const gorev = a.gorevId ? gorevler.find((g) => g.id === a.gorevId) : null;
     const durum = gorev && gorev.durum !== "tamam" ? `${gorev.kod} ${GOREV_DURUM_ADLARI[gorev.durum].toLocaleLowerCase("tr")}` : "görevsiz";
     b.push(`| ${a.ad} | ${a.rolAdi} | ${durum} | ${kullanim} |`);
@@ -172,7 +165,6 @@ export class Gozetmen {
           }
           // Çalışan, kurul kararı bekleyen ya da kurulca duraklatılan ajan tıkanmış sayılmaz
           if (sorumlu.durum === "calisiyor" || sorumlu.durum === "karar_bekliyor" || sorumlu.durum === "duraklatildi") continue;
-          if (sorumlu.gunlukButceUsd > 0 && sorumlu.bugunHarcananUsd >= sorumlu.gunlukButceUsd) continue;
           const sonHareket = Math.max(Date.parse(g.guncelleme) || 0, this.sirket.sonEtkinlik.get(sorumlu.id) ?? 0, this.acilisMs, t.sonEylem);
           if (simdiMs - sonHareket < esik) continue;
           const dk = Math.round((simdiMs - Math.max(Date.parse(g.guncelleme) || 0, this.acilisMs)) / 60_000);

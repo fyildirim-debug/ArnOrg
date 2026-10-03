@@ -43,7 +43,7 @@ export function tercihGibi(mesaj: string): boolean {
 
 const DOSYA_ARACLARI = new Set(["Read", "Edit", "MultiEdit", "Write", "NotebookEdit"]);
 const HATA_ARACLARI = new Set(["Bash", "PowerShell"]);
-const TUR_BUTCESI = 3000;
+const TUR_SINIRI = 3000;
 
 interface Iz {
   acilis: string;
@@ -126,7 +126,7 @@ export class Hatirlatici {
   turBasi(ajan: Ajan, mesaj: string, kurulMu: boolean): string | null {
     const iz = this.iz(ajan.id);
     const bolumler: string[] = [];
-    let kalan = TUR_BUTCESI;
+    let kalan = TUR_SINIRI;
     const ekle = (baslik: string, kayitlar: HafizaKaydi[]) => {
       const satirlar: string[] = [];
       for (const k of kayitlar) {

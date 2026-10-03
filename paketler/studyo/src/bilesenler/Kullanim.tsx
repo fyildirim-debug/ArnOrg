@@ -1,9 +1,9 @@
 // Abonelik kullanımı: üst çubuk göstergesi ve Karargâh paneli.
-// Abonelikte ücret alınmaz; asıl sınır claude.ai planının 5 saatlik ve haftalık pencereleridir.
+// ArnOrg yalnız Claude aboneliğiyle çalışır; sınır claude.ai planının 5 saatlik ve haftalık pencereleridir.
 import type { HesapDurumu, KullanimPenceresi } from "@arnorg/ortak";
 import { git } from "../durum/arayuz";
-import { abonelikMi, hesabiYukle, useVeri } from "../durum/veri";
-import { akilliZaman, para, saat, token, yuzde } from "../yardimcilar/bicim";
+import { hesabiYukle, useVeri } from "../durum/veri";
+import { akilliZaman, saat, token, yuzde } from "../yardimcilar/bicim";
 
 /** Göstergede öne çıkan pencereler: 5 saatlik ve haftalık */
 function anaPencereler(h: HesapDurumu | null): KullanimPenceresi[] {
@@ -26,27 +26,14 @@ export function KullanimCubugu({ deger, sinir, etiket }: { deger: number | null;
   );
 }
 
-/** Üst çubuk: plan ve iki pencere; API girişinde günlük harcama */
+/** Üst çubuk: plan ve iki pencere; pencereler henüz okunmadıysa bugünkü token */
 export function UstKullanim() {
   const hesap = useVeri((d) => d.hesap);
-  const maliyet = useVeri((d) => d.maliyet);
-  const abonelik = useVeri(abonelikMi);
-
-  if (!abonelik) {
-    const bugun = maliyet?.bugunUsd ?? 0;
-    const butce = maliyet?.gunlukButceUsd ?? 0;
-    return (
-      <span className={`metre${butce > 0 && bugun >= butce * 0.9 ? " metre-asim" : ""}`} title="API girişi: bugünkü harcama / günlük bütçe">
-        Bugün <b>{para(bugun)}</b>
-        {butce > 0 ? <span className="ust-gizle-dar">/ {para(butce)}</span> : null}
-      </span>
-    );
-  }
-
+  const kullanim = useVeri((d) => d.kullanim);
   const pencereler = anaPencereler(hesap);
   const baslik = hesap?.sinir
     ? `Kullanım sınırda: ${hesap.sinir.pencere} %${hesap.sinir.yuzde}. Ajanlar ${hesap.sinir.sifirlanma ? saat(hesap.sinir.sifirlanma) : "pencere açılınca"} sürecek.`
-    : "Claude aboneliği: ücret alınmaz, plan pencereleri sayılır";
+    : "Claude aboneliği: planın 5 saatlik ve haftalık pencereleri sayılır";
   return (
     <button type="button" className={`ust-kullanim${hesap?.sinir ? " ust-kullanim-sinir" : ""}`} onClick={() => git("ayarlar")} title={baslik}>
       {hesap?.plan ? <span className="plan-rozet">{hesap.plan}</span> : null}
@@ -60,7 +47,7 @@ export function UstKullanim() {
         ))
       ) : (
         <span className="metre">
-          Bugün <b>{token(maliyet?.bugunToken ?? 0)}</b> token
+          Bugün <b>{token(kullanim?.bugunToken ?? 0)}</b> token
         </span>
       )}
       {hesap?.uyari ? <i className="ust-uyari" aria-label="Giriş uyarısı" /> : null}
@@ -71,9 +58,9 @@ export function UstKullanim() {
 /** Karargâh: pencereler, sıfırlanma zamanları, ajan başına bugünkü token */
 export function KullanimPaneli() {
   const hesap = useVeri((d) => d.hesap);
-  const maliyet = useVeri((d) => d.maliyet);
+  const kullanim = useVeri((d) => d.kullanim);
   const pencereler = hesap?.pencereler ?? [];
-  const ajanlar = [...(maliyet?.ajanlar ?? [])].filter((a) => a.bugunToken > 0).sort((a, b) => b.bugunToken - a.bugunToken);
+  const ajanlar = [...(kullanim?.ajanlar ?? [])].filter((a) => a.bugunToken > 0).sort((a, b) => b.bugunToken - a.bugunToken);
   const enCok = ajanlar[0]?.bugunToken ?? 0;
 
   return (
@@ -121,13 +108,13 @@ export function KullanimPaneli() {
         <div>
           <dt>Bugün</dt>
           <dd>
-            <b>{token(maliyet?.bugunToken ?? 0)}</b> token
+            <b>{token(kullanim?.bugunToken ?? 0)}</b> token
           </dd>
         </div>
         <div>
           <dt>Toplam</dt>
           <dd>
-            <b>{token(maliyet?.toplamToken ?? 0)}</b> token
+            <b>{token(kullanim?.toplamToken ?? 0)}</b> token
           </dd>
         </div>
       </dl>
@@ -144,7 +131,7 @@ export function KullanimPaneli() {
           ))}
         </ul>
       ) : null}
-      <p className="kullanim-not">Abonelikle çalışılıyor; ücret alınmaz. Token, girdi ve çıktının toplamıdır (önbellekten okuma hariç).</p>
+      <p className="kullanim-not">Ajanlar Claude aboneliğinizle çalışır. Token; girdi, çıktı ve önbelleğe yazılanın toplamıdır (önbellekten okuma hariç).</p>
     </div>
   );
 }

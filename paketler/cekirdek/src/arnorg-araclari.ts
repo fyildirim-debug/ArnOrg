@@ -186,7 +186,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           const ekip = sirket.depo
             .ajanlar(ben().projeId)
             .map((x) => {
-              const kullanim = sirket.abonelik ? `bugün ${tokenMetni(x.bugunToken)} token` : `$${x.bugunHarcananUsd.toFixed(2)}/$${x.gunlukButceUsd.toFixed(2)}`;
+              const kullanim = `bugün ${tokenMetni(x.bugunToken)} token`;
               return `${x.ad} · ${x.rolAdi} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
             })
             .join("\n");
@@ -201,7 +201,6 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         rol: z.string().describe("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci"),
         gerekce: z.string().min(10),
         model: z.string().optional().describe("opus, sonnet ya da haiku; boşsa rolün varsayılanı"),
-        gunluk_butce_usd: z.number().min(0).max(500).optional().describe("Yalnız API girişinde anlamlı; abonelikte boş bırak"),
         yonetici: z.string().optional().describe("Bağlanacağı çalışanın adı"),
         talimat_eki: z.string().optional(),
       },
@@ -217,7 +216,6 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             ad: a.ad,
             rol: rol.kimlik,
             model: a.model,
-            gunlukButceUsd: sirket.abonelik ? undefined : a.gunluk_butce_usd,
             talimatEki: a.talimat_eki,
             yoneticiAd: a.yonetici ?? ben().ad,
           };
@@ -225,7 +223,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             ben(),
             "ise_alim",
             `İşe alım: ${a.ad} · ${rol.ad}`,
-            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel}${sirket.abonelik ? "" : ` · Günlük bütçe: $${a.gunluk_butce_usd ?? 5}`} · Yönetici: ${veri.yoneticiAd}`,
+            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel} · Yönetici: ${veri.yoneticiAd}`,
             veri,
           );
           return metin(`Teklif yönetim kuruluna sunuldu: ${a.ad} (${rol.ad}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`);
@@ -423,7 +421,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "rapor_hazirla",
-      "Dönem durum raporu hazırlar (tamamlanan, süren, tıkanan görevler; harcama; denetim; bekleyen onaylar) ve notlara raporlar/<tarih>.md olarak kaydeder. Yalnız CEO ve CTO.",
+      "Dönem durum raporu hazırlar (tamamlanan, süren, tıkanan görevler; token ve abonelik kullanımı; denetim; bekleyen onaylar) ve notlara raporlar/<tarih>.md olarak kaydeder. Yalnız CEO ve CTO.",
       { gun: z.number().int().min(1).max(90).default(7).describe("Kaç günlük dönem") },
       (a) =>
         guvenli(() => {
@@ -478,12 +476,12 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "kod_haritasi",
-      "Deponun bütçeli haritası: klasörler, dosyalar (satır sayısıyla) ve en önemli sembolleri; çok kullanılan dosyalar önce. Projeyi ya da bir klasörü tanımak için ilk adım.",
+      "Deponun kısa haritası (~4000 karakter): klasörler, dosyalar (satır sayısıyla) ve en önemli sembolleri; çok kullanılan dosyalar önce. Projeyi ya da bir klasörü tanımak için ilk adım.",
       { yol: z.string().max(500).optional().describe("Yalnız bu klasör (ör. paketler/studyo/src)") },
       (a) =>
         guvenli(async () => {
           const alan = sirket.ajanAlani(ben());
-          const harita = await sirket.kodZekasi.haritaMetni(ben().projeId, alan, { yol: a.yol, butce: 4000 });
+          const harita = await sirket.kodZekasi.haritaMetni(ben().projeId, alan, { yol: a.yol, sinir: 4000 });
           const not = durumNotu(sirket.kodZekasi.durum(ben().projeId, alan));
           return metin(not ? `${not}\n${harita}` : harita);
         }),

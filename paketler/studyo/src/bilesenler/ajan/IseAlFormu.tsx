@@ -1,8 +1,8 @@
-// Kurulun doğrudan işe alımı: ad, rol, model, yönetici, bütçe, ek talimat
+// Kurulun doğrudan işe alımı: ad, rol, model, yönetici, karakter, ek talimat
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { bildir } from "../../durum/arayuz";
-import { abonelikMi, ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
+import { ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu, Yukleniyor } from "../Durumlar";
@@ -10,7 +10,6 @@ import { KarakterSecici } from "../KarakterSecici";
 import { modelAdi } from "../Kisi";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
-  const abonelik = useVeri(abonelikMi);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const roller = useVeri((d) => d.roller);
   const ajanlar = useVeri((d) => d.ajanlar);
@@ -19,7 +18,6 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [rol, setRol] = useState("");
   const [model, setModel] = useState("");
   const [yoneticiId, setYoneticiId] = useState(() => ceoBul(useVeri.getState().ajanlar)?.id ?? "");
-  const [butce, setButce] = useState("5");
   const [talimat, setTalimat] = useState("");
   const [karakter, setKarakter] = useState<string | null>(null);
   const [denendi, setDenendi] = useState(false);
@@ -38,18 +36,16 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   }, []);
 
   const secilenRol = roller.find((r) => r.kimlik === rol);
-  const butceSayi = Number(butce.replace(",", "."));
   const adHata = !ad.trim()
     ? "Ad gerekli."
     : ajanlar.some((a) => a.ad.toLocaleLowerCase("tr-TR") === ad.trim().toLocaleLowerCase("tr-TR"))
       ? "Bu adda bir çalışan zaten var."
       : null;
-  const butceHata = !Number.isFinite(butceSayi) || butceSayi <= 0 ? "Sıfırdan büyük bir tutar yazın." : null;
 
   const gonder = (e?: FormEvent) => {
     e?.preventDefault();
     setDenendi(true);
-    if (adHata || butceHata || !rol || !aktifProjeId) return;
+    if (adHata || !rol || !aktifProjeId) return;
     void calistir(
       "iseal",
       async () => {
@@ -58,7 +54,6 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
           rol,
           model: model || undefined,
           yoneticiId: yoneticiId || null,
-          gunlukButceUsd: butceSayi,
           talimatEki: talimat.trim() || undefined,
           karakter,
         });
@@ -147,20 +142,6 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             ))}
           </select>
         </div>
-        {abonelik ? null : (
-          <div className="alan">
-            <label htmlFor="ise-butce">Günlük bütçe (USD)</label>
-            <input
-              id="ise-butce"
-              className="girdi"
-              inputMode="decimal"
-              value={butce}
-              onChange={(e) => setButce(e.target.value)}
-              aria-invalid={denendi && butceHata ? true : undefined}
-            />
-            {denendi && butceHata ? <span className="alan-hata">{butceHata}</span> : null}
-          </div>
-        )}
         <div className="alan tam">
           <span className="alan-ad" id="ise-karakter-etiket">
             Karakter

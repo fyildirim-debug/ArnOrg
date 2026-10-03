@@ -1,5 +1,5 @@
 // Depo haritası ve modül grafiği: klasör ağacı (dil, satır, öne çıkan semboller), içe aktarma grafiği ve
-// ajanlar için bütçeli metin haritası (aider repo map gibi: önemli dosyalar ve sembolleri önce).
+// ajanlar için karakter sınırlı metin haritası (aider repo map gibi: önemli dosyalar ve sembolleri önce).
 import path from "node:path";
 import { KOD_SEMBOL_TURU_ADLARI, type KodGrafigi, type KodGrafikDugumu, type KodHaritaDugumu } from "@arnorg/ortak";
 import type { DosyaKaydi, IceAktarmaKaydi, SembolKaydi } from "./depo.js";
@@ -107,8 +107,8 @@ export function onemPuanlari(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKa
   return new Map(adlar.map((y, i) => [y, puan[i]!]));
 }
 
-/** Ajanlar için bütçeli depo haritası: önem sırasıyla dosyalar ve sembolleri, klasöre göre gruplanmış */
-export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], iceAktarmalar: IceAktarmaKaydi[], s: { yol?: string; butce: number }): string {
+/** Ajanlar için karakter sınırlı depo haritası: önem sırasıyla dosyalar ve sembolleri, klasöre göre gruplanmış */
+export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], iceAktarmalar: IceAktarmaKaydi[], s: { yol?: string; sinir: number }): string {
   const kok = (s.yol ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
   const kapsam = dosyalar.filter((f) => !kok || f.yol === kok || f.yol.startsWith(`${kok}/`));
   if (!kapsam.length) return kok ? `"${kok}" altında dizinlenmiş dosya yok.` : "Dizinde dosya yok.";
@@ -118,7 +118,7 @@ export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], ic
   const satirlar = new Map<string, string>();
   const toplamSatir = kapsam.reduce((t, f) => t + f.satir, 0);
   const baslik = `${kok || "Kök"}: ${kapsam.length} dosya, ${toplamSatir} satır. Önemli dosyalar önce; sembol türleri parantezde.`;
-  let harcanan = baslik.length + 80;
+  let kullanilan = baslik.length + 80;
   const klasorBasliklari = new Set<string>();
   for (const f of sirali) {
     const ss = oneCikanlar(sembolle.get(f.yol) ?? [], 8);
@@ -126,8 +126,8 @@ export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], ic
     const satir = `  ${posix.basename(f.yol)} [${f.satir}]${sembolMetni ? `: ${sembolMetni}` : ""}`;
     const klasor = posix.dirname(f.yol) === "." ? "./" : `${posix.dirname(f.yol)}/`;
     const ek = satir.length + 1 + (klasorBasliklari.has(klasor) ? 0 : klasor.length + 1);
-    if (harcanan + ek > s.butce) continue;
-    harcanan += ek;
+    if (kullanilan + ek > s.sinir) continue;
+    kullanilan += ek;
     klasorBasliklari.add(klasor);
     satirlar.set(f.yol, satir);
   }

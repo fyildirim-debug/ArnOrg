@@ -20,7 +20,7 @@
 | GET | `/api/saglik` | — | `Saglik` |
 | GET | `/api/ayarlar` | — | `Ayarlar` |
 | PUT | `/api/ayarlar` | `Partial<Ayarlar>` | `Ayarlar` |
-| GET | `/api/hesap?tazele=1` | — | `HesapDurumu`: Claude Code'un fiili girişi (plan, e-posta, kaynak), abonelik pencereleri (5 saatlik, haftalık, model başına yüzde ve sıfırlanma), ayardaki sınır aşıldıysa `sinir`, ayar ile giriş uyuşmuyorsa `uyari`. `tazele=1` Claude Code'a yeniden sorar (açık bir ajan oturumu varsa onun üzerinden, yoksa mesaj göndermeyen kısa bir yoklamayla; token harcanmaz) |
+| GET | `/api/hesap?tazele=1` | — | `HesapDurumu`: Claude Code'un fiili girişi (plan, e-posta, kaynak), abonelik pencereleri (5 saatlik, haftalık, model başına yüzde ve sıfırlanma), ayardaki sınır aşıldıysa `sinir`, Claude Code abonelik dışı bir girişle (API anahtarı, bulut sağlayıcı) çalışıyorsa `uyari`. `tazele=1` Claude Code'a yeniden sorar (açık bir ajan oturumu varsa onun üzerinden, yoksa mesaj göndermeyen kısa bir yoklamayla; token harcanmaz) |
 | GET | `/api/roller` | — | `Rol[]` |
 
 ## Projeler
@@ -146,18 +146,19 @@ Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-
 | DELETE | `/api/terminaller/:tid` | — | `{tamam:true}` |
 | WS | `/ws/terminal/:tid?anahtar=` | — | Sunucudan ham metin; istemciden `TerminalIstemciMesaji` JSON'u |
 
-## Maliyet
+## Kullanım
 
 | Yöntem | Yol | Yanıt |
 |---|---|---|
-| GET | `/api/projeler/:pid/maliyet` | `MaliyetOzeti` (giriş yöntemi, bugünkü ve toplam token, API karşılığı tahmini dolar, ajan başına) |
+| GET | `/api/projeler/:pid/kullanim` | `KullanimOzeti` (bugünkü ve toplam token, ajan başına, son abonelik penceresi olayı) |
 
-### Abonelik ve API girişi
+### Yalnız Claude aboneliği
 
-`Ayarlar.girisYontemi`:
+ArnOrg yalnız Claude aboneliğiyle çalışır. Ajanlar makinedeki Claude Code girişiyle (claude.ai Pro, Max ya da Team) çalışır. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ve bulut sağlayıcı değişkenleri (`CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`) ajan ortamına hiçbir zaman verilmez. Claude Code makinede API anahtarıyla giriş yapmışsa `HesapDurumu.uyari` `/login` ile claude.ai hesabına geçmeyi söyler. Kullanım yalnız token ve plan penceresi yüzdesiyle izlenir; tutar, bütçe ya da `maxBudgetUsd` yoktur.
 
-- `abonelik` (varsayılan): ajanlar makinedeki Claude Code girişiyle (claude.ai Pro/Max/Team) çalışır. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ve bulut sağlayıcı değişkenleri ajan ortamına verilmez. Ücret alınmaz; dolar bütçeleri uygulanmaz, `maxBudgetUsd` geçilmez. Asıl sınır planın pencereleridir: ajanlar `besSaatlikSinirYuzde` (varsayılan 90) ya da `haftalikSinirYuzde` (varsayılan 95) aşılınca durdurulur. Bu sürede denetim kapısı araç çağrılarını "Kullanım sınırı" kuralıyla reddeder, ajanlara gelen mesajlar saklanır. Pencere açılınca ajanlar saklanan mesajlarla uyanır. Arayüz token ve pencere yüzdesi gösterir.
-- `api`: ajanlar API anahtarıyla çalışır; ajan ve şirket günlük dolar bütçeleri uygulanır.
+Sınır planın pencereleridir: ajanlar `besSaatlikSinirYuzde` (varsayılan 90) ya da `haftalikSinirYuzde` (varsayılan 95) aşılınca durdurulur. Bu sürede denetim kapısı araç çağrılarını "Kullanım sınırı" kuralıyla reddeder, ajanlara gelen mesajlar saklanır. Pencere açılınca ajanlar saklanan mesajlarla uyanır. Arayüz token ve pencere yüzdesi gösterir.
+
+Eski sürümden gelen veritabanında token sayıları `kullanim` tablosuna taşınır; API kipine ait tutar, bütçe ve bütçe onayı kayıtları silinir. Ayarlar dosyasındaki eski `girisYontemi` ve `gunlukButceUsd` alanları okunmaz, ilk kayıtta dosyadan düşer.
 
 Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç). Sürdürülen oturumda Claude Code toplamı önceki turlardan devam ettirdiği için oturum başına son toplam saklanır, yalnız fark sayılır.
 
@@ -263,7 +264,7 @@ Görev verilirken dizin hazırsa görev başlığı ve açıklamasıyla arama ya
 | GET | `/api/projeler/:pid/rapor?gun=7` | `{baslik, yol, baslangic, markdown}` dönem raporu (1–90 gün) |
 | POST | `/api/projeler/:pid/rapor?gun=7` | Aynı rapor; ayrıca notlara `raporlar/AAAA-AA-GG.md` olarak yazılır |
 
-Çekirdek dakikada bir süren ve incelemedeki görevlere bakar. Sorumlusu `Ayarlar.tikanmaDakika` (varsayılan 20, 0 kapalı) boyunca hareketsiz kalan görevde önce sorumlu iki kez hatırlatılır, sonra yöneticisi (yoksa CEO) uyandırılır, en son #genel'e ArnOrg adıyla yazılır ve `bildirim` (uyarı) yayınlanır. Çalışan, karar bekleyen, duraklatılan ya da bütçesi biten ajan ve kurul onayındaki birleştirme dürtülmez; görev güncellenince sayaç sıfırlanır.
+Çekirdek dakikada bir süren ve incelemedeki görevlere bakar. Sorumlusu `Ayarlar.tikanmaDakika` (varsayılan 20, 0 kapalı) boyunca hareketsiz kalan görevde önce sorumlu iki kez hatırlatılır, sonra yöneticisi (yoksa CEO) uyandırılır, en son #genel'e ArnOrg adıyla yazılır ve `bildirim` (uyarı) yayınlanır. Çalışan, karar bekleyen ya da duraklatılan ajan ve kurul onayındaki birleştirme dürtülmez; abonelik sınırındayken kimse dürtülmez. Görev güncellenince sayaç sıfırlanır.
 
 ## Canlı olaylar
 

@@ -2,7 +2,7 @@
 import type { AkisOgesi } from "@arnorg/ortak";
 import { memo, useMemo } from "react";
 import { aracAdi, aracSinifi, girdiOzeti } from "../../yardimcilar/arac";
-import { kucukPara, saat, saatSaniye } from "../../yardimcilar/bicim";
+import { saat, saatSaniye, token } from "../../yardimcilar/bicim";
 import { Markdown } from "../Markdown";
 import { ZenginMetin } from "../ZenginMetin";
 
@@ -148,7 +148,7 @@ export const TranskriptSatir = memo(function TranskriptSatir({ satir, kok }: { s
         <div className={`ak ak-tur-sonu${oge.hata ? " ak-tur-hata" : ""}${alt}`} role="separator">
           <span>{oge.hata ? "Tur hatayla bitti" : "Tur bitti"}</span>
           {oge.metin && oge.hata ? <span className="ak-tur-neden">{oge.metin}</span> : null}
-          {typeof oge.maliyetUsd === "number" ? <span className="sayi">{kucukPara(oge.maliyetUsd)}</span> : null}
+          {oge.token ? <span className="sayi">{token(oge.token)} token</span> : null}
           <time dateTime={oge.zaman}>{saat(oge.zaman)}</time>
         </div>
       );

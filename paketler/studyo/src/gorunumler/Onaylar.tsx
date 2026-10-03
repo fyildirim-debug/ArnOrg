@@ -1,4 +1,4 @@
-// Onaylar: işe alım, bütçe, birleştirme, genel kararlar ve araç çağrıları; duruma göre süzülür
+// Onaylar: işe alım, birleştirme, genel kararlar ve araç çağrıları; duruma göre süzülür
 import { ONAY_TURU_ADLARI, type OnayDurumu, type OnayTuru } from "@arnorg/ortak";
 import { useEffect, useMemo, useState } from "react";
 import { Bos, Iskelet } from "../bilesenler/Durumlar";
@@ -6,7 +6,7 @@ import { ONAY_DURUM_ADLARI, OnayOgesi } from "../bilesenler/OnayOgesi";
 import { rolleriYukle, useVeri } from "../durum/veri";
 
 const DURUMLAR: (OnayDurumu | "tumu")[] = ["bekliyor", "onaylandi", "reddedildi", "zaman_asimi", "tumu"];
-const TURLER: (OnayTuru | "tumu")[] = ["tumu", "ise_alim", "butce", "birlestirme", "genel", "arac"];
+const TURLER: (OnayTuru | "tumu")[] = ["tumu", "ise_alim", "birlestirme", "genel", "arac"];
 
 export function Onaylar() {
   const onaylar = useVeri((d) => d.onaylar);
@@ -31,7 +31,7 @@ export function Onaylar() {
       <div className="baslik">
         <div className="baslik-metin">
           <h1>Onaylar</h1>
-          <p>İşe alım, bütçe, main'e birleştirme ve geri alınamaz kararlar sizden geçer</p>
+          <p>İşe alım, main'e birleştirme ve geri alınamaz kararlar sizden geçer</p>
         </div>
       </div>
       <div className="suzgec">
@@ -54,7 +54,7 @@ export function Onaylar() {
       {yukleme !== "yukleniyor" && !liste.length ? (
         <Bos baslik={durum === "bekliyor" ? "Bekleyen karar yok" : "Bu süzgeçte onay yok"}>
           {durum === "bekliyor"
-            ? "CEO işe alım ya da bütçe teklif ettiğinde, bir iş main'e girmeye hazır olduğunda burada karar verirsiniz."
+            ? "CEO işe alım teklif ettiğinde, bir iş main'e girmeye hazır olduğunda burada karar verirsiniz."
             : "Süzgeci değiştirin."}
         </Bos>
       ) : null}

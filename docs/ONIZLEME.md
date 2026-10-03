@@ -17,8 +17,8 @@ ArnOrg, Claude Code ajanlarından kurulan bir yazılım şirketidir. Kullanıcı
 
 1. **Proje açılır.** Repo bağlanır ya da sıfırdan açılır; ilk vizyon ve mimari notları `.arnorg/notlar/` altına yazılır.
 2. **Brief verilir.** CEO eksikleri sorar, hedefleri ve kabul ölçütlerini çıkarır.
-3. **Plan ve kadro.** CEO işi epik ve görevlere böler, bağımlılıkları sıralar, rolleri ve bütçeyi önerir. Kullanıcı onaylar.
-4. **İşe alım.** Her rol için kimlik dosyası, model, araç izinleri, bütçe ve kendi git worktree'si olan bir ajan doğar.
+3. **Plan ve kadro.** CEO işi epik ve görevlere böler, bağımlılıkları sıralar, rolleri ve modelleri önerir. Kullanıcı onaylar.
+4. **İşe alım.** Her rol için kimlik dosyası, model, araç izinleri ve kendi git worktree'si olan bir ajan doğar.
 5. **Mesai.** Ajanlar görev alır, kod yazar, test çalıştırır, birbirine yazar. CEO günlük durum toplantısını yönetir.
 6. **İnceleme ve teslim.** İnceleyici ajan onaylar, testler geçer, iş kullanıcı onayıyla main'e girer. CEO sprint raporunu yazar.
 
@@ -26,28 +26,28 @@ ArnOrg, Claude Code ajanlarından kurulan bir yazılım şirketidir. Kullanıcı
 
 | Proje | Aldığımız fikir | Eksik bıraktığı |
 |---|---|---|
-| Paperclip | İşe alım onayı, heartbeat ile kısa uyanış, atomik görev kilidi, çok düzeyli bütçe ve sert durdurma | Proje hafızası yok, CEO işe alım döngüsü, masaüstü yok, Windows hataları |
+| Paperclip | İşe alım onayı, heartbeat ile kısa uyanış, atomik görev kilidi, sınırda sert durdurma | Proje hafızası yok, CEO işe alım döngüsü, masaüstü yok, Windows hataları |
 | Multica | Electron masaüstü + yerel daemon, Windows'ta yerel; çalışan ajana yön verme; mükerrer çalıştırma birleştirme | Organizasyon modeli zayıf, plan ve hafıza ikinci planda |
-| Gas Town | Kalıcı kimlik + kısa oturum, durum git'te, gözcü katmanları, testli birleştirme kuyruğu | tmux bağımlı (Windows'ta WSL), bütçe yok, pahalı, ağır jargon |
+| Gas Town | Kalıcı kimlik + kısa oturum, durum git'te, gözcü katmanları, testli birleştirme kuyruğu | tmux bağımlı (Windows'ta WSL), kullanım sınırı yok, ağır jargon |
 | Claude Code Agent Teams | Ajan başına posta kutusu, bağımlılıklı görev listesi, kalite kapısı kancaları | SDK ve `-p` modunda çalışmıyor, sürdürmede ekip kayboluyor |
-| Claude Projects / Code sekmesi | Duruma göre dikkat kutusu, satır yorumlu diff, koordinatörden doğan görev kartları | Hiyerarşi, işe alım, rol ve bütçe yok |
+| Claude Projects / Code sekmesi | Duruma göre dikkat kutusu, satır yorumlu diff, koordinatörden doğan görev kartları | Hiyerarşi, işe alım ve rol yok |
 | Vibe Kanban / Cline Kanban / Emdash | Kart = worktree + terminal + ajan, bağımlılıkla otomatik başlama, durum kancalardan, worktree havuzu | Planlayan yönetici yok, ajanlar konuşmuyor |
 | Conductor | Boşta ajanı kapatıp `--resume`, SQLite tek kaynak, arka planda kontrol noktası | Yalnız macOS, kapalı kaynak |
-| CloudCLI / opcode / Claude Squad | SDK + node-pty + WebSocket yığını, maliyet paneli, kontrol noktası zaman çizelgesi | Orkestrasyon yok; opcode durdu; Claude Squad Windows'ta yalnız WSL |
+| CloudCLI / opcode / Claude Squad | SDK + node-pty + WebSocket yığını, kullanım paneli, kontrol noktası zaman çizelgesi | Orkestrasyon yok; opcode durdu; Claude Squad Windows'ta yalnız WSL |
 | ChatDev 2.0 / MetaGPT | Roller arası belge devri gevezeliği azaltır | Gerçek repo/PR/inceleme döngüsü yok |
 | CrewAI / MS Agent Framework | Görev ve ilerleme defteri, tıkanınca yeniden planlama, kapsamlı hafıza | Kütüphane; kod ajanı ve masaüstü yönetmiyor |
 
-**Dersler:** ekip katmanı ArnOrg'da olmalı; ajanlar kısa uyanışla çalışmalı; CEO önerir, kullanıcı onaylar; bütçe çekirdekte uygulanır; döngü ve tıkanma koruması şart; hafıza repo içinde birinci sınıf; tmux ve bash sarmalayıcısı yok; sade sözlük; her şey kayıtlı ve tekrar oynatılabilir.
+**Dersler:** ekip katmanı ArnOrg'da olmalı; ajanlar kısa uyanışla çalışmalı; CEO önerir, kullanıcı onaylar; abonelik kullanım sınırı çekirdekte uygulanır; döngü ve tıkanma koruması şart; hafıza repo içinde birinci sınıf; tmux ve bash sarmalayıcısı yok; sade sözlük; her şey kayıtlı ve tekrar oynatılabilir.
 
 ## Şirket modeli
 
-- **CEO:** plan, kadro, bütçe, toplantı, rapor. Kod yazmaz. Varsayılan Opus.
+- **CEO:** plan, kadro, toplantı, rapor. Kod yazmaz. Varsayılan Opus.
 - **CTO / takım lideri:** ADR yazar, görevleri teknik olarak böler, standartları belirler.
 - **Geliştirici:** backend, frontend, mobil, veri. Kendi worktree'sinde çalışır.
 - **Test mühendisi, kod inceleyici.**
 - **Uzmanlar:** güvenlik, DevOps, tasarım, teknik yazarlık, araştırma. Gerektiğinde alınır, iş bitince bırakılır.
 
-Çalışan kimliği repo içinde durur ve ajan oturumunun talimatına, izinlerine ve bütçesine çevrilir:
+Çalışan kimliği repo içinde durur ve ajan oturumunun talimatına ve izinlerine çevrilir:
 
 ```yaml
 # .arnorg/ekip/deniz.md
@@ -56,7 +56,6 @@ ad: Deniz
 rol: backend
 model: sonnet
 yonetici: kerem
-butce_gunluk_usd: 5
 araclar: [Read, Edit, Write, Bash, Grep, Glob, arnorg]
 yasak: ["git push", "rm -rf", "npm publish"]
 beceriler: [api-tasarimi, postgres, vitest]
@@ -102,15 +101,15 @@ Doğrulanan deneyler (2 Ekim 2026, Claude Code 2.1.287, SDK 0.3.287):
 - Bağımlılık grafiği; bağımlılığı bitmeyen görev atanmaz.
 - Sprint ve sprint raporu.
 - Uyandırma kuyruğu: görev, anma ya da zamanlayıcı ile uyanış.
-- Bütçe: şirket, proje, ajan; günlük ve aylık; uyarı ve sert durdurma.
-- Onay kapıları: işe alım, bütçe artışı, main'e birleştirme, dışarı push, deploy, geri alınamaz komut.
+- Kullanım: yalnız Claude aboneliği. Token ajan ve proje başına sayılır; 5 saatlik ya da haftalık pencere kurulun belirlediği yüzdeye gelince ajanlar durur, pencere açılınca kaldıkları yerden sürer.
+- Onay kapıları: işe alım, main'e birleştirme, dışarı push, deploy, geri alınamaz komut.
 
 ## Notlar, hafıza ve kod
 
 ```
 siparis-paneli/
 ├─ .arnorg/
-│  ├─ proje.yaml     bütçe, onay kuralları, birleştirme politikası
+│  ├─ proje.yaml     proje adı, onay kuralları, birleştirme politikası
 │  ├─ ekip/          çalışan kimlikleri
 │  ├─ notlar/        vizyon, mimari, kararlar (ADR), sözlük
 │  └─ hafiza/        ajan günlükleri
@@ -121,7 +120,7 @@ siparis-paneli/
 - Her görev `arnorg/<ajan>/<görev>` dalı ve kendi worktree'si.
 - İnceleyici ajan onaylamadan iş kuyruğa girmez.
 - Birleştirme kuyruğu işleri sırayla main'e alır, testleri yeniden çalıştırır.
-- Mesaj, olay ve maliyet kayıtları uygulamanın SQLite veritabanında.
+- Mesaj, olay ve kullanım kayıtları uygulamanın SQLite veritabanında.
 
 ## Kod editörü
 
@@ -149,7 +148,7 @@ ArnOrg'un içinde tam bir kod editörü olur. Her ajanın çalışma alanı ayr�
 ## Mimari
 
 - **Stüdyo:** React arayüz; Electron penceresinde ya da tarayıcıda.
-- **Çekirdek (arnorg-server):** Node.js 22. Orkestratör, uyandırma kuyruğu, görev durum makinesi, posta kutusu, bütçe ve onay, worktree havuzu, birleştirme kuyruğu, hafıza ve arama, olay günlüğü, arnorg MCP araçları.
+- **Çekirdek (arnorg-server):** Node.js 22. Orkestratör, uyandırma kuyruğu, görev durum makinesi, posta kutusu, kullanım sınırı ve onay, worktree havuzu, birleştirme kuyruğu, hafıza ve arama, olay günlüğü, arnorg MCP araçları.
 - **Ajanlar:** her çalışan bir Claude Agent SDK oturumu; mesajlar akış girdisiyle (`streamInput`) teslim edilir; içeride yerel alt ajanlar serbest.
 - **Depolama:** SQLite (WAL), repo içi `.arnorg/`, git worktree'leri; sunucu modunda isteğe bağlı PostgreSQL.
 
@@ -181,15 +180,15 @@ ArnOrg'un içinde tam bir kod editörü olur. Her ajanın çalışma alanı ayr�
 | Faz | İçerik | Çıktı |
 |---|---|---|
 | 0 · Temel | Monorepo, çekirdek iskeleti, SQLite şeması, tek çalışan oturumu, gözcü (canlı akış, PreToolUse kapısı, araya girme, kesme, temiz ortam), proje açma, Stüdyo kabuğu, iki platformda CI ve paket | Tek ajanla konuşulan masaüstü uygulaması |
-| 1 · Ekip | Rol kataloğu, işe alım, worktree havuzu, arnorg MCP, görev durum makinesi, pano, kanallar, canlı akış, maliyet sayacı | Elle kurulan ekip birlikte çalışır |
+| 1 · Ekip | Rol kataloğu, işe alım, worktree havuzu, arnorg MCP, görev durum makinesi, pano, kanallar, canlı akış, kullanım sayacı | Elle kurulan ekip birlikte çalışır |
 | 2 · CEO | Brief → plan → kadro, onay kapıları, uyandırma kuyruğu, toplantı, tıkanma koruması, inceleme ve birleştirme kuyruğu, sprint raporu | Brief'ten main'e giren özellik |
-| 3 · Şirket | Bütçe politikaları, hafıza araması, şablonlar, sunucu modu, oturum tekrarı, bildirim, otomatik güncelleme | 1.0 |
+| 3 · Şirket | Kullanım politikaları, hafıza araması, şablonlar, sunucu modu, oturum tekrarı, bildirim, otomatik güncelleme | 1.0 |
 | 4 · Genişleme | Eklentiler, AXConnector köprüsü, başka ajan motorları, çoklu şirket | Ekosistem |
 
 ## Karar bekleyenler (öneriyle)
 
 0. **Denetim kapısı:** ajanlar tam yetki tercihine uygun olarak bypassPermissions modunda soru sormadan çalışır; her araç çağrısı ArnOrg'un `PreToolUse` kancasından geçer, yalnız "onaya sor" kuralına takılan çağrı kullanıcıya gelir.
-1. **Claude'a giriş:** ArnOrg kimlik bilgisine dokunmaz. Kişisel kullanımda ajanlar makinedeki Claude Code girişiyle çalışır; dağıtımda her kullanıcı kendi API anahtarını kullanır. Anthropic üçüncü taraf ürünlerin claude.ai girişi sunmasına izin vermiyor; giriş katmanı değiştirilebilir tutulur.
+1. **Claude'a giriş:** ArnOrg kimlik bilgisine dokunmaz ve yalnız Claude aboneliğiyle çalışır: ajanlar makinedeki Claude Code girişini kullanır, API anahtarı kullanılmaz. Anthropic üçüncü taraf ürünlerin claude.ai girişi sunmasına izin vermiyor; ArnOrg giriş sunmaz, her kullanıcı kendi makinesinde `claude` açıp `/login` ile kendi hesabına girer.
 2. **Masaüstü kabuğu:** Electron (Tauri'de Node yan süreç ve yerel modül paketleme sorunu, Linux WebKitGTK sorunları, güncelleyici deb/rpm desteklemiyor).
 3. **Ajanlar arası iletişim:** kendi posta kutumuz; Agent Teams deneysel ve SDK modunda yok.
 4. **Ajan oturumu:** kısa uyanış, kalıcı kimlik, sürdürülen oturum.

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "../api/uclar";
 import { bildir, git } from "../durum/arayuz";
 import { onayUygula, useVeri } from "../durum/veri";
-import { akilliZaman, para } from "../yardimcilar/bicim";
+import { akilliZaman } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 import { modelAdi } from "./Kisi";
 
@@ -20,12 +20,9 @@ const ALAN_ADLARI: Record<string, string> = {
   rol: "Rol",
   model: "Model",
   yoneticiId: "Yönetici",
-  gunlukButceUsd: "Günlük bütçe",
   talimatEki: "Ek talimat",
   gerekce: "Gerekçe",
   ajanId: "Ajan",
-  mevcutUsd: "Mevcut bütçe",
-  istenenUsd: "İstenen bütçe",
   gorevId: "Görev",
   dal: "Dal",
   hedefDal: "Hedef dal",
@@ -59,7 +56,6 @@ export function OnayVerisi({ veri }: { veri: unknown }) {
     }
     if (anahtar === "rol" && typeof v === "string") return roller.find((r) => r.kimlik === v)?.ad ?? v;
     if (anahtar === "model" && typeof v === "string") return modelAdi(v);
-    if (/Usd$/.test(anahtar) && typeof v === "number") return para(v);
     if (anahtar === "dal" || anahtar === "hedefDal") return <code>{String(v)}</code>;
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v);
     if (anahtar === "girdi" && v && typeof v === "object" && "command" in v) return <pre className="komut">{String((v as { command: unknown }).command)}</pre>;

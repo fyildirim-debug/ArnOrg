@@ -25,7 +25,7 @@ import {
   type HesapDurumu,
   type IzinModu,
   type Karar,
-  type MaliyetOzeti,
+  type KullanimOzeti,
   type Mesaj,
   type MesajOnceligi,
   type Onay,
@@ -114,7 +114,6 @@ export class Sirket {
   private bekleyenKararlar = new Map<string, BekleyenKarar>();
   private bostaZamanlayicilari = new Map<string, NodeJS.Timeout>();
   private uyandirmalar = new Map<string, number[]>();
-  private butceOnayiIstendi = new Set<string>();
   private akisSayaci = 0;
   /** Mutlak dosya yolu → son düzenleyen ajan */
   readonly duzenlemeler = new Map<string, { ajanId: string; zaman: number }>();
@@ -165,11 +164,6 @@ export class Sirket {
     this.karakterleriTamamla();
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
-  }
-
-  /** Abonelikte dolar bütçeleri uygulanmaz; ücret alınmaz */
-  get abonelik(): boolean {
-    return this.yapilandirma.ayarlar.girisYontemi === "abonelik";
   }
 
   private async acikOturumdanKullanim() {
@@ -240,7 +234,7 @@ export class Sirket {
       aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
       gorevSayilari: sayilar,
       bekleyenOnay: this.depo.onaylar(id, "bekliyor").length,
-      bugunMaliyetUsd: this.depo.projeMaliyeti(id, bugun()),
+      bugunToken: this.depo.projeTokeni(id, bugun()),
     };
   }
 
@@ -295,7 +289,7 @@ export class Sirket {
     const kayitlar = ekipDosyalariniOku(kok);
     for (const k of kayitlar) {
       if (!rolBul(k.rol)) continue;
-      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, gunlukButceUsd: k.gunlukButceUsd, talimatEki: k.talimatEki, karakter: k.karakter }, false);
+      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, talimatEki: k.talimatEki, karakter: k.karakter }, false);
     }
     for (const k of kayitlar) {
       if (!k.yonetici) continue;
@@ -366,7 +360,6 @@ export class Sirket {
       calismaAlani: null,
       dal: null,
       izinModu: this.yapilandirma.ayarlar.varsayilanIzinModu,
-      gunlukButceUsd: typeof istek.gunlukButceUsd === "number" ? Math.max(0, istek.gunlukButceUsd) : rol.yonetici ? 10 : 5,
       talimatEki: istek.talimatEki?.trim() ?? "",
       // Karakter seçilmediyse role uyan boş karakter atanır; kişiliği talimata, görünüşü ofise yansır
       karakter: istek.karakter ?? karakterSec(rol.kimlik, this.kullanilanKarakterler(projeId), `${projeId}:${ad}`),
@@ -408,7 +401,6 @@ export class Sirket {
     const a = this.ajan(id);
     const alanlar: Partial<Ajan> = {};
     if (istek.model) alanlar.model = istek.model;
-    if (typeof istek.gunlukButceUsd === "number") alanlar.gunlukButceUsd = Math.max(0, istek.gunlukButceUsd);
     if (istek.izinModu) alanlar.izinModu = istek.izinModu;
     if (istek.yoneticiId !== undefined) {
       if (istek.yoneticiId === id) throw new ArnorgHatasi("Ajan kendi yöneticisi olamaz.");
@@ -559,11 +551,6 @@ export class Sirket {
       talimat: () => this.talimatOlustur(this.ajan(id), cwd),
       araclar: () => arnorgAraclari(this, id),
       yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []),
-      kalanButceUsd: () => {
-        if (this.abonelik) return 0;
-        const a = this.ajan(id);
-        return a.gunlukButceUsd > 0 ? Math.max(0.05, a.gunlukButceUsd - a.bugunHarcananUsd) : 0;
-      },
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
       kapi: (arac, girdi, aracKimligi) => this.kapi(id, arac, girdi, aracKimligi),
       izinSor,
@@ -584,7 +571,6 @@ export class Sirket {
         this.pencere = { tur: p.tur, durum: p.durum, sifirlanma: p.sifirlanma };
         this.hesap.pencereOlayi(p);
       },
-      girisYontemi: () => this.yapilandirma.ayarlar.girisYontemi,
       oturumToplami: {
         oku: (oturumId) => {
           const d = this.depo.deger(`oturum-toplam:${oturumId}`);
@@ -741,17 +727,9 @@ export class Sirket {
   private kullanimEkle(ajanId: string, delta: Toplam): void {
     const a = this.depo.ajan(ajanId);
     if (!a) return;
-    this.depo.maliyetEkle(a.projeId, ajanId, delta.usd, delta.token);
+    this.depo.kullanimEkle(a.projeId, ajanId, delta.token);
     const y = this.depo.ajan(ajanId)!;
-    this.olaylar.yayinla({
-      tur: "maliyet",
-      projeId: a.projeId,
-      ajanId,
-      bugunUsd: y.bugunHarcananUsd,
-      toplamUsd: y.toplamHarcananUsd,
-      bugunToken: y.bugunToken,
-      toplamToken: y.toplamToken,
-    });
+    this.olaylar.yayinla({ tur: "kullanim", projeId: a.projeId, ajanId, bugunToken: y.bugunToken, toplamToken: y.toplamToken });
     this.ajanYayinla(ajanId);
   }
 
@@ -816,20 +794,6 @@ export class Sirket {
       if (!this.sinirdaBekleyenler.has(ajanId)) this.sinirdaBekleyenler.set(ajanId, []);
       const neden = `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (kurulun sınırı %${sinir.sinirYuzde}). Başka araç çağırma; ne yaptığını ve sıradaki adımı iki cümleyle yaz ve dur. Pencere açılınca ArnOrg seni uyandıracak.`;
       this.denetimKaydet(ajan, arac, girdi, "ret", "Kullanım sınırı", neden, aracKimligi);
-      return this.ret(neden);
-    }
-
-    // Bütçe (yalnız API girişinde; abonelikte ücret alınmaz)
-    if (!this.abonelik && ajan.gunlukButceUsd > 0 && ajan.bugunHarcananUsd >= ajan.gunlukButceUsd) {
-      this.butceOnayiIste(ajan);
-      const neden = `Günlük bütçen doldu ($${ajan.bugunHarcananUsd.toFixed(2)} / $${ajan.gunlukButceUsd.toFixed(2)}). Yönetim kurulu onayı bekleniyor; işini özetleyip dur.`;
-      this.denetimKaydet(ajan, arac, girdi, "ret", "Bütçe", neden, aracKimligi);
-      return this.ret(neden);
-    }
-    const sirketButcesi = this.yapilandirma.ayarlar.gunlukButceUsd;
-    if (!this.abonelik && sirketButcesi > 0 && this.depo.sirketMaliyeti(bugun()) >= sirketButcesi) {
-      const neden = `Şirketin günlük bütçesi ($${sirketButcesi.toFixed(2)}) doldu. Yarın ya da kurul bütçeyi artırınca devam edilir.`;
-      this.denetimKaydet(ajan, arac, girdi, "ret", "Şirket bütçesi", neden, aracKimligi);
       return this.ret(neden);
     }
 
@@ -958,23 +922,6 @@ export class Sirket {
     return onay;
   }
 
-  private butceOnayiIste(ajan: Ajan): void {
-    const anahtar = `${ajan.id}:${bugun()}`;
-    if (this.butceOnayiIstendi.has(anahtar)) return;
-    this.butceOnayiIstendi.add(anahtar);
-    const onay = this.depo.onayEkle({
-      projeId: ajan.projeId,
-      ajanId: ajan.id,
-      tur: "butce",
-      baslik: `${ajan.ad} · günlük bütçe doldu`,
-      ayrinti: `Bugün $${ajan.bugunHarcananUsd.toFixed(2)} harcandı, sınır $${ajan.gunlukButceUsd.toFixed(2)}. Onaylarsanız sınır %50 artar.`,
-      veri: { ajanId: ajan.id, eskiSinir: ajan.gunlukButceUsd },
-      sonGecerlilik: null,
-    });
-    this.olaylar.yayinla({ tur: "onay.yeni", onay });
-    this.projeYayinla(ajan.projeId);
-  }
-
   /** Kurulun onay kararı */
   async onayKarari(onayId: string, karar: "onayla" | "reddet", not?: string): Promise<Onay> {
     const onay = this.depo.onay(onayId);
@@ -989,7 +936,6 @@ export class Sirket {
 
     try {
       if (onay.tur === "ise_alim") await this.iseAlimSonucu(onay, izin, temizNot);
-      else if (onay.tur === "butce" && izin) this.butceArtir(onay);
       else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot);
     } catch (h) {
       this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId });
@@ -1015,17 +961,6 @@ export class Sirket {
       { ajan: null, ad: "ArnOrg" },
     );
     if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım onaylandı: ${yeni.ad} (${yeni.rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`);
-  }
-
-  private butceArtir(onay: Onay): void {
-    const veri = onay.veri as { ajanId: string; eskiSinir: number };
-    const a = this.depo.ajan(veri.ajanId);
-    if (!a) return;
-    const yeni = Math.max(a.gunlukButceUsd * 1.5, a.bugunHarcananUsd + 1);
-    this.depo.ajanGuncelle(a.id, { gunlukButceUsd: Math.round(yeni * 100) / 100 });
-    this.butceOnayiIstendi.delete(`${a.id}:${bugun()}`);
-    this.ajanYayinla(a.id);
-    void this.sistemMesaji(a.id, `Günlük bütçen $${yeni.toFixed(2)} oldu. Kaldığın yerden devam et.`).catch(() => undefined);
   }
 
   private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
@@ -1513,27 +1448,16 @@ export class Sirket {
   }
 
   // ===================================================================
-  // Maliyet
+  // Kullanım: yalnız Claude aboneliği; işlenen token ve plan pencereleri
   // ===================================================================
 
-  maliyetOzeti(projeId: string): MaliyetOzeti {
+  kullanimOzeti(projeId: string): KullanimOzeti {
     this.proje(projeId);
     const ajanlar = this.depo.ajanlar(projeId);
     return {
-      girisYontemi: this.yapilandirma.ayarlar.girisYontemi,
-      bugunUsd: this.depo.projeMaliyeti(projeId, bugun()),
-      toplamUsd: this.depo.projeMaliyeti(projeId),
-      gunlukButceUsd: this.yapilandirma.ayarlar.gunlukButceUsd,
       bugunToken: this.depo.projeTokeni(projeId, bugun()),
       toplamToken: this.depo.projeTokeni(projeId),
-      ajanlar: ajanlar.map((a) => ({
-        ajanId: a.id,
-        ad: a.ad,
-        bugunUsd: a.bugunHarcananUsd,
-        toplamUsd: a.toplamHarcananUsd,
-        bugunToken: a.bugunToken,
-        toplamToken: a.toplamToken,
-      })),
+      ajanlar: ajanlar.map((a) => ({ ajanId: a.id, ad: a.ad, bugunToken: a.bugunToken, toplamToken: a.toplamToken })),
       pencere: this.pencere,
     };
   }

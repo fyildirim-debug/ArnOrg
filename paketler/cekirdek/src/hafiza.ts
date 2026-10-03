@@ -193,7 +193,7 @@ export class ProjeHafizasi {
       "Bu projede ekipçe öğrendiklerimiz. Kurul tercihlerine her zaman uy. Bir karar değişirse ya da yeni bir şey öğrenirsen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
     );
     let toplam = 0;
-    const butce = 7000;
+    const karakterSiniri = 7000;
     for (const tur of HAFIZA_TURLERI) {
       const kayitlar = this.depo.hafizaKayitlari(ajan.projeId, { tur, sinir: BAGLAM_SINIRI[tur] });
       if (!kayitlar.length) continue;
@@ -201,11 +201,11 @@ export class ProjeHafizasi {
       for (const k of kayitlar) {
         const satir = `- ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 220)} (${k.kaynakAd}, kimlik ${k.id.slice(0, 8)})`;
         toplam += satir.length;
-        if (toplam > butce) break;
+        if (toplam > karakterSiniri) break;
         satirlar.push(satir);
         gosterilen?.push(k.id);
       }
-      if (toplam > butce) break;
+      if (toplam > karakterSiniri) break;
     }
     if (satirlar.length === 2) satirlar.push("", "Henüz kayıt yok. İlk kararları ve kurulun tercihlerini sen kaydet.");
     const defter = this.defter(ajan);

@@ -43,10 +43,9 @@ export const projeler = [
 
 function ajan(o) {
   const proje = o.projeId ?? "siparis-paneli";
-  const token = (usd) => Math.round((usd ?? 0) * 60_000);
   return {
-    bugunToken: token(o.bugunHarcananUsd),
-    toplamToken: token(o.toplamHarcananUsd),
+    bugunToken: 0,
+    toplamToken: 0,
     projeId: proje,
     yoneticiId: null,
     gorevId: null,
@@ -63,16 +62,16 @@ function ajan(o) {
 
 export const ajanlar = [
   // karakter: bazıları kayıtlı, bazıları boş (Ofis ekranı role göre seçer)
-  ajan({ id: "ada", ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "calisiyor", isAciklamasi: "Sprint 3 ilerlemesini derliyor", gunlukButceUsd: 10, bugunHarcananUsd: 3.1, toplamHarcananUsd: 41.8, dal: "arnorg/ada", calismaAlani: null, izinModu: "default", talimatEki: "Her sabah 09:00'da kısa durum raporu yaz. Bütçe aşımlarını hemen kurula bildir." }),
-  ajan({ id: "kerem", ad: "Kerem", rol: "cto", rolAdi: "CTO", model: "opus", yoneticiId: "ada", durum: "calisiyor", isAciklamasi: "T-21 Jeton yenileme mimarisi", gorevId: "g21", gunlukButceUsd: 8, bugunHarcananUsd: 2.6, toplamHarcananUsd: 33.2, dal: "arnorg/kerem/T-21", karakter: "k16", olusturma: once(60 * 24 * 8 - 1) }),
-  ajan({ id: "deniz", ad: "Deniz", rol: "backend", rolAdi: "Backend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "karar_bekliyor", isAciklamasi: "T-24 Sipariş API uç noktaları · git push için onay bekliyor", gorevId: "g24", gunlukButceUsd: 5, bugunHarcananUsd: 4.25, toplamHarcananUsd: 28.9, dal: "arnorg/deniz/T-24", olusturma: once(60 * 24 * 8 - 2) }),
-  ajan({ id: "ece", ad: "Ece", rol: "frontend", rolAdi: "Frontend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "T-26 Sipariş listesi ekranı", gorevId: "g26", gunlukButceUsd: 5, bugunHarcananUsd: 2.2, toplamHarcananUsd: 19.4, dal: "arnorg/ece/T-26", karakter: "k13", olusturma: once(60 * 24 * 8 - 3) }),
-  ajan({ id: "mert", ad: "Mert", rol: "test", rolAdi: "Test mühendisi", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "T-27 için T-24'ü bekliyor", gorevId: "g27", gunlukButceUsd: 3, bugunHarcananUsd: 0.4, toplamHarcananUsd: 6.1, dal: "arnorg/mert/T-27", izinModu: "acceptEdits", olusturma: once(60 * 24 * 7) }),
-  ajan({ id: "onur", ad: "Onur", rol: "inceleme", rolAdi: "Kod inceleyici", model: "opus", yoneticiId: "kerem", durum: "kapali", isAciklamasi: "T-19 düzeltmelerini bekliyor", gunlukButceUsd: 5, bugunHarcananUsd: 0.75, toplamHarcananUsd: 12.3, dal: "arnorg/onur", izinModu: "plan", olusturma: once(60 * 24 * 6) }),
-  ajan({ id: "burak", ad: "Burak", rol: "devops", rolAdi: "DevOps", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "CI önbelleği ve Windows işi", gunlukButceUsd: 4, bugunHarcananUsd: 1.1, toplamHarcananUsd: 7.6, dal: "arnorg/burak", karakter: "k08", olusturma: once(60 * 24 * 5) }),
-  ajan({ id: "selin", ad: "Selin", rol: "tasarim", rolAdi: "Tasarımcı", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "Boş ve hata durumlarının taslakları bitti", gunlukButceUsd: 3, bugunHarcananUsd: 0.6, toplamHarcananUsd: 4.2, dal: "arnorg/selin", olusturma: once(60 * 24 * 4) }),
-  ajan({ id: "zeynep", ad: "Zeynep", rol: "yazar", rolAdi: "Teknik yazar", model: "haiku", yoneticiId: "ada", durum: "duraklatildi", isAciklamasi: "Kurul tarafından duraklatıldı", gunlukButceUsd: 2, bugunHarcananUsd: 0.2, toplamHarcananUsd: 1.9, dal: "arnorg/zeynep", olusturma: once(60 * 24 * 3) }),
-  ajan({ id: "lale", projeId: "arnex-web", ad: "Lale", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "kapali", isAciklamasi: "Brief bekliyor", gunlukButceUsd: 6, bugunHarcananUsd: 0, toplamHarcananUsd: 1.2, calismaAlani: null, dal: null }),
+  ajan({ id: "ada", ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "calisiyor", isAciklamasi: "Sprint 3 ilerlemesini derliyor", bugunToken: 186_000, toplamToken: 2_508_000, dal: "arnorg/ada", calismaAlani: null, izinModu: "default", talimatEki: "Her sabah 09:00'da kısa durum raporu yaz. Tıkanan işleri hemen kurula bildir." }),
+  ajan({ id: "kerem", ad: "Kerem", rol: "cto", rolAdi: "CTO", model: "opus", yoneticiId: "ada", durum: "calisiyor", isAciklamasi: "T-21 Jeton yenileme mimarisi", gorevId: "g21", bugunToken: 156_000, toplamToken: 1_992_000, dal: "arnorg/kerem/T-21", karakter: "k16", olusturma: once(60 * 24 * 8 - 1) }),
+  ajan({ id: "deniz", ad: "Deniz", rol: "backend", rolAdi: "Backend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "karar_bekliyor", isAciklamasi: "T-24 Sipariş API uç noktaları · git push için onay bekliyor", gorevId: "g24", bugunToken: 255_000, toplamToken: 1_734_000, dal: "arnorg/deniz/T-24", olusturma: once(60 * 24 * 8 - 2) }),
+  ajan({ id: "ece", ad: "Ece", rol: "frontend", rolAdi: "Frontend geliştirici", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "T-26 Sipariş listesi ekranı", gorevId: "g26", bugunToken: 132_000, toplamToken: 1_164_000, dal: "arnorg/ece/T-26", karakter: "k13", olusturma: once(60 * 24 * 8 - 3) }),
+  ajan({ id: "mert", ad: "Mert", rol: "test", rolAdi: "Test mühendisi", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "T-27 için T-24'ü bekliyor", gorevId: "g27", bugunToken: 24_000, toplamToken: 366_000, dal: "arnorg/mert/T-27", izinModu: "acceptEdits", olusturma: once(60 * 24 * 7) }),
+  ajan({ id: "onur", ad: "Onur", rol: "inceleme", rolAdi: "Kod inceleyici", model: "opus", yoneticiId: "kerem", durum: "kapali", isAciklamasi: "T-19 düzeltmelerini bekliyor", bugunToken: 45_000, toplamToken: 738_000, dal: "arnorg/onur", izinModu: "plan", olusturma: once(60 * 24 * 6) }),
+  ajan({ id: "burak", ad: "Burak", rol: "devops", rolAdi: "DevOps", model: "sonnet", yoneticiId: "kerem", durum: "calisiyor", isAciklamasi: "CI önbelleği ve Windows işi", bugunToken: 66_000, toplamToken: 456_000, dal: "arnorg/burak", karakter: "k08", olusturma: once(60 * 24 * 5) }),
+  ajan({ id: "selin", ad: "Selin", rol: "tasarim", rolAdi: "Tasarımcı", model: "sonnet", yoneticiId: "kerem", durum: "bosta", isAciklamasi: "Boş ve hata durumlarının taslakları bitti", bugunToken: 36_000, toplamToken: 252_000, dal: "arnorg/selin", olusturma: once(60 * 24 * 4) }),
+  ajan({ id: "zeynep", ad: "Zeynep", rol: "yazar", rolAdi: "Teknik yazar", model: "haiku", yoneticiId: "ada", durum: "duraklatildi", isAciklamasi: "Kurul tarafından duraklatıldı", bugunToken: 12_000, toplamToken: 114_000, dal: "arnorg/zeynep", olusturma: once(60 * 24 * 3) }),
+  ajan({ id: "lale", projeId: "arnex-web", ad: "Lale", rol: "ceo", rolAdi: "CEO", model: "opus", durum: "kapali", isAciklamasi: "Brief bekliyor", bugunToken: 0, toplamToken: 72_000, calismaAlani: null, dal: null }),
 ];
 
 function gorev(no, baslik, durum, atananId, etiket, ek = {}) {
@@ -293,7 +292,7 @@ export const onaylar = [
     tur: "ise_alim",
     baslik: "Aras · Güvenlik uzmanı",
     ayrinti: "Ödeme entegrasyonu öncesi oturum ve jeton akışlarının bağımsız denetimi, bağımlılık taraması.",
-    veri: { ad: "Aras", rol: "guvenlik", model: "sonnet", yoneticiId: "kerem", gunlukButceUsd: 6, talimatEki: "OWASP ASVS 4 düzey 2 ile denetle; bulguları ADR olarak yaz." },
+    veri: { ad: "Aras", rol: "guvenlik", model: "sonnet", yoneticiId: "kerem", talimatEki: "OWASP ASVS 4 düzey 2 ile denetle; bulguları ADR olarak yaz." },
     durum: "bekliyor",
     olusturma: once(18),
     sonGecerlilik: null,
@@ -318,10 +317,10 @@ export const onaylar = [
     id: "o4",
     projeId: "siparis-paneli",
     ajanId: "deniz",
-    tur: "butce",
-    baslik: "Deniz · günlük bütçe +$3",
-    ayrinti: "T-24 sayfalama testleri beklenenden uzun sürdü. Kalan iş tahmini 40 dakika.",
-    veri: { ajanId: "deniz", mevcutUsd: 5, istenenUsd: 8 },
+    tur: "genel",
+    baslik: "Deniz · siparişler tablosuna dizin göçü",
+    ayrinti: "İmleç tabanlı sayfalama için siparisler(olusturma, id) dizini gerekiyor. Göç geri alınabilir; büyük tabloda kısa bir yazma kilidi beklenir.",
+    veri: { ajanId: "deniz", gorevId: "g24" },
     durum: "bekliyor",
     olusturma: once(12),
     sonGecerlilik: null,
@@ -368,7 +367,7 @@ Sprint planının **yüzde 27'si** tamamlandı. Jeton yenileme (T-21) ve sipari�
 
 - **T-19** iki güvenlik bulgusuyla Ece'ye geri döndü: oturum süresi sabit kodlanmış, yenileme jetonunda yarış durumu var. ADR-004'teki istemci kilidiyle düzeliyor.
 - **T-22** Onur'dan onay aldı; birleştirme kararı sizde.
-- **Bütçe:** bugün $13,30 harcandı, günlük sınır $40. Deniz sınırına yakın; +$3 teklifi Onaylar'da.
+- **Kullanım:** 5 saatlik pencerenin %42'si, haftalık pencerenin %18'i doldu; ajanlar sınırların altında. Deniz'in dizin göçü kararı Onaylar'da.
 
 Ödeme işine geçmeden önce bir **güvenlik uzmanı** almamızı öneriyorum. Teklif ve gerekçe Onaylar'da.`;
 
@@ -410,21 +409,21 @@ const K = CALISMA_KOKU;
 
 export const akislar = {
   ada: akisUret("ada", [
-    [95, "kullanici", { metin: "Günlük durum raporunu hazırla; bütçe ve tıkanan işleri öne çıkar." }],
-    [94, "dusunce", { metin: "Önce panodaki durumları ve dünkü kanal mesajlarını okumalıyım.\nSonra bütçe tablosuna bakıp sınırına yaklaşanları belirtirim." }],
+    [95, "kullanici", { metin: "Günlük durum raporunu hazırla; kullanım pencerelerini ve tıkanan işleri öne çıkar." }],
+    [94, "dusunce", { metin: "Önce panodaki durumları ve dünkü kanal mesajlarını okumalıyım.\nSonra kullanım pencerelerine bakıp sınıra yaklaşan bir şey varsa belirtirim." }],
     [94, "arac_cagrisi", { arac: "mcp__arnorg__kanal_oku", aracKimligi: "t-ada-1", girdi: { kanal: "genel", sinir: 30 } }],
     [94, "arac_sonucu", { aracKimligi: "t-ada-1", metin: "30 mesaj okundu (genel)." }],
     [93, "arac_cagrisi", { arac: "mcp__arnorg__gorev_guncelle", aracKimligi: "t-ada-2", girdi: { gorev: "T-27", durum: "planlandi" } }],
     [93, "arac_sonucu", { aracKimligi: "t-ada-2", metin: "T-27 → Planlandı" }],
     [92, "asistan", { metin: "Günaydın. Dünkü durum #genel kanalında; T-24 ve T-26 bugünün önceliği." }],
-    [92, "sonuc", { maliyetUsd: 0.18 }],
+    [92, "sonuc", { token: 10_800 }],
     [20, "kullanici", { metin: "Ödeme işine ne zaman geçebiliriz?" }],
     [19, "arac_cagrisi", { arac: "mcp__arnorg__hafiza_ara", aracKimligi: "t-ada-3", girdi: { sorgu: "ödeme sağlayıcısı" } }],
     [19, "arac_sonucu", { aracKimligi: "t-ada-3", metin: "2 sonuç: kararlar/ödeme-sağlayıcısı (onaylandı: iyzico), sozluk.md" }],
     [18, "arac_cagrisi", { arac: "mcp__arnorg__onay_iste", aracKimligi: "t-ada-4", girdi: { tur: "ise_alim", baslik: "Aras · Güvenlik uzmanı" } }],
     [18, "arac_sonucu", { aracKimligi: "t-ada-4", metin: "Onay isteği açıldı: o2" }],
     [11, "asistan", { metin: ADA_RAPORU }],
-    [11, "sonuc", { maliyetUsd: 0.41 }],
+    [11, "sonuc", { token: 24_600 }],
   ]),
   deniz: akisUret("deniz", [
     [58, "sistem", { metin: "Oturum açıldı · arnorg/deniz/T-24 · sonnet" }],
@@ -453,12 +452,12 @@ export const akislar = {
     [45, "arac_sonucu", { aracKimligi: "t-dz-7", metin: "Dosya güncellendi." }],
     [44, "arac_cagrisi", { arac: "Bash", aracKimligi: "t-dz-8", girdi: { command: "npm test -- api/", description: "API testlerini yeniden çalıştır" } }],
     [44, "arac_sonucu", { aracKimligi: "t-dz-8", metin: VITEST_GECTI }],
-    [43, "sonuc", { maliyetUsd: 0.62 }],
+    [43, "sonuc", { token: 37_200 }],
     [24, "kullanici", { metin: "Kerem: @Deniz alan adı sonrakiImlec olsun, Ece istemcide bunu bekliyor." }],
     [23, "asistan", { metin: "Tamam, yanıt alanı zaten `sonrakiImlec`. Ece'ye kanaldan haber veriyorum." }],
     [22, "arac_cagrisi", { arac: "mcp__arnorg__mesaj_gonder", aracKimligi: "t-dz-9", girdi: { kanal: "muhendislik", metin: "@Ece alan adı sonrakiImlec, son sayfada null gelir." } }],
     [22, "arac_sonucu", { aracKimligi: "t-dz-9", metin: "Mesaj #muhendislik kanalına yazıldı." }],
-    [21, "sonuc", { maliyetUsd: 0.09 }],
+    [21, "sonuc", { token: 5400 }],
     [4, "asistan", { metin: "Testler geçti. Değişiklikleri gönderiyorum." }],
     [3, "arac_cagrisi", { arac: "Bash", aracKimligi: "toolu_01Q7Xk", girdi: { command: "git push origin main", description: "Ana dala gönder" } }],
     [3, "sistem", { metin: "Denetim: \"Dışarı push ve yayın\" kuralı · kurulun kararı bekleniyor" }],
@@ -487,14 +486,14 @@ export const akislar = {
     [51, "asistan", { metin: "Aldım. T-24 incelemeye geçince E2E testlerini başlatıyorum." }],
     [7, "arac_cagrisi", { arac: "Bash", aracKimligi: "toolu_01Mx2", girdi: { command: "rm -rf tests/eski", description: "Eski testleri sil" } }],
     [6, "arac_sonucu", { aracKimligi: "toolu_01Mx2", metin: "Kurul reddetti: Klasörü git rm ile kaldır, PR'da göreyim.", hata: true }],
-    [6, "sonuc", { maliyetUsd: 0.05 }],
+    [6, "sonuc", { token: 3000 }],
   ]),
   onur: akisUret("onur", [
     [36, "kullanici", { metin: "T-19 incelemesini yap." }],
     [35, "arac_cagrisi", { arac: "Read", aracKimligi: "t-on-1", girdi: { file_path: `${K}/onur/src/auth/oturum.ts` } }],
     [35, "arac_sonucu", { aracKimligi: "t-on-1", metin: "const sure = 3600; …" }],
     [34, "asistan", { metin: "İki bulgu:\n\n1. Oturum süresi `3600` olarak sabit kodlanmış; `ayarlar.oturumSuresiSn` kullanılmalı.\n2. İki sekme aynı anda yenileme yaparsa aynı yenileme jetonu iki kez gönderiliyor. ADR-004'teki istemci kilidi gerekli.\n\nT-19'u Ece'ye geri gönderiyorum." }],
-    [34, "sonuc", { maliyetUsd: 0.33 }],
+    [34, "sonuc", { token: 19_800 }],
     [33, "sistem", { metin: "Oturum kapatıldı" }],
   ]),
 };
