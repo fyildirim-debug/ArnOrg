@@ -8,8 +8,8 @@
     "ceo"
    ],
    "dosya": "karakterler/k01.png",
-   "en": 127,
-   "boy": 360
+   "en": 155,
+   "boy": 480
   },
   {
    "id": "k02",
@@ -18,8 +18,8 @@
     "cto"
    ],
    "dosya": "karakterler/k02.png",
-   "en": 122,
-   "boy": 360
+   "en": 171,
+   "boy": 480
   },
   {
    "id": "k03",
@@ -29,8 +29,8 @@
     "fullstack"
    ],
    "dosya": "karakterler/k03.png",
-   "en": 126,
-   "boy": 360
+   "en": 168,
+   "boy": 480
   },
   {
    "id": "k04",
@@ -40,8 +40,8 @@
     "fullstack"
    ],
    "dosya": "karakterler/k04.png",
-   "en": 133,
-   "boy": 360
+   "en": 169,
+   "boy": 480
   },
   {
    "id": "k05",
@@ -50,8 +50,8 @@
     "test"
    ],
    "dosya": "karakterler/k05.png",
-   "en": 133,
-   "boy": 360
+   "en": 176,
+   "boy": 480
   },
   {
    "id": "k06",
@@ -60,8 +60,8 @@
     "inceleme"
    ],
    "dosya": "karakterler/k06.png",
-   "en": 118,
-   "boy": 360
+   "en": 158,
+   "boy": 480
   },
   {
    "id": "k07",
@@ -70,8 +70,8 @@
     "guvenlik"
    ],
    "dosya": "karakterler/k07.png",
-   "en": 125,
-   "boy": 360
+   "en": 159,
+   "boy": 480
   },
   {
    "id": "k08",
@@ -80,8 +80,8 @@
     "devops"
    ],
    "dosya": "karakterler/k08.png",
-   "en": 128,
-   "boy": 360
+   "en": 179,
+   "boy": 480
   },
   {
    "id": "k09",
@@ -90,8 +90,8 @@
     "tasarim"
    ],
    "dosya": "karakterler/k09.png",
-   "en": 147,
-   "boy": 360
+   "en": 184,
+   "boy": 480
   },
   {
    "id": "k10",
@@ -100,8 +100,8 @@
     "yazar"
    ],
    "dosya": "karakterler/k10.png",
-   "en": 120,
-   "boy": 360
+   "en": 161,
+   "boy": 480
   },
   {
    "id": "k11",
@@ -110,8 +110,8 @@
     "arastirmaci"
    ],
    "dosya": "karakterler/k11.png",
-   "en": 121,
-   "boy": 360
+   "en": 157,
+   "boy": 480
   },
   {
    "id": "k12",
@@ -121,8 +121,8 @@
     "backend"
    ],
    "dosya": "karakterler/k12.png",
-   "en": 131,
-   "boy": 360
+   "en": 188,
+   "boy": 480
   },
   {
    "id": "k13",
@@ -132,8 +132,8 @@
     "backend"
    ],
    "dosya": "karakterler/k13.png",
-   "en": 141,
-   "boy": 360
+   "en": 181,
+   "boy": 480
   },
   {
    "id": "k14",
@@ -143,8 +143,8 @@
     "devops"
    ],
    "dosya": "karakterler/k14.png",
-   "en": 121,
-   "boy": 360
+   "en": 160,
+   "boy": 480
   },
   {
    "id": "k15",
@@ -154,8 +154,8 @@
     "fullstack"
    ],
    "dosya": "karakterler/k15.png",
-   "en": 133,
-   "boy": 360
+   "en": 186,
+   "boy": 480
   },
   {
    "id": "k16",
@@ -166,8 +166,8 @@
     "ceo"
    ],
    "dosya": "karakterler/k16.png",
-   "en": 136,
-   "boy": 360
+   "en": 176,
+   "boy": 480
   }
  ],
  "esyalar": {
