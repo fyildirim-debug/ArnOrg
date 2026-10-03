@@ -15,6 +15,7 @@ import { AnahtarGerekli } from "./gorunumler/AnahtarGerekli";
 import { Ayarlar } from "./gorunumler/Ayarlar";
 import { Denetim } from "./gorunumler/Denetim";
 import { Ekip } from "./gorunumler/Ekip";
+import { Hafiza } from "./gorunumler/Hafiza";
 import { Kanallar } from "./gorunumler/Kanallar";
 import { Karargah } from "./gorunumler/Karargah";
 import { Notlar } from "./gorunumler/Notlar";
@@ -147,6 +148,8 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Kanallar />;
     case "notlar":
       return <Notlar />;
+    case "hafiza":
+      return <Hafiza />;
     case "denetim":
       return <Denetim />;
     case "onaylar":

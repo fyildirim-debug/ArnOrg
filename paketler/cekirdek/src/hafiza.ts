@@ -77,7 +77,8 @@ export class ProjeHafizasi {
       if (istek.yerineGectigi) {
         const eski = this.depo.hafizaKaydi(istek.yerineGectigi);
         if (!eski || eski.projeId !== projeId) throw new ArnorgHatasi("Yerine geçilecek kayıt bulunamadı.", 404);
-        this.depo.hafizaGuncelle(eski.id, { yerineGecen: kayit.id });
+        const eskimis = this.depo.hafizaGuncelle(eski.id, { yerineGecen: kayit.id });
+        if (eskimis) this.olaylar.yayinla({ tur: "hafiza.yeni", kayit: eskimis });
       }
     }
     this.olaylar.yayinla({ tur: "hafiza.yeni", kayit });
@@ -99,6 +100,7 @@ export class ProjeHafizasi {
     const eski = this.depo.hafizaKaydi(id);
     if (!eski) throw new ArnorgHatasi("Hafıza kaydı bulunamadı.", 404);
     this.depo.hafizaSil(id);
+    this.olaylar.yayinla({ tur: "hafiza.silindi", projeId: eski.projeId, id });
     this.yansitPlanla(eski.projeId);
   }
 

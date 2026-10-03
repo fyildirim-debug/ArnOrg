@@ -5,6 +5,7 @@ import type {
   AjanGuncelleIstegi,
   AjanIseAlIstegi,
   AjanMesajIstegi,
+  AjanSorusu,
   AkisOgesi,
   AramaSonucu,
   Ayarlar,
@@ -17,6 +18,9 @@ import type {
   Gorev,
   GorevGuncelleIstegi,
   GorevOlusturIstegi,
+  HafizaKaydi,
+  HafizaTuru,
+  HafizaYazIstegi,
   HesapDurumu,
   IzinModu,
   Kanal,
@@ -88,6 +92,17 @@ export const api = {
   notlar: (pid: string) => istek<NotDosyasi[]>(`${proje(pid)}/notlar`),
   not: (pid: string, yol: string) => istek<NotIcerigi>(`${proje(pid)}/not${sorgu({ yol })}`),
   notKaydet: (pid: string, n: NotIcerigi) => istek<NotDosyasi>(`${proje(pid)}/not`, { method: "PUT", govde: n }),
+
+  // Proje hafızası, defterler, ajanlar arası sorular
+  hafiza: (pid: string, p: { q?: string; tur?: HafizaTuru; eskiler?: boolean } = {}, sinyal?: AbortSignal) =>
+    istek<HafizaKaydi[]>(`${proje(pid)}/hafiza${sorgu({ q: p.q, tur: p.tur, eskiler: p.eskiler ? 1 : undefined })}`, { sinyal }),
+  hafizaYaz: (pid: string, i: HafizaYazIstegi) => istek<HafizaKaydi>(`${proje(pid)}/hafiza`, { method: "POST", govde: i }),
+  hafizaGuncelle: (hid: string, i: Partial<Pick<HafizaKaydi, "tur" | "baslik" | "metin" | "etiketler" | "onem">>) =>
+    istek<HafizaKaydi>(`/api/hafiza/${k(hid)}`, { method: "PATCH", govde: i }),
+  hafizaSil: (hid: string) => istek<Tamam>(`/api/hafiza/${k(hid)}`, { method: "DELETE" }),
+  sorular: (pid: string, sinir = 300) => istek<AjanSorusu[]>(`${proje(pid)}/sorular${sorgu({ sinir })}`),
+  defter: (aid: string) => istek<{ icerik: string; guncelleme: string | null }>(`${ajan(aid)}/defter`),
+  defterYaz: (aid: string, icerik: string) => istek<Tamam>(`${ajan(aid)}/defter`, { method: "PUT", govde: { icerik } }),
 
   // Denetim ve onaylar
   denetim: (pid: string, sinir = 300) => istek<DenetimKaydi[]>(`${proje(pid)}/denetim${sorgu({ sinir })}`),

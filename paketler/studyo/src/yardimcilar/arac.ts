@@ -73,6 +73,18 @@ export function girdiOzeti(arac: string | undefined, girdi: unknown, kok?: strin
       const n = Array.isArray(g.todos) ? g.todos.length : 0;
       return { metin: `${n} maddelik yapılacaklar listesi` };
     }
+    case "mcp__arnorg__ajana_sor":
+      return { metin: `→ ${dize(g.ajan) ?? "uzman"}: ${dize(g.soru) ?? ""}` };
+    case "mcp__arnorg__soruyu_yanitla":
+      return { metin: dize(g.yanit) ?? "" };
+    case "mcp__arnorg__hafiza_kaydet":
+      return { metin: [dize(g.tur), dize(g.baslik)].filter(Boolean).join(" · ") };
+    case "mcp__arnorg__hafiza_ara":
+      return { metin: `"${dize(g.sorgu) ?? ""}"` };
+    case "mcp__arnorg__defter_yaz":
+      return { metin: "defterini güncelledi" };
+    case "mcp__arnorg__defter_oku":
+      return { metin: dize(g.ajan) ? `${dize(g.ajan)} defteri` : "kendi defteri" };
     default: {
       if (typeof girdi === "string") return { metin: girdi };
       // ArnOrg MCP araçları: anlamlı ilk alanlar

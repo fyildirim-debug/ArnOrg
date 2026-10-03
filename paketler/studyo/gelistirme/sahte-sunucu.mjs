@@ -11,6 +11,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ana, dilBul, katmanlar, listeSurumleri } from "./dosyalar.mjs";
+import * as H from "./hafiza-verisi.mjs";
 import * as V from "./veri.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -44,6 +45,10 @@ const db = {
   ana: kopya(ana),
   katmanlar: kopya(katmanlar),
   terminaller: new Map(),
+  hafiza: kopya(H.hafiza),
+  defterler: kopya(H.defterler),
+  defterZamanlari: {},
+  sorular: kopya(H.sorular),
 };
 
 const proje = (pid) => db.projeler.find((p) => p.id === pid);
@@ -844,6 +849,130 @@ rota("PUT", "/api/projeler/:pid/not", ({ p, govde }) => {
   (db.notZamanlari[p.pid] ??= {})[govde.yol] = simdi();
   return { yol: govde.yol, baslik: (/^#\s+(.+)$/m.exec(govde.icerik ?? "")?.[1] ?? govde.yol).trim(), guncelleme: simdi() };
 });
+
+// ---------------- proje hafızası, defterler, sorular ----------------
+const hafizaTurleri = ["olgu", "karar", "tercih", "ogrenilen", "uzmanlik", "ozet"];
+const sadeMetin = (m) => String(m ?? "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+function hafizaSirala(liste) {
+  return liste.sort((a, b) => b.onem - a.onem || b.guncelleme.localeCompare(a.guncelleme));
+}
+function hafizaYay(k) {
+  yay({ tur: "hafiza.yeni", kayit: k }, k.projeId);
+}
+function hafizaEkle(pid, g, kaynak) {
+  if (!hafizaTurleri.includes(g?.tur)) throw new Hata(400, "Geçersiz hafıza türü.");
+  if (!g.baslik?.trim() || !g.metin?.trim()) throw new Hata(400, "Başlık ve metin gerekli.");
+  const ayni = db.hafiza.find((k) => k.projeId === pid && !k.yerineGecen && k.tur === g.tur && sadeMetin(k.baslik) === sadeMetin(g.baslik));
+  if (ayni && !g.yerineGectigi) {
+    Object.assign(ayni, { metin: g.metin.trim(), etiketler: g.etiketler ?? [], onem: Math.max(ayni.onem, g.onem ?? 3), guncelleme: simdi() });
+    hafizaYay(ayni);
+    return ayni;
+  }
+  const k = {
+    id: yeniKimlik("h"),
+    projeId: pid,
+    tur: g.tur,
+    baslik: g.baslik.trim(),
+    metin: g.metin.trim(),
+    etiketler: g.etiketler ?? [],
+    kaynakAjanId: kaynak.ajanId,
+    kaynakAd: kaynak.ad,
+    gorevId: g.gorevId ?? null,
+    onem: Math.min(Math.max(g.onem ?? 3, 1), 5),
+    yerineGecen: null,
+    olusturma: simdi(),
+    guncelleme: simdi(),
+  };
+  db.hafiza.unshift(k);
+  hafizaYay(k);
+  if (g.yerineGectigi) {
+    const eski = db.hafiza.find((x) => x.id === g.yerineGectigi);
+    if (eski) {
+      Object.assign(eski, { yerineGecen: k.id, guncelleme: simdi() });
+      hafizaYay(eski);
+    }
+  }
+  return k;
+}
+rota("GET", "/api/projeler/:pid/hafiza", ({ p, q }) => {
+  projeGerekli(p.pid);
+  const tur = q.get("tur");
+  const aranan = sadeMetin(q.get("q") ?? "").split(/[^a-z0-9]+/).filter((x) => x.length >= 2);
+  let liste = db.hafiza.filter((k) => k.projeId === p.pid && (!tur || k.tur === tur));
+  if (aranan.length) {
+    return liste
+      .filter((k) => !k.yerineGecen)
+      .map((k) => ({ k, puan: aranan.filter((x) => sadeMetin(`${k.baslik} ${k.metin} ${k.etiketler.join(" ")}`).includes(x)).length }))
+      .filter((x) => x.puan > 0)
+      .sort((a, b) => b.puan - a.puan || b.k.onem - a.k.onem)
+      .map((x) => x.k);
+  }
+  if (q.get("eskiler") !== "1") liste = liste.filter((k) => !k.yerineGecen);
+  return hafizaSirala([...liste]);
+});
+rota("POST", "/api/projeler/:pid/hafiza", ({ p, govde }) => {
+  projeGerekli(p.pid);
+  return hafizaEkle(p.pid, govde, { ajanId: null, ad: "Yönetim kurulu" });
+});
+rota("PATCH", "/api/hafiza/:hid", ({ p, govde }) => {
+  const k = db.hafiza.find((x) => x.id === p.hid);
+  if (!k) throw new Hata(404, "Hafıza kaydı bulunamadı.");
+  for (const alan of ["tur", "baslik", "metin", "etiketler", "onem"]) if (govde?.[alan] !== undefined) k[alan] = govde[alan];
+  k.guncelleme = simdi();
+  hafizaYay(k);
+  return k;
+});
+rota("DELETE", "/api/hafiza/:hid", ({ p }) => {
+  const i = db.hafiza.findIndex((x) => x.id === p.hid);
+  if (i < 0) throw new Hata(404, "Hafıza kaydı bulunamadı.");
+  const [k] = db.hafiza.splice(i, 1);
+  yay({ tur: "hafiza.silindi", projeId: k.projeId, id: k.id }, k.projeId);
+  return { tamam: true };
+});
+rota("GET", "/api/projeler/:pid/sorular", ({ p, q }) => {
+  projeGerekli(p.pid);
+  return db.sorular
+    .filter((s) => s.projeId === p.pid)
+    .sort((a, b) => b.olusturma.localeCompare(a.olusturma))
+    .slice(0, Number(q.get("sinir") ?? 100));
+});
+rota("GET", "/api/ajanlar/:aid/defter", ({ p }) => {
+  ajanGerekli(p.aid);
+  return { icerik: db.defterler[p.aid] ?? "", guncelleme: db.defterZamanlari[p.aid] ?? (db.defterler[p.aid] ? V.once(40) : null) };
+});
+rota("PUT", "/api/ajanlar/:aid/defter", ({ p, govde }) => {
+  ajanGerekli(p.aid);
+  if (typeof govde?.icerik !== "string" || govde.icerik.length > 6000) throw new Hata(400, "Defter en çok 6000 karakter olabilir.");
+  db.defterler[p.aid] = govde.icerik.trim();
+  db.defterZamanlari[p.aid] = simdi();
+  return { tamam: true };
+});
+
+// Canlı demo: ajanlar birbirine soru sorar, yanıtlar ve hafızaya yazar
+let hafizaDemoAdimi = 0;
+setInterval(() => {
+  const adim = hafizaDemoAdimi++;
+  if (adim % 2 === 0) {
+    const d = H.demoSorular[(adim / 2) % H.demoSorular.length];
+    const soran = ajanBul(d.soranId);
+    if (!soran || soran.durum === "kapali") return;
+    const s = { id: yeniKimlik("s"), projeId: "siparis-paneli", soranId: d.soranId, soranAd: d.soranAd, soruluId: d.soruluId, soruluAd: d.soruluAd, soru: d.soru, yanit: null, durum: "bekliyor", olusturma: simdi(), yanitlanma: null };
+    db.sorular.unshift(s);
+    yay({ tur: "soru.guncellendi", soru: s }, s.projeId);
+    akisEkle(d.soranId, { tur: "arac_cagrisi", arac: "mcp__arnorg__ajana_sor", aracKimligi: yeniKimlik("toolu"), girdi: { ajan: d.soruluAd, soru: d.soru } });
+    setTimeout(() => {
+      Object.assign(s, { yanit: d.yanit, durum: "yanitlandi", yanitlanma: simdi() });
+      yay({ tur: "soru.guncellendi", soru: s }, s.projeId);
+      akisEkle(d.soruluId, { tur: "arac_cagrisi", arac: "mcp__arnorg__soruyu_yanitla", aracKimligi: yeniKimlik("toolu"), girdi: { soru_id: s.id, yanit: d.yanit } });
+    }, 6500);
+  } else {
+    const k = H.demoKayitlar[((adim - 1) / 2) % H.demoKayitlar.length];
+    const a = ajanBul(k.kaynakAjanId);
+    if (!a || a.durum === "kapali") return;
+    hafizaEkle("siparis-paneli", k, { ajanId: k.kaynakAjanId, ad: k.kaynakAd });
+    akisEkle(k.kaynakAjanId, { tur: "arac_cagrisi", arac: "mcp__arnorg__hafiza_kaydet", aracKimligi: yeniKimlik("toolu"), girdi: { tur: k.tur, baslik: k.baslik } });
+  }
+}, 21_000);
 
 rota("GET", "/api/projeler/:pid/denetim", ({ p, q }) => db.denetim.filter((k) => k.projeId === p.pid).slice(0, Number(q.get("sinir") ?? 300)));
 rota("GET", "/api/projeler/:pid/politika", ({ p }) => db.politika[p.pid] ?? []);
