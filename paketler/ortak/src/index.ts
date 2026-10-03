@@ -496,6 +496,77 @@ export interface HesapDurumu {
 }
 
 // ---------------------------------------------------------------------------
+// Proje hafızası ve ajanlar arası sorular
+// ---------------------------------------------------------------------------
+
+/**
+ * olgu: projeye dair doğru bilgi (sürüm, yapı, bağımlılık)
+ * karar: alınmış karar ve gerekçesi
+ * tercih: yönetim kurulunun isteği, üslup, yasak
+ * ogrenilen: yaşanmış hata ve çözümü, püf noktası
+ * uzmanlik: kim neyi biliyor, hangi alanın sahibi
+ * ozet: tamamlanan iş, devir notu
+ */
+export type HafizaTuru = "olgu" | "karar" | "tercih" | "ogrenilen" | "uzmanlik" | "ozet";
+
+export const HAFIZA_TURU_ADLARI: Record<HafizaTuru, string> = {
+  olgu: "Olgu",
+  karar: "Karar",
+  tercih: "Kurul tercihi",
+  ogrenilen: "Öğrenilen",
+  uzmanlik: "Uzmanlık",
+  ozet: "Özet",
+};
+
+/** Projenin kalıcı hafızasındaki bir kayıt; repo içinde .arnorg/hafiza altında sürümlü tutulur */
+export interface HafizaKaydi {
+  id: string;
+  projeId: string;
+  tur: HafizaTuru;
+  baslik: string;
+  metin: string;
+  etiketler: string[];
+  /** Kaydı yazan ajan; kurul ya da sistem için null */
+  kaynakAjanId: string | null;
+  kaynakAd: string;
+  gorevId: string | null;
+  /** 1 (ayrıntı) – 5 (her oturumda hatırlanmalı) */
+  onem: number;
+  /** Yerine geçen kaydın kimliği; eskimiş kayıt hatırlatılmaz */
+  yerineGecen: string | null;
+  olusturma: Zaman;
+  guncelleme: Zaman;
+}
+
+export interface HafizaYazIstegi {
+  tur: HafizaTuru;
+  baslik: string;
+  metin: string;
+  etiketler?: string[];
+  onem?: number;
+  gorevId?: string | null;
+  /** Bu kayıt eskisinin yerine geçiyorsa eskinin kimliği */
+  yerineGectigi?: string | null;
+}
+
+export type SoruDurumu = "bekliyor" | "yanitlandi" | "zaman_asimi";
+
+/** Bir ajanın başka bir ajana sorduğu, yanıtını beklediği soru */
+export interface AjanSorusu {
+  id: string;
+  projeId: string;
+  soranId: string;
+  soranAd: string;
+  soruluId: string;
+  soruluAd: string;
+  soru: string;
+  yanit: string | null;
+  durum: SoruDurumu;
+  olusturma: Zaman;
+  yanitlanma: Zaman | null;
+}
+
+// ---------------------------------------------------------------------------
 // Canlı olaylar (WebSocket /ws)
 // ---------------------------------------------------------------------------
 
@@ -512,6 +583,8 @@ export type SunucuOlayi =
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
   | { tur: "maliyet"; projeId: string; ajanId: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
+  | { tur: "hafiza.yeni"; kayit: HafizaKaydi }
+  | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };
 

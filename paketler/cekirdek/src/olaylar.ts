@@ -39,6 +39,10 @@ export function olayProjesi(o: SunucuOlayi): string | null {
       return o.gorev.projeId;
     case "mesaj.yeni":
       return o.mesaj.projeId;
+    case "hafiza.yeni":
+      return o.kayit.projeId;
+    case "soru.guncellendi":
+      return o.soru.projeId;
     default:
       return "projeId" in o ? o.projeId : null;
   }
