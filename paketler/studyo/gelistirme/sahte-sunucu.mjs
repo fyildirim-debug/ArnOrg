@@ -831,6 +831,11 @@ rota("DELETE", "/api/projeler/:pid", ({ p }) => {
   return { tamam: true };
 });
 
+/** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>); null otomatik */
+function karakterDenetle(govde) {
+  if (govde && "karakter" in govde && govde.karakter !== null && !/^(k\d{2}|u-[a-z0-9-]{4,64})$/.test(String(govde.karakter))) throw new Hata(400, "Geçersiz karakter kimliği.");
+}
+
 function projeGerekli(pid) {
   const p = proje(pid);
   if (!p) throw new Hata(404, "Proje bulunamadı.");
@@ -847,6 +852,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
   const pr = projeGerekli(p.pid);
   const rol = V.roller.find((r) => r.kimlik === govde?.rol);
   if (!govde?.ad || !rol) throw new Hata(400, "Ad ve geçerli bir rol gerekli.");
+  karakterDenetle(govde);
   if (projeAjanlari(p.pid).some((a) => a.ad.toLocaleLowerCase("tr-TR") === govde.ad.toLocaleLowerCase("tr-TR"))) throw new Hata(400, "Bu adda bir çalışan zaten var.");
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9]+/g, "") || yeniKimlik("a");
   const a = {
@@ -882,6 +888,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
 });
 rota("PATCH", "/api/ajanlar/:aid", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
+  karakterDenetle(govde);
   for (const k of ["model", "gunlukButceUsd", "izinModu", "yoneticiId", "talimatEki", "karakter"]) if (govde && k in govde) a[k] = govde[k];
   ajanYay(a);
   return a;

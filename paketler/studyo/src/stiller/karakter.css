@@ -1,0 +1,119 @@
+/* Ofis karakterleri: avatar portresi ve karakter seçici */
+
+.av-portre {
+  overflow: hidden;
+  padding: 0;
+  background: var(--ink-3);
+}
+.av-portre .karakter-portre {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 2%;
+}
+.av-ceo.av-portre {
+  box-shadow: 0 0 0 1px var(--coral);
+}
+
+.karakter-secici {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px;
+  margin: -3px;
+}
+.karakter-secenek {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--ink-3);
+  cursor: pointer;
+  transition:
+    border-color var(--hiz) ease,
+    background-color var(--hiz) ease;
+}
+.karakter-secenek .karakter-portre {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 2%;
+  transition: opacity var(--hiz) ease;
+}
+.karakter-secenek:hover {
+  border-color: var(--line-hover);
+}
+.karakter-secenek:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.karakter-secenek[aria-checked="true"] {
+  border-color: var(--coral);
+  box-shadow: inset 0 0 0 1px var(--coral);
+}
+.karakter-secenek[data-kullaniliyor] .karakter-portre {
+  opacity: 0.38;
+  filter: grayscale(0.6);
+}
+.karakter-secenek[data-kullaniliyor]:hover .karakter-portre {
+  opacity: 0.7;
+}
+.karakter-secenek[data-oneri] {
+  border-style: dashed;
+  border-color: var(--coral-cizgi);
+}
+.karakter-secenek[data-oneri]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+.karakter-secenek:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.karakter-otomatik span {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  line-height: 1;
+}
+.karakter-otomatik b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+}
+.karakter-otomatik small {
+  font-size: 0.5625rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+/* Dar ekranda tek satır, yatay kaydırma */
+@media (max-width: 640px) {
+  .karakter-secici {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    padding-bottom: 8px;
+  }
+  .karakter-secenek {
+    scroll-snap-align: start;
+  }
+}

@@ -2,6 +2,7 @@
 import { AJAN_DURUM_ADLARI, KURUL, type Ajan, type AjanDurumu } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
 import { ilkHarf } from "../yardimcilar/bicim";
+import { KarakterPortresi, useAjanKarakteri } from "./KarakterSecici";
 
 type Boyut = "xs" | "s" | "m" | "l";
 
@@ -18,8 +19,16 @@ export function ajanCeoMu(a: Pick<Ajan, "rol"> | undefined | null): boolean {
   return a?.rol === "ceo";
 }
 
+/** Ajanın Ofis karakteri belliyse yüz kırpması, değilse baş harfi */
 export function AjanAvatar({ ajan, boyut = "m" }: { ajan: Ajan | undefined; boyut?: Boyut }) {
-  return <Avatar ad={ajan?.ad ?? "?"} ceo={ajanCeoMu(ajan)} boyut={boyut} />;
+  const karakter = useAjanKarakteri(ajan?.id);
+  if (!karakter) return <Avatar ad={ajan?.ad ?? "?"} ceo={ajanCeoMu(ajan)} boyut={boyut} />;
+  const sinif = ["av", "av-portre", boyut !== "m" ? `av-${boyut}` : "", ajanCeoMu(ajan) ? "av-ceo" : ""].filter(Boolean).join(" ");
+  return (
+    <span className={sinif} aria-hidden="true">
+      <KarakterPortresi karakter={karakter} />
+    </span>
+  );
 }
 
 /** Avatar + ad + alt satır; tıklanınca ajan oturumunu açar */

@@ -18,7 +18,8 @@ import {
 } from "@arnorg/ortak";
 import { esyaOgesi, PANO_SUTUNLARI, panoOgesi, zeminSvg, type PanoOgesi } from "./cizim";
 import { Kamera } from "./kamera";
-import { adayKarakteri, karakterleriAta } from "./karakterSecimi";
+import { projeAtamalari } from "./karakterAtama";
+import { adayKarakteri } from "./karakterSecimi";
 import { adlariBul, balonMetni } from "./metin";
 import { aracSimgesi, simgeSvg, type OfisSimgesi } from "./simgeler";
 import { esyaOranlari, varlikAdresi, type KarakterVarligi, type Varliklar } from "./varliklar";
@@ -483,6 +484,10 @@ export class OfisMotoru {
     }
     this.masalariAta();
     for (const k of this.kisiler.values()) if (k.is?.tur === "kalici") this.kaliciBaslat(k);
+    // Lobi aşağı kaydı: aday siluetleri yeni yerlerine
+    for (const a of this.adaylar.values()) a.el.remove();
+    this.adaylar.clear();
+    this.adaylariGuncelle(true);
   }
 
   // -------------------------------------------------------------------------
@@ -493,9 +498,7 @@ export class OfisMotoru {
     const ilk = this.ilkVeri;
     this.ilkVeri = false;
     // Karakter atamaları (kalıcı)
-    const onceki = this.kayitliAtamalar();
-    this.atamalar = karakterleriAta(v.ajanlar, this.v.karakterler, onceki);
-    this.atamalariKaydet();
+    this.atamalar = projeAtamalari(this.s.projeId, v.ajanlar, this.v.karakterler, this.atamalar);
 
     // Masa kapasitesi
     const gereken = this.muhendisSayisi(v.ajanlar);
@@ -547,29 +550,6 @@ export class OfisMotoru {
     const ceo = ajanlar.filter((a) => a.rol === "ceo").length ? 1 : 0;
     const cto = ajanlar.filter((a) => a.rol === "cto").length ? 1 : 0;
     return Math.max(0, ajanlar.length - ceo - cto);
-  }
-
-  private atamaAnahtari() {
-    return `arnorg.ofis.karakter.${this.s.projeId}`;
-  }
-
-  private kayitliAtamalar(): Record<string, string> {
-    const sonuc: Record<string, string> = Object.fromEntries(this.atamalar);
-    try {
-      const ham = localStorage.getItem(this.atamaAnahtari());
-      if (ham) Object.assign(sonuc, JSON.parse(ham) as Record<string, string>, Object.fromEntries(this.atamalar));
-    } catch {
-      // depolama kapalı ya da bozuk
-    }
-    return sonuc;
-  }
-
-  private atamalariKaydet() {
-    try {
-      localStorage.setItem(this.atamaAnahtari(), JSON.stringify(Object.fromEntries(this.atamalar)));
-    } catch {
-      // depolama kapalı
-    }
   }
 
   /** CEO ve CTO kendi odalarında; diğerleri açık ofiste, işe alınma sırasıyla ve yapışkan */

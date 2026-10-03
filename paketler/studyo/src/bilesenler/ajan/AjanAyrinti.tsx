@@ -1,12 +1,13 @@
 // Ekip ekranındaki ajan ayrıntı paneli: kimlik, oturum eylemleri, ayarlar, işten çıkarma
 import type { Ajan, IzinModu } from "@arnorg/ortak";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
-import { ajanaGit, bildir, git } from "../../durum/arayuz";
+import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
 import { abonelikMi, ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
 import { belirtme, para, tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { ButceCubugu } from "../EkipTablosu";
+import { KarakterSecici } from "../KarakterSecici";
 import { AjanAvatar, AjanDurum, IZIN_MODU_ADLARI, izinModuAdi, modelAdi } from "../Kisi";
 import { OnaySor } from "../OnaySor";
 import { Simge } from "../Simge";
@@ -227,6 +228,8 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
         </button>
       </div>
 
+      <KarakterAyari ajan={ajan} />
+
       <form className="ajan-ayar-form" onSubmit={kaydet}>
         <div className="ayar-satir">
           {abonelik ? null : (
@@ -275,6 +278,40 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
         </div>
       </form>
     </section>
+  );
+}
+
+/** Ofis karakteri: seçim hemen görünür, kısa bir beklemeden sonra kaydedilir (oklarla gezerken her adımda istek gitmez) */
+function KarakterAyari({ ajan }: { ajan: Ajan }) {
+  const [yerel, setYerel] = useState<string | null>(ajan.karakter);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const bekleyen = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => setYerel(ajan.karakter), [ajan.id, ajan.karakter]);
+  useEffect(() => () => clearTimeout(bekleyen.current), []);
+
+  const degisti = (karakter: string | null) => {
+    setYerel(karakter);
+    clearTimeout(bekleyen.current);
+    bekleyen.current = setTimeout(() => {
+      setKaydediliyor(true);
+      api
+        .ajanGuncelle(ajan.id, { karakter })
+        .then(ajanUygula)
+        .catch((e: unknown) => {
+          setYerel(ajan.karakter);
+          hataBildir(e);
+        })
+        .finally(() => setKaydediliyor(false));
+    }, 450);
+  };
+
+  return (
+    <div className="alan">
+      <span className="alan-ad" id={`karakter-${ajan.id}`}>
+        Ofis karakteri {kaydediliyor ? <span className="doner" aria-hidden="true" /> : null}
+      </span>
+      <KarakterSecici deger={yerel} degisti={degisti} rol={ajan.rol} ajan={ajan} etiketId={`karakter-${ajan.id}`} />
+    </div>
   );
 }
 

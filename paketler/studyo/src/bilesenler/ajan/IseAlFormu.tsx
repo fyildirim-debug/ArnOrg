@@ -6,6 +6,7 @@ import { abonelikMi, ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../dur
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu, Yukleniyor } from "../Durumlar";
+import { KarakterSecici } from "../KarakterSecici";
 import { modelAdi } from "../Kisi";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
@@ -20,6 +21,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [yoneticiId, setYoneticiId] = useState(() => ceoBul(useVeri.getState().ajanlar)?.id ?? "");
   const [butce, setButce] = useState("5");
   const [talimat, setTalimat] = useState("");
+  const [karakter, setKarakter] = useState<string | null>(null);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
 
@@ -58,6 +60,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
           yoneticiId: yoneticiId || null,
           gunlukButceUsd: butceSayi,
           talimatEki: talimat.trim() || undefined,
+          karakter,
         });
         ajanUygula(a);
         bildir("basari", `${a.ad} işe alındı. Çalışma alanı hazırlanıyor.`);
@@ -158,6 +161,12 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             {denendi && butceHata ? <span className="alan-hata">{butceHata}</span> : null}
           </div>
         )}
+        <div className="alan tam">
+          <span className="alan-ad" id="ise-karakter-etiket">
+            Karakter
+          </span>
+          <KarakterSecici deger={karakter} degisti={setKarakter} rol={rol} etiketId="ise-karakter-etiket" />
+        </div>
         <div className="alan tam">
           <label htmlFor="ise-talimat">Ek talimat (isteğe bağlı)</label>
           <textarea
