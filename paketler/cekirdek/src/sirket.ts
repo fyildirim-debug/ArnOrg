@@ -1269,7 +1269,7 @@ export class Sirket {
     });
     const uyandi = await this.uyandir(
       hedef.id,
-      `${soran.ad} sana soruyor (soru ${kayit.id})${yonlendirme ? ` — ArnOrg soruyu sana yönlendirdi: ${yonlendirme}` : ""}:\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Sonra kendi işine dön.`,
+      `${soran.ad} sana soruyor (soru ${kayit.id})${yonlendirme ? ` — ArnOrg soruyu sana yönlendirdi: ${yonlendirme}` : ""}:\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Yanıttan sonra üzerinde çalıştığın bir görev varsa ona dön; yoksa yeni iş açma, dur.`,
       soran,
     );
     if (!uyandi) {
