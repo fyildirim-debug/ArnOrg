@@ -24,7 +24,7 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/ekip.png) |
 | Kanallar | ![Kanallar](docs/gorseller/kanallar.png) |
 | Denetim | ![Denetim](docs/gorseller/denetim.png) |
-| Kod | ![Kod](docs/gorseller/kod.png) |
+| Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/kod.png) |
 
 ## Çalıştırma
 
