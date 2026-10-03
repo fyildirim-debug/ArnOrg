@@ -244,6 +244,19 @@ export class ProjeHafizasi {
     this.yansitmaZamanlayicilari.set(projeId, yeni);
   }
 
+  /** Gecikmeli yansıma bekliyorsa hemen yazar (commit öncesi) */
+  bekleyeniYansit(projeId: string): void {
+    const z = this.yansitmaZamanlayicilari.get(projeId);
+    if (!z) return;
+    clearTimeout(z);
+    this.yansitmaZamanlayicilari.delete(projeId);
+    try {
+      this.yansit(projeId);
+    } catch {
+      // Repo yazılamıyorsa veritabanı yeterli
+    }
+  }
+
   /** .arnorg/hafiza/hafiza.md (okunur) ve kayitlar.json (geri yükleme) */
   yansit(projeId: string): void {
     const proje = this.proje(projeId);
