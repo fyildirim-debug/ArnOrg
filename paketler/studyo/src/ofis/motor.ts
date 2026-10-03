@@ -291,6 +291,7 @@ export class OfisMotoru {
   private azHareketSorgu: MediaQueryList;
   private kaldir: (() => void)[] = [];
   private ozetAnahtari = "";
+  private gorulenHafiza = new Set<string>();
   private yokEdildi = false;
 
   constructor(s: MotorSecenekleri) {
@@ -708,7 +709,9 @@ export class OfisMotoru {
     };
     this.gorselAyarla(k, karakter);
     this.kisiler.set(a.id, k);
-    this.nesneler.appendChild(dugme);
+    // Sekme sırası: karakterler sıcak noktalardan (eşyalardan) önce gelsin
+    const ilkKisiOlmayan = [...this.nesneler.children].find((el) => !el.classList.contains("ofis-kisi")) ?? null;
+    this.nesneler.insertBefore(dugme, ilkKisiOlmayan);
     this.ustKatman.append(ust, eldeEl);
     this.masalariAta();
 
@@ -723,8 +726,10 @@ export class OfisMotoru {
       k.hedefOpaklik = 1;
       this.akisa("giris", `${a.ad} ofise geldi · ${a.rolAdi}`);
       this.sahneEkle(k, "giris", () => this.girisSahnesi(k));
+      // Oturumu açık CEO karşılar; kapalıysa yeni gelen beklemeden işine bakar
       const ceo = this.ceo();
-      if (ceo && ceo !== k) this.sahneEkle(ceo, "karsilama", () => this.karsilamaSahnesi(ceo, k));
+      if (ceo && ceo !== k && ceo.ajan.durum !== "kapali") this.sahneEkle(ceo, "karsilama", () => this.karsilamaSahnesi(ceo, k));
+      else k.karsilandi = true;
     }
   }
 
@@ -1313,6 +1318,9 @@ export class OfisMotoru {
 
   hafizaGeldi(kayit: HafizaKaydi) {
     if (kayit.projeId !== this.s.projeId) return;
+    // Güncellenen ya da yerine yenisi geçen kayıt yeniden canlandırılmaz
+    if (kayit.yerineGecen || this.gorulenHafiza.has(kayit.id)) return;
+    this.gorulenHafiza.add(kayit.id);
     const k = kayit.kaynakAjanId ? this.kisiler.get(kayit.kaynakAjanId) : undefined;
     if (!k || k.cikiyor) {
       this.akisa("hafiza", `${kayit.kaynakAd || "Kurul"} not aldı: ${kisaMetin(kayit.baslik, 48)}`);

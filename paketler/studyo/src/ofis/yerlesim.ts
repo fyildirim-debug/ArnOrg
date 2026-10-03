@@ -273,7 +273,7 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       levha: false,
       etiket: { x: 1.5 * KARO, y: 11.95 * KARO },
     },
-    { kimlik: "dinlenme", ad: "Dinlenme", alt: "kahve · su · sohbet", alan: { c: 29, r: 11, g: 18, y: 7 }, zemin: "kilim", levha: false, etiket: { x: 40.6 * KARO, y: 17.6 * KARO } },
+    { kimlik: "dinlenme", ad: "Dinlenme", alt: "kahve · su · sohbet", alan: { c: 29, r: 11, g: 18, y: 7 }, zemin: "kilim", levha: false, etiket: { x: 40.4 * KARO, y: 17.15 * KARO } },
     { kimlik: "kurul", ad: "Kurul", alt: "onay masası · giriş", alan: { c: 29, r: 18 + alt, g: 18, y: 8 }, zemin: "acik", levha: false },
   ];
 
@@ -435,6 +435,15 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   yerlestir("kitaplik", 31.8 * KARO, 13 * KARO, 52, { engel: { c: 31, r: 12, g: 2, y: 1 } });
   // Kanepenin önünde alçak sehpa
   yerlestir("toplanti-masasi", 37.5 * KARO, 15.75 * KARO, 76, { kimlik: "sehpa", engel: { c: 36, r: 15, g: 3, y: 1 }, golge: 0.85 });
+
+  // Ofis uzadıkça dinlenme ile kurul arasındaki boşluğa okuma köşeleri
+  for (let i = 0; i + 5 <= alt; i += 5) {
+    const r = 18 + i;
+    yerlestir("kanepe", 38 * KARO, (r + 3) * KARO, 128, { engel: { c: 36, r: r + 1, g: 4, y: 2 }, golge: 0.95 });
+    yerlestir("lamba", 41.6 * KARO, (r + 2.85) * KARO, 50, { engel: { c: 41, r: r + 2, g: 1, y: 1 } });
+    yerlestir("bitki-buyuk", 33.8 * KARO, (r + 3) * KARO, 44, { engel: { c: 33, r: r + 2, g: 1, y: 1 } });
+    yerlestir("kitaplik", 44.6 * KARO, (r + 3) * KARO, 52, { engel: { c: 44, r: r + 2, g: 2, y: 1 } });
+  }
 
   // Kurul masası (onay masası), arkasında kurulun boş koltuğu
   const kmG = 128;
