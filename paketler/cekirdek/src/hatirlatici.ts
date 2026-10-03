@@ -56,8 +56,15 @@ interface Iz {
   tercihIpucu: number;
 }
 
+/** Aynı dosyayı başka dalda değiştiren ajan bu süre içindeyse uyarılır */
+const CAKISMA_SURESI_MS = 6 * 3600_000;
+
 export class Hatirlatici {
   private izler = new Map<string, Iz>();
+  /** proje → göreli yol → ajan → son yazma anı */
+  private yazmalar = new Map<string, Map<string, Map<string, number>>>();
+  /** Bir oturumda aynı dosya ve kişi için bir kez uyarılır: ajan → "yol|öteki" */
+  private cakismaUyarilari = new Map<string, Set<string>>();
 
   constructor(
     private readonly depo: Depo,
@@ -82,6 +89,34 @@ export class Hatirlatici {
 
   oturumKapandi(ajanId: string): void {
     this.izler.delete(ajanId);
+    this.cakismaUyarilari.delete(ajanId);
+  }
+
+  /**
+   * Ajan bir dosyaya yazdı. Aynı dosyayı yakın zamanda başka bir ajan kendi dalında değiştirdiyse
+   * (birleştirmede çakışma çıkabilir) ajana bir kez haber verilir.
+   */
+  yazmaIzi(ajan: Ajan, goreli: string, simdiMs = Date.now()): string | null {
+    if (!goreli || goreli.startsWith("..") || goreli.startsWith(".arnorg/")) return null;
+    let proje = this.yazmalar.get(ajan.projeId);
+    if (!proje) this.yazmalar.set(ajan.projeId, (proje = new Map()));
+    let dosya = proje.get(goreli);
+    if (!dosya) proje.set(goreli, (dosya = new Map()));
+    dosya.set(ajan.id, simdiMs);
+    const uyarilan = this.cakismaUyarilari.get(ajan.id) ?? new Set<string>();
+    const digerleri: string[] = [];
+    for (const [digerId, zaman] of dosya) {
+      if (digerId === ajan.id || simdiMs - zaman > CAKISMA_SURESI_MS || uyarilan.has(`${goreli}|${digerId}`)) continue;
+      const diger = this.depo.ajan(digerId);
+      if (!diger || diger.projeId !== ajan.projeId) continue;
+      uyarilan.add(`${goreli}|${digerId}`);
+      const gorev = diger.gorevId ? this.depo.gorev(diger.gorevId) : null;
+      const dk = Math.max(1, Math.round((simdiMs - zaman) / 60_000));
+      digerleri.push(`${diger.ad} (${dk} dk önce${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""}${diger.dal ? `, dal ${diger.dal}` : ""})`);
+    }
+    this.cakismaUyarilari.set(ajan.id, uyarilan);
+    if (!digerleri.length) return null;
+    return `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de kendi dalında değiştirdi. Birleştirmede çakışma çıkabilir; değişikliğin onunkini etkiliyorsa ajana_sor ile sor ya da mesaj_gonder ile haber ver, aynı satırları ikiniz birden değiştirmeyin.`;
   }
 
   /**

@@ -832,14 +832,17 @@ export class Sirket {
     const a = this.depo.ajan(ajanId);
     if (!a) return null;
     const cwd = a.calismaAlani ?? this.proje(a.projeId).yol;
-    const ek = this.hatirlatici.dosyaSonrasi(a, cwd, arac, girdi);
+    const ekler = [this.hatirlatici.dosyaSonrasi(a, cwd, arac, girdi)];
     const y = typeof girdi.file_path === "string" ? girdi.file_path : null;
     if (y && YAZMA_ARACLARI.has(arac)) {
       const tam = path.resolve(cwd, y);
+      const goreli = path.relative(cwd, tam).replace(/\\/g, "/");
       this.duzenlemeler.set(tam, { ajanId, zaman: Date.now() });
-      this.olaylar.yayinla({ tur: "dosya.degisti", projeId: a.projeId, alan: a.calismaAlani ? a.id : "ana", yol: path.relative(cwd, tam).replace(/\\/g, "/"), ajanId });
+      this.olaylar.yayinla({ tur: "dosya.degisti", projeId: a.projeId, alan: a.calismaAlani ? a.id : "ana", yol: goreli, ajanId });
+      ekler.push(this.hatirlatici.yazmaIzi(a, goreli));
     }
-    return ek;
+    const ek = ekler.filter(Boolean).join("\n\n");
+    return ek || null;
   }
 
   /** Claude Code'un izin sorduğu çağrı (bypass dışı modlar, plan onayı) */

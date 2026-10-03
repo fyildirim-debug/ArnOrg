@@ -226,3 +226,21 @@ describe("toplantı", () => {
     await expect(sirket.toplantiYap(elif.id, "Tema renkleri değişsin mi, karar verelim.", ["Elif"], 1)).rejects.toThrow(/bulunamadı/);
   });
 });
+
+describe("aynı dosyada çalışma", () => {
+  it("başka ajan aynı dosyayı yakın zamanda değiştirdiyse bir kez uyarır; eski yazma sayılmaz", () => {
+    const deniz = ajan("Deniz");
+    const elif = ajan("Elif");
+    const mert = ajan("Mert");
+    const t = 1_000_000_000;
+    expect(sirket.hatirlatici.yazmaIzi(deniz, "src/api/siparis.ts", t)).toBeNull();
+    const uyari = sirket.hatirlatici.yazmaIzi(elif, "src/api/siparis.ts", t + 5 * 60_000)!;
+    expect(uyari).toContain("src/api/siparis.ts dosyasını Deniz (5 dk önce");
+    expect(sirket.hatirlatici.yazmaIzi(elif, "src/api/siparis.ts", t + 6 * 60_000)).toBeNull();
+    // Deniz de Elif'in değişikliğinden haberdar olur
+    expect(sirket.hatirlatici.yazmaIzi(deniz, "src/api/siparis.ts", t + 7 * 60_000)).toContain("Elif");
+    // 6 saatten eski yazma uyarı doğurmaz; .arnorg yolu izlenmez
+    expect(sirket.hatirlatici.yazmaIzi(mert, "src/api/siparis.ts", t + 7 * 3600_000)).toBeNull();
+    expect(sirket.hatirlatici.yazmaIzi(mert, ".arnorg/hafiza/hafiza.md", t)).toBeNull();
+  });
+});
