@@ -8,6 +8,8 @@
 #
 # Çekirdek ve bağımlılıkları asar dışında aynı ağaçtadır: çekirdeğin ESM içe aktarmaları Node'un olağan
 # node_modules aramasıyla çözülür, yerel modüller ve çalıştırılan ikililer (claude, node-pty) gerçek yola sahiptir.
+# Kod zekâsının gömme iş parçacığı (cekirdek/gomme-calisani.js) da aynı klasördedir; onnxruntime-node ikilileri
+# asar dışında olduğundan iş parçacığı onları doğrudan yükler. Model dosyaları kullanıcı veri dizinine (modeller/) iner.
 
 appId: com.arnexlab.arnorg
 productName: ArnOrg
@@ -39,6 +41,11 @@ files:
   - "!node_modules/better-sqlite3/{deps,src,build}{,/**/*}"
   - "!node_modules/better-sqlite3/prebuilds/*.node"
   - node_modules/better-sqlite3/prebuilds/${platform}-${arch}.node
+  # Kod zekâsı (transformers.js): onnxruntime-web, transformers'ın Node derlemesine gömülüdür; paket yüklenmez
+  - "!node_modules/onnxruntime-web{,/**/*}"
+  # onnxruntime-node npm paketi tüm platformların ikilileriyle gelir (~290 MB); yalnız hedef platform ve mimari
+  - "!node_modules/onnxruntime-node/bin/napi-v6/**/*"
+  - node_modules/onnxruntime-node/bin/napi-v6/${platform}/${arch}/**/*
 
 asar: true
 asarUnpack:

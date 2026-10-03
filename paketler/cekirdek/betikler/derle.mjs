@@ -1,4 +1,5 @@
-// Çekirdeği esbuild ile paketler: dist/index.js (kitaplık) ve dist/cli.js (komut satırı)
+// Çekirdeği esbuild ile paketler: dist/index.js (kitaplık), dist/cli.js (komut satırı) ve
+// dist/gomme-calisani.js (kod zekâsının gömme iş parçacığı; worker_threads ile ayrı yüklenir)
 import { build } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
@@ -11,7 +12,11 @@ const dislar = Object.keys(paket.dependencies ?? {});
 
 fs.rmSync(path.join(kok, "dist"), { recursive: true, force: true });
 await build({
-  entryPoints: { index: path.join(kok, "src/index.ts"), cli: path.join(kok, "src/cli.ts") },
+  entryPoints: {
+    index: path.join(kok, "src/index.ts"),
+    cli: path.join(kok, "src/cli.ts"),
+    "gomme-calisani": path.join(kok, "src/kod-zekasi/gomme-calisani.ts"),
+  },
   outdir: path.join(kok, "dist"),
   bundle: true,
   platform: "node",
@@ -24,4 +29,4 @@ await build({
   logLevel: "warning",
 });
 fs.chmodSync(path.join(kok, "dist/cli.js"), 0o755);
-console.log("Çekirdek derlendi: dist/index.js, dist/cli.js");
+console.log("Çekirdek derlendi: dist/index.js, dist/cli.js, dist/gomme-calisani.js");

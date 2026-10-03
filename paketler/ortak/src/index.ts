@@ -51,6 +51,10 @@ export interface Ayarlar {
   besSaatlikSinirYuzde: number;
   /** Abonelikte haftalık pencere için üst sınır yüzdesi; 0 sınırsız */
   haftalikSinirYuzde: number;
+  /** Kod zekâsının anlamsal arama modeli; kapali iken yalnız anahtar sözcükle aranır */
+  kodZekasiModeli: KodZekasiModeli;
+  /** Proje açılınca ana repo arka planda dizinlenir, değişen dosyalar kendiliğinden güncellenir */
+  kodZekasiOtomatik: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -595,6 +599,7 @@ export type SunucuOlayi =
   | { tur: "hafiza.silindi"; projeId: string; id: string }
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
+  | { tur: "kod.dizin"; projeId: string; durum: KodDizinDurumu }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };
 
 export type IstemciOlayi = { tur: "abone"; projeId: string | null } | { tur: "ping" };
@@ -753,4 +758,183 @@ export interface GitCommitIstegi {
 
 export interface GitCommitSonucu {
   commit: string;
+}
+
+// ---------------------------------------------------------------------------
+// Kod zekâsı: kod tarayıcı, sembol ve bağımlılık haritası, anlamsal kod dizini
+// Uçlar: /api/projeler/:pid/kod-zekasi/* (docs/API.md, "Kod zekâsı")
+// ---------------------------------------------------------------------------
+
+/** kaliteli: EmbeddingGemma 300M (çok dilli, kod); hizli: multilingual-e5-small; kapali: yalnız anahtar sözcük */
+export type KodZekasiModeli = "kaliteli" | "hizli" | "kapali";
+
+/** bos: hiç dizinlenmedi; taraniyor: dosyalar okunup sembol ve parçalara ayrılıyor; model-indiriliyor: gömme modeli ilk kez iniyor;
+ * gomuluyor: parçaların vektörleri hesaplanıyor (anahtar sözcük araması bu sırada çalışır); hazir; hata */
+export type KodDizinAsamasi = "bos" | "taraniyor" | "model-indiriliyor" | "gomuluyor" | "hazir" | "hata";
+
+/** Bir çalışma alanının ("ana" ya da ajan kimliği) dizin durumu */
+export interface KodDizinDurumu {
+  alan: string;
+  durum: KodDizinAsamasi;
+  /** Dizindeki dosya, sembol ve parça sayıları */
+  dosya: number;
+  sembol: number;
+  parca: number;
+  /** Vektörü hesaplanmış parça sayısı (etkin model için) */
+  gomulen: number;
+  toplamParca: number;
+  /** Etkin gömme modelinin kimliği; anahtar sözcük kipinde null */
+  model: string | null;
+  /** Model indirilirken 0–100 */
+  indirmeYuzde: number | null;
+  /** Taranırken: işlenen ve toplam dosya */
+  taranan?: number;
+  toplamDosya?: number;
+  sonGuncelleme: Zaman | null;
+  hata: string | null;
+}
+
+export type KodSembolTuru =
+  | "fonksiyon"
+  | "metod"
+  | "sinif"
+  | "arayuz"
+  | "tur"
+  | "enum"
+  | "sabit"
+  | "degisken"
+  | "yapi"
+  | "modul"
+  | "baslik"
+  | "secici"
+  | "tablo";
+
+export const KOD_SEMBOL_TURU_ADLARI: Record<KodSembolTuru, string> = {
+  fonksiyon: "fonksiyon",
+  metod: "metod",
+  sinif: "sınıf",
+  arayuz: "arayüz",
+  tur: "tür",
+  enum: "enum",
+  sabit: "sabit",
+  degisken: "değişken",
+  yapi: "yapı",
+  modul: "modül",
+  baslik: "başlık",
+  secici: "seçici",
+  tablo: "tablo",
+};
+
+export interface KodSembolu {
+  ad: string;
+  tur: KodSembolTuru;
+  /** Çalışma alanı köküne göre yol, / ayraçlı */
+  yol: string;
+  /** 1 tabanlı, kapsayıcı satır aralığı */
+  bas: number;
+  bit: number;
+  disaAcik: boolean;
+  /** Metodun sınıfı, iç içe sembolün kapsayıcısı */
+  ust: string | null;
+  /** Tanımın ilk satırı (kısaltılmış) */
+  imza: string;
+}
+
+/** Arama sonucunu hangi yol buldu */
+export type KodEslesmeTuru = "anlamsal" | "sozcuk" | "sembol" | "karma";
+
+export interface KodAramaSonucu {
+  yol: string;
+  dil: string;
+  /** Parçanın 1 tabanlı satır aralığı */
+  bas: number;
+  bit: number;
+  sembol: string | null;
+  sembolTuru: KodSembolTuru | null;
+  /** 0–1; birden çok yöntemin üst sıralarında olan sonuç yüksek puan alır */
+  puan: number;
+  eslesme: KodEslesmeTuru;
+  /** En çok ~20 satırlık kesit ve ilk satırının numarası */
+  kesit: string;
+  kesitBas: number;
+}
+
+export interface KodAramaYaniti {
+  sonuclar: KodAramaSonucu[];
+  durum: KodDizinDurumu;
+  /** Anlamsal arama kullanılamadı (model kapalı, dizin hazır değil ya da zaman aşımı); yalnız anahtar sözcükle bulundu */
+  yalnizSozcuk: boolean;
+  /** Arama süresi (ms) */
+  sureMs: number;
+}
+
+/** Harita düğümü: klasör ya da dosya */
+export interface KodHaritaDugumu {
+  ad: string;
+  yol: string;
+  tur: "klasor" | "dosya";
+  dil?: string;
+  /** Dosyanın ya da klasördeki tüm dosyaların satır sayısı */
+  satir: number;
+  /** Klasördeki dosya sayısı (alt klasörler dahil) */
+  dosyaSayisi?: number;
+  /** Dosyanın öne çıkan sembolleri (dışa açık ve büyük olanlar önce) */
+  semboller?: Pick<KodSembolu, "ad" | "tur" | "bas" | "disaAcik">[];
+  /** Bu dosyayı içe aktaran dosya sayısı */
+  iceAktaran?: number;
+  cocuklar?: KodHaritaDugumu[];
+}
+
+export interface KodIceAktarma {
+  /** Çözülen dosya ya da klasör yolu; dış paketlerde null */
+  yol: string | null;
+  /** Koddaki belirteç: "./a.js", "react", "app.models" */
+  kaynak: string;
+  /** İçe aktaran dosyadaki satır */
+  satir: number;
+  /** İçe aktarılan adlar (biliniyorsa) */
+  adlar: string[];
+}
+
+export interface KodBagimliliklari {
+  yol: string;
+  iceAktardiklari: KodIceAktarma[];
+  iceAktaranlar: { yol: string; satir: number; adlar: string[] }[];
+}
+
+export interface KodGrafikDugumu {
+  /** Düğüm kimliği: dosya ya da klasör yolu (kök klasör ".") */
+  id: string;
+  dil: string;
+  satir: number;
+  dosya: number;
+}
+
+export interface KodGrafikKenari {
+  kaynak: string;
+  hedef: string;
+  /** İçe aktarma sayısı */
+  agirlik: number;
+}
+
+export interface KodGrafigi {
+  duzey: "klasor" | "dosya";
+  dugumler: KodGrafikDugumu[];
+  kenarlar: KodGrafikKenari[];
+  /** Düğüm sınırı yüzünden dışarıda kalan düğüm sayısı */
+  kirpilan: number;
+}
+
+/** Ayarlar ekranı için model bilgisi */
+export interface KodZekasiModelBilgisi {
+  secim: Exclude<KodZekasiModeli, "kapali">;
+  kimlik: string;
+  ad: string;
+  aciklama: string;
+  boyut: number;
+  /** Yaklaşık indirme boyutu (MB) */
+  indirmeMb: number;
+  indirildi: boolean;
+  /** Diskteki boyut (MB); indirilmediyse 0 */
+  diskMb: number;
 }

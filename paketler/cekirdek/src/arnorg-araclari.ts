@@ -1,11 +1,12 @@
 // Ajanların ArnOrg ile konuştuğu süreç içi MCP araçları (mcp__arnorg__*)
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { GOREV_DURUMLARI, type GorevDurumu } from "@arnorg/ortak";
+import { GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
 import { raporOlustur, tokenMetni } from "./gozetmen.js";
 import { sorulardaAra } from "./hatirlatici.js";
+import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -31,8 +32,14 @@ async function guvenli(f: () => Promise<Sonuc> | Sonuc): Promise<Sonuc> {
 }
 
 const durumSemasi = z.enum(GOREV_DURUMLARI as [GorevDurumu, ...GorevDurumu[]]);
+const sembolTuruSemasi = z.enum(Object.keys(KOD_SEMBOL_TURU_ADLARI) as [KodSembolTuru, ...KodSembolTuru[]]);
 
 export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConfigWithInstance {
+  return createSdkMcpServer({ name: "arnorg", version: "0.1.0", tools: arnorgAracListesi(sirket, ajanId) });
+}
+
+/** Ajanın araç tanımları (testler işleyicileri doğrudan çağırabilsin diye ayrı) */
+export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
   const ben = () => sirket.ajan(ajanId);
   const proje = () => sirket.proje(ben().projeId);
   const yonetici = () => Boolean(rolBul(ben().rol)?.yonetici);
@@ -439,6 +446,72 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
           return metin(`Kurul ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`);
         }),
     ),
+    // ---------------- kod zekâsı (ajanın kendi çalışma alanında) ----------------
+    tool(
+      "kod_ara",
+      "Kod tabanında arar: anlamsal (gömme) + anahtar sözcük + sembol adı. Türkçe ya da İngilizce doğal dille (\"ajanlar arası soru nasıl yönlendiriliyor\") ya da tanımlayıcıyla sorabilirsin. Sonuçlar dosya:başlangıç-bitiş, sembol ve satır numaralı kısa kesittir; kendi çalışma alanında arar. Yeri kesin bilmiyorsan Grep yerine bunu kullan.",
+      {
+        sorgu: z.string().min(2).max(2000).describe("Ne arıyorsun: doğal dil ya da tanımlayıcı"),
+        sinir: z.number().int().min(1).max(30).optional().describe("Sonuç sayısı (varsayılan 8)"),
+        yol: z.string().max(500).optional().describe("Yalnız bu klasör ya da glob altında (ör. paketler/cekirdek ya da **/*.tsx)"),
+      },
+      (a) =>
+        guvenli(async () => {
+          const y = await sirket.kodZekasi.ara(ben().projeId, sirket.ajanAlani(ben()), a.sorgu, { sinir: a.sinir ?? 8, yol: a.yol });
+          return metin(aramaMetni(y));
+        }),
+    ),
+    tool(
+      "sembol_bul",
+      "Tanım yerlerini bulur: fonksiyon, sınıf, metot, arayüz, tür, sabit, başlık… Tam ad ve önek eşleşmesi önce gelir; türü, dışa açıklığı ve imzayı gösterir.",
+      {
+        ad: z.string().min(1).max(200).describe("Sembol adı ya da başı (ör. ajanaSor, Depo, hafiza)"),
+        tur: sembolTuruSemasi.optional().describe("Yalnız bu tür"),
+        sinir: z.number().int().min(1).max(50).optional(),
+      },
+      (a) =>
+        guvenli(async () => {
+          const alan = sirket.ajanAlani(ben());
+          const liste = await sirket.kodZekasi.semboller(ben().projeId, alan, a.ad, { tur: a.tur, sinir: a.sinir ?? 15 });
+          return metin(sembolMetni(a.ad, liste, sirket.kodZekasi.durum(ben().projeId, alan)));
+        }),
+    ),
+    tool(
+      "kod_haritasi",
+      "Deponun bütçeli haritası: klasörler, dosyalar (satır sayısıyla) ve en önemli sembolleri; çok kullanılan dosyalar önce. Projeyi ya da bir klasörü tanımak için ilk adım.",
+      { yol: z.string().max(500).optional().describe("Yalnız bu klasör (ör. paketler/studyo/src)") },
+      (a) =>
+        guvenli(async () => {
+          const alan = sirket.ajanAlani(ben());
+          const harita = await sirket.kodZekasi.haritaMetni(ben().projeId, alan, { yol: a.yol, butce: 4000 });
+          const not = durumNotu(sirket.kodZekasi.durum(ben().projeId, alan));
+          return metin(not ? `${not}\n${harita}` : harita);
+        }),
+    ),
+    tool(
+      "bagimliliklar",
+      "Bir dosyanın içe aktardıkları ve onu içe aktaran dosyalar. Bir değişikliğin kimi etkileyeceğini görmek için.",
+      { dosya: z.string().min(1).max(500).describe("Çalışma alanı köküne göre yol (ör. src/depo.ts)") },
+      (a) =>
+        guvenli(async () => {
+          const b = await sirket.kodZekasi.bagimliliklar(ben().projeId, sirket.ajanAlani(ben()), a.dosya);
+          return metin(bagimlilikMetni(b));
+        }),
+    ),
+    tool(
+      "benzer_kod",
+      "Verilen satırı içeren koda en çok benzeyen yerleri bulur: tekrar eden kodu birleştirmeden ya da bir kalıbın diğer örneklerini düzeltmeden önce kullan.",
+      {
+        dosya: z.string().min(1).max(500).describe("Çalışma alanı köküne göre yol"),
+        satir: z.number().int().min(1).describe("Bu satırı içeren kod parçası"),
+        sinir: z.number().int().min(1).max(20).optional(),
+      },
+      (a) =>
+        guvenli(async () => {
+          const y = await sirket.kodZekasi.benzer(ben().projeId, sirket.ajanAlani(ben()), a.dosya, a.satir, a.sinir ?? 6);
+          return metin(aramaMetni(y, { baslik: `${a.dosya}:${a.satir} koduna benzeyen ${y.sonuclar.length} yer` }));
+        }),
+    ),
     tool(
       "calisma_farki",
       "Bir çalışanın çalışma alanındaki değişiklikleri ana dala göre gösterir (git diff). İnceleme için.",
@@ -500,5 +573,5 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
     ),
   ];
 
-  return createSdkMcpServer({ name: "arnorg", version: "0.1.0", tools: araclar });
+  return araclar;
 }

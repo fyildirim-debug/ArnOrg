@@ -189,6 +189,73 @@ Hafıza, ajan çalışırken de doğru anda önüne gelir (Claude Code kancalar�
 
 Hafıza bakımı: `GET /api/projeler/:pid/hafiza/benzerler` aynı türde birbirini tekrar eden geçerli kayıt çiftlerini döner (`HafizaBenzerCifti[]`, benzerlik 0–1). `POST /api/hafiza/:hid/birlestir` `{ eskiyen, metin? }` tutulan kaydı (isteğe bağlı birleşik metinle) günceller, ötekini eskimiş sayar. `POST /api/projeler/:pid/hafiza/ayri` `{ a, b }` çifti bir daha önermez. Ajan araçları: `hafiza_bakim`, `hafiza_birlestir`; CEO dönem raporunda bakım yapar. Silme `hafiza.silindi` olayını yayınlar. `toplanti_yap` (gündem, isteğe bağlı katılımcılar, bekle_dk): katılımcıların görüşü ajanlar arası soru olarak paralel toplanır, konuşma `#toplanti` kanalına yazılır, özet hafızaya `ozet` olarak düşer; katılımcı verilmezse ArnOrg konuya en yakın en çok üç çalışanı seçer. Kararı çağıran verir ve `karar` olarak kaydeder. Görev başka bir çalışana geçerse yeni sahibin görev mesajına önceki sahibin defteri, göreve bağlı hafıza kayıtları ve görev kodunun geçtiği yanıtlanmış sorular eklenir.
 
+## Kod zekâsı
+
+Her projenin kodu, proje başına bir SQLite dizininde tutulur (`<veri dizini>/kod-dizini/<projeId>.db`). Dizinde dosyalar, semboller, içe aktarmalar ve arama parçaları vardır:
+- Semboller: fonksiyon, sınıf, metot, arayüz, tür, sabit, Markdown başlığı, CSS seçicisi…
+- Arama parçaları: sembole dayalı, ~40–80 satır.
+
+Gömmeler metin özetiyle saklanır. Ajan worktree'lerinde ana repoyla aynı olan parçaların vektörü yeniden hesaplanmaz.
+
+Arama hibrittir; üç yöntem Reciprocal Rank Fusion ile birleşir:
+- anlamsal (kosinüs);
+- anahtar sözcük (FTS5 bm25): tanımlayıcılar camelCase ve snake_case parçalarına bölünür, Türkçe harfler sadeleşir;
+- sembol adı.
+
+Hangi dosyalar dizine girer:
+- Kaynak: `git ls-files` listesindeki izlenen ve yok sayılmayan dosyalar.
+- 512 KB üstü dosya girmez; JSON, YAML gibi veri dosyalarında sınır 128 KB.
+- İkili, kilit ve küçültülmüş dosyalar girmez.
+- Üretilmiş klasörler girmez: `dist`, `build`, `node_modules`, `.arnorg`…
+- Politikadaki "Gizli dosyalar" kuralına uyanlar girmez: `.env`, özel anahtarlar, `credentials.json`…
+
+Model, `Ayarlar.kodZekasiModeli` ile seçilir:
+
+| Seçim | Model | Boyut |
+|---|---|---|
+| `kaliteli` (varsayılan) | EmbeddingGemma 300M, q8 | 768 boyut, ~310 MB |
+| `hizli` | multilingual-e5-small, q8 | 384 boyut, ~130 MB |
+| `kapali` | yalnız anahtar sözcük | — |
+
+- **Ölçüm** (4 çekirdekli CPU, bu repo: 197 dosya, 1607 parça):
+
+  | Adım | EmbeddingGemma | e5-small |
+  |---|---|---|
+  | Tarama (sembol, içe aktarma, parça ve FTS) | ~3 sn | ~3 sn |
+  | İlk gömme | 835 sn | 153 sn |
+  | Sorgu (sorgu vektörü dahil) | ~0,25 sn | ~0,02–0,06 sn |
+
+  İlk gömmede çok içe aktarılan kaynak dosyalar önce, testler ve belgeler sona kalır; bu sırada anahtar sözcük araması çalışır. Sonraki taramalarda yalnız değişen parçalar gömülür. Model değişince eski vektörler silinmez; geri dönüş anında olur.
+- **Kurulum:** Model ilk kullanımda veri dizinindeki `modeller/` altına iner. Yeri `ARNORG_MODEL_DIZINI` ile değiştirilebilir. Çıkarım CPU'da, ayrı bir iş parçacığında çalışır; ana olay döngüsünü kilitlemez.
+- **Ne zaman dizinlenir:** `Ayarlar.kodZekasiOtomatik` varsayılan olarak açıktır. Açıkken sunucu açılınca ve proje eklenince ana repo arka planda dizinlenir. Değişen dosyalar 3 sn gecikmeyle artımlı işlenir. Ajan worktree'leri ilk sorguda dizinlenir.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/kod-zekasi/modeller` | — | `KodZekasiModelBilgisi[]` (indirildi mi, diskteki boyut) |
+| GET | `/api/projeler/:pid/kod-zekasi?alan=` | — | `KodDizinDurumu[]` (alan verilmezse projenin tüm alanları, "ana" önce) |
+| POST | `/api/projeler/:pid/kod-zekasi/dizinle` | `{alan?, sifirdan?}` | `KodDizinDurumu` (iş arka planda sürer) |
+| GET | `/api/projeler/:pid/kod-zekasi/ara?alan=&q=&sinir=&yol=` | — | `KodAramaYaniti` (yol: klasör ya da glob, ör. `src/**/*.tsx`) |
+| GET | `/api/projeler/:pid/kod-zekasi/semboller?alan=&q=&tur=&sinir=` | — | `KodSembolu[]` (tam ad, önek, içerme; q boşsa öne çıkanlar) |
+| GET | `/api/projeler/:pid/kod-zekasi/harita?alan=&yol=` | — | `KodHaritaDugumu` (klasör ağacı: dil, satır, öne çıkan semboller) |
+| GET | `/api/projeler/:pid/kod-zekasi/bagimliliklar?alan=&yol=` | — | `KodBagimliliklari` (içe aktardıkları ve onu içe aktaranlar) |
+| GET | `/api/projeler/:pid/kod-zekasi/grafik?alan=&duzey=` | — | `KodGrafigi` (`duzey`: `klasor` ya da `dosya`) |
+| GET | `/api/projeler/:pid/kod-zekasi/benzer?alan=&yol=&satir=&sinir=` | — | `KodAramaYaniti` (satırı içeren parçaya en çok benzeyenler) |
+
+- **`alan`:** `ana` (varsayılan) ya da ajan kimliği. Hiç dizinlenmemiş alanda ilk sorgu taramayı başlatır ve en çok 20 sn bekler.
+- **Olay `kod.dizin`:** `KodDizinDurumu` taşır. Alan başına saniyede en çok iki kez yayınlanır; son durum her zaman gelir.
+
+Ajan araçları ajanın kendi çalışma alanında çalışır:
+
+| Araç | Ne yapar |
+|---|---|
+| `kod_ara` | Kodda arar |
+| `sembol_bul` | Sembolü adıyla bulur |
+| `kod_haritasi` | ~4000 karakterlik harita verir; en çok kullanılan dosyalar (içe aktarma grafiğinde PageRank) önce gelir |
+| `bagimliliklar` | İçe aktardıklarını ve onu içe aktaranları listeler |
+| `benzer_kod` | Satırı içeren parçaya en çok benzeyenleri bulur |
+
+Görev verilirken dizin hazırsa görev başlığı ve açıklamasıyla arama yapılır. Bulunan en çok beş konum, görev mesajına "İlgili kod" olarak eklenir. Arama en çok ~1,5 sn sürer; dizin hazır değilse atlanır.
+
 ## Rapor ve tıkanma koruması
 
 | Yöntem | Yol | Yanıt |

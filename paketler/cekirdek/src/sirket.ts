@@ -80,6 +80,7 @@ export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string }
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
+import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
 import type { OlayYolu } from "./olaylar.js";
 import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./politika.js";
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
@@ -136,6 +137,8 @@ export class Sirket {
   private readonly defterIzleri = new Map<string, { arac: number; yazildi: boolean }>();
   /** .arnorg değişikliklerinin gecikmeli commit'i */
   private readonly arnorgCommitZamanlayicilari = new Map<string, NodeJS.Timeout>();
+  /** Kod tarayıcı, sembol ve bağımlılık haritası, anlamsal kod dizini */
+  readonly kodZekasi: KodZekasi;
 
   constructor(
     readonly depo: Depo,
@@ -150,6 +153,15 @@ export class Sirket {
     depo.bekleyenSorulariKapat();
     this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     this.hatirlatici = new Hatirlatici(depo, this.hafiza);
+    this.kodZekasi = new KodZekasi({
+      veriDizini: yapilandirma.veriDizini,
+      yayinla: (o) => olaylar.yayinla(o),
+      alanYolu: (pid, alan) => this.alanYolu(pid, alan),
+      projeler: () => depo.projeler().map((p) => ({ id: p.id, yol: p.yol })),
+      ayarlar: () => yapilandirma.ayarlar,
+    });
+    // Dosya değişiklikleri dizini artımlı günceller; silinen ajanın alanı dizinden çıkar
+    olaylar.dinle((o) => this.kodZekasi.olay(o));
     this.karakterleriTamamla();
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
@@ -309,6 +321,7 @@ export class Sirket {
 
   projeSil(id: string): void {
     for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
+    this.kodZekasi.projeKaldir(id);
     this.depo.projeSil(id);
     this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: "Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı." });
   }
@@ -467,6 +480,12 @@ export class Sirket {
     return liste;
   }
 
+  /** Ajanın kod zekâsı alanı: kendi worktree'si varsa ajan kimliği, yoksa (CEO, henüz başlamamış) "ana" */
+  ajanAlani(ajan: Ajan): string {
+    const p = this.depo.proje(ajan.projeId);
+    return ajan.calismaAlani && p && ajan.calismaAlani !== p.yol && fs.existsSync(ajan.calismaAlani) ? ajan.id : "ana";
+  }
+
   alanYolu(projeId: string, alan: string): string {
     const p = this.proje(projeId);
     if (!alan || alan === "ana") return p.yol;
@@ -512,6 +531,7 @@ export class Sirket {
       "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
       "- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister.",
       "- Kodu commit'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, \"Generated with Claude Code\" ya da başka bir Claude imzası ekleme.",
+      "- Kodda bir şey ararken önce mcp__arnorg__kod_ara kullan (anlamsal; Türkçe ya da İngilizce doğal dille sorabilirsin). Tam adını bildiğin tanım için sembol_bul, projenin yapısı için kod_haritasi, bir dosyayı kimin kullandığı için bagimliliklar, tekrar eden kod için benzer_kod. Grep ve Read'i yer kesin belliyken kullan.",
       "",
       "## Unutmamak ve birlikte düşünmek",
       "- Bu projenin hafızası kalıcıdır ve yalnız bu projeye aittir. Aşağıdaki hafıza her oturumda sana verilir; başka projelerin bilgisini karıştırma.",
@@ -590,7 +610,7 @@ export class Sirket {
       if (!g || g.projeId !== a.projeId) throw bulunamadi("Görev");
       if (g.atananId !== id) this.depo.gorevGuncelle(g.id, { atananId: id });
       this.depo.ajanGuncelle(id, { gorevId: g.id });
-      metin = this.gorevMetni(g) + (metin ? `\n\nEk not: ${metin}` : "");
+      metin = this.gorevMetni(g, null, await this.ilgiliKod(g)) + (metin ? `\n\nEk not: ${metin}` : "");
     }
     if (!metin) {
       const benim = this.depo.gorevler(a.projeId).filter((g) => g.atananId === id && (g.durum === "calisiliyor" || g.durum === "planlandi"));
@@ -1046,11 +1066,29 @@ export class Sirket {
   // Görevler
   // ===================================================================
 
+  /** Görev metnine eklenen "İlgili kod": dizin hazırsa görev başlığı ve açıklamasıyla kod araması (en çok ~1,5 sn) */
+  async ilgiliKod(g: Gorev): Promise<string> {
+    try {
+      const atanan = g.atananId ? this.depo.ajan(g.atananId) : null;
+      const ajanAlani = atanan ? this.ajanAlani(atanan) : "ana";
+      const alan = this.kodZekasi.hazirMi(g.projeId, ajanAlani) ? ajanAlani : this.kodZekasi.hazirMi(g.projeId, "ana") ? "ana" : null;
+      if (!alan) return "";
+      const sorgu = kisalt(`${g.baslik}\n${g.aciklama}`, 600);
+      const arama = this.kodZekasi.ara(g.projeId, alan, sorgu, { sinir: 8, zamanAsimiMs: 1200, bekleMs: 0 });
+      const y = await Promise.race([arama, new Promise<null>((coz) => setTimeout(() => coz(null), 1500).unref())]);
+      if (!y) return "";
+      const liste = konumListesi({ ...y, sonuclar: y.sonuclar.filter((r) => r.puan >= 0.25) }, 5);
+      return liste ? `İlgili kod (kod zekâsı önerisi; kod_ara ve Read ile doğrula):\n${liste}` : "";
+    } catch {
+      return "";
+    }
+  }
+
   /**
    * Görev mesajı: tanım, bağımlılıklar, göreve bağlı ve ilgili hafıza, görev hakkında sorulup yanıtlananlar.
    * Görev başka birinden devralınıyorsa önceki sahibin defteri de eklenir; iş kaldığı yerden sürer.
    */
-  gorevMetni(g: Gorev, oncekiSahipId: string | null = null): string {
+  gorevMetni(g: Gorev, oncekiSahipId: string | null = null, ilgiliKod = ""): string {
     const bagimli = g.bagimliliklar
       .map((id) => this.depo.gorev(id))
       .filter(Boolean)
@@ -1078,6 +1116,7 @@ export class Sirket {
       bagliMetin,
       ilgili ? `\n${ilgili}` : "",
       sorular.length ? ["\nBu görev hakkında sorulup yanıtlananlar:", ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd}: ${kisalt(x.soru, 160)} | ${kisalt(x.yanit ?? "", 260)}`)].join("\n") : "",
+      ilgiliKod ? `\n${ilgiliKod}` : "",
       "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
     ].join("\n");
   }
@@ -1167,7 +1206,8 @@ export class Sirket {
     if (!g.atananId) return;
     this.depo.ajanGuncelle(g.atananId, { gorevId: g.id });
     const oturum = this.oturumlar.get(g.atananId);
-    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${this.gorevMetni(g, oncekiSahipId)}` : this.gorevMetni(g, oncekiSahipId);
+    const gorevMetni = this.gorevMetni(g, oncekiSahipId, await this.ilgiliKod(g));
+    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${gorevMetni}` : gorevMetni;
     await this.ajanaMesaj(g.atananId, metin, "next", { tur: "sistem" });
   }
 
@@ -1505,6 +1545,7 @@ export class Sirket {
   kapat(): void {
     this.hesap.durdur();
     this.hafiza.kapat();
+    void this.kodZekasi.kapat();
     for (const z of this.arnorgCommitZamanlayicilari.values()) clearTimeout(z);
     for (const b of this.bekleyenSorular.values()) clearTimeout(b.zamanlayici);
     for (const o of this.oturumlar.values()) o.kapat();

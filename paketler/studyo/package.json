@@ -65,6 +65,7 @@
     "@codingame/monaco-vscode-workspace-trust-service-override": "37.3.3",
     "@fontsource/anton": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
+    "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
     "marked": "^18.0.14",
     "react": "^19.3.0",
@@ -74,6 +75,7 @@
   },
   "devDependencies": {
     "@arnorg/ortak": "*",
+    "@types/d3-force": "^3.0.10",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",

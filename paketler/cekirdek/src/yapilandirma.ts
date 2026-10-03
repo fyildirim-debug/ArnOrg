@@ -14,6 +14,8 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   girisYontemi: "abonelik",
   besSaatlikSinirYuzde: 90,
   haftalikSinirYuzde: 95,
+  kodZekasiModeli: "kaliteli",
+  kodZekasiOtomatik: true,
 };
 
 export class Yapilandirma {
@@ -50,6 +52,8 @@ export class Yapilandirma {
     if (typeof degisiklik.besSaatlikSinirYuzde === "number") temiz.besSaatlikSinirYuzde = yuzde(degisiklik.besSaatlikSinirYuzde);
     if (typeof degisiklik.haftalikSinirYuzde === "number") temiz.haftalikSinirYuzde = yuzde(degisiklik.haftalikSinirYuzde);
     if (typeof degisiklik.tikanmaDakika === "number") temiz.tikanmaDakika = Math.min(Math.max(0, Math.round(degisiklik.tikanmaDakika)), 1440);
+    if (degisiklik.kodZekasiModeli === "kaliteli" || degisiklik.kodZekasiModeli === "hizli" || degisiklik.kodZekasiModeli === "kapali") temiz.kodZekasiModeli = degisiklik.kodZekasiModeli;
+    if (typeof degisiklik.kodZekasiOtomatik === "boolean") temiz.kodZekasiOtomatik = degisiklik.kodZekasiOtomatik;
     this.mevcut = { ...this.mevcut, ...temiz };
     fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
     return this.ayarlar;

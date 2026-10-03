@@ -7,7 +7,18 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createRequire } from "node:module";
-import { ARNORG_SURUMU, KURUL, type HafizaTuru, type IstemciOlayi, type OnayDurumu, type Saglik, type SunucuOlayi, type TerminalIstemciMesaji } from "@arnorg/ortak";
+import {
+  ARNORG_SURUMU,
+  KOD_SEMBOL_TURU_ADLARI,
+  KURUL,
+  type HafizaTuru,
+  type IstemciOlayi,
+  type KodSembolTuru,
+  type OnayDurumu,
+  type Saglik,
+  type SunucuOlayi,
+  type TerminalIstemciMesaji,
+} from "@arnorg/ortak";
 import { z, ZodError } from "zod";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { fsUclariniKur } from "./fs-api.js";
@@ -108,6 +119,8 @@ const semalar = {
     girisYontemi: z.enum(["abonelik", "api"]).optional(),
     besSaatlikSinirYuzde: z.number().min(0).max(100).optional(),
     haftalikSinirYuzde: z.number().min(0).max(100).optional(),
+    kodZekasiModeli: z.enum(["kaliteli", "hizli", "kapali"]).optional(),
+    kodZekasiOtomatik: z.boolean().optional(),
   }),
   politika: z.array(
     z.object({
@@ -220,6 +233,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.put("/api/ayarlar", async (i) => {
     const a = sirket.yapilandirma.guncelle(govde(semalar.ayarlar, i));
     sirket.hesap.ayarlarDegisti();
+    sirket.kodZekasi.ayarlarDegisti();
     return a;
   });
   // Claude girişi ve abonelik kullanımı; ?tazele=1 Claude Code'a yeniden sorar
@@ -345,6 +359,66 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const g = govde(z.object({ icerik: z.string().max(6000) }), i);
     sirket.defterYaz(param(i, "aid"), g.icerik);
     return { tamam: true };
+  });
+
+  // ---------------- kod zekâsı ----------------
+  // Alan: "ana" (proje reposu) ya da ajan kimliği (ajanın worktree'si). Dizinlenmemiş alanda ilk sorgu taramayı başlatır.
+  const kodAlani = (i: FastifyRequest) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    return { pid, alan: sorgu(i, "alan")?.trim() || "ana" };
+  };
+  const kodYolu = (i: FastifyRequest, gerekli: boolean) => {
+    const yol = sorgu(i, "yol")?.trim() ?? "";
+    if (gerekli && !yol) throw new ArnorgHatasi("Dosya yolu (yol) gerekli.");
+    if (yol.length > 1000) throw new ArnorgHatasi("Yol çok uzun.");
+    return yol;
+  };
+  app.get("/api/kod-zekasi/modeller", async () => sirket.kodZekasi.modeller());
+  app.get("/api/projeler/:pid/kod-zekasi", async (i) => {
+    const { pid } = kodAlani(i);
+    const alan = sorgu(i, "alan")?.trim();
+    return alan ? [sirket.kodZekasi.durum(pid, alan)] : sirket.kodZekasi.durumlar(pid);
+  });
+  app.post("/api/projeler/:pid/kod-zekasi/dizinle", async (i) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    const g = govde(z.object({ alan: z.string().max(100).optional(), sifirdan: z.boolean().optional() }), i);
+    const alan = g.alan?.trim() || "ana";
+    const durum = sirket.kodZekasi.durum(pid, alan);
+    // İş arka planda sürer; ilerleme kod.dizin olaylarıyla gelir
+    void sirket.kodZekasi.dizinle(pid, alan, { sifirdan: g.sifirdan }).catch(() => undefined);
+    return durum;
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/ara", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    const q = sorgu(i, "q")?.trim() ?? "";
+    if (!q) throw new ArnorgHatasi("Arama metni (q) gerekli.");
+    if (q.length > 2000) throw new ArnorgHatasi("Arama metni çok uzun.");
+    return sirket.kodZekasi.ara(pid, alan, q, { sinir: Math.min(sayi(sorgu(i, "sinir"), 20), 50), yol: kodYolu(i, false) || undefined });
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/semboller", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    const tur = sorgu(i, "tur") as KodSembolTuru | undefined;
+    if (tur && !(tur in KOD_SEMBOL_TURU_ADLARI)) throw new ArnorgHatasi("Geçersiz sembol türü.");
+    return sirket.kodZekasi.semboller(pid, alan, (sorgu(i, "q") ?? "").slice(0, 200), { tur, sinir: Math.min(sayi(sorgu(i, "sinir"), 100), 500) });
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/harita", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    return sirket.kodZekasi.harita(pid, alan, kodYolu(i, false));
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/bagimliliklar", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    return sirket.kodZekasi.bagimliliklar(pid, alan, kodYolu(i, true));
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/grafik", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    const duzey = sorgu(i, "duzey") === "dosya" ? "dosya" : "klasor";
+    return sirket.kodZekasi.grafik(pid, alan, duzey);
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/benzer", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    return sirket.kodZekasi.benzer(pid, alan, kodYolu(i, true), sayi(sorgu(i, "satir"), 1), Math.min(sayi(sorgu(i, "sinir"), 8), 30));
   });
 
   // ---------------- rapor ----------------

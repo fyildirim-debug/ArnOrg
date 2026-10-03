@@ -51,6 +51,8 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   const gozetmen = new Gozetmen(sirket);
   gozetmen.baslat();
   sirket.hesap.baslat();
+  // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
+  sirket.kodZekasi.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {
     const d = sirket.duzenlemeler.get(tam);
     return d && Date.now() - d.zaman < 15_000 ? d.ajanId : null;
@@ -91,6 +93,7 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
       if (kapandi) return;
       kapandi = true;
       gozetmen.durdur();
+      await sirket.kodZekasi.kapat();
       sirket.kapat();
       terminaller.hepsiniKapat();
       await izleyici.kapat();
