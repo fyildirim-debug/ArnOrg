@@ -31,6 +31,12 @@ export function bugun(tarih = new Date()): string {
 }
 
 /** Türkçe karakterleri sadeleştirip dosya/dal adına uygun hale getirir */
+/** Arama için Türkçe harfleri sadeleştirir ve küçültür: "Veritabanı Göçü" → "veritabani gocu" */
+export function aramaMetni(metin: string): string {
+  const harita: Record<string, string> = { ç: "c", ğ: "g", ı: "i", İ: "i", ö: "o", ş: "s", ü: "u", Ç: "c", Ğ: "g", Ö: "o", Ş: "s", Ü: "u", â: "a", î: "i", û: "u" };
+  return metin.replace(/[çğıİöşüÇĞÖŞÜâîû]/g, (h) => harita[h] ?? h).toLowerCase();
+}
+
 export function sadelestir(metin: string): string {
   const harita: Record<string, string> = { ç: "c", ğ: "g", ı: "i", İ: "i", ö: "o", ş: "s", ü: "u", Ç: "c", Ğ: "g", Ö: "o", Ş: "s", Ü: "u" };
   return metin

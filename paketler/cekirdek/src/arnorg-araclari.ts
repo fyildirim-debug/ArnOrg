@@ -251,13 +251,99 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         }),
     ),
     tool(
-      "hafiza_ara",
-      "Proje notlarında arar.",
-      { sorgu: z.string().min(2) },
+      "hafiza_kaydet",
+      "Bu projenin kalıcı hafızasına kayıt yazar. Türler: tercih (kurulun isteği, üslup, yasak), karar (alınan karar ve gerekçesi), ogrenilen (hata ve çözümü, püf noktası), olgu (projeye dair doğru bilgi: sürüm, yapı, komut), uzmanlik (kim neyi biliyor), ozet (biten iş, devir notu). Aynı tür ve başlıkta kayıt varsa güncellenir. Bilgi değiştiyse eski kaydın kimliğini yerine_gecen ile ver.",
+      {
+        tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]),
+        baslik: z.string().min(3).max(160).describe("Kısa, aranabilir başlık; ör. 'Veritabanı: SQLite'"),
+        metin: z.string().min(5).max(4000).describe("Ne, neden, nasıl; tek paragraf yeterli"),
+        etiketler: z.array(z.string()).max(8).optional(),
+        onem: z.number().int().min(1).max(5).optional().describe("5 her oturumda hatırlanmalı, 1 ayrıntı; varsayılan 3"),
+        gorev: z.string().optional().describe("İlgili görev kodu, ör. T-4"),
+        yerine_gecen: z.string().optional().describe("Bu kaydın yerine geçtiği eski kaydın kimliği (bağlamdaki kimlik ilk 8 karakteri yeterli)"),
+      },
       (a) =>
         guvenli(() => {
-          const s = notlardaAra(proje().yol, a.sorgu);
-          return metin(s.length ? s.map((x) => `${x.yol}:${x.satir}: ${x.metin}`).join("\n") : "Eşleşme yok.");
+          const pid = ben().projeId;
+          const gorevId = a.gorev ? (sirket.depo.gorevKoduyla(pid, a.gorev)?.id ?? null) : null;
+          let eski: string | null = null;
+          if (a.yerine_gecen) {
+            const aday = sirket.depo.hafizaKayitlari(pid, { eskilerDahil: true, sinir: 5000 }).filter((k) => k.id.startsWith(a.yerine_gecen!));
+            if (aday.length !== 1) return hata("Yerine geçilecek kayıt bulunamadı ya da kimlik belirsiz; hafiza_ara ile kimliği bul.");
+            eski = aday[0]!.id;
+          }
+          const k = sirket.hafizaYaz(pid, { tur: a.tur, baslik: a.baslik, metin: a.metin, etiketler: a.etiketler, onem: a.onem, gorevId, yerineGectigi: eski }, ajanId);
+          return metin(`Hafızaya yazıldı (${k.tur}, kimlik ${k.id.slice(0, 8)}): ${k.baslik}`);
+        }),
+    ),
+    tool(
+      "hafiza_ara",
+      "Bu projenin hafızasında ve notlarında arar. Bir şeyi bilmiyorsan, karar vermeden ya da işe başlamadan önce kullan.",
+      { sorgu: z.string().min(2), tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]).optional() },
+      (a) =>
+        guvenli(() => {
+          const kayitlar = sirket.hafiza.ara(ben().projeId, a.sorgu, a.tur, 12);
+          const notlar = a.tur ? [] : notlardaAra(proje().yol, a.sorgu).slice(0, 12);
+          const parcalar: string[] = [];
+          if (kayitlar.length)
+            parcalar.push(
+              "Hafıza:",
+              ...kayitlar.map((k) => `- [${k.tur}] ${k.baslik} (${k.kaynakAd}, ${k.guncelleme.slice(0, 10)}, kimlik ${k.id.slice(0, 8)}): ${kisalt(k.metin, 500)}`),
+            );
+          if (notlar.length) parcalar.push("Notlar:", ...notlar.map((x) => `- ${x.yol}:${x.satir}: ${x.metin}`));
+          return metin(parcalar.length ? parcalar.join("\n") : "Eşleşme yok. Bilen biri varsa ajana_sor ile sor.");
+        }),
+    ),
+    tool(
+      "hafiza_listele",
+      "Hafızadaki geçerli kayıtları türe göre listeler.",
+      { tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]) },
+      (a) =>
+        guvenli(() => {
+          const k = sirket.depo.hafizaKayitlari(ben().projeId, { tur: a.tur, sinir: 60 });
+          return metin(k.length ? k.map((x) => `- ${x.baslik} (kimlik ${x.id.slice(0, 8)}, ${x.kaynakAd}): ${kisalt(x.metin, 300)}`).join("\n") : "Bu türde kayıt yok.");
+        }),
+    ),
+    tool(
+      "defter_yaz",
+      "Kendi defterini baştan yazar: açık işlerin, verdiğin sözler, sıradaki adımın, dikkat ettiğin şeyler. Her oturumda sana geri verilir; kısa maddeler kullan, eskiyenleri çıkar.",
+      { icerik: z.string().min(5).max(6000) },
+      (a) =>
+        guvenli(() => {
+          sirket.defterYaz(ajanId, a.icerik);
+          return metin("Defterin güncellendi.");
+        }),
+    ),
+    tool(
+      "defter_oku",
+      "Bir çalışanın defterini okur (boşsa kendi defterin). Başkasının işine dokunmadan önce ya da devir alırken kullan.",
+      { ajan: z.string().optional() },
+      (a) =>
+        guvenli(() => {
+          const hedef = a.ajan ? ajanBul(a.ajan) : ben();
+          const icerik = sirket.hafiza.defter(hedef);
+          return metin(icerik ? `${hedef.ad} defteri:\n${icerik}` : `${hedef.ad} henüz defter yazmamış.`);
+        }),
+    ),
+    tool(
+      "ajana_sor",
+      "Bir çalışana soru sorar ve yanıtını bekler (varsayılan 10, en çok 30 dakika). Uzmanlık, karar gerekçesi ya da onun işine dair bilgi için kullan; kısa ve net sor. Yanıt gelmezse varsayılan ve güvenli yolla devam et.",
+      { ajan: z.string().describe("Çalışan adı"), soru: z.string().min(5).max(4000), bekle_dk: z.number().int().min(1).max(30).optional() },
+      (a) =>
+        guvenli(async () => {
+          const s = await sirket.ajanaSor(ajanId, a.ajan, a.soru, a.bekle_dk ?? 10);
+          if (s.durum === "yanitlandi") return metin(`${s.soruluAd} yanıtladı:\n${s.yanit}`);
+          return metin(`${s.soruluAd} süre içinde yanıt vermedi. Bildiğin kadarıyla ve güvenli yolla devam et; gerekirse mesaj_gonder ile not bırak.`);
+        }),
+    ),
+    tool(
+      "soruyu_yanitla",
+      "Sana sorulan bir soruyu yanıtlar. Yanıt soran çalışana hemen iletilir.",
+      { soru_id: z.string(), yanit: z.string().min(1).max(6000) },
+      (a) =>
+        guvenli(() => {
+          const s = sirket.soruYanitla(ajanId, a.soru_id, a.yanit);
+          return metin(`Yanıtın ${s.soranAd}'a iletildi.`);
         }),
     ),
     tool(

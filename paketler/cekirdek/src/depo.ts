@@ -13,10 +13,14 @@ import type {
   Onay,
   OnayDurumu,
   OnayTuru,
+  AjanSorusu,
+  HafizaKaydi,
+  HafizaTuru,
   PolitikaKurali,
   Proje,
+  SoruDurumu,
 } from "@arnorg/ortak";
-import { bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
+import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 
 const SEMA = `
 CREATE TABLE IF NOT EXISTS projeler (
@@ -134,6 +138,43 @@ CREATE TABLE IF NOT EXISTS anahtar_deger (
   anahtar TEXT PRIMARY KEY,
   deger TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS hafiza (
+  id TEXT PRIMARY KEY,
+  proje_id TEXT NOT NULL,
+  tur TEXT NOT NULL,
+  baslik TEXT NOT NULL,
+  metin TEXT NOT NULL,
+  etiketler TEXT NOT NULL DEFAULT '[]',
+  kaynak_ajan_id TEXT,
+  kaynak_ad TEXT NOT NULL,
+  gorev_id TEXT,
+  onem INTEGER NOT NULL DEFAULT 3,
+  yerine_gecen TEXT,
+  olusturma TEXT NOT NULL,
+  guncelleme TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS hafiza_proje ON hafiza(proje_id, tur, guncelleme);
+CREATE VIRTUAL TABLE IF NOT EXISTS hafiza_ara USING fts5(id UNINDEXED, proje_id UNINDEXED, metin, tokenize = "unicode61 remove_diacritics 2");
+CREATE TABLE IF NOT EXISTS defterler (
+  ajan_id TEXT PRIMARY KEY,
+  proje_id TEXT NOT NULL,
+  icerik TEXT NOT NULL,
+  guncelleme TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sorular (
+  id TEXT PRIMARY KEY,
+  proje_id TEXT NOT NULL,
+  soran_id TEXT NOT NULL,
+  soran_ad TEXT NOT NULL,
+  sorulu_id TEXT NOT NULL,
+  sorulu_ad TEXT NOT NULL,
+  soru TEXT NOT NULL,
+  yanit TEXT,
+  durum TEXT NOT NULL DEFAULT 'bekliyor',
+  olusturma TEXT NOT NULL,
+  yanitlanma TEXT
+);
+CREATE INDEX IF NOT EXISTS sorular_proje ON sorular(proje_id, olusturma);
 `;
 
 type Satir = Record<string, unknown>;
@@ -607,6 +648,186 @@ export class Depo {
     this.db
       .prepare("INSERT INTO politika (proje_id, kurallar) VALUES (?, ?) ON CONFLICT(proje_id) DO UPDATE SET kurallar = excluded.kurallar")
       .run(projeId, JSON.stringify(kurallar));
+  }
+
+  // ---------------- proje hafızası ----------------
+
+  private hafizaSatiri(s: Satir): HafizaKaydi {
+    return {
+      id: String(s.id),
+      projeId: String(s.proje_id),
+      tur: String(s.tur) as HafizaTuru,
+      baslik: String(s.baslik),
+      metin: String(s.metin),
+      etiketler: jsonOku<string[]>(s.etiketler as string, []),
+      kaynakAjanId: (s.kaynak_ajan_id as string | null) ?? null,
+      kaynakAd: String(s.kaynak_ad),
+      gorevId: (s.gorev_id as string | null) ?? null,
+      onem: Number(s.onem),
+      yerineGecen: (s.yerine_gecen as string | null) ?? null,
+      olusturma: String(s.olusturma),
+      guncelleme: String(s.guncelleme),
+    };
+  }
+
+  private hafizaDizinle(k: HafizaKaydi): void {
+    this.db.prepare("DELETE FROM hafiza_ara WHERE id = ?").run(k.id);
+    if (k.yerineGecen) return; // eskimiş kayıt aramada çıkmaz
+    this.db
+      .prepare("INSERT INTO hafiza_ara (id, proje_id, metin) VALUES (?, ?, ?)")
+      .run(k.id, k.projeId, aramaMetni(`${k.baslik} ${k.metin} ${k.etiketler.join(" ")} ${k.kaynakAd}`));
+  }
+
+  hafizaEkle(k: Omit<HafizaKaydi, "id" | "olusturma" | "guncelleme" | "yerineGecen"> & { id?: string; olusturma?: string }): HafizaKaydi {
+    const id = k.id ?? kimlik();
+    const z = k.olusturma ?? simdi();
+    this.db
+      .prepare(
+        `INSERT INTO hafiza (id, proje_id, tur, baslik, metin, etiketler, kaynak_ajan_id, kaynak_ad, gorev_id, onem, yerine_gecen, olusturma, guncelleme)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(id, k.projeId, k.tur, k.baslik, k.metin, JSON.stringify(k.etiketler), k.kaynakAjanId, k.kaynakAd, k.gorevId, k.onem, z, z);
+    const kayit = this.hafizaKaydi(id)!;
+    this.hafizaDizinle(kayit);
+    return kayit;
+  }
+
+  hafizaKaydi(id: string): HafizaKaydi | null {
+    const s = this.db.prepare("SELECT * FROM hafiza WHERE id = ?").get(id) as Satir | undefined;
+    return s ? this.hafizaSatiri(s) : null;
+  }
+
+  hafizaGuncelle(id: string, alanlar: Partial<Pick<HafizaKaydi, "tur" | "baslik" | "metin" | "etiketler" | "onem" | "yerineGecen" | "gorevId">>): HafizaKaydi | null {
+    const eski = this.hafizaKaydi(id);
+    if (!eski) return null;
+    const y = { ...eski, ...alanlar };
+    this.db
+      .prepare("UPDATE hafiza SET tur = ?, baslik = ?, metin = ?, etiketler = ?, onem = ?, yerine_gecen = ?, gorev_id = ?, guncelleme = ? WHERE id = ?")
+      .run(y.tur, y.baslik, y.metin, JSON.stringify(y.etiketler), y.onem, y.yerineGecen, y.gorevId, simdi(), id);
+    const kayit = this.hafizaKaydi(id)!;
+    this.hafizaDizinle(kayit);
+    return kayit;
+  }
+
+  hafizaSil(id: string): void {
+    this.db.prepare("DELETE FROM hafiza WHERE id = ?").run(id);
+    this.db.prepare("DELETE FROM hafiza_ara WHERE id = ?").run(id);
+  }
+
+  /** Geçerli (yerine başkası geçmemiş) kayıtlar; tür süzgeci isteğe bağlı */
+  hafizaKayitlari(projeId: string, secenek: { tur?: HafizaTuru; eskilerDahil?: boolean; sinir?: number } = {}): HafizaKaydi[] {
+    const kosul = ["proje_id = ?"];
+    const degerler: unknown[] = [projeId];
+    if (secenek.tur) {
+      kosul.push("tur = ?");
+      degerler.push(secenek.tur);
+    }
+    if (!secenek.eskilerDahil) kosul.push("yerine_gecen IS NULL");
+    const satirlar = this.db
+      .prepare(`SELECT * FROM hafiza WHERE ${kosul.join(" AND ")} ORDER BY onem DESC, guncelleme DESC LIMIT ?`)
+      .all(...degerler, secenek.sinir ?? 500) as Satir[];
+    return satirlar.map((s) => this.hafizaSatiri(s));
+  }
+
+  /** Tam metin arama: Türkçe harfler sadeleştirilir, her sözcük önek olarak aranır; puan bm25 + önem + tazelik */
+  hafizaAra(projeId: string, sorgu: string, sinir = 20): HafizaKaydi[] {
+    const sozcukler = aramaMetni(sorgu)
+      .split(/[^a-z0-9]+/)
+      .filter((s) => s.length >= 2)
+      .slice(0, 12);
+    if (!sozcukler.length) return [];
+    const ifade = sozcukler.map((s) => `"${s}"*`).join(" OR ");
+    const satirlar = this.db
+      .prepare(
+        `SELECT h.*, bm25(hafiza_ara) AS puan FROM hafiza_ara JOIN hafiza h ON h.id = hafiza_ara.id
+         WHERE hafiza_ara MATCH ? AND hafiza_ara.proje_id = ? AND h.yerine_gecen IS NULL ORDER BY puan LIMIT 100`,
+      )
+      .all(ifade, projeId) as (Satir & { puan: number })[];
+    const simdiMs = Date.now();
+    return satirlar
+      .map((s) => {
+        const k = this.hafizaSatiri(s);
+        const gun = (simdiMs - Date.parse(k.guncelleme)) / 86_400_000;
+        // bm25 negatif; küçük olan daha iyi. Önem ve tazelik puanı iyileştirir.
+        const puan = Number(s.puan) - k.onem * 0.6 + Math.min(gun, 60) * 0.02;
+        return { k, puan };
+      })
+      .sort((a, b) => a.puan - b.puan)
+      .slice(0, sinir)
+      .map((x) => x.k);
+  }
+
+  // ---------------- ajan defterleri ----------------
+
+  defter(ajanId: string): { icerik: string; guncelleme: string } | null {
+    const s = this.db.prepare("SELECT icerik, guncelleme FROM defterler WHERE ajan_id = ?").get(ajanId) as Satir | undefined;
+    return s ? { icerik: String(s.icerik), guncelleme: String(s.guncelleme) } : null;
+  }
+
+  defterYaz(ajanId: string, projeId: string, icerik: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO defterler (ajan_id, proje_id, icerik, guncelleme) VALUES (?, ?, ?, ?)
+         ON CONFLICT(ajan_id) DO UPDATE SET icerik = excluded.icerik, guncelleme = excluded.guncelleme`,
+      )
+      .run(ajanId, projeId, icerik, simdi());
+  }
+
+  // ---------------- ajanlar arası sorular ----------------
+
+  private soruSatiri(s: Satir): AjanSorusu {
+    return {
+      id: String(s.id),
+      projeId: String(s.proje_id),
+      soranId: String(s.soran_id),
+      soranAd: String(s.soran_ad),
+      soruluId: String(s.sorulu_id),
+      soruluAd: String(s.sorulu_ad),
+      soru: String(s.soru),
+      yanit: (s.yanit as string | null) ?? null,
+      durum: String(s.durum) as SoruDurumu,
+      olusturma: String(s.olusturma),
+      yanitlanma: (s.yanitlanma as string | null) ?? null,
+    };
+  }
+
+  soruEkle(s: Pick<AjanSorusu, "projeId" | "soranId" | "soranAd" | "soruluId" | "soruluAd" | "soru">): AjanSorusu {
+    const id = kimlik();
+    this.db
+      .prepare("INSERT INTO sorular (id, proje_id, soran_id, soran_ad, sorulu_id, sorulu_ad, soru, olusturma) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, s.projeId, s.soranId, s.soranAd, s.soruluId, s.soruluAd, s.soru, simdi());
+    return this.soru(id)!;
+  }
+
+  soru(id: string): AjanSorusu | null {
+    const s = this.db.prepare("SELECT * FROM sorular WHERE id = ?").get(id) as Satir | undefined;
+    return s ? this.soruSatiri(s) : null;
+  }
+
+  soruSonuclandir(id: string, durum: SoruDurumu, yanit: string | null): AjanSorusu | null {
+    this.db.prepare("UPDATE sorular SET durum = ?, yanit = ?, yanitlanma = ? WHERE id = ? AND durum = 'bekliyor'").run(durum, yanit, simdi(), id);
+    return this.soru(id);
+  }
+
+  sorular(projeId: string, secenek: { soruluId?: string; durum?: SoruDurumu; sinir?: number } = {}): AjanSorusu[] {
+    const kosul = ["proje_id = ?"];
+    const degerler: unknown[] = [projeId];
+    if (secenek.soruluId) {
+      kosul.push("sorulu_id = ?");
+      degerler.push(secenek.soruluId);
+    }
+    if (secenek.durum) {
+      kosul.push("durum = ?");
+      degerler.push(secenek.durum);
+    }
+    return (this.db.prepare(`SELECT * FROM sorular WHERE ${kosul.join(" AND ")} ORDER BY olusturma DESC LIMIT ?`).all(...degerler, secenek.sinir ?? 200) as Satir[]).map(
+      (s) => this.soruSatiri(s),
+    );
+  }
+
+  /** Uygulama yeniden açılınca bekleyen sorular anlamını yitirir */
+  bekleyenSorulariKapat(): void {
+    this.db.prepare("UPDATE sorular SET durum = 'zaman_asimi', yanitlanma = ? WHERE durum = 'bekliyor'").run(simdi());
   }
 
   // ---------------- anahtar/değer ----------------

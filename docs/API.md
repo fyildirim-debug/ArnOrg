@@ -161,6 +161,21 @@ Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-
 
 Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç). Sürdürülen oturumda Claude Code toplamı önceki turlardan devam ettirdiği için oturum başına son toplam saklanır, yalnız fark sayılır.
 
+## Proje hafızası ve ajanlar arası sorular
+
+Her projenin kendi kalıcı hafızası vardır; başka projelerle karışmaz. Kayıtlar veritabanında aranır, ayrıca repo içinde `.arnorg/hafiza/hafiza.md` (okunur), `.arnorg/hafiza/kayitlar.json` (geri yükleme) ve `.arnorg/hafiza/ajanlar/<ad>.md` (ajan defterleri) olarak tutulur. Var olan bir repo başka makinede bağlanınca hafıza ve defterler geri yüklenir. ArnOrg kendi `.arnorg/` değişikliklerini 90 sn gecikmeyle ve birleştirmeden hemen önce yalnız o yolu kapsayan bir commit'le kaydeder; kullanıcının diğer değişikliklerine dokunmaz.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/hafiza?q=&tur=&eskiler=1` | — | `HafizaKaydi[]` (q varsa Türkçe harf duyarsız tam metin arama, önem ve tazelikle sıralı) |
+| POST | `/api/projeler/:pid/hafiza` | `HafizaYazIstegi` | `HafizaKaydi` (kurul adına; aynı tür ve başlık güncellenir) |
+| PATCH | `/api/hafiza/:hid` | tür, başlık, metin, etiketler, önem | `HafizaKaydi` |
+| DELETE | `/api/hafiza/:hid` | — | `{tamam:true}` |
+| GET | `/api/projeler/:pid/sorular` | — | `AjanSorusu[]` |
+| GET / PUT | `/api/ajanlar/:aid/defter` | `{icerik}` | `{icerik, guncelleme}` |
+
+Ajan araçları: `hafiza_kaydet`, `hafiza_ara` (hafıza + notlar), `hafiza_listele`, `defter_yaz`, `defter_oku`, `ajana_sor` (yanıtı en çok 30 dk bekler; karşılıklı bekleme reddedilir), `soruyu_yanitla`. Her oturumun talimatına kurul tercihleri, kararlar, öğrenilenler, olgular, uzmanlıklar, son özetler, ajanın defteri ve ona sorulmuş bekleyen sorular eklenir; görev verilirken görevle ilgili hafıza kayıtları mesaja eklenir. Çok iş yapıp defterini yazmadan duran ajana bir kez hatırlatılır. Görev bitişi, birleştirme ve işe alım hafızaya kendiliğinden yazılır. Olaylar: `hafiza.yeni`, `soru.guncellendi`.
+
 ## Rapor ve tıkanma koruması
 
 | Yöntem | Yol | Yanıt |

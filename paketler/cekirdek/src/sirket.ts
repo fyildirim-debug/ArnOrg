@@ -17,7 +17,10 @@ import {
   type Gorev,
   type GorevDurumu,
   type GorevGuncelleIstegi,
+  type AjanSorusu,
   type GorevOlusturIstegi,
+  type HafizaKaydi,
+  type HafizaYazIstegi,
   type HesapDurumu,
   type IzinModu,
   type Karar,
@@ -33,6 +36,7 @@ import {
 } from "@arnorg/ortak";
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
 import { HesapIzleyici } from "./hesap.js";
+import { ProjeHafizasi } from "./hafiza.js";
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
@@ -82,6 +86,14 @@ export class Sirket {
   readonly hesap: HesapIzleyici;
   /** Abonelik sınırı yüzünden durdurulan ajanlar ve bu sürede onlara gelen mesajlar; sıfırlanınca teslim edilir */
   private readonly sinirdaBekleyenler = new Map<string, string[]>();
+  /** Proje bazlı kalıcı hafıza ve ajan defterleri */
+  readonly hafiza: ProjeHafizasi;
+  /** Yanıt bekleyen ajanlar arası sorular */
+  private readonly bekleyenSorular = new Map<string, { coz: (s: AjanSorusu) => void; zamanlayici: NodeJS.Timeout }>();
+  /** Defter hatırlatması: oturumdaki araç sayısı ve defterin güncellenip güncellenmediği */
+  private readonly defterIzleri = new Map<string, { arac: number; yazildi: boolean }>();
+  /** .arnorg değişikliklerinin gecikmeli commit'i */
+  private readonly arnorgCommitZamanlayicilari = new Map<string, NodeJS.Timeout>();
 
   constructor(
     readonly depo: Depo,
@@ -93,6 +105,8 @@ export class Sirket {
   ) {
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat();
+    depo.bekleyenSorulariKapat();
+    this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
   }
@@ -236,6 +250,7 @@ export class Sirket {
     if (!this.depo.ajanlar(proje.id).some((a) => a.rol === "ceo")) {
       this.iseAl(proje.id, { ad: "Ada", rol: "ceo" });
     }
+    this.hafiza.iceAktar(proje, this.depo.ajanlar(proje.id));
     this.depo.mesajEkle({
       projeId: proje.id,
       kanal: "genel",
@@ -430,6 +445,15 @@ export class Sirket {
       "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
       "- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister.",
       "- Kodu commit'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, \"Generated with Claude Code\" ya da başka bir Claude imzası ekleme.",
+      "",
+      "## Unutmamak ve birlikte düşünmek",
+      "- Bu projenin hafızası kalıcıdır ve yalnız bu projeye aittir. Aşağıdaki hafıza her oturumda sana verilir; başka projelerin bilgisini karıştırma.",
+      "- Kalıcı bir karar alındığında, kurul bir tercih bildirdiğinde, bir hatanın nedenini ve çözümünü bulduğunda ya da projeye dair önemli bir olgu öğrendiğinde hemen mcp__arnorg__hafiza_kaydet ile kaydet. Bilgi değişirse yerine_gecen ile eskisini işaretle; aynı başlık güncellenir, tekrar yazılmaz.",
+      "- Bilmediğin bir şeyi önce hafiza_ara ile ara. Bilen bir çalışan varsa ajana_sor ile kısa ve net sor; yanıt gelene kadar beklersin. Sana soru gelirse işini kısa bir an bırakıp soruyu_yanitla ile yanıtla.",
+      "- Başkasının işine dokunmadan önce defter_oku ile onun defterine ve gorev_detay ile görevine bak.",
+      "- Her turun sonunda defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kısa maddeler; eskiyenleri çıkar.",
+      "",
+      this.hafiza.baglam(ajan, this.depo.sorular(ajan.projeId, { soruluId: ajan.id, durum: "bekliyor", sinir: 8 })),
       ajan.talimatEki ? `\n## Ek talimat\n${ajan.talimatEki}` : "",
     ].join("\n");
   }
@@ -598,6 +622,15 @@ export class Sirket {
     this.bostaZamanlayicilari.delete(ajanId);
     if (durum === "calisiyor" || onceki.durum === "calisiyor") this.sonEtkinlik.set(ajanId, Date.now());
     if (durum === "bosta") {
+      // Unutmamak için: çok iş yapıp defterini yazmadan duran ajana bir kez hatırlatılır
+      const iz = this.defterIzleri.get(ajanId);
+      if (iz && iz.arac >= 6 && !iz.yazildi) {
+        this.defterIzleri.set(ajanId, { arac: 0, yazildi: false });
+        void this.sistemMesaji(
+          ajanId,
+          "Turu kapatmadan defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kalıcı bir karar ya da öğrenilen varsa hafiza_kaydet ile kaydet. Sonra dur.",
+        ).catch(() => undefined);
+      }
       this.bostaZamanlayicilari.set(
         ajanId,
         setTimeout(() => {
@@ -751,6 +784,11 @@ export class Sirket {
   }
 
   private aracSonrasi(ajanId: string, arac: string, girdi: Record<string, unknown>): void {
+    if (!arac.startsWith("mcp__arnorg__")) {
+      const iz = this.defterIzleri.get(ajanId) ?? { arac: 0, yazildi: false };
+      iz.arac++;
+      this.defterIzleri.set(ajanId, iz);
+    }
     const a = this.depo.ajan(ajanId);
     if (!a || !YAZMA_ARACLARI.has(arac)) return;
     const cwd = a.calismaAlani ?? this.proje(a.projeId).yol;
@@ -868,6 +906,11 @@ export class Sirket {
     if (veri.yoneticiAd) yoneticiId = this.depo.ajanAdla(onay.projeId, veri.yoneticiAd)?.id ?? yoneticiId;
     const yeni = this.iseAl(onay.projeId, { ...veri, yoneticiId: yoneticiId ?? teklifEden?.id ?? null });
     this.kanalMesaji(onay.projeId, "genel", { id: "arnorg", ad: "ArnOrg" }, `${yeni.ad} (${yeni.rolAdi}) ekibe katıldı.`);
+    this.hafiza.yaz(
+      onay.projeId,
+      { tur: "uzmanlik", baslik: `${yeni.ad} · ${yeni.rolAdi}`, metin: kisalt(onay.ayrinti.split("\n\n")[0] ?? onay.ayrinti, 600), etiketler: [yeni.rol], onem: 3 },
+      { ajan: null, ad: "ArnOrg" },
+    );
     if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım onaylandı: ${yeni.ad} (${yeni.rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`);
   }
 
@@ -893,6 +936,8 @@ export class Sirket {
     const proje = this.proje(onay.projeId);
     const mevcut = await gitIslemleri.mevcutDal(proje.yol);
     if (mevcut !== proje.varsayilanDal) throw new ArnorgHatasi(`Ana repo ${proje.varsayilanDal} dalında değil (${mevcut}). Birleştirme yapılmadı.`, 409);
+    // ArnOrg'un kendi kayıtları (.arnorg) birleştirmeyi engellemesin
+    await this.arnorgCommitle(proje.id).catch(() => false);
     const kirli = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
     if (kirli) throw new ArnorgHatasi("Ana repoda commit'lenmemiş değişiklik var; birleştirme yapılmadı.", 409);
     const sonuc = await gitIslemleri.birlestir(proje.yol, veri.dal, `ArnOrg: ${veri.dal} birleştirildi\n\n${veri.ozet}`);
@@ -901,6 +946,11 @@ export class Sirket {
         if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
       }
       this.kanalMesaji(proje.id, "genel", { id: "arnorg", ad: "ArnOrg" }, `${veri.dal} ${proje.varsayilanDal} dalına birleştirildi. ${kisalt(veri.ozet, 200)}`);
+      this.hafiza.yaz(
+        proje.id,
+        { tur: "ozet", baslik: `${veri.dal} → ${proje.varsayilanDal}`, metin: kisalt(veri.ozet, 800), etiketler: ["birlestirme"], onem: 2 },
+        { ajan: sahip, ad: "ArnOrg" },
+      );
     } else if (sahip) {
       await this.sistemMesaji(
         sahip.id,
@@ -923,6 +973,7 @@ export class Sirket {
       g.aciklama ? `\n${g.aciklama}` : "",
       g.kabulOlcutu ? `\nKabul ölçütü:\n${g.kabulOlcutu}` : "",
       bagimli.length ? `\nBağımlı olduğu görevler: ${bagimli.join(", ")}` : "",
+      ((ilgili) => (ilgili ? `\n${ilgili}` : ""))(this.hafiza.ilgili(g.projeId, `${g.baslik} ${g.aciklama} ${g.etiket}`)),
       "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
     ].join("\n");
   }
@@ -1027,6 +1078,21 @@ export class Sirket {
   }
 
   private async gorevBitti(g: Gorev): Promise<void> {
+    const sahip = g.atananId ? this.depo.ajan(g.atananId) : null;
+    this.hafiza.yaz(
+      g.projeId,
+      {
+        tur: "ozet",
+        baslik: `${g.kod} ${g.baslik}`,
+        metin: [`${sahip?.ad ?? "Ekip"} tamamladı.`, g.kabulOlcutu ? `Kabul ölçütü: ${kisalt(g.kabulOlcutu, 300)}` : "", g.aciklama ? kisalt(g.aciklama, 300) : ""]
+          .filter(Boolean)
+          .join(" "),
+        gorevId: g.id,
+        etiketler: g.etiket ? [g.etiket] : [],
+        onem: 2,
+      },
+      { ajan: sahip, ad: "ArnOrg" },
+    );
     // Bağımlılığı tamamlanan ve atanmış görevleri otomatik başlat
     for (const d of this.depo.gorevler(g.projeId)) {
       if (!d.bagimliliklar.includes(g.id) || !d.atananId) continue;
@@ -1126,6 +1192,112 @@ export class Sirket {
   }
 
   // ===================================================================
+  // Hafıza, defter ve ajanlar arası sorular
+  // ===================================================================
+
+  hafizaYaz(projeId: string, istek: HafizaYazIstegi, ajanId: string | null): HafizaKaydi {
+    this.proje(projeId);
+    const ajan = ajanId ? this.ajan(ajanId) : null;
+    if (ajan && ajan.projeId !== projeId) throw new ArnorgHatasi("Ajan bu projede değil.", 403);
+    return this.hafiza.yaz(projeId, istek, { ajan, ad: ajan ? undefined : "Yönetim kurulu" });
+  }
+
+  defterYaz(ajanId: string, icerik: string): void {
+    const a = this.ajan(ajanId);
+    this.hafiza.defterYaz(a, icerik);
+    const iz = this.defterIzleri.get(ajanId) ?? { arac: 0, yazildi: false };
+    this.defterIzleri.set(ajanId, { arac: iz.arac, yazildi: true });
+  }
+
+  /**
+   * Bir ajan diğerine soru sorar ve yanıtı bekler. Sorulan ajan soruyu_yanitla ile yanıtlar.
+   * Karşılıklı bekleme (A, B'yi beklerken B'nin A'ya sorması) hemen reddedilir.
+   */
+  async ajanaSor(soranId: string, hedefAd: string, soru: string, bekleDk = 10): Promise<AjanSorusu> {
+    const soran = this.ajan(soranId);
+    const hedef = this.depo.ajanAdla(soran.projeId, hedefAd.replace(/^@/, "").trim());
+    if (!hedef) throw new ArnorgHatasi(`"${hedefAd}" adında çalışan yok.`, 404);
+    if (hedef.id === soran.id) throw new ArnorgHatasi("Kendine soru soramazsın.");
+    const metin = soru.trim();
+    if (metin.length < 5 || metin.length > 4000) throw new ArnorgHatasi("Soru 5–4000 karakter olmalı.");
+    const karsilikli = this.depo.sorular(soran.projeId, { soruluId: soran.id, durum: "bekliyor" }).some((s) => s.soranId === hedef.id);
+    if (karsilikli) throw new ArnorgHatasi(`${hedef.ad} şu an senden yanıt bekliyor; önce onun sorusunu soruyu_yanitla ile yanıtla.`, 409);
+    const kayit = this.depo.soruEkle({ projeId: soran.projeId, soranId: soran.id, soranAd: soran.ad, soruluId: hedef.id, soruluAd: hedef.ad, soru: metin });
+    this.olaylar.yayinla({ tur: "soru.guncellendi", soru: kayit });
+    const sure = Math.min(Math.max(bekleDk, 1), 30) * 60_000;
+    const yanit = new Promise<AjanSorusu>((coz) => {
+      const zamanlayici = setTimeout(() => {
+        this.bekleyenSorular.delete(kayit.id);
+        const son = this.depo.soruSonuclandir(kayit.id, "zaman_asimi", null) ?? kayit;
+        this.olaylar.yayinla({ tur: "soru.guncellendi", soru: son });
+        coz(son);
+      }, sure);
+      zamanlayici.unref();
+      this.bekleyenSorular.set(kayit.id, { coz, zamanlayici });
+    });
+    const uyandi = await this.uyandir(
+      hedef.id,
+      `${soran.ad} sana soruyor (soru ${kayit.id}):\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Sonra kendi işine dön.`,
+      soran,
+    );
+    if (!uyandi) {
+      const b = this.bekleyenSorular.get(kayit.id);
+      if (b) {
+        clearTimeout(b.zamanlayici);
+        this.bekleyenSorular.delete(kayit.id);
+      }
+      const son = this.depo.soruSonuclandir(kayit.id, "zaman_asimi", null) ?? kayit;
+      this.olaylar.yayinla({ tur: "soru.guncellendi", soru: son });
+      return son;
+    }
+    return yanit;
+  }
+
+  soruYanitla(ajanId: string, soruId: string, yanit: string): AjanSorusu {
+    const a = this.ajan(ajanId);
+    const soru = this.depo.soru(soruId);
+    if (!soru || soru.projeId !== a.projeId) throw new ArnorgHatasi("Soru bulunamadı.", 404);
+    if (soru.soruluId !== a.id) throw new ArnorgHatasi(`Bu soru ${soru.soruluAd}'a soruldu.`, 403);
+    if (soru.durum !== "bekliyor") throw new ArnorgHatasi("Bu soru artık yanıt beklemiyor (süre dolmuş olabilir). Yanıtı mesaj_gonder ile ilet.", 409);
+    const metin = yanit.trim();
+    if (!metin) throw new ArnorgHatasi("Yanıt boş olamaz.");
+    const son = this.depo.soruSonuclandir(soru.id, "yanitlandi", kisalt(metin, 6000))!;
+    const b = this.bekleyenSorular.get(soru.id);
+    if (b) {
+      clearTimeout(b.zamanlayici);
+      this.bekleyenSorular.delete(soru.id);
+      b.coz(son);
+    }
+    this.olaylar.yayinla({ tur: "soru.guncellendi", soru: son });
+    return son;
+  }
+
+  /** ArnOrg'un kendi kayıtlarının (.arnorg) gecikmeli commit'i; ana repoyu temiz tutar */
+  private arnorgCommitPlanla(projeId: string): void {
+    const z = this.arnorgCommitZamanlayicilari.get(projeId);
+    if (z) clearTimeout(z);
+    const yeni = setTimeout(() => {
+      this.arnorgCommitZamanlayicilari.delete(projeId);
+      void this.arnorgCommitle(projeId).catch(() => undefined);
+    }, 90_000);
+    yeni.unref();
+    this.arnorgCommitZamanlayicilari.set(projeId, yeni);
+  }
+
+  /** Yalnız .arnorg yolunu commit'ler; kullanıcının diğer değişikliklerine dokunmaz */
+  async arnorgCommitle(projeId: string): Promise<boolean> {
+    const proje = this.depo.proje(projeId);
+    if (!proje || !fs.existsSync(path.join(proje.yol, ".arnorg"))) return false;
+    if ((await gitIslemleri.mevcutDal(proje.yol)) !== proje.varsayilanDal) return false;
+    const durum = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--", ".arnorg"])).trim();
+    if (!durum) return false;
+    await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
+    await gitIslemleri.git(proje.yol, ["add", "-A", "--", ".arnorg"]);
+    await gitIslemleri.git(proje.yol, ["commit", "-m", "ArnOrg: ekip, hafıza ve not kayıtları", "--", ".arnorg"]);
+    return true;
+  }
+
+  // ===================================================================
   // Maliyet
   // ===================================================================
 
@@ -1157,6 +1329,9 @@ export class Sirket {
 
   kapat(): void {
     this.hesap.durdur();
+    this.hafiza.kapat();
+    for (const z of this.arnorgCommitZamanlayicilari.values()) clearTimeout(z);
+    for (const b of this.bekleyenSorular.values()) clearTimeout(b.zamanlayici);
     for (const o of this.oturumlar.values()) o.kapat();
     for (const z of this.bostaZamanlayicilari.values()) clearTimeout(z);
     for (const b of this.bekleyenKararlar.values()) {

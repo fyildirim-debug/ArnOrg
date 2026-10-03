@@ -7,7 +7,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createRequire } from "node:module";
-import { ARNORG_SURUMU, KURUL, type IstemciOlayi, type OnayDurumu, type Saglik, type SunucuOlayi, type TerminalIstemciMesaji } from "@arnorg/ortak";
+import { ARNORG_SURUMU, KURUL, type HafizaTuru, type IstemciOlayi, type OnayDurumu, type Saglik, type SunucuOlayi, type TerminalIstemciMesaji } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { fsUclariniKur } from "./fs-api.js";
@@ -15,6 +15,7 @@ import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
 import { claudeSurumu, temizOrtam } from "./ortam.js";
 import { raporOlustur } from "./gozetmen.js";
+import { HAFIZA_TURLERI } from "./hafiza.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -32,10 +33,28 @@ export interface SunucuSecenekleri {
 const izinModu = z.enum(["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"]);
 const gorevDurumu = z.enum(["bekleyen", "planlandi", "calisiliyor", "inceleme", "tamam", "iptal"]);
 
+const hafizaTuru = z.enum(["olgu", "karar", "tercih", "ogrenilen", "uzmanlik", "ozet"]);
+
 /** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>) */
 const karakterSemasi = z.string().regex(/^(k\d{2}|u-[a-z0-9-]{4,64})$/, "Geçersiz karakter kimliği.");
 
 const semalar = {
+  hafizaYaz: z.object({
+    tur: hafizaTuru,
+    baslik: z.string().min(1).max(160),
+    metin: z.string().min(1).max(8000),
+    etiketler: z.array(z.string().max(40)).max(12).optional(),
+    onem: z.number().int().min(1).max(5).optional(),
+    gorevId: z.string().nullable().optional(),
+    yerineGectigi: z.string().nullable().optional(),
+  }),
+  hafizaGuncelle: z.object({
+    tur: hafizaTuru.optional(),
+    baslik: z.string().min(1).max(160).optional(),
+    metin: z.string().min(1).max(8000).optional(),
+    etiketler: z.array(z.string().max(40)).max(12).optional(),
+    onem: z.number().int().min(1).max(5).optional(),
+  }),
   proje: z.object({ ad: z.string().min(1).max(80), yol: z.string().min(1), olustur: z.boolean(), aciklama: z.string().max(2000).optional() }),
   iseAl: z.object({
     ad: z.string().min(1).max(40),
@@ -276,6 +295,40 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const n = notYaz(p.yol, g.yol, g.icerik);
     sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: p.id, alan: "ana", yol: `.arnorg/notlar/${n.yol}`, ajanId: null });
     return n;
+  });
+
+  // ---------------- proje hafızası ----------------
+  app.get("/api/projeler/:pid/hafiza", async (i) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    const q = sorgu(i, "q")?.trim();
+    const tur = sorgu(i, "tur") as HafizaTuru | undefined;
+    if (tur && !HAFIZA_TURLERI.includes(tur)) throw new ArnorgHatasi("Geçersiz hafıza türü.");
+    if (q) return sirket.hafiza.ara(pid, q, tur, 50);
+    return sirket.depo.hafizaKayitlari(pid, { tur, eskilerDahil: sorgu(i, "eskiler") === "1", sinir: 500 });
+  });
+  app.post("/api/projeler/:pid/hafiza", async (i) => {
+    const g = govde(semalar.hafizaYaz, i);
+    return sirket.hafizaYaz(param(i, "pid"), { ...g, gorevId: g.gorevId ?? null, yerineGectigi: g.yerineGectigi ?? null }, null);
+  });
+  app.patch("/api/hafiza/:hid", async (i) => sirket.hafiza.guncelle(param(i, "hid"), govde(semalar.hafizaGuncelle, i)));
+  app.delete("/api/hafiza/:hid", async (i) => {
+    sirket.hafiza.sil(param(i, "hid"));
+    return { tamam: true };
+  });
+  app.get("/api/projeler/:pid/sorular", async (i) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    return sirket.depo.sorular(pid, { sinir: Math.min(sayi(sorgu(i, "sinir"), 100), 500) });
+  });
+  app.get("/api/ajanlar/:aid/defter", async (i) => {
+    const a = sirket.ajan(param(i, "aid"));
+    return { icerik: sirket.hafiza.defter(a), guncelleme: sirket.depo.defter(a.id)?.guncelleme ?? null };
+  });
+  app.put("/api/ajanlar/:aid/defter", async (i) => {
+    const g = govde(z.object({ icerik: z.string().max(6000) }), i);
+    sirket.defterYaz(param(i, "aid"), g.icerik);
+    return { tamam: true };
   });
 
   // ---------------- rapor ----------------
