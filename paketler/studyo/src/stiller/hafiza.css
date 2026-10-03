@@ -469,3 +469,59 @@
     grid-column: auto;
   }
 }
+
+/* Karargâh: hafıza nabzı */
+.nabiz {
+  list-style: none;
+  margin-bottom: var(--b-6);
+  border-top: 1px solid var(--line);
+}
+.nabiz li {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  gap: var(--b-4);
+  align-items: baseline;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--t-xs);
+}
+.nabiz-tur {
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nabiz li[data-tur="tercih"] .nabiz-tur {
+  color: var(--coral);
+}
+.nabiz-soru .nabiz-tur {
+  color: var(--warn);
+}
+.nabiz-metin {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bone);
+}
+.nabiz-metin b {
+  color: var(--paper);
+  font-weight: 600;
+}
+.nabiz-metin small {
+  color: var(--muted);
+  margin-left: 0.375rem;
+}
+.nabiz time {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .nabiz li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .nabiz-tur {
+    grid-column: 1 / -1;
+  }
+}
