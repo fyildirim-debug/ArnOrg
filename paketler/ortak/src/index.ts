@@ -486,3 +486,127 @@ export interface MasaustuKoprusu {
 export interface ApiHatasi {
   hata: string;
 }
+
+// ---- Kod düzenleyici (VS Code tezgâhı) ----
+// Uçlar: /api/projeler/:pid/fs/* ve /api/projeler/:pid/git/* (docs/API.md, "Kod düzenleyici")
+
+/** Dosya sistemi girdisinin türü; "baglanti" hedefi çözülemeyen ya da alan dışını gösteren sembolik bağlantıdır */
+export type FsTuru = "dosya" | "klasor" | "baglanti";
+
+/** GET fs/stat yanıtı */
+export interface FsDurumu {
+  tur: FsTuru;
+  /** Girdi sembolik bağlantı mı (tur hedefin türüdür) */
+  baglanti: boolean;
+  boyut: number;
+  /** Son değişme anı (ms, Unix) */
+  degisme: number;
+  /** Oluşturma anı (ms, Unix) */
+  olusturma: number;
+  /** Bir ajan dosyayı düzenliyorsa ya da .git içindeyse kullanıcıya salt okunur */
+  saltOkunur: boolean;
+  duzenleyenAjanId: string | null;
+}
+
+/** GET fs/liste öğesi */
+export interface FsGirdisi {
+  ad: string;
+  tur: FsTuru;
+  baglanti: boolean;
+}
+
+export interface FsKlasorIstegi {
+  alan: string;
+  yol: string;
+}
+
+export interface FsTasiIstegi {
+  alan: string;
+  kaynak: string;
+  hedef: string;
+  ustune?: boolean;
+}
+
+/** POST fs/ara gövdesi: çalışma alanında metin araması */
+export interface MetinAramaIstegi {
+  alan: string;
+  desen: string;
+  regex?: boolean;
+  harfDuyarli?: boolean;
+  tamSozcuk?: boolean;
+  /** Dahil edilecek dosyalar (glob, köke göre; boşsa hepsi) */
+  dahil?: string[];
+  /** Hariç tutulacak dosya ve klasörler (glob) */
+  haric?: string[];
+  /** En çok eşleşme sayısı (varsayılan 2000, üst sınır 20000) */
+  sinir?: number;
+  /** Bu boyuttan büyük dosyalar atlanır (bayt, varsayılan 4 MB) */
+  enBuyukBoyut?: number;
+}
+
+export interface MetinAramaEslesmesi {
+  /** 0 tabanlı başlangıç satırı ve sütunu (UTF-16) */
+  satir: number;
+  sutun: number;
+  /** 0 tabanlı bitiş satırı ve sütunu (dışlayıcı) */
+  sonSatir: number;
+  sonSutun: number;
+  /** Eşleşmenin geçtiği satır(lar); uzun satır eşleşme çevresinden kırpılır */
+  onizleme: string;
+  /** Önizlemenin ilk satırda başladığı sütun */
+  onizlemeBaslangic: number;
+}
+
+export interface MetinAramaSonucu {
+  dosyalar: { yol: string; eslesmeler: MetinAramaEslesmesi[] }[];
+  /** Sınır doldu; sonuçlar eksik */
+  sinirAsildi: boolean;
+}
+
+/** Git değişiklik türü: M değişti, A eklendi, D silindi, R yeniden adlandırıldı, C kopyalandı, U çakışma, ? izlenmiyor */
+export type GitDegisiklikTuru = "M" | "A" | "D" | "R" | "C" | "U" | "?";
+
+export interface GitDegisikligi {
+  yol: string;
+  /** Yeniden adlandırmada eski yol */
+  eskiYol?: string;
+  tur: GitDegisiklikTuru;
+}
+
+/** GET git/durum yanıtı */
+export interface GitDurumu {
+  alan: string;
+  ana: boolean;
+  /** Alan bir git deposu mu */
+  repo: boolean;
+  dal: string;
+  /** Ajan alanlarının karşılaştırıldığı dal (projenin varsayılan dalı) */
+  temelDal: string;
+  /** Aşamaya alınmış değişiklikler */
+  hazirlanan: GitDegisikligi[];
+  /** Çalışma ağacı değişiklikleri (izlenmeyenler dahil) */
+  degisen: GitDegisikligi[];
+  /** Birleştirme çakışmaları */
+  cakisan: GitDegisikligi[];
+  /** Ajan alanında temel dala (ortak ata) göre tüm değişiklikler; ana repoda boş */
+  temeleGore: GitDegisikligi[];
+}
+
+/** git/icerik için başvuru: HEAD, indeks (aşamadaki sürüm) ya da temel (ajan alanında temel dal ile ortak ata) */
+export type GitBasvurusu = "HEAD" | "indeks" | "temel";
+
+export interface GitYollarIstegi {
+  alan: string;
+  yollar: string[];
+}
+
+export interface GitCommitIstegi {
+  alan: string;
+  mesaj: string;
+  /** Aşamada değişiklik yoksa önce tüm değişiklikleri aşamaya al */
+  tumu?: boolean;
+}
+
+export interface GitCommitSonucu {
+  commit: string;
+}
