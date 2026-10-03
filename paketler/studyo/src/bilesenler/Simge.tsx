@@ -37,6 +37,12 @@ const YOLLAR = {
       <path d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5" />
     </>
   ),
+  hafiza: (
+    <>
+      <path d="M8 2 14 5 8 8 2 5z" />
+      <path d="m2 8 6 3 6-3M2 11l6 3 6-3" />
+    </>
+  ),
   kod: (
     <>
       <circle cx="4" cy="3.5" r="1.5" />

@@ -740,6 +740,16 @@
 .kullanim-asim > span {
   background: var(--coral);
 }
+/* Orta genişlikte üst çubuk tek satıra sığsın: çubuklar ve plan rozeti gizlenir, yine de taşarsa satır kırılır */
+@media (max-width: 1180px) {
+  .ust {
+    flex-wrap: wrap;
+  }
+  .ust-pencere .kullanim-cubuk,
+  .ust-kullanim .plan-rozet {
+    display: none;
+  }
+}
 @media (max-width: 860px) {
   .ust-pencere .kullanim-cubuk {
     display: none;

@@ -58,6 +58,11 @@ describe("proje hafızası", () => {
     const baglam = sirket.hafiza.baglam(ada, []);
     expect(baglam).toContain("Node 22'ye geçildi");
     expect(baglam).not.toContain("Node 20 kullanılıyor");
+    // Eskiyen kayıt da canlı olayla güncellenir; silme ayrı olay üretir
+    expect(gelenler.some((o) => o.tur === "hafiza.yeni" && o.kayit.id === eski.id && o.kayit.yerineGecen === yeni.id)).toBe(true);
+    const gecici = sirket.hafizaYaz(pid, { tur: "olgu", baslik: "Silinecek", metin: "Geçici kayıt." }, null);
+    sirket.hafiza.sil(gecici.id);
+    expect(gelenler.some((o) => o.tur === "hafiza.silindi" && o.id === gecici.id && o.projeId === pid)).toBe(true);
     expect(baglam).toContain("Veritabanı: SQLite");
   });
 

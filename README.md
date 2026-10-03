@@ -5,6 +5,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - Windows ve Linux'ta çalışan masaüstü uygulaması + sunucu modu
 - Claude aboneliğiyle çalışır (Pro/Max): ücret alınmaz, üst çubukta 5 saatlik ve haftalık pencere yüzdesi; ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer. İsterseniz API anahtarı ve dolar bütçesiyle de çalışır
 - Proje başına notlar, kararlar ve ekip kimlikleri; repo içinde `.arnorg/` altında sürümlü
+- Proje bazlı kalıcı hafıza: kurul tercihleri, kararlar, öğrenilen hatalar, kim neyi biliyor. Ajan her oturumda okur; çalışırken doğru anda hatırlar (ekipten yeni kayıt, aynı hata, dokunduğu dosya). Her ajanın kendi defteri vardır; bilmediğini ekip arkadaşına sorar, kime soracağını bilmezse ArnOrg uzmanı bulur, aynı soru ikinci kez sorulursa önceki yanıt döner
 - Her ajan kendi git çalışma alanında; main'e yalnız kurulun onayladığı iş girer
 - Kanallar, `@anma` ile uyandırma, görev panosu, bütçe ve onay kapıları
 - Canlı denetim: politika (yıkıcı komut, gizli dosya, alan dışı yazma, dışarı push), araya girme, kesme
@@ -23,6 +24,7 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 |---|---|
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/ekip.png) |
 | Kanallar | ![Kanallar](docs/gorseller/kanallar.png) |
+| Hafıza | ![Hafıza](docs/gorseller/hafiza.png) |
 | Denetim | ![Denetim](docs/gorseller/denetim.png) |
 | Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/kod.png) |
 

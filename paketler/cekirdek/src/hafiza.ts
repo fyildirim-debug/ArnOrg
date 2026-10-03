@@ -77,7 +77,8 @@ export class ProjeHafizasi {
       if (istek.yerineGectigi) {
         const eski = this.depo.hafizaKaydi(istek.yerineGectigi);
         if (!eski || eski.projeId !== projeId) throw new ArnorgHatasi("Yerine geçilecek kayıt bulunamadı.", 404);
-        this.depo.hafizaGuncelle(eski.id, { yerineGecen: kayit.id });
+        const eskimis = this.depo.hafizaGuncelle(eski.id, { yerineGecen: kayit.id });
+        if (eskimis) this.olaylar.yayinla({ tur: "hafiza.yeni", kayit: eskimis });
       }
     }
     this.olaylar.yayinla({ tur: "hafiza.yeni", kayit });
@@ -99,6 +100,7 @@ export class ProjeHafizasi {
     const eski = this.depo.hafizaKaydi(id);
     if (!eski) throw new ArnorgHatasi("Hafıza kaydı bulunamadı.", 404);
     this.depo.hafizaSil(id);
+    this.olaylar.yayinla({ tur: "hafiza.silindi", projeId: eski.projeId, id });
     this.yansitPlanla(eski.projeId);
   }
 
@@ -130,7 +132,7 @@ export class ProjeHafizasi {
   // ---------------- bağlam ----------------
 
   /** Oturum başında ajanın talimatına eklenen hafıza: kurul tercihleri, kararlar, öğrenilenler, uzmanlıklar, defter, bekleyen sorular */
-  baglam(ajan: Ajan, bekleyenSorular: AjanSorusu[]): string {
+  baglam(ajan: Ajan, bekleyenSorular: AjanSorusu[], gosterilen?: string[]): string {
     const satirlar: string[] = ["## Proje hafızası"];
     satirlar.push(
       "Bu projede ekipçe öğrendiklerimiz. Kurul tercihlerine her zaman uy. Bir karar değişirse ya da yeni bir şey öğrenirsen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
@@ -146,6 +148,7 @@ export class ProjeHafizasi {
         toplam += satir.length;
         if (toplam > butce) break;
         satirlar.push(satir);
+        gosterilen?.push(k.id);
       }
       if (toplam > butce) break;
     }

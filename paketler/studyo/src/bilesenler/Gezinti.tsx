@@ -1,6 +1,7 @@
 // Sol menü: ekranlar, bekleyen karar rozetleri, projeler ve ayarlar
 import { useEffect, useRef } from "react";
 import { git, PROJESIZ_GORUNUMLER, useArayuz, type Gorunum } from "../durum/arayuz";
+import { useHafiza } from "../durum/hafiza";
 import { useVeri } from "../durum/veri";
 import { Simge, type SimgeAdi } from "./Simge";
 
@@ -17,6 +18,7 @@ const ANA: Oge[] = [
   { gorunum: "pano", ad: "Pano", simge: "pano" },
   { gorunum: "kanallar", ad: "Kanallar", simge: "kanallar" },
   { gorunum: "notlar", ad: "Notlar", simge: "notlar" },
+  { gorunum: "hafiza", ad: "Hafıza", simge: "hafiza" },
   { gorunum: "kod", ad: "Kod", simge: "kod" },
   { gorunum: "denetim", ad: "Denetim", simge: "denetim" },
   { gorunum: "onaylar", ad: "Onaylar", simge: "onaylar" },
@@ -35,6 +37,7 @@ export function Gezinti() {
   const bekleyenArac = onaylar.filter((o) => o.durum === "bekliyor" && o.tur === "arac").length;
   const bekleyenDiger = onaylar.filter((o) => o.durum === "bekliyor" && o.tur !== "arac").length;
   const okunmamisToplam = Object.values(okunmamis).reduce((a, b) => a + b, 0);
+  const bekleyenSoru = useHafiza((d) => (d.projeId === useVeri.getState().aktifProjeId ? d.sorular.filter((s) => s.durum === "bekliyor").length : 0));
   const navRef = useRef<HTMLElement>(null);
 
   // Dar ekranda menü yatay kayar; etkin öğe görünür kalsın
@@ -58,6 +61,12 @@ export function Gezinti() {
       return (
         <span className="rozet" aria-label={`${bekleyenDiger} onay bekliyor`}>
           {bekleyenDiger}
+        </span>
+      );
+    if (g === "hafiza" && bekleyenSoru)
+      return (
+        <span className="rozet rozet-sessiz" aria-label={`${bekleyenSoru} soru yanıt bekliyor`}>
+          {bekleyenSoru}
         </span>
       );
     if (g === "kanallar" && okunmamisToplam)

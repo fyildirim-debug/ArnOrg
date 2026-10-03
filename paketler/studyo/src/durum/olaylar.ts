@@ -1,9 +1,10 @@
 // Sunucu olaylarını (WS /ws) depoya artımlı uygular
-import { GOREV_DURUM_ADLARI, KURUL, ONAY_TURU_ADLARI, type SunucuOlayi } from "@arnorg/ortak";
+import { GOREV_DURUM_ADLARI, HAFIZA_TURU_ADLARI, KURUL, ONAY_TURU_ADLARI, type SunucuOlayi } from "@arnorg/ortak";
 import { CanliBaglanti } from "../api/canli";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
+import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import {
   ajanBul,
   ajanKaldir,
@@ -190,6 +191,46 @@ function depoyaUygula(olay: SunucuOlayi) {
             }
           : s.maliyet;
         return { ajanlar, maliyet };
+      });
+      return;
+    }
+
+    case "hafiza.yeni": {
+      const k = olay.kayit;
+      if (k.projeId !== pid) return;
+      const yeni = !useHafiza.getState().kayitlar.some((x) => x.id === k.id);
+      hafizaKaydiUygula(k);
+      // Eskiyen kaydın güncellemesi akışa ayrıca düşmez; yenisi zaten düştü
+      if (!k.yerineGecen) {
+        canliEkle({
+          id: `h-${k.id}-${k.guncelleme}`,
+          zaman: k.guncelleme,
+          ajanId: k.kaynakAjanId,
+          ajanAd: k.kaynakAd,
+          etiket: yeni ? "hafıza" : "hafıza güncel",
+          sinif: k.tur === "tercih" ? "sor" : k.tur === "ogrenilen" ? "ok" : "bilgi",
+          hedef: `${HAFIZA_TURU_ADLARI[k.tur]} · ${k.baslik}`,
+        });
+      }
+      return;
+    }
+
+    case "hafiza.silindi":
+      if (olay.projeId === pid) hafizaKaydiKaldir(olay.projeId, olay.id);
+      return;
+
+    case "soru.guncellendi": {
+      const s = olay.soru;
+      if (s.projeId !== pid) return;
+      soruUygula(s);
+      canliEkle({
+        id: `s-${s.id}-${s.durum}`,
+        zaman: s.yanitlanma ?? s.olusturma,
+        ajanId: s.durum === "yanitlandi" ? s.soruluId : s.soranId,
+        ajanAd: s.durum === "yanitlandi" ? s.soruluAd : s.soranAd,
+        etiket: s.durum === "bekliyor" ? "soru" : s.durum === "yanitlandi" ? "yanıt" : "yanıtsız",
+        sinif: s.durum === "bekliyor" ? "sor" : s.durum === "yanitlandi" ? "ok" : "ret",
+        hedef: s.durum === "bekliyor" ? `→ ${s.soruluAd}: ${kisalt(s.soru, 70)}` : `→ ${s.soranAd}: ${kisalt(s.yanit ?? s.soru, 70)}`,
       });
       return;
     }

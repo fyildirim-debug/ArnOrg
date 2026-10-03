@@ -7,6 +7,7 @@ import "./stiller/tokenlar.css";
 import "./stiller/temel.css";
 import "./stiller/kabuk.css";
 import "./stiller/gorunumler.css";
+import "./stiller/hafiza.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

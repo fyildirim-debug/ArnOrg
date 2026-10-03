@@ -51,7 +51,14 @@ export interface OturumBaglami {
   kapi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, altAjan: string | undefined): Promise<HookJSONOutput>;
   /** Claude Code'un izin soracağı çağrı (bypass dışı modlar, plan onayı) */
   izinSor: CanUseTool;
-  aracSonrasi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined): void;
+  /** PostToolUse: dosya izi; dönen metin (ilgili hafıza) ajana ek bağlam olarak verilir */
+  aracSonrasi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined): string | null;
+  /** PostToolUseFailure: hatayla ilgili hafıza ya da kaydetme ipucu */
+  aracHatasi(arac: string, girdi: Record<string, unknown>, hata: string): string | null;
+  /** UserPromptSubmit: yeni mesajla birlikte verilecek hafıza (ekipten yeni kayıtlar, ilgili kayıtlar) */
+  turBasi(metin: string): string | null;
+  /** SessionStart (compact): sıkıştırmadan sonra unutulmaması gerekenler */
+  sikistirmaSonrasi(): string | null;
   akis(oge: AkisOgesi): void;
   durum(durum: AjanDurumu, aciklama?: string): void;
   oturumKimligi(id: string): void;
@@ -145,11 +152,33 @@ export class AjanOturumu {
       if (girdi.hook_event_name !== "PreToolUse") return {};
       return this.b.kapi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id, girdi.agent_id);
     };
-    const sonraKancasi: HookCallback = async (girdi, aracKimligi) => {
-      if (girdi.hook_event_name === "PostToolUse") {
-        this.b.aracSonrasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id);
+    // Hafıza kancaları ajanı asla durdurmaz: hata olursa ek bağlam verilmez
+    const guvenli = (f: () => string | null): string | null => {
+      try {
+        return f();
+      } catch {
+        return null;
       }
-      return {};
+    };
+    const sonraKancasi: HookCallback = async (girdi, aracKimligi) => {
+      if (girdi.hook_event_name !== "PostToolUse") return {};
+      const ek = guvenli(() => this.b.aracSonrasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id));
+      return ek ? { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: ek } } : {};
+    };
+    const hataKancasi: HookCallback = async (girdi) => {
+      if (girdi.hook_event_name !== "PostToolUseFailure" || girdi.is_interrupt) return {};
+      const ek = guvenli(() => this.b.aracHatasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, girdi.error ?? ""));
+      return ek ? { hookSpecificOutput: { hookEventName: "PostToolUseFailure", additionalContext: ek } } : {};
+    };
+    const turKancasi: HookCallback = async (girdi) => {
+      if (girdi.hook_event_name !== "UserPromptSubmit") return {};
+      const ek = guvenli(() => this.b.turBasi(girdi.prompt));
+      return ek ? { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: ek } } : {};
+    };
+    const acilisKancasi: HookCallback = async (girdi) => {
+      if (girdi.hook_event_name !== "SessionStart" || girdi.source !== "compact") return {};
+      const ek = guvenli(() => this.b.sikistirmaSonrasi());
+      return ek ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: ek } } : {};
     };
     return query({
       prompt: this.kuyruk!,
@@ -175,6 +204,9 @@ export class AjanOturumu {
         hooks: {
           PreToolUse: [{ hooks: [kapiKancasi], timeout: this.b.onaySuresiSn() + 60 }],
           PostToolUse: [{ hooks: [sonraKancasi] }],
+          PostToolUseFailure: [{ hooks: [hataKancasi] }],
+          UserPromptSubmit: [{ hooks: [turKancasi] }],
+          SessionStart: [{ hooks: [acilisKancasi] }],
         },
         canUseTool: this.b.izinSor,
         ...(devam ? { resume: devam } : {}),

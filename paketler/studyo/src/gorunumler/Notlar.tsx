@@ -117,7 +117,7 @@ export function Notlar() {
         <div className="baslik-metin">
           <h1>Notlar</h1>
           <p>
-            Proje hafızası repo içinde yaşar: <code>.arnorg/notlar/</code> · her ajan okur, yazar, arar
+            Proje belgeleri repo içinde yaşar: <code>.arnorg/notlar/</code> · vizyon, mimari, kararlar · her ajan okur, yazar, arar
           </p>
         </div>
         <div className="baslik-eylem">

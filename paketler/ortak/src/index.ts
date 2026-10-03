@@ -584,6 +584,7 @@ export type SunucuOlayi =
   | { tur: "maliyet"; projeId: string; ajanId: string; bugunUsd: number; toplamUsd: number; bugunToken: number; toplamToken: number }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
   | { tur: "hafiza.yeni"; kayit: HafizaKaydi }
+  | { tur: "hafiza.silindi"; projeId: string; id: string }
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };

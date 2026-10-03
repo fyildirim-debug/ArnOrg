@@ -715,12 +715,16 @@ export class Depo {
   }
 
   /** Geçerli (yerine başkası geçmemiş) kayıtlar; tür süzgeci isteğe bağlı */
-  hafizaKayitlari(projeId: string, secenek: { tur?: HafizaTuru; eskilerDahil?: boolean; sinir?: number } = {}): HafizaKaydi[] {
+  hafizaKayitlari(projeId: string, secenek: { tur?: HafizaTuru; eskilerDahil?: boolean; sinir?: number; sonra?: string } = {}): HafizaKaydi[] {
     const kosul = ["proje_id = ?"];
     const degerler: unknown[] = [projeId];
     if (secenek.tur) {
       kosul.push("tur = ?");
       degerler.push(secenek.tur);
+    }
+    if (secenek.sonra) {
+      kosul.push("guncelleme > ?");
+      degerler.push(secenek.sonra);
     }
     if (!secenek.eskilerDahil) kosul.push("yerine_gecen IS NULL");
     const satirlar = this.db
