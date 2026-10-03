@@ -410,6 +410,7 @@ function eceDuzenler() {
   denetimEkle("ece", "Edit", yol, "izin");
   setTimeout(() => {
     db.katmanlar.ece[yol] = yeni;
+    zamanlar.set(`ece\0${yol}`, Date.now());
     yay({ tur: "dosya.degisti", projeId: "siparis-paneli", alan: "ece", yol, ajanId: "ece" }, "siparis-paneli");
     akisEkle("ece", { tur: "arac_sonucu", aracKimligi: kimlik, metin: "Dosya güncellendi." });
     harca("ece", 0.03);
@@ -923,6 +924,270 @@ rota("GET", "/api/projeler/:pid/ara", ({ q }) => {
 });
 rota("POST", "/api/projeler/:pid/disarida-ac", () => ({ tamam: true }));
 
+// ---------------------------------------------------------------------------
+// Kod düzenleyici (VS Code tezgâhı): /fs ve /git uçları, bellekteki dosyalar üzerinde
+// ---------------------------------------------------------------------------
+
+const ACILIS = Date.now() - 3 * 86_400_000;
+/** "alan\0yol" → son değişme anı (ms) */
+const zamanlar = new Map();
+/** alan → kullanıcının açtığı boş klasörler */
+const bosKlasorler = new Map();
+// Ana repo git durumu: HEAD (son commit) ve indeks (aşama)
+db.anaHead = kopya(db.ana);
+db.indeks = kopya(db.ana);
+
+const zamanAnahtari = (alan, yol) => `${alan}\0${yol}`;
+const degisme = (alan, yol) => zamanlar.get(zamanAnahtari(alan, yol)) ?? ACILIS;
+const temizYol = (y) => String(y ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+function yolDenetle(yol) {
+  if (yol.split("/").some((p) => p === "..")) throw new Hata(400, "Geçersiz dosya yolu.");
+  return yol;
+}
+function yazilabilirMi(yol) {
+  if (!yol) throw new Hata(403, "Çalışma alanının kökü değiştirilemez.");
+  if (yol.split("/").includes(".git")) throw new Hata(403, ".git içindeki dosyalar düzenleyiciden değiştirilemez.");
+}
+function sahteYaz(alan, yol, icerik) {
+  if (alan === "ana") db.ana[yol] = icerik;
+  else (db.katmanlar[alan] ??= {})[yol] = icerik;
+  zamanlar.set(zamanAnahtari(alan, yol), Date.now());
+}
+function sahteSil(alan, yol) {
+  if (alan === "ana") delete db.ana[yol];
+  else if (yol in db.ana) (db.katmanlar[alan] ??= {})[yol] = null;
+  else delete (db.katmanlar[alan] ?? {})[yol];
+  zamanlar.set(zamanAnahtari(alan, yol), Date.now());
+}
+/** Alandaki klasörler: dosya yollarından ve boş açılan klasörlerden */
+function klasorler(alan) {
+  const s = new Set([""]);
+  for (const y of [...Object.keys(alanDosyalari(alan)), ...(bosKlasorler.get(alan) ?? [])]) {
+    const p = y.split("/");
+    for (let i = 1; i < p.length; i++) s.add(p.slice(0, i).join("/"));
+    if (bosKlasorler.get(alan)?.has(y)) s.add(y);
+  }
+  return s;
+}
+function fsDurumu(alan, yol) {
+  const dosyalar = alanDosyalari(alan);
+  if (yol in dosyalar) {
+    const duz = duzenleyen(alan, yol);
+    return { tur: "dosya", baglanti: false, boyut: Buffer.byteLength(dosyalar[yol]), degisme: degisme(alan, yol), olusturma: ACILIS, saltOkunur: duz !== null, duzenleyenAjanId: duz };
+  }
+  if (klasorler(alan).has(yol)) return { tur: "klasor", baglanti: false, boyut: 0, degisme: ACILIS, olusturma: ACILIS, saltOkunur: false, duzenleyenAjanId: null };
+  return null;
+}
+const istekKonumu = (q) => ({ alan: q.get("alan") ?? "ana", yol: yolDenetle(temizYol(q.get("yol"))) });
+
+rota("GET", "/api/projeler/:pid/fs/stat", ({ q }) => {
+  const { alan, yol } = istekKonumu(q);
+  const d = fsDurumu(alan, yol);
+  if (!d && q.get("yoksa") !== "bos") throw new Hata(404, `Bulunamadı: ${yol || "."}`);
+  return d;
+});
+rota("GET", "/api/projeler/:pid/fs/liste", ({ q }) => {
+  const { alan, yol } = istekKonumu(q);
+  if (!klasorler(alan).has(yol)) throw new Hata(404, `Bulunamadı: ${yol || "."}`);
+  const onek = yol ? `${yol}/` : "";
+  const girdiler = new Map();
+  for (const k of klasorler(alan)) if (k.startsWith(onek) && k !== yol && !k.slice(onek.length).includes("/")) girdiler.set(k.slice(onek.length), "klasor");
+  for (const f of Object.keys(alanDosyalari(alan))) if (f.startsWith(onek) && !f.slice(onek.length).includes("/")) girdiler.set(f.slice(onek.length), "dosya");
+  return [...girdiler].map(([ad, tur]) => ({ ad, tur, baglanti: false }));
+});
+rota("GET", "/api/projeler/:pid/fs/icerik", ({ q }) => {
+  const { alan, yol } = istekKonumu(q);
+  const icerik = alanDosyalari(alan)[yol];
+  if (icerik === undefined) {
+    if (q.get("yoksa") === "bos") return { __durum: 204 };
+    throw new Hata(404, `Bulunamadı: ${yol}`);
+  }
+  return { __ham: Buffer.from(icerik) };
+});
+rota("PUT", "/api/projeler/:pid/fs/icerik", ({ p, q, ham }) => {
+  const { alan, yol } = istekKonumu(q);
+  yazilabilirMi(yol);
+  const var_ = yol in alanDosyalari(alan);
+  if (!var_ && q.get("olustur") !== "1") throw new Hata(404, `Bulunamadı: ${yol}`);
+  if (var_ && q.get("ustune") !== "1") throw new Hata(409, `Zaten var: ${yol}`);
+  const duz = duzenleyen(alan, yol);
+  if (duz) throw new Hata(409, `${ajanBul(duz)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`);
+  sahteYaz(alan, yol, (ham ?? Buffer.alloc(0)).toString("utf8"));
+  yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
+  return fsDurumu(alan, yol);
+});
+rota("POST", "/api/projeler/:pid/fs/klasor", ({ p, govde }) => {
+  const alan = govde?.alan ?? "ana";
+  const yol = yolDenetle(temizYol(govde?.yol));
+  yazilabilirMi(yol);
+  if (fsDurumu(alan, yol)) throw new Hata(409, `Zaten var: ${yol}`);
+  if (!bosKlasorler.has(alan)) bosKlasorler.set(alan, new Set());
+  bosKlasorler.get(alan).add(yol);
+  yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
+  return { tamam: true };
+});
+rota("DELETE", "/api/projeler/:pid/fs", ({ p, q }) => {
+  const { alan, yol } = istekKonumu(q);
+  yazilabilirMi(yol);
+  const d = fsDurumu(alan, yol);
+  if (!d) throw new Hata(404, `Bulunamadı: ${yol}`);
+  if (d.tur === "dosya") {
+    if (duzenleyen(alan, yol)) throw new Hata(409, "Bir ajan bu dosyayı düzenliyor. Önce ajanı duraklatın.");
+    sahteSil(alan, yol);
+  } else {
+    const icindekiler = Object.keys(alanDosyalari(alan)).filter((f) => f.startsWith(`${yol}/`));
+    if (icindekiler.length && q.get("ozyinelemeli") !== "1") throw new Hata(409, `Klasör boş değil: ${yol}`);
+    for (const f of icindekiler) sahteSil(alan, f);
+    for (const k of [...(bosKlasorler.get(alan) ?? [])]) if (k === yol || k.startsWith(`${yol}/`)) bosKlasorler.get(alan).delete(k);
+  }
+  yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
+  return { tamam: true };
+});
+rota("POST", "/api/projeler/:pid/fs/tasi", ({ p, govde }) => {
+  const alan = govde?.alan ?? "ana";
+  const kaynak = yolDenetle(temizYol(govde?.kaynak));
+  const hedef = yolDenetle(temizYol(govde?.hedef));
+  yazilabilirMi(kaynak);
+  yazilabilirMi(hedef);
+  const dosyalar = alanDosyalari(alan);
+  const tasinacak = kaynak in dosyalar ? [kaynak] : Object.keys(dosyalar).filter((f) => f.startsWith(`${kaynak}/`));
+  if (!tasinacak.length) throw new Hata(404, `Bulunamadı: ${kaynak}`);
+  if (fsDurumu(alan, hedef) && !govde?.ustune) throw new Hata(409, `Zaten var: ${hedef}`);
+  for (const f of tasinacak) {
+    const yeni = hedef + f.slice(kaynak.length);
+    sahteYaz(alan, yeni, dosyalar[f]);
+    sahteSil(alan, f);
+  }
+  yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol: kaynak, ajanId: null }, p.pid);
+  yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol: hedef, ajanId: null }, p.pid);
+  return { tamam: true };
+});
+rota("GET", "/api/projeler/:pid/fs/dosyalar", ({ q }) => Object.keys(alanDosyalari(q.get("alan") ?? "ana")).sort());
+
+function globDuzenli(glob) {
+  let s = "";
+  const g = temizYol(glob).replace(/^\.\//, "");
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i];
+    if (c === "*" && g[i + 1] === "*") {
+      if (g[i + 2] === "/") (s += "(?:[^/]*/)*"), (i += 2);
+      else (s += ".*"), (i += 1);
+    } else if (c === "*") s += "[^/]*";
+    else if (c === "?") s += "[^/]";
+    else if (c === "{") s += "(?:";
+    else if (c === "}") s += ")";
+    else if (c === ",") s += "|";
+    else s += c.replace(/[.+^$()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${s}$`);
+}
+function globUyar(desenler, yol) {
+  const parcalar = yol.split("/");
+  return desenler.some((r) => parcalar.some((_, i) => r.test(parcalar.slice(0, i + 1).join("/"))));
+}
+rota("POST", "/api/projeler/:pid/fs/ara", ({ govde }) => {
+  const alan = govde?.alan ?? "ana";
+  if (!govde?.desen) throw new Hata(400, "Arama deseni boş olamaz.");
+  const kaynak = govde.regex ? govde.desen : govde.desen.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let duzenli;
+  try {
+    duzenli = new RegExp(govde.tamSozcuk ? `(?<![\\p{L}\\p{N}_])(?:${kaynak})(?![\\p{L}\\p{N}_])` : kaynak, `gmu${govde.harfDuyarli ? "" : "i"}`);
+  } catch (h) {
+    throw new Hata(400, `Geçersiz düzenli ifade: ${h.message}`);
+  }
+  const dahil = (govde.dahil ?? []).map(globDuzenli);
+  const haric = (govde.haric ?? []).map(globDuzenli);
+  const sinir = Math.min(govde.sinir ?? 2000, 20000);
+  const sonuc = { dosyalar: [], sinirAsildi: false };
+  let toplam = 0;
+  for (const [yol, metin] of Object.entries(alanDosyalari(alan)).sort()) {
+    if ((dahil.length && !globUyar(dahil, yol)) || globUyar(haric, yol)) continue;
+    const satirlar = metin.split("\n");
+    const eslesmeler = [];
+    satirlar.forEach((satir, i) => {
+      for (const e of satir.matchAll(duzenli)) {
+        if (toplam >= sinir || !e[0].length) continue;
+        eslesmeler.push({ satir: i, sutun: e.index, sonSatir: i, sonSutun: e.index + e[0].length, onizleme: satir.slice(0, 300), onizlemeBaslangic: 0 });
+        toplam++;
+      }
+    });
+    if (eslesmeler.length) sonuc.dosyalar.push({ yol, eslesmeler });
+    if (toplam >= sinir) {
+      sonuc.sinirAsildi = true;
+      break;
+    }
+  }
+  return sonuc;
+});
+
+/** iki dosya kümesi arası değişiklikler: eski → yeni */
+function kumeFarki(eski, yeni, izlenmeyenTuru = "A") {
+  const sonuc = [];
+  for (const y of new Set([...Object.keys(eski), ...Object.keys(yeni)])) {
+    if (!(y in yeni)) sonuc.push({ yol: y, tur: "D" });
+    else if (!(y in eski)) sonuc.push({ yol: y, tur: izlenmeyenTuru });
+    else if (eski[y] !== yeni[y]) sonuc.push({ yol: y, tur: "M" });
+  }
+  return sonuc.sort((a, b) => a.yol.localeCompare(b.yol));
+}
+rota("GET", "/api/projeler/:pid/git/durum", ({ p, q }) => {
+  const alan = q.get("alan") ?? "ana";
+  const pr = projeGerekli(p.pid);
+  const ajan = alan === "ana" ? null : ajanBul(alan);
+  const temel = { alan, ana: alan === "ana", repo: true, dal: ajan?.dal ?? pr.varsayilanDal, temelDal: pr.varsayilanDal, hazirlanan: [], degisen: [], cakisan: [], temeleGore: [] };
+  if (alan === "ana") {
+    temel.hazirlanan = kumeFarki(db.anaHead, db.indeks);
+    temel.degisen = kumeFarki(db.indeks, db.ana, "?");
+  } else temel.temeleGore = kumeFarki(db.ana, alanDosyalari(alan));
+  return temel;
+});
+rota("GET", "/api/projeler/:pid/git/icerik", ({ q }) => {
+  const { alan, yol } = istekKonumu(q);
+  const ref = q.get("ref") ?? "HEAD";
+  const kume = ref === "indeks" ? db.indeks : ref === "temel" || alan !== "ana" ? db.ana : db.anaHead;
+  if (!(yol in kume)) {
+    if (q.get("yoksa") === "bos") return { __durum: 204 };
+    throw new Hata(404, `Bu sürümde dosya yok: ${yol}`);
+  }
+  return { __ham: Buffer.from(kume[yol]) };
+});
+const yalnizAna = (alan) => {
+  if (alan !== "ana") throw new Hata(403, "Ajan çalışma alanları kaynak denetiminde salt okunurdur; git işlemleri yalnız ana repoda yapılır.");
+};
+const indekseKopyala = (hedef, kaynak, yollar) => {
+  for (const y of yollar) {
+    if (y in kaynak) hedef[y] = kaynak[y];
+    else delete hedef[y];
+  }
+};
+rota("POST", "/api/projeler/:pid/git/hazirla", ({ govde }) => {
+  yalnizAna(govde?.alan);
+  indekseKopyala(db.indeks, db.ana, govde?.yollar ?? []);
+  return { tamam: true };
+});
+rota("POST", "/api/projeler/:pid/git/hazirlamayi-geri-al", ({ govde }) => {
+  yalnizAna(govde?.alan);
+  indekseKopyala(db.indeks, db.anaHead, govde?.yollar ?? []);
+  return { tamam: true };
+});
+rota("POST", "/api/projeler/:pid/git/degisiklikleri-at", ({ p, govde }) => {
+  yalnizAna(govde?.alan);
+  for (const y of govde?.yollar ?? []) {
+    if (y in db.indeks) sahteYaz("ana", y, db.indeks[y]);
+    else sahteSil("ana", y);
+    yay({ tur: "dosya.degisti", projeId: p.pid, alan: "ana", yol: y, ajanId: null }, p.pid);
+  }
+  return { tamam: true };
+});
+rota("POST", "/api/projeler/:pid/git/commit", ({ govde }) => {
+  yalnizAna(govde?.alan);
+  if (!govde?.mesaj?.trim()) throw new Hata(400, "Commit mesajı boş olamaz.");
+  if (govde.tumu) db.indeks = kopya(db.ana);
+  if (!kumeFarki(db.anaHead, db.indeks).length) throw new Hata(409, "Commit'lenecek aşamaya alınmış değişiklik yok.");
+  db.anaHead = kopya(db.indeks);
+  return { commit: crypto.randomBytes(20).toString("hex") };
+});
+
 rota("POST", "/api/projeler/:pid/terminaller", ({ govde }) => {
   const id = yeniKimlik("t");
   db.terminaller.set(id, { alan: govde?.alan ?? "ana", sutun: govde?.sutun ?? 80 });
@@ -1019,7 +1284,23 @@ function terminalBagla(ws, id) {
 // Sunucu
 // ---------------------------------------------------------------------------
 
-const TURLER = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".woff": "font/woff", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ttf": "font/ttf" };
+const TURLER = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".json": "application/json",
+  ".ttf": "font/ttf",
+  ".wasm": "application/wasm",
+  ".mp3": "audio/mpeg",
+  ".txt": "text/plain; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+};
+// Gerçek çekirdekteki gibi çapraz köken yalıtımı (tezgâhtaki TypeScript dil sunucusu SharedArrayBuffer ister)
+const YALITIM = { "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "credentialless" };
 
 function statikGonder(url, yanit) {
   let yol = path.normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, "");
@@ -1033,7 +1314,7 @@ function statikGonder(url, yanit) {
 <p><a style="color:#f27a68" href="http://localhost:5173/#anahtar=${ANAHTAR}">http://localhost:5173/#anahtar=${ANAHTAR}</a></p></body>`);
     return;
   }
-  yanit.writeHead(200, { "Content-Type": TURLER[path.extname(dosya)] ?? "application/octet-stream", "Cache-Control": dosya.endsWith("index.html") ? "no-cache" : "max-age=31536000, immutable" });
+  yanit.writeHead(200, { ...YALITIM, "Content-Type": TURLER[path.extname(dosya)] ?? "application/octet-stream", "Cache-Control": dosya.endsWith("index.html") ? "no-cache" : "max-age=31536000, immutable" });
   fs.createReadStream(dosya).pipe(yanit);
 }
 
@@ -1048,10 +1329,12 @@ const sunucu = http.createServer(async (istek, yanit) => {
   if (istek.headers.authorization !== `Bearer ${ANAHTAR}`) return json(401, { hata: "Erişim anahtarı eksik ya da yanlış." });
 
   let govde;
+  let hamGovde;
   if (istek.method !== "GET" && istek.method !== "DELETE") {
     const parcalar = [];
     for await (const p of istek) parcalar.push(p);
-    const ham = Buffer.concat(parcalar).toString("utf8");
+    hamGovde = Buffer.concat(parcalar);
+    const ham = istek.headers["content-type"] === "application/octet-stream" ? "" : hamGovde.toString("utf8");
     if (ham) {
       try {
         govde = JSON.parse(ham);
@@ -1065,9 +1348,19 @@ const sunucu = http.createServer(async (istek, yanit) => {
     const m = r.desen.exec(url.pathname);
     if (!m) continue;
     try {
-      // Gerçekçi gecikme: yükleme durumları görülebilsin
-      await new Promise((z) => setTimeout(z, 60 + Math.random() * 140));
-      const sonuc = await r.isleyici({ p: m.groups ?? {}, q: url.searchParams, govde });
+      // Gerçekçi gecikme: yükleme durumları görülebilsin (kod düzenleyicinin sık dosya istekleri hariç)
+      const kodIstegi = /\/(fs|git)(\/|$)/.test(url.pathname);
+      await new Promise((z) => setTimeout(z, kodIstegi ? 5 : 60 + Math.random() * 140));
+      const sonuc = await r.isleyici({ p: m.groups ?? {}, q: url.searchParams, govde, ham: hamGovde });
+      // Ham bayt yanıtı (dosya içeriği) ya da gövdesiz durum kodu
+      if (sonuc && typeof sonuc === "object" && "__ham" in sonuc) {
+        yanit.writeHead(200, { "Content-Type": "application/octet-stream", "Cache-Control": "no-store" });
+        return yanit.end(sonuc.__ham);
+      }
+      if (sonuc && typeof sonuc === "object" && "__durum" in sonuc) {
+        yanit.writeHead(sonuc.__durum);
+        return yanit.end();
+      }
       return json(200, sonuc);
     } catch (e) {
       if (e instanceof Hata) return json(e.durum, { hata: e.message });

@@ -126,6 +126,7 @@ const VARSAYILAN_AYARLAR: Record<string, unknown> = {
   "chat.disableAIFeatures": true,
   "chat.commandCenter.enabled": false,
   "scm.alwaysShowRepositories": true,
+  "scm.inputFontFamily": "editor",
   "files.autoSave": "off",
 };
 
@@ -236,7 +237,13 @@ export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
       ...getEmmetServiceOverride(),
       ...getLifecycleServiceOverride(),
       ...getEnvironmentServiceOverride(),
-      ...getStorageServiceOverride({ fallbackOverride: { "workbench.activity.showAccounts": false } }),
+      ...getStorageServiceOverride({
+        fallbackOverride: {
+          "workbench.activity.showAccounts": false,
+          // Klavye düzeni göstergesi ("Layout: us") varsayılan olarak gizli; durum çubuğunun bağlam menüsünden açılır
+          "workbench.statusbar.hidden": JSON.stringify(["status.workbench.keyboardLayout"]),
+        },
+      }),
       ...getLocalizationServiceOverride({
         availableLanguages: [{ locale: "tr", languageName: "Türkçe" }],
         async setLocale() {},
@@ -270,9 +277,17 @@ export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
     goster() {
       gorunur = true;
       tezgahGorunurlugu(true);
+      govde.style.width = "100%";
+      govde.style.height = "100%";
       requestAnimationFrame(() => yerlesim.layout());
     },
     gizle() {
+      // Gizliyken pencere boyutu değişse de yerleşim (yan çubuk, panel genişlikleri) bozulmasın:
+      // tezgâh son görünür boyutunda dondurulur
+      if (gorunur && govde.clientWidth > 0 && govde.clientHeight > 0) {
+        govde.style.width = `${govde.clientWidth}px`;
+        govde.style.height = `${govde.clientHeight}px`;
+      }
       gorunur = false;
       tezgahGorunurlugu(false);
     },

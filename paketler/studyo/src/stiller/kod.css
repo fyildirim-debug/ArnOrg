@@ -23,6 +23,9 @@
   position: absolute;
   inset: 0;
   background: var(--ink);
+  /* VS Code renk düzenini kendi temasıyla yönetir; Stüdyo'nun "dark" değeri webview iframe'leriyle
+     (Markdown önizleme) uyuşmazsa Chromium iframe'in arkasını opak beyaz boyar */
+  color-scheme: normal;
 }
 .tezgah-kabi-gizli {
   visibility: hidden;

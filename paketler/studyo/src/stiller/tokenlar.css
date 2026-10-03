@@ -72,6 +72,10 @@
   --ust-yukseklik: 3rem;
   --nav-genislik: 12rem;
   --ray-genislik: 18.5rem;
+}
 
+/* Koyu renk düzeni kökte değil gövdede: Chromium, kök belgenin düzeniyle uyuşmayan iframe'lerin
+   (Kod ekranındaki Markdown önizleme gibi webview'lar) arkasını opak beyaz boyar */
+body {
   color-scheme: dark;
 }

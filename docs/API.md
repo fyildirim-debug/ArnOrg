@@ -105,6 +105,38 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 | GET | `/api/projeler/:pid/ara?alan=&q=` | — | `AramaSonucu[]` (en çok 500) |
 | POST | `/api/projeler/:pid/disarida-ac` | `{alan, yol?}` | `{tamam:true}` (ayarlardaki dış editörle açar) |
 
+## Kod düzenleyici (VS Code tezgâhı)
+
+Stüdyo'nun Kod ekranı bu uçları `arnorg:` şemalı bir dosya sistemi sağlayıcısına bağlar: `arnorg:/<projeId>/<alan>/<yol>`. `alan` `ana` ya da ajan kimliğidir (çalışma alanı listesindeki `kimlik`). Kodu `paketler/cekirdek/src/fs-api.ts` ve `kod-arama.ts`, tipleri `@arnorg/ortak` ("Kod düzenleyici" bölümü).
+
+- Tüm yollar alan köküne göredir, `..` içeren yol 400 döner; sembolik bağlantı çözüldüğünde alanın dışını gösteriyorsa 403.
+- `.git` içine yazma, silme ve taşıma 403. Kök (`yol` boş) silinemez, taşınamaz.
+- Bir ajanın son 5 dakikada yazdığı ve hâlâ çalışan (ya da karar bekleyen) ajanın dosyası `saltOkunur` ve `duzenleyenAjanId` ile döner; yazma, silme ve taşıma 409.
+- Kullanıcının yazdığı dosya 30 sn ajanlara kilitlenir (denetim kapısı reddeder); dosya bir ajanın alanındaysa ajana "yeniden oku" notu gider; `dosya.degisti` (ajanId `null`) yayınlanır.
+- `yoksa=bos`: düzenleyici olmayan ayar dosyalarını (`.vscode/settings.json` …) sürekli yoklar; bu bayrakla olmayan yol 404 yerine `stat`'ta `200 null`, `icerik`'te `204` döner (tarayıcı konsolu 404'leri hata olarak yazar).
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/fs/stat?alan=&yol=&yoksa=bos` | — | `FsDurumu` |
+| GET | `/api/projeler/:pid/fs/liste?alan=&yol=` | — | `FsGirdisi[]` |
+| GET | `/api/projeler/:pid/fs/icerik?alan=&yol=&yoksa=bos` | — | ham bayt (`application/octet-stream`, en çok 50 MB; üstü 413, klasör 400) |
+| PUT | `/api/projeler/:pid/fs/icerik?alan=&yol=&olustur=1&ustune=1` | ham bayt (`application/octet-stream`) | `FsDurumu`; yoksa ve `olustur` değilse 404, varsa ve `ustune` değilse 409 |
+| POST | `/api/projeler/:pid/fs/klasor` | `FsKlasorIstegi` | `{tamam:true}`; varsa 409 |
+| DELETE | `/api/projeler/:pid/fs?alan=&yol=&ozyinelemeli=1` | — | `{tamam:true}`; boş olmayan klasör `ozyinelemeli` olmadan 409 |
+| POST | `/api/projeler/:pid/fs/tasi` | `FsTasiIstegi` | `{tamam:true}`; hedef varsa ve `ustune` değilse 409 (yalnız aynı alanda) |
+| GET | `/api/projeler/:pid/fs/dosyalar?alan=` | — | `string[]` hızlı açma listesi (`git ls-files -co --exclude-standard`; git deposu değilse dolaşma) |
+| POST | `/api/projeler/:pid/fs/ara` | `MetinAramaIstegi` | `MetinAramaSonucu` (JavaScript düzenli ifadesi, büyük/küçük harf, Unicode tam sözcük, dahil/hariç glob; varsayılan sınır 2000, en çok 20000) |
+| GET | `/api/projeler/:pid/git/durum?alan=` | — | `GitDurumu` (porcelain; ajan alanında `temeleGore`: temel dalla ortak ataya göre tüm değişiklikler) |
+| GET | `/api/projeler/:pid/git/icerik?alan=&yol=&ref=HEAD\|indeks\|temel&yoksa=bos` | — | ham bayt; o sürümde dosya yoksa 404 (`yoksa=bos` ile 204) |
+| POST | `/api/projeler/:pid/git/hazirla` | `GitYollarIstegi` | `{tamam:true}` (`git add -A`) |
+| POST | `/api/projeler/:pid/git/hazirlamayi-geri-al` | `GitYollarIstegi` | `{tamam:true}` (`git reset HEAD`) |
+| POST | `/api/projeler/:pid/git/degisiklikleri-at` | `GitYollarIstegi` | `{tamam:true}` (izlenen dosya indekse döner, izlenmeyen silinir) |
+| POST | `/api/projeler/:pid/git/commit` | `GitCommitIstegi` | `GitCommitSonucu`; aşamada değişiklik yoksa 409 (`tumu` önce hepsini aşamaya alır) |
+
+Git yazma işlemleri yalnız ana repoda yapılır; ajan alanlarında 403. Commit kimliği makinedeki git yapılandırmasından gelir, mesaja imza ya da `Co-Authored-By` eklenmez.
+
+Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-Policy: same-origin` ve `Cross-Origin-Embedder-Policy: credentialless` ile sunulur: tezgâhtaki TypeScript dil sunucusu proje çapında IntelliSense için `SharedArrayBuffer` ister. `credentialless` dış kaynakları (Open VSX simgeleri gibi) kimliksiz yükler, engellemez.
+
 ## Terminal
 
 | Yöntem | Yol | Gövde | Yanıt |

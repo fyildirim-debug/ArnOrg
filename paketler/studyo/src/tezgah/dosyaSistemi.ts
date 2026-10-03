@@ -85,6 +85,37 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
   private readonly bilinen = new Set<string>();
   private bekleyen = new Map<string, FileChangeType>();
   private zamanlayici: ReturnType<typeof setTimeout> | undefined;
+  /** Aynı anda gelen aynı istekler tek istekte birleşir (açılışta ayar dosyaları defalarca yoklanır) */
+  private readonly ucusta = new Map<string, Promise<unknown>>();
+  /** Olmadığı az önce öğrenilen yollar → bu süre boyunca çekirdeğe yeniden sorulmaz */
+  private readonly yoklar = new Map<string, number>();
+
+  private tekIstek<T>(anahtar: string, is: () => Promise<T>): Promise<T> {
+    let p = this.ucusta.get(anahtar) as Promise<T> | undefined;
+    if (!p) {
+      p = is().finally(() => this.ucusta.delete(anahtar));
+      this.ucusta.set(anahtar, p);
+    }
+    return p;
+  }
+
+  private yokMu(yol: string): boolean {
+    const bitis = this.yoklar.get(yol);
+    if (bitis === undefined) return false;
+    if (bitis > Date.now()) return true;
+    this.yoklar.delete(yol);
+    return false;
+  }
+
+  private async sorgula<T>(yol: string, tur: string, is: () => Promise<T>): Promise<T> {
+    if (this.yokMu(yol)) throw createFileSystemProviderError(`Bulunamadı: ${yol}`, FileSystemProviderErrorCode.FileNotFound);
+    try {
+      return await this.tekIstek(`${tur}:${yol}`, is);
+    } catch (h) {
+      if (h instanceof ApiHatasi && h.durum === 404) this.yoklar.set(yol, Date.now() + 3000);
+      throw hataCevir(h);
+    }
+  }
 
   constructor() {
     super();
@@ -108,7 +139,9 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
     this.kuyruga(yol, FileChangeType.UPDATED);
   }
 
+
   private kuyruga(yol: string, tur: FileChangeType) {
+    this.yoklar.delete(yol);
     this.bekleyen.set(yol, tur);
     clearTimeout(this.zamanlayici);
     this.zamanlayici = setTimeout(() => {
@@ -121,6 +154,7 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
   private async disaridanDegisti(yol: string) {
     const k = konumCoz(yol);
     if (!k) return;
+    this.yoklar.delete(yol);
     try {
       const s = await kodApi.stat(k.projeId, k.alan, k.yol);
       ajanIzleri.duzenleyenAyarla(yol, s.duzenleyenAjanId);
@@ -143,8 +177,8 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
 
   async stat(adres: URI): Promise<IStat> {
     const k = konum(adres);
-    const s: FsDurumu = await sar(() => kodApi.stat(k.projeId, k.alan, k.yol));
     const yol = adresYolu(k);
+    const s: FsDurumu = await this.sorgula(yol, "stat", () => kodApi.stat(k.projeId, k.alan, k.yol));
     this.bilinen.add(yol);
     if (s.tur === "dosya") ajanIzleri.duzenleyenAyarla(yol, s.duzenleyenAjanId);
     return {
@@ -158,25 +192,28 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
 
   async readdir(adres: URI): Promise<[string, FileType][]> {
     const k = konum(adres);
-    const liste = await sar(() => kodApi.liste(k.projeId, k.alan, k.yol));
+    const liste = await this.sorgula(adresYolu(k), "liste", () => kodApi.liste(k.projeId, k.alan, k.yol));
     for (const g of liste) this.bilinen.add(adresYolu({ ...k, yol: k.yol ? `${k.yol}/${g.ad}` : g.ad }));
     return liste.map((g) => [g.ad, turCevir(g.tur, g.baglanti)]);
   }
 
   async readFile(adres: URI): Promise<Uint8Array> {
     const k = konum(adres);
-    return sar(() => kodApi.oku(k.projeId, k.alan, k.yol));
+    return this.sorgula(adresYolu(k), "oku", () => kodApi.oku(k.projeId, k.alan, k.yol));
   }
 
   async writeFile(adres: URI, icerik: Uint8Array, s: IFileWriteOptions): Promise<void> {
     const k = konum(adres);
+    const yol = adresYolu(k);
+    this.yoklar.delete(yol);
     const d = await sar(() => kodApi.yaz(k.projeId, k.alan, k.yol, icerik, { olustur: s.create, ustune: s.overwrite }));
-    this.bilinen.add(adresYolu(k));
-    ajanIzleri.duzenleyenAyarla(adresYolu(k), d.duzenleyenAjanId);
+    this.bilinen.add(yol);
+    ajanIzleri.duzenleyenAyarla(yol, d.duzenleyenAjanId);
   }
 
   async mkdir(adres: URI): Promise<void> {
     const k = konum(adres);
+    this.yoklar.delete(adresYolu(k));
     await sar(() => kodApi.klasor(k.projeId, k.alan, k.yol));
     this.bilinen.add(adresYolu(k));
   }
@@ -193,6 +230,7 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
     if (a.projeId !== b.projeId || a.alan !== b.alan) {
       throw createFileSystemProviderError("Çalışma alanları arasında taşıma yapılamaz; dosyayı kopyalayıp yapıştırın.", FileSystemProviderErrorCode.NoPermissions);
     }
+    this.yoklar.delete(adresYolu(b));
     await sar(() => kodApi.tasi(a.projeId, a.alan, a.yol, b.yol, s.overwrite));
     this.bilinen.delete(adresYolu(a));
     this.bilinen.add(adresYolu(b));

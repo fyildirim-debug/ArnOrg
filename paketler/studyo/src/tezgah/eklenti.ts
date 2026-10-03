@@ -38,6 +38,7 @@ const MANIFEST: IExtensionManifest = {
     ],
     commands: [
       { command: "arnorg.duraklatVeDuzenle", title: "Duraklat ve düzenle", category: "ArnOrg", icon: "$(debug-pause)" },
+      { command: "arnorg.disaridaAc", title: "Dış Düzenleyicide Aç", category: "ArnOrg", icon: "$(link-external)" },
       { command: "arnorg.git.yenile", title: "Yenile", category: "ArnOrg Git", icon: "$(refresh)" },
       { command: "arnorg.git.commit", title: "Commit", category: "ArnOrg Git", icon: "$(check)" },
       { command: "arnorg.git.hazirla", title: "Değişiklikleri Aşamaya Al", category: "ArnOrg Git", icon: "$(add)" },
@@ -50,6 +51,8 @@ const MANIFEST: IExtensionManifest = {
     ],
     menus: {
       "editor/title": [{ command: "arnorg.duraklatVeDuzenle", when: "arnorg.ajanDuzenliyor && resourceScheme == arnorg", group: "navigation@-100" }],
+      "editor/title/context": [{ command: "arnorg.disaridaAc", when: "resourceScheme == arnorg", group: "1_arnorg" }],
+      "explorer/context": [{ command: "arnorg.disaridaAc", when: "resourceScheme == arnorg", group: "navigation@90" }],
       "scm/title": [
         { command: "arnorg.git.commit", when: "scmProvider == arnorg-ana", group: "navigation@1" },
         { command: "arnorg.git.yenile", when: "scmProvider =~ /^arnorg-/", group: "navigation@2" },
@@ -290,6 +293,18 @@ function etkinlestir(v: Vscode, dosyaSistemi: ArnorgDosyaSistemi) {
       );
     } catch (h) {
       void v.window.showErrorMessage(`Ajan duraklatılamadı: ${hataMetni(h)}`);
+    }
+  });
+
+  // Ayarlardaki dış düzenleyiciyle (code, cursor…) açar; çekirdeğin makinesinde çalışır
+  v.commands.registerCommand("arnorg.disaridaAc", async (hedef?: unknown) => {
+    const uri = hedef instanceof v.Uri ? hedef : v.window.activeTextEditor?.document.uri;
+    const k = uri?.scheme === SEMA ? konumCoz(uri.path) : null;
+    if (!k) return;
+    try {
+      await api.disaridaAc(k.projeId, k.alan, k.yol || undefined);
+    } catch (h) {
+      void v.window.showErrorMessage(`Dış düzenleyici açılamadı: ${hataMetni(h)}`);
     }
   });
 
