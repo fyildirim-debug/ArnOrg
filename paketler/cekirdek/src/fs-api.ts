@@ -258,8 +258,11 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
   }
 
   // ---------------- dosya sistemi ----------------
-  app.get("/api/projeler/:pid/fs/stat", async (i): Promise<FsDurumu> => {
+  // yoksa=bos: olmayan yolda 404 yerine 200 ve null (düzenleyici .vscode/settings.json gibi dosyaları sürekli
+  // yoklar; tarayıcı konsolu her 404'ü hata olarak yazar)
+  app.get("/api/projeler/:pid/fs/stat", async (i): Promise<FsDurumu | null> => {
     const { kok, goreli, tam } = sorgudanKonum(i);
+    if (sorgu(i, "yoksa") === "bos" && !fs.existsSync(tam)) return null;
     return durum(kok, goreli, tam);
   });
 
@@ -288,6 +291,8 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
 
   app.get("/api/projeler/:pid/fs/icerik", async (i, yanit: FastifyReply) => {
     const { goreli, tam } = sorgudanKonum(i);
+    // yoksa=bos: olmayan dosyada 404 yerine 204 (boş dosya 200 ve boş gövdedir)
+    if (sorgu(i, "yoksa") === "bos" && !fs.existsSync(tam)) return yanit.code(204).send();
     let s: fs.Stats;
     try {
       s = await fsp.stat(tam);
@@ -472,7 +477,11 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     else if (ref === "HEAD") nesne = `HEAD:${goreli}`;
     else throw new ArnorgHatasi("Geçersiz başvuru; HEAD, indeks ya da temel olmalı.");
     const tampon = await gitHam(kok, ["show", nesne]);
-    if (!tampon) throw new ArnorgHatasi(`Bu sürümde dosya yok: ${goreli}`, 404);
+    if (!tampon) {
+      // yoksa=bos: yeni dosyanın eski sürümü yoktur; 404 yerine 204 (satır içi fark her yeni dosyada sorar)
+      if (sorgu(i, "yoksa") === "bos") return yanit.code(204).send();
+      throw new ArnorgHatasi(`Bu sürümde dosya yok: ${goreli}`, 404);
+    }
     return yanit.type("application/octet-stream").header("Cache-Control", "no-store").send(tampon);
   });
 

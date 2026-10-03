@@ -68,6 +68,10 @@ describe("dosya sistemi", () => {
     expect(s.degisme).toBeGreaterThan(0);
     expect(((await app.inject({ url: url("fs/stat", { yol: "" }), headers: h })).json() as FsDurumu).tur).toBe("klasor");
     expect((await app.inject({ url: url("fs/stat", { yol: "yok.ts" }), headers: h })).statusCode).toBe(404);
+    // Sessiz kip: düzenleyicinin sürekli yokladığı olmayan dosyalar konsolu 404 ile doldurmasın
+    const sessiz = await app.inject({ url: url("fs/stat", { yol: "yok.ts", yoksa: "bos" }), headers: h });
+    expect([sessiz.statusCode, sessiz.body]).toEqual([200, "null"]);
+    expect((await app.inject({ url: url("fs/icerik", { yol: "yok.ts", yoksa: "bos" }), headers: h })).statusCode).toBe(204);
     expect((await app.inject({ url: url("fs/stat", { yol: "../disari" }), headers: h })).statusCode).toBe(400);
 
     const liste = (await app.inject({ url: url("fs/liste", { yol: "src" }), headers: h })).json() as FsGirdisi[];
@@ -237,6 +241,7 @@ describe("git", () => {
     const head = await app.inject({ url: url("git/icerik", { yol: "src/b.js", ref: "HEAD" }), headers: h });
     expect(head.body).toBe("console.log('merhaba dünya');\n");
     expect((await app.inject({ url: url("git/icerik", { yol: "yeni/c.bin", ref: "HEAD" }), headers: h })).statusCode).toBe(404);
+    expect((await app.inject({ url: url("git/icerik", { yol: "yeni/c.bin", ref: "indeks", yoksa: "bos" }), headers: h })).statusCode).toBe(204);
 
     // Değişiklikleri at: izlenen dosya geri döner, izlenmeyen silinir
     fs.writeFileSync(path.join(repo, "silinecek.txt"), "x");

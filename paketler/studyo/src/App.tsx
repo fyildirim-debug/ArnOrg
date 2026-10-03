@@ -23,7 +23,7 @@ import { Pano } from "./gorunumler/Pano";
 import { Projeler } from "./gorunumler/Projeler";
 import { useMedya } from "./yardimcilar/kancalar";
 
-// Monaco ve xterm büyük; Kod ekranı yalnız açılınca yüklenir
+// Kod ekranı (VS Code tezgâhı) büyük; yalnız ilk açılışta yüklenir
 const Kod = lazy(() => import("./gorunumler/Kod"));
 
 function useAnahtar(): string | null {
@@ -50,6 +50,8 @@ function Studyo() {
   const genis = useMedya("(min-width: 1181px)");
   // Dar ekranda ray katman olarak açılır; tercih kalıcı tutulmaz
   const [rayKatman, setRayKatman] = useState(false);
+  // Kod ekranı bir kez açılınca tezgâh DOM'da kalır; başka ekranda gizlenir
+  const [kodAcildi, setKodAcildi] = useState(false);
   const anaRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -73,6 +75,9 @@ function Studyo() {
   useEffect(() => {
     if (etkin !== gorunum) git(etkin);
   }, [etkin, gorunum]);
+  useEffect(() => {
+    if (etkin === "kod") setKodAcildi(true);
+  }, [etkin]);
   const rayUygun = !projeYok && !RAYSIZ.includes(etkin);
   const rayGorunur = rayUygun && (genis ? rayAcik : rayKatman);
   const tam = TAM_YUKSEKLIK.includes(etkin);
@@ -96,17 +101,20 @@ function Studyo() {
       <div className="govde">
         <Gezinti />
         <main className={`ana${tam ? " ana-tam" : ""}`} ref={anaRef} id="ana-icerik">
-          {etkin === "kod" ? (
-            <Suspense
-              fallback={
-                <div className="ana-ic">
-                  <Iskelet satir={8} etiket="Editör yükleniyor" />
-                </div>
-              }
-            >
-              <Kod />
-            </Suspense>
-          ) : tam ? (
+          {kodAcildi && !projeYok ? (
+            <div className="kod-katmani" data-gorunur={etkin === "kod"} inert={etkin !== "kod"}>
+              <Suspense
+                fallback={
+                  <div className="ana-ic">
+                    <Iskelet satir={8} etiket="Kod ekranı yükleniyor" />
+                  </div>
+                }
+              >
+                <Kod gorunur={etkin === "kod"} />
+              </Suspense>
+            </div>
+          ) : null}
+          {etkin === "kod" ? null : tam ? (
             <div className="ana-ic ana-ic-tam">
               <Ekran gorunum={etkin} />
             </div>
