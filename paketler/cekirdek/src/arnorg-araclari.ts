@@ -309,6 +309,40 @@ export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConf
         }),
     ),
     tool(
+      "hafiza_bakim",
+      "Hafızada birbirini tekrar eden kayıt çiftlerini listeler. Tekrar eden bilgi her oturumun bağlamını şişirir; çiftleri hafiza_birlestir ile tek kayda indir.",
+      {},
+      () =>
+        guvenli(() => {
+          const c = sirket.hafiza.benzerler(ben().projeId).slice(0, 12);
+          if (!c.length) return metin("Tekrar eden kayıt yok.");
+          return metin(
+            c
+              .map((x) => `- %${Math.round(x.benzerlik * 100)} [${x.a.tur}] ${x.a.id.slice(0, 8)} "${x.a.baslik}" (${x.a.kaynakAd}) ↔ ${x.b.id.slice(0, 8)} "${x.b.baslik}" (${x.b.kaynakAd})\n  A: ${kisalt(x.a.metin, 220)}\n  B: ${kisalt(x.b.metin, 220)}`)
+              .join("\n"),
+          );
+        }),
+    ),
+    tool(
+      "hafiza_birlestir",
+      "İki kaydı tek kayda indirir: tutulan kalır (metin verilirse birleşik metinle güncellenir), eskiyen onun yerine geçmiş sayılır ve artık hatırlatılmaz. Kimliklerin ilk 8 karakteri yeterli.",
+      { tutulan: z.string().min(4), eskiyen: z.string().min(4), metin: z.string().min(5).max(4000).optional().describe("İkisinin bilgisini birleştiren yeni metin") },
+      (a) =>
+        guvenli(() => {
+          const pid = ben().projeId;
+          const hepsi = sirket.depo.hafizaKayitlari(pid, { sinir: 5000 });
+          const bul = (on: string) => {
+            const aday = hepsi.filter((k) => k.id.startsWith(on));
+            return aday.length === 1 ? aday[0]! : null;
+          };
+          const t = bul(a.tutulan);
+          const e = bul(a.eskiyen);
+          if (!t || !e) return hata("Kayıt bulunamadı ya da kimlik belirsiz; hafiza_bakim ile kimlikleri gör.");
+          const k = sirket.hafiza.birlestir(t.id, e.id, a.metin);
+          return metin(`Birleştirildi: "${k.baslik}" kaldı, "${e.baslik}" eskidi.`);
+        }),
+    ),
+    tool(
       "defter_yaz",
       "Kendi defterini baştan yazar: açık işlerin, verdiğin sözler, sıradaki adımın, dikkat ettiğin şeyler. Her oturumda sana geri verilir; kısa maddeler kullan, eskiyenleri çıkar.",
       { icerik: z.string().min(5).max(6000) },

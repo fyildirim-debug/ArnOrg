@@ -312,6 +312,22 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return sirket.hafizaYaz(param(i, "pid"), { ...g, gorevId: g.gorevId ?? null, yerineGectigi: g.yerineGectigi ?? null }, null);
   });
   app.patch("/api/hafiza/:hid", async (i) => sirket.hafiza.guncelle(param(i, "hid"), govde(semalar.hafizaGuncelle, i)));
+  app.get("/api/projeler/:pid/hafiza/benzerler", async (i) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    return sirket.hafiza.benzerler(pid);
+  });
+  app.post("/api/projeler/:pid/hafiza/ayri", async (i) => {
+    const pid = param(i, "pid");
+    sirket.proje(pid);
+    const g = govde(z.object({ a: z.string().min(1), b: z.string().min(1) }), i);
+    sirket.hafiza.ayriTut(pid, g.a, g.b);
+    return { tamam: true };
+  });
+  app.post("/api/hafiza/:hid/birlestir", async (i) => {
+    const g = govde(z.object({ eskiyen: z.string().min(1), metin: z.string().max(8000).optional() }), i);
+    return sirket.hafiza.birlestir(param(i, "hid"), g.eskiyen, g.metin);
+  });
   app.delete("/api/hafiza/:hid", async (i) => {
     sirket.hafiza.sil(param(i, "hid"));
     return { tamam: true };

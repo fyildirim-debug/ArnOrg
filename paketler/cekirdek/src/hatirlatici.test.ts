@@ -148,3 +148,25 @@ describe("uzman bulma ve önceki yanıt", () => {
     s.uyandir = asil;
   });
 });
+
+describe("hafıza bakımı", () => {
+  it("tekrar eden kayıtları bulur; ayrı tutulan çift bir daha önerilmez; birleştirme eskisini işaretler", () => {
+    const deniz = ajan("Deniz");
+    const a = sirket.hafizaYaz(pid, { tur: "tercih", baslik: "Para birimi kuruş olarak saklanır", metin: "Tutarlar veritabanında tamsayı kuruş olarak tutulur; kayan nokta kullanılmaz.", etiketler: ["para"] }, null);
+    const b = sirket.hafizaYaz(pid, { tur: "tercih", baslik: "Tutarlar kuruş", metin: "Tutarlar kuruş cinsinden tamsayı saklanır, kayan nokta yok.", etiketler: ["veritabani"] }, deniz.id);
+    const c = sirket.hafizaYaz(pid, { tur: "karar", baslik: "Tutarlar kuruş", metin: "Tutarlar kuruş cinsinden tamsayı saklanır, kayan nokta yok." }, deniz.id);
+    const ciftler = sirket.hafiza.benzerler(pid);
+    const bizim = ciftler.find((x) => [x.a.id, x.b.id].sort().join() === [a.id, b.id].sort().join());
+    expect(bizim?.benzerlik).toBeGreaterThanOrEqual(0.45);
+    // Farklı türdeki aynı metin çift sayılmaz
+    expect(ciftler.some((x) => [x.a.id, x.b.id].includes(c.id) && [x.a.id, x.b.id].includes(b.id))).toBe(false);
+
+    sirket.hafiza.ayriTut(pid, b.id, a.id);
+    expect(sirket.hafiza.benzerler(pid).some((x) => [x.a.id, x.b.id].includes(a.id) && [x.a.id, x.b.id].includes(b.id))).toBe(false);
+
+    const k = sirket.hafiza.birlestir(a.id, b.id, "Tutarlar tamsayı kuruş olarak saklanır; kayan nokta kullanılmaz.");
+    expect(k.etiketler.sort()).toEqual(["para", "veritabani"]);
+    expect(depo.hafizaKaydi(b.id)?.yerineGecen).toBe(a.id);
+    expect(() => sirket.hafiza.birlestir(b.id, a.id)).toThrow(/eskimiş/);
+  });
+});

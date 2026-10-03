@@ -914,6 +914,38 @@ rota("POST", "/api/projeler/:pid/hafiza", ({ p, govde }) => {
   projeGerekli(p.pid);
   return hafizaEkle(p.pid, govde, { ajanId: null, ad: "Yönetim kurulu" });
 });
+const DURAK = new Set("ve veya ile icin bu bir ne mi gibi daha olarak olan var yok the and or".split(" "));
+const sozcukKumesi = (m) => new Set(sadeMetin(m).split(/[^a-z0-9]+/).filter((x) => x.length >= 3 && !DURAK.has(x)));
+const ayrikCiftler = new Set();
+rota("GET", "/api/projeler/:pid/hafiza/benzerler", ({ p }) => {
+  projeGerekli(p.pid);
+  const liste = db.hafiza.filter((k) => k.projeId === p.pid && !k.yerineGecen).map((k) => ({ k, s: sozcukKumesi(`${k.baslik} ${k.metin}`) }));
+  const sonuc = [];
+  for (let i = 0; i < liste.length; i++)
+    for (let j = i + 1; j < liste.length; j++) {
+      const x = liste[i], y = liste[j];
+      if (x.k.tur !== y.k.tur || ayrikCiftler.has([x.k.id, y.k.id].sort().join("|"))) continue;
+      let ortak = 0;
+      for (const s of x.s) if (y.s.has(s)) ortak++;
+      const benzerlik = Math.max(ortak / (x.s.size + y.s.size - ortak), ortak >= 3 ? (ortak / Math.min(x.s.size, y.s.size)) * 0.8 : 0);
+      if (benzerlik >= 0.45) sonuc.push({ a: x.k, b: y.k, benzerlik: Math.round(benzerlik * 100) / 100 });
+    }
+  return sonuc.sort((a, b) => b.benzerlik - a.benzerlik);
+});
+rota("POST", "/api/projeler/:pid/hafiza/ayri", ({ govde }) => {
+  ayrikCiftler.add([govde.a, govde.b].sort().join("|"));
+  return { tamam: true };
+});
+rota("POST", "/api/hafiza/:hid/birlestir", ({ p, govde }) => {
+  const t = db.hafiza.find((x) => x.id === p.hid);
+  const e = db.hafiza.find((x) => x.id === govde?.eskiyen);
+  if (!t || !e) throw new Hata(404, "Birleştirilecek kayıtlar bulunamadı.");
+  Object.assign(t, { metin: govde.metin?.trim() || t.metin, etiketler: [...new Set([...t.etiketler, ...e.etiketler])], onem: Math.max(t.onem, e.onem), guncelleme: simdi() });
+  Object.assign(e, { yerineGecen: t.id, guncelleme: simdi() });
+  hafizaYay(t);
+  hafizaYay(e);
+  return t;
+});
 rota("PATCH", "/api/hafiza/:hid", ({ p, govde }) => {
   const k = db.hafiza.find((x) => x.id === p.hid);
   if (!k) throw new Hata(404, "Hafıza kaydı bulunamadı.");

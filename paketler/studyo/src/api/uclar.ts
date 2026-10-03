@@ -18,6 +18,7 @@ import type {
   Gorev,
   GorevGuncelleIstegi,
   GorevOlusturIstegi,
+  HafizaBenzerCifti,
   HafizaKaydi,
   HafizaTuru,
   HafizaYazIstegi,
@@ -100,6 +101,10 @@ export const api = {
   hafizaGuncelle: (hid: string, i: Partial<Pick<HafizaKaydi, "tur" | "baslik" | "metin" | "etiketler" | "onem">>) =>
     istek<HafizaKaydi>(`/api/hafiza/${k(hid)}`, { method: "PATCH", govde: i }),
   hafizaSil: (hid: string) => istek<Tamam>(`/api/hafiza/${k(hid)}`, { method: "DELETE" }),
+  hafizaBenzerler: (pid: string) => istek<HafizaBenzerCifti[]>(`${proje(pid)}/hafiza/benzerler`),
+  hafizaAyriTut: (pid: string, a: string, b: string) => istek<Tamam>(`${proje(pid)}/hafiza/ayri`, { method: "POST", govde: { a, b } }),
+  hafizaBirlestir: (tutulan: string, eskiyen: string, metin?: string) =>
+    istek<HafizaKaydi>(`/api/hafiza/${k(tutulan)}/birlestir`, { method: "POST", govde: { eskiyen, metin } }),
   sorular: (pid: string, sinir = 300) => istek<AjanSorusu[]>(`${proje(pid)}/sorular${sorgu({ sinir })}`),
   defter: (aid: string) => istek<{ icerik: string; guncelleme: string | null }>(`${ajan(aid)}/defter`),
   defterYaz: (aid: string, icerik: string) => istek<Tamam>(`${ajan(aid)}/defter`, { method: "PUT", govde: { icerik } }),

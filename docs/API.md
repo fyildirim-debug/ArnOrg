@@ -187,6 +187,8 @@ Hafıza, ajan çalışırken de doğru anda önüne gelir (Claude Code kancalar�
 
 `ajana_sor` hedefsiz çağrılabilir: ArnOrg hafızadaki uzmanlık ve iş kayıtlarına, üzerinde çalışılan görevlere, benzer soruları kimin yanıtladığına ve rollere bakıp uzmanı seçer; işaret yoksa soranın yöneticisine, o da yoksa CEO'ya gider. Aynı soru son 30 günde yanıtlandıysa meslektaş uyandırılmaz, önceki yanıt hemen döner (`yeniden: true` zorlar). `hafiza_ara` yanıtlanmış soruları da arar.
 
+Hafıza bakımı: `GET /api/projeler/:pid/hafiza/benzerler` aynı türde birbirini tekrar eden geçerli kayıt çiftlerini döner (`HafizaBenzerCifti[]`, benzerlik 0–1). `POST /api/hafiza/:hid/birlestir` `{ eskiyen, metin? }` tutulan kaydı (isteğe bağlı birleşik metinle) günceller, ötekini eskimiş sayar. `POST /api/projeler/:pid/hafiza/ayri` `{ a, b }` çifti bir daha önermez. Ajan araçları: `hafiza_bakim`, `hafiza_birlestir`; CEO dönem raporunda bakım yapar. Silme `hafiza.silindi` olayını yayınlar.
+
 ## Rapor ve tıkanma koruması
 
 | Yöntem | Yol | Yanıt |

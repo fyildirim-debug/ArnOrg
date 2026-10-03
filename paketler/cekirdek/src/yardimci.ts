@@ -116,3 +116,25 @@ export class AkanKuyruk<T> implements AsyncIterable<T> {
     };
   }
 }
+
+/** Aramada anlam taşımayan sözcükler (Türkçe harfleri sadeleştirilmiş, İngilizce hata metinleri dahil) */
+const DURAK = new Set(
+  (
+    "ve veya ile icin bu su o bir ne mi mu nasil neden niye hangi gibi daha en de da ki ama ya olarak olan var yok misin musun " +
+    "sen ben biz siz onu bunu sunu icin kadar sonra once simdi her hep hic cok az bana sana ona bize size mesela yani sey " +
+    "nedir midir mudur olur olmaz olsun ederim edebilir yapar yapilir yap the an of to in is and or for on with it this that be are was " +
+    "error errors failed fail failure cannot could not found such file directory exit code line at from command warning warn err " +
+    "hata hatasi komut dosya dizin satir kod uyari bulunamadi basarisiz"
+  ).split(/\s+/),
+);
+
+/** Metnin ayırt edici sözcükleri; sıra korunur, tekrar atılır */
+export function anlamliSozcukler(metin: string, sinir = 12): string[] {
+  const goruldu = new Set<string>();
+  for (const s of aramaMetni(metin).split(/[^a-z0-9]+/)) {
+    if (s.length < 3 || DURAK.has(s) || /^\d+$/.test(s) || goruldu.has(s)) continue;
+    goruldu.add(s);
+    if (goruldu.size >= sinir) break;
+  }
+  return [...goruldu];
+}
