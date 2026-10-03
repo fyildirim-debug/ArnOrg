@@ -6,6 +6,7 @@ import type { CanUseTool, HookJSONOutput, PermissionResult } from "@anthropic-ai
 import {
   GOREV_DURUMLARI,
   GOREV_GECISLERI,
+  HAFIZA_TURU_ADLARI,
   KURUL,
   type Ajan,
   type AjanBaslatIstegi,
@@ -986,17 +987,38 @@ export class Sirket {
   // Görevler
   // ===================================================================
 
-  gorevMetni(g: Gorev): string {
+  /**
+   * Görev mesajı: tanım, bağımlılıklar, göreve bağlı ve ilgili hafıza, görev hakkında sorulup yanıtlananlar.
+   * Görev başka birinden devralınıyorsa önceki sahibin defteri de eklenir; iş kaldığı yerden sürer.
+   */
+  gorevMetni(g: Gorev, oncekiSahipId: string | null = null): string {
     const bagimli = g.bagimliliklar
       .map((id) => this.depo.gorev(id))
       .filter(Boolean)
       .map((b) => `${b!.kod} ${b!.baslik} (${b!.durum})`);
+    const bagli = this.depo.hafizaKayitlari(g.projeId, { sinir: 500 }).filter((k) => k.gorevId === g.id);
+    const bagliMetin = bagli.length
+      ? ["\nBu görevle ilgili hafıza:", ...bagli.slice(0, 6).map((k) => `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin, 260)} (${k.kaynakAd})`)].join("\n")
+      : "";
+    const ilgili = this.hafiza.ilgili(g.projeId, `${g.baslik} ${g.aciklama} ${g.etiket}`, 5, new Set(bagli.map((k) => k.id)));
+    const kodDeseni = new RegExp(`\\b${g.kod}\\b`);
+    const sorular = this.depo
+      .sorular(g.projeId, { durum: "yanitlandi", sinir: 200 })
+      .filter((x) => kodDeseni.test(x.soru) || kodDeseni.test(x.yanit ?? ""))
+      .slice(0, 3);
+    const onceki = oncekiSahipId && oncekiSahipId !== g.atananId ? this.depo.ajan(oncekiSahipId) : null;
+    const defter = onceki ? this.hafiza.defter(onceki) : "";
     return [
       `Görev ${g.kod}: ${g.baslik}`,
       g.aciklama ? `\n${g.aciklama}` : "",
       g.kabulOlcutu ? `\nKabul ölçütü:\n${g.kabulOlcutu}` : "",
       bagimli.length ? `\nBağımlı olduğu görevler: ${bagimli.join(", ")}` : "",
-      ((ilgili) => (ilgili ? `\n${ilgili}` : ""))(this.hafiza.ilgili(g.projeId, `${g.baslik} ${g.aciklama} ${g.etiket}`)),
+      onceki
+        ? `\nDevir: bu görevde daha önce ${onceki.ad} (${onceki.rolAdi}) çalıştı${onceki.dal ? `, dalı ${onceki.dal}` : ""}. Kaldığı yerden sür; belirsiz bir şey olursa ajana_sor ile ona sor.${defter ? `\n${onceki.ad} defterinden:\n${kisalt(defter, 1500)}` : ""}`
+        : "",
+      bagliMetin,
+      ilgili ? `\n${ilgili}` : "",
+      sorular.length ? ["\nBu görev hakkında sorulup yanıtlananlar:", ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd}: ${kisalt(x.soru, 160)} | ${kisalt(x.yanit ?? "", 260)}`)].join("\n") : "",
       "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
     ].join("\n");
   }
@@ -1073,7 +1095,7 @@ export class Sirket {
     const durumDegisti = yeniDurum && yeniDurum !== eski.durum;
     const atamaDegisti = istek.atananId !== undefined && istek.atananId !== eski.atananId;
     if (gorev.durum === "calisiliyor" && gorev.atananId && (durumDegisti || atamaDegisti) && gorev.atananId !== kaynakAjanId) {
-      await this.gorevBaslat(gorev).catch((h) =>
+      await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null).catch((h) =>
         this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${gorev.kod} başlatılamadı: ${(h as Error).message}`, projeId: gorev.projeId }),
       );
     }
@@ -1082,11 +1104,11 @@ export class Sirket {
     return gorev;
   }
 
-  private async gorevBaslat(g: Gorev): Promise<void> {
+  private async gorevBaslat(g: Gorev, oncekiSahipId: string | null = null): Promise<void> {
     if (!g.atananId) return;
     this.depo.ajanGuncelle(g.atananId, { gorevId: g.id });
     const oturum = this.oturumlar.get(g.atananId);
-    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${this.gorevMetni(g)}` : this.gorevMetni(g);
+    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${this.gorevMetni(g, oncekiSahipId)}` : this.gorevMetni(g, oncekiSahipId);
     await this.ajanaMesaj(g.atananId, metin, "next", { tur: "sistem" });
   }
 

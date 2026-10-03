@@ -219,8 +219,10 @@ export class ProjeHafizasi {
   }
 
   /** Bir iş metniyle ilgili en fazla birkaç kayıt; görev verilirken mesaja eklenir */
-  ilgili(projeId: string, metin: string, sinir = 5): string {
-    const kayitlar = this.ara(projeId, metin, undefined, sinir);
+  ilgili(projeId: string, metin: string, sinir = 5, haric?: Set<string>): string {
+    const kayitlar = this.ara(projeId, metin, undefined, sinir + (haric?.size ?? 0))
+      .filter((k) => !haric?.has(k.id))
+      .slice(0, sinir);
     if (!kayitlar.length) return "";
     return ["İlgili hafıza:", ...kayitlar.map((k) => `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 200)}`)].join("\n");
   }

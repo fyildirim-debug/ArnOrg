@@ -170,3 +170,27 @@ describe("hafıza bakımı", () => {
     expect(() => sirket.hafiza.birlestir(b.id, a.id)).toThrow(/eskimiş/);
   });
 });
+
+describe("görev devri", () => {
+  it("devralınan görevin mesajında önceki sahibin defteri, göreve bağlı hafıza ve görevle ilgili soru-yanıt olur", () => {
+    const deniz = ajan("Deniz");
+    const mert = ajan("Mert");
+    const g = sirket.gorevOlustur(pid, { baslik: "Sipariş iptal ucu", aciklama: "PATCH /siparisler/:id/iptal", atananId: deniz.id });
+    sirket.defterYaz(deniz.id, "## Açık\n- İptal ucu yazıldı, testleri eksik\n## Sıradaki\n- 409 durumunu test et");
+    sirket.hafizaYaz(pid, { tur: "karar", baslik: "İptal yalnız kargodan önce", metin: "Kargodaki sipariş iptal edilemez; 409 döner.", gorevId: g.id }, deniz.id);
+    const kayit = depo.soruEkle({ projeId: pid, soranId: mert.id, soranAd: "Mert", soruluId: deniz.id, soruluAd: "Deniz", soru: `${g.kod} için iptal hangi kodla reddediliyor?` });
+    depo.soruSonuclandir(kayit.id, "yanitlandi", "409 GECERSIZ_GECIS");
+
+    const devralinan = depo.gorevGuncelle(g.id, { atananId: mert.id });
+    const metin = sirket.gorevMetni(devralinan, deniz.id);
+    expect(metin).toContain("Devir: bu görevde daha önce Deniz");
+    expect(metin).toContain("409 durumunu test et");
+    expect(metin).toContain("Bu görevle ilgili hafıza:");
+    expect(metin).toContain("İptal yalnız kargodan önce");
+    expect(metin).toContain("409 GECERSIZ_GECIS");
+    // Göreve bağlı kayıt "İlgili hafıza" altında yinelenmez
+    expect(metin.split("İptal yalnız kargodan önce").length - 1).toBe(1);
+    // Devir yoksa defter eklenmez
+    expect(sirket.gorevMetni(devralinan)).not.toContain("Devir:");
+  });
+});
