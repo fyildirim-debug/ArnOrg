@@ -1360,6 +1360,7 @@ export class Sirket {
     katilimcilar = katilimcilar.slice(0, 6);
     if (!katilimcilar.length) throw new ArnorgHatasi("Toplantıya çağrılacak çalışan bulunamadı; katilimcilar alanında ad ver.", 404);
 
+    this.depo.kanalEkle(pid, "toplanti", "Toplantılar: gündem, görüşler, karar");
     this.kanalMesaji(
       pid,
       "toplanti",
