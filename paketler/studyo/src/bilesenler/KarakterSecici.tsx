@@ -1,5 +1,6 @@
 // Ofis karakterleri: katalog, ajanların çözülmüş karakteri (avatarlar için) ve karakter seçici (radyo grubu)
 import type { Ajan } from "@arnorg/ortak";
+import { karakterBul, type OfisYeri } from "@arnorg/ortak/karakterler";
 import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { create } from "zustand";
 import { useVeri } from "../durum/veri";
@@ -168,8 +169,59 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
       <p className="alan-ipucu" id={aciklamaId}>
         {secili
           ? `${secili.ad}${kullanan.has(secili.id) ? ` · şu an ${kullanan.get(secili.id)} kullanıyor` : ""}`
-          : `Otomatik: Ofis role göre seçer${otomatikKarakter ? ` (şimdilik ${otomatikKarakter.ad.toLocaleLowerCase("tr-TR")})` : ""}`}
+          : `Otomatik: role uyan boş karakter${otomatikKarakter ? ` (şimdilik ${otomatikKarakter.ad.toLocaleLowerCase("tr-TR")})` : ""}`}
       </p>
+      <KisilikOzeti karakterId={secili?.id ?? otomatikKarakter?.id ?? null} />
     </>
+  );
+}
+
+const YER_ADLARI: Record<OfisYeri, string> = {
+  kahve: "kahve makinesinin başı",
+  kanepe: "kanepe",
+  kitaplik: "kitaplık",
+  bitki: "bitkilerin yanı",
+  "beyaz-tahta": "beyaz tahta",
+  sunucu: "sunucu odası",
+  su: "su sebili",
+  pencere: "pencere önü",
+  "masa-tenisi": "masa tenisi",
+  otomat: "atıştırmalık otomatı",
+};
+
+/** Karakterin kişiliği: ajanın üslubuna ve ofisteki davranışına yansır */
+export function KisilikOzeti({ karakterId }: { karakterId: string | null }) {
+  const k = karakterBul(karakterId);
+  if (!k) return null;
+  return (
+    <div className="kisilik" aria-label={`${k.lakap} kişiliği`}>
+      <div className="kisilik-ust">
+        <b className="kisilik-lakap">{k.lakap}</b>
+        <span className="kisilik-mizac">
+          {k.mizac.map((m) => (
+            <span key={m} className="etiket">
+              {m}
+            </span>
+          ))}
+        </span>
+      </div>
+      <p>{k.ozet}</p>
+      <dl>
+        <div>
+          <dt>Üslup</dt>
+          <dd>{k.konusma}</dd>
+        </div>
+        <div>
+          <dt>Çalışma</dt>
+          <dd>{k.calisma}</dd>
+        </div>
+        <div>
+          <dt>Ofiste</dt>
+          <dd>
+            En çok {YER_ADLARI[k.sevdigiYer]} · <q>{k.sozler[0]}</q>
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
 }

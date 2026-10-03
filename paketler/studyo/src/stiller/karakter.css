@@ -117,3 +117,61 @@
     scroll-snap-align: start;
   }
 }
+
+/* Seçili karakterin kişiliği */
+.kisilik {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: var(--b-2);
+  padding: var(--b-3) 0 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--t-xs);
+  color: var(--bone);
+  line-height: 1.55;
+}
+.kisilik-ust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--b-2) var(--b-3);
+}
+.kisilik-lakap {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-l);
+  letter-spacing: 0.02em;
+  color: var(--paper);
+}
+.kisilik-mizac {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.kisilik dl {
+  display: grid;
+  gap: 0.375rem;
+}
+.kisilik dl div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--b-3);
+}
+.kisilik dt {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: 0.125rem;
+}
+.kisilik dd {
+  margin: 0;
+}
+.kisilik q {
+  color: var(--paper);
+}
+@media (max-width: 520px) {
+  .kisilik dl div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.125rem;
+  }
+}

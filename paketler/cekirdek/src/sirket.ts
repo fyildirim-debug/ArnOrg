@@ -38,7 +38,23 @@ import {
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
 import { HesapIzleyici } from "./hesap.js";
 import { ProjeHafizasi } from "./hafiza.js";
+import { karakterBul, karakterSec } from "@arnorg/ortak/karakterler";
 import { Hatirlatici, oncekiYanit, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
+
+/** Ofis karakterinin kişiliği: yalnız üslubu ve yaklaşımı belirler */
+export function kisilikMetni(karakterId: string | null): string {
+  const k = karakterBul(karakterId);
+  if (!k) return "";
+  return [
+    "",
+    "## Kişiliğin",
+    `Ofiste "${k.lakap}" diye anılırsın. ${k.ozet} Mizacın: ${k.mizac.join(", ")}.`,
+    `- Üslup: ${k.konusma}`,
+    `- Çalışma tarzı: ${k.calisma}`,
+    `- Kendine not: ${k.dikkat}`,
+    "Kişilik yalnız üslubunu ve yaklaşımını belirler; ArnOrg kuralları, kalite ve doğruluk her zaman önce gelir. Abartma, rol yapma; doğal kal.",
+  ].join("\n");
+}
 
 /** Toplantıda bir katılımcının görüşü */
 export interface ToplantiGorusu {
@@ -134,6 +150,7 @@ export class Sirket {
     depo.bekleyenSorulariKapat();
     this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     this.hatirlatici = new Hatirlatici(depo, this.hafiza);
+    this.karakterleriTamamla();
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
   }
@@ -338,12 +355,31 @@ export class Sirket {
       izinModu: this.yapilandirma.ayarlar.varsayilanIzinModu,
       gunlukButceUsd: typeof istek.gunlukButceUsd === "number" ? Math.max(0, istek.gunlukButceUsd) : rol.yonetici ? 10 : 5,
       talimatEki: istek.talimatEki?.trim() ?? "",
-      karakter: istek.karakter ?? null,
+      // Karakter seçilmediyse role uyan boş karakter atanır; kişiliği talimata, görünüşü ofise yansır
+      karakter: istek.karakter ?? karakterSec(rol.kimlik, this.kullanilanKarakterler(projeId), `${projeId}:${ad}`),
     });
     if (dosyaYaz) this.kimlikDosyasiYaz(ajan, proje);
     this.ajanYayinla(ajan.id);
     this.projeYayinla(projeId);
     return ajan;
+  }
+
+  private kullanilanKarakterler(projeId: string): string[] {
+    return this.depo
+      .ajanlar(projeId)
+      .map((a) => a.karakter)
+      .filter((k): k is string => !!k);
+  }
+
+  /** Karakteri olmayan eski ajanlara işe alınış sırasıyla karakter atanır (ofisteki otomatik atamayla aynı kural) */
+  private karakterleriTamamla(): void {
+    for (const p of this.depo.projeler()) {
+      const ajanlar = [...this.depo.ajanlar(p.id)].sort((a, b) => a.olusturma.localeCompare(b.olusturma) || a.id.localeCompare(b.id));
+      for (const a of ajanlar) {
+        if (a.karakter) continue;
+        this.depo.ajanGuncelle(a.id, { karakter: karakterSec(a.rol, this.kullanilanKarakterler(p.id), `${p.id}:${a.ad}`) });
+      }
+    }
   }
 
   private kimlikDosyasiYaz(ajan: Ajan, proje: Proje): void {
@@ -486,6 +522,7 @@ export class Sirket {
       "- Her turun sonunda defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kısa maddeler; eskiyenleri çıkar.",
       "",
       hafizaBaglami,
+      kisilikMetni(ajan.karakter),
       ajan.talimatEki ? `\n## Ek talimat\n${ajan.talimatEki}` : "",
     ].join("\n");
   }
@@ -1424,6 +1461,8 @@ export class Sirket {
   async arnorgCommitle(projeId: string): Promise<boolean> {
     const proje = this.depo.proje(projeId);
     if (!proje || !fs.existsSync(path.join(proje.yol, ".arnorg"))) return false;
+    // Bekleyen hafıza yansıması önce yazılır; commit hafızanın son hâlini içerir
+    this.hafiza.bekleyeniYansit(projeId);
     if ((await gitIslemleri.mevcutDal(proje.yol)) !== proje.varsayilanDal) return false;
     const durum = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--", ".arnorg"])).trim();
     if (!durum) return false;

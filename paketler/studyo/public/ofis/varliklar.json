@@ -168,6 +168,180 @@
    "dosya": "karakterler/k16.png",
    "en": 176,
    "boy": 480
+  },
+  {
+   "id": "k17",
+   "ad": "Kıvırcık saçlı veri bilimci",
+   "roller": [
+    "arastirmaci",
+    "backend"
+   ],
+   "dosya": "karakterler/k17.png",
+   "en": 175,
+   "boy": 480
+  },
+  {
+   "id": "k18",
+   "ad": "Lavanta saçlı testçi",
+   "roller": [
+    "test",
+    "inceleme"
+   ],
+   "dosya": "karakterler/k18.png",
+   "en": 183,
+   "boy": 480
+  },
+  {
+   "id": "k19",
+   "ad": "At kuyruklu güvenilirlik mühendisi",
+   "roller": [
+    "devops",
+    "backend"
+   ],
+   "dosya": "karakterler/k19.png",
+   "en": 185,
+   "boy": 480
+  },
+  {
+   "id": "k20",
+   "ad": "Güvenlik analisti",
+   "roller": [
+    "guvenlik"
+   ],
+   "dosya": "karakterler/k20.png",
+   "en": 180,
+   "boy": 480
+  },
+  {
+   "id": "k21",
+   "ad": "Kel sakallı kıdemli geliştirici",
+   "roller": [
+    "backend",
+    "cto",
+    "inceleme"
+   ],
+   "dosya": "karakterler/k21.png",
+   "en": 209,
+   "boy": 480
+  },
+  {
+   "id": "k22",
+   "ad": "Topuzlu arayüz tasarımcısı",
+   "roller": [
+    "tasarim",
+    "frontend"
+   ],
+   "dosya": "karakterler/k22.png",
+   "en": 187,
+   "boy": 480
+  },
+  {
+   "id": "k23",
+   "ad": "Beyaz saçlı teknik yazar",
+   "roller": [
+    "yazar"
+   ],
+   "dosya": "karakterler/k23.png",
+   "en": 170,
+   "boy": 480
+  },
+  {
+   "id": "k24",
+   "ad": "Tekerlekli sandalyeli mobil geliştirici",
+   "roller": [
+    "frontend",
+    "fullstack"
+   ],
+   "dosya": "karakterler/k24.png",
+   "en": 291,
+   "boy": 480,
+   "hareket": "tekerlekli"
+  },
+  {
+   "id": "k25",
+   "ad": "Çift topuzlu arayüz geliştiricisi",
+   "roller": [
+    "frontend"
+   ],
+   "dosya": "karakterler/k25.png",
+   "en": 195,
+   "boy": 480
+  },
+  {
+   "id": "k26",
+   "ad": "Mühendislik direktörü",
+   "roller": [
+    "cto",
+    "ceo"
+   ],
+   "dosya": "karakterler/k26.png",
+   "en": 173,
+   "boy": 480
+  },
+  {
+   "id": "k27",
+   "ad": "Makine öğrenmesi mühendisi",
+   "roller": [
+    "arastirmaci",
+    "backend"
+   ],
+   "dosya": "karakterler/k27.png",
+   "en": 219,
+   "boy": 480
+  },
+  {
+   "id": "k28",
+   "ad": "Stajyer tam yığın geliştirici",
+   "roller": [
+    "fullstack",
+    "test"
+   ],
+   "dosya": "karakterler/k28.png",
+   "en": 209,
+   "boy": 480
+  },
+  {
+   "id": "k29",
+   "ad": "Gümüş kıvırcık saçlı inceleyici",
+   "roller": [
+    "inceleme",
+    "cto"
+   ],
+   "dosya": "karakterler/k29.png",
+   "en": 190,
+   "boy": 480
+  },
+  {
+   "id": "k30",
+   "ad": "Bıyıklı veritabanı mühendisi",
+   "roller": [
+    "backend",
+    "devops"
+   ],
+   "dosya": "karakterler/k30.png",
+   "en": 169,
+   "boy": 480
+  },
+  {
+   "id": "k31",
+   "ad": "İşitme cihazlı deneyim araştırmacısı",
+   "roller": [
+    "tasarim",
+    "arastirmaci"
+   ],
+   "dosya": "karakterler/k31.png",
+   "en": 170,
+   "boy": 480
+  },
+  {
+   "id": "k32",
+   "ad": "Kır saçlı kurucu",
+   "roller": [
+    "ceo"
+   ],
+   "dosya": "karakterler/k32.png",
+   "en": 165,
+   "boy": 480
   }
  ],
  "esyalar": {
