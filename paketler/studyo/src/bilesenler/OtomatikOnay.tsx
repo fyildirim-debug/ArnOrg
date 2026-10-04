@@ -19,7 +19,7 @@ function useOtomatikOnay() {
   const proje = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId));
   const onaylar = useVeri((d) => d.onaylar);
   const ayar = proje?.otomatikOnay ?? KAPALI;
-  // Kapalıyken boş liste "hiç ayarlanmadı" demektir: işaretlenince varsayılan beş tür gider
+  // Kapalıyken boş liste "hiç ayarlanmadı" demektir: işaretlenince varsayılan türler gider
   const kapsam = ayar.turler.length || ayar.etkin ? ayar.turler : VARSAYILAN_OTOMATIK_ONAY_TURLERI;
   const { suruyor, calistir } = useIslem();
 
@@ -49,7 +49,7 @@ export function OtomatikOnayKutusu() {
   const etkin = hedef ?? ayar.etkin;
   const uygun = bekleyenUygun(kapsam);
   const degistir = (yeni: boolean) => {
-    // İşaretlenirken liste boşsa (hiç ayarlanmamış proje) varsayılan beş tür gönderilir
+    // İşaretlenirken liste boşsa (hiç ayarlanmamış proje) varsayılan türler gönderilir
     const turler = yeni && !ayar.turler.length ? VARSAYILAN_OTOMATIK_ONAY_TURLERI : kapsam;
     setHedef(yeni);
     void kaydet({ etkin: yeni, turler }, yeni ? t.acildi(bekleyenUygun(turler)) : t.kapandi).finally(() => setHedef(null));

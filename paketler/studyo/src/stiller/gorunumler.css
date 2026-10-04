@@ -97,6 +97,10 @@
   width: 14rem;
   max-width: 100%;
 }
+/* Denetim: süzgece uyan kayıtları indirme; satırın sonunda, dar ekranda kendi satırında */
+.suzgec-disa {
+  margin-left: auto;
+}
 .arama-kutu {
   position: relative;
   display: flex;
@@ -1691,6 +1695,16 @@ button.onay-kisi:hover b {
 .tablo-ajan {
   color: var(--paper);
   text-decoration: none;
+}
+/* Alt ajanın çağrısı: ajan adının yanında (dar sütunda altında) kıl çizgili küçük etiket */
+.denetim-ajan {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.375rem;
+}
+.denetim-alt-ajan {
+  cursor: help;
 }
 .tablo-daha {
   display: flex;

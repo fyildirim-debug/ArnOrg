@@ -42,6 +42,8 @@ export interface Ayarlar {
   varsayilanIzinModu: IzinModu;
   /** Karar bekleyen araç çağrısı için süre (saniye); dolunca reddedilir */
   onaySuresiSn: number;
+  /** Denetim kayıtları bu kadar gün tabloda tutulur; eskileri veri dizinindeki arsiv/denetim-<yıl>-<ay>.jsonl dosyalarına taşınır. 0 süresiz */
+  denetimSaklamaGun: number;
   /** Dış editör komutu (codium, code, cursor) */
   disEditor: string;
   /** Görev bu kadar dakika ilerlemezse sorumlu hatırlatılır, sonra yöneticiye ve kurula yükseltilir; 0 kapalı */
@@ -452,14 +454,19 @@ export interface DenetimKaydi {
   kural: string | null;
   neden: string | null;
   aracKimligi: string | null;
+  /** Çağrıyı ajanın Agent (Task) aracıyla açtığı bir alt ajan yaptıysa Claude Code'un verdiği alt ajan kimliği */
+  altAjan: string | null;
   zaman: Zaman;
 }
 
 export type OnayTuru = "arac" | "ise_alim" | "birlestirme" | "genel" | "anayasa" | "isten_cikarma" | "teslim";
 export const ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"];
 
-/** Otomatik onay açılınca varsayılan olarak kendiliğinden verilen türler; genel sorular ve teslim kurula kalır */
-export const VARSAYILAN_OTOMATIK_ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "birlestirme", "anayasa", "isten_cikarma"];
+/**
+ * Otomatik onay açılınca varsayılan olarak kendiliğinden verilen türler. Birleştirme (çalışma dalına giren kod),
+ * genel sorular ve teslim kurula kalır. Projede kaydedilmiş bir seçim varsa o geçerlidir; bu liste ona dokunmaz.
+ */
+export const VARSAYILAN_OTOMATIK_ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "anayasa", "isten_cikarma"];
 export type OnayDurumu = "bekliyor" | "onaylandi" | "reddedildi" | "zaman_asimi";
 
 export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
@@ -1026,6 +1033,29 @@ export interface MasaustuKoprusu {
   dikkatCek?(): void;
   /** Pencereyi öne getirir (masaüstü bildirimine tıklanınca). Eski masaüstü sürümlerinde yoktur */
   oneGetir?(): void;
+  /** Otomatik güncelleme (masaüstü 0.0.4); eski masaüstü sürümlerinde yoktur */
+  guncelleme?: MasaustuGuncellemesi;
+}
+
+/** Masaüstü uygulamasının otomatik güncelleme durumu */
+export interface MasaustuGuncellemeDurumu {
+  /** yok: güncel ya da denetlenmedi · denetleniyor · iniyor · hazir: indirildi, yeniden başlatınca kurulur · hata */
+  asama: "yok" | "denetleniyor" | "iniyor" | "hazir" | "hata";
+  /** Bulunan yeni sürüm */
+  surum: string | null;
+  /** İndirme ilerlemesi (0–100) */
+  yuzde: number | null;
+  hata: string | null;
+}
+
+/** Masaüstü köprüsünün güncelleme bölümü (window.arnorg.guncelleme) */
+export interface MasaustuGuncellemesi {
+  /** Anlık durum */
+  durum(): Promise<MasaustuGuncellemeDurumu | null>;
+  /** Durum değişince çağrılır; dönen işlev dinlemeyi bırakır */
+  dinle(dinleyici: (durum: MasaustuGuncellemeDurumu) => void): () => void;
+  /** İndirilen güncellemeyi kurar ve uygulamayı yeniden başlatır; indirilmiş sürüm yoksa false */
+  kur(): Promise<boolean>;
 }
 
 /** API hata gövdesi */

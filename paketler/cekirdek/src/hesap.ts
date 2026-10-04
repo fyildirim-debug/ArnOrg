@@ -1,5 +1,8 @@
 // Claude girişi ve abonelik kullanımı: plan (Pro/Max), 5 saatlik ve haftalık pencere yüzdeleri, ayardaki üst sınır.
 // Bilgi önce açık bir ajan oturumundan, yoksa mesaj göndermeyen kısa bir Claude Code yoklamasından alınır (token harcanmaz).
+// Dönemsel okuma yalnız gerektiğinde yapılır: Stüdyo bağlıyken, açık ajan oturumu ya da abonelik sınırında bekleyen ajan
+// varken; kimse beklemese de aşılan sınırın sıfırlanma anı geçince bir kez (bilinmiyorsa sınır sürdükçe). Stüdyo
+// bağlanınca son okuma bayatsa hemen okunur.
 import { query, type AccountInfo, type SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import type { HesapDurumu, KullanimPenceresi, KullanimPenceresiTuru } from "@arnorg/ortak";
 import { iki } from "./dil.js";
@@ -94,9 +97,14 @@ export class HesapIzleyici {
     private readonly oturumdanSor: KullanimKaynagi,
     /** Testlerde gerçek Claude Code süreci açılmaz */
     private readonly yoklamaKapali = false,
+    /** Ajan tarafındaki gerekçe: açık ajan oturumu ya da abonelik sınırında bekleyen ajan var mı */
+    private readonly ajanlarBekliyor: () => boolean = () => false,
   ) {
     this.durum = this.bos();
   }
+
+  /** Stüdyo'ya bağlı WebSocket istemcisi var mı; sunucu verir (sunucusuz kullanımda hep yok) */
+  istemciVar: () => boolean = () => false;
 
   private bos(): HesapDurumu {
     return {
@@ -125,19 +133,38 @@ export class HesapIzleyici {
     return this.durum.sinir;
   }
 
+  /**
+   * Dönemsel okuma gerekli mi: Stüdyo bağlı, açık ajan oturumu var ya da abonelik sınırında bekleyen ajan var. Kimse
+   * beklemiyorsa aşılan sınır, sıfırlanma anı geçince (bilinmiyorsa hemen) yine okunur: eski sınır kalıp gözetmeni
+   * ve sonraki işleri boşuna durdurmasın.
+   */
+  yoklamaGerekli(): boolean {
+    if (this.istemciVar() || this.ajanlarBekliyor()) return true;
+    const s = this.durum.sinir;
+    return !!s && (!s.sifirlanma || Date.parse(s.sifirlanma) <= Date.now());
+  }
+
+  /** Son okuma bayat mı: sınır aşıkken 2, değilken 5 dakikadan eski (hiç okunmadıysa bayat) */
+  private bayat(): boolean {
+    const son = this.durum.guncelleme ? Date.parse(this.durum.guncelleme) : 0;
+    return Date.now() - son >= (this.durum.sinir ? 2 * 60_000 : 5 * 60_000);
+  }
+
   baslat(): void {
     if (this.zamanlayici) return;
     const dongu = () => {
-      void this.tazele().catch(() => undefined);
+      if (this.yoklamaGerekli() && this.bayat()) void this.tazele().catch(() => undefined);
     };
+    // İlk okuma da yalnız gerekiyorsa; Stüdyo sonradan bağlanırsa istemciBaglandi okur
     setTimeout(dongu, 1500).unref();
-    // Sınır aşıldıysa sıfırlanmayı yakalamak için daha sık bakılır
-    this.zamanlayici = setInterval(() => {
-      const son = this.durum.guncelleme ? Date.parse(this.durum.guncelleme) : 0;
-      const aralik = this.durum.sinir ? 2 * 60_000 : 5 * 60_000;
-      if (Date.now() - son >= aralik) dongu();
-    }, 30_000);
+    // Sınır aşıldıysa sıfırlanmayı yakalamak için daha sık bakılır (bayat sınırı 2 dk)
+    this.zamanlayici = setInterval(dongu, 30_000);
     this.zamanlayici.unref();
+  }
+
+  /** Stüdyo bağlandı: dönemsel okuma açıksa ve son okuma bayatsa hemen bir kez okunur */
+  istemciBaglandi(): void {
+    if (this.zamanlayici && this.bayat()) void this.tazele().catch(() => undefined);
   }
 
   durdur(): void {

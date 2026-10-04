@@ -18,6 +18,13 @@ export const bilesenler: typeof tr = {
     bugunkuKullanim: "Usage today",
     pay: (oran: number) => `${oran}% of the team's highest usage`,
   },
+  guncelleme: {
+    etiket: "Update ready",
+    hazir: (surum: string) => `ArnOrg ${surum} is ready; it installs when you restart.`,
+    yenidenBaslat: "Restart",
+    baslatiliyor: "Restarting…",
+    sonra: "Later",
+  },
   kullanim: {
     pencere: {
       bes_saat: "5-hour window",

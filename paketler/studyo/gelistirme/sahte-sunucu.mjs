@@ -15,6 +15,7 @@ import { ceviri, kanalGorunenAdi, yonelme } from "./dil.mjs";
 import { dilBul } from "./dosyalar.mjs";
 import * as KZ from "./kod-zekasi-verisi.mjs";
 import { kur as surum002 } from "./surum-002.mjs";
+import { kur as surum004Kazanim } from "./surum-004-kazanim.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2129,6 +2130,7 @@ surum002({
   onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f),
   istemciSayisi: () => istemciler.size,
 });
+surum004Kazanim({ rota, db, yay, herkeseYay, Hata, simdi, projeGerekli, ajanBul });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

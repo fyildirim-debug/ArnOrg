@@ -70,7 +70,7 @@ import type {
   Saglik,
   TerminalAcIstegi,
 } from "@arnorg/ortak";
-import { istek, sorgu } from "./istek";
+import { indir, istek, sorgu } from "./istek";
 
 type Tamam = { tamam: true };
 
@@ -140,6 +140,8 @@ export const api = {
 
   // Denetim ve onaylar
   denetim: (pid: string, sinir = 300) => istek<DenetimKaydi[]>(`${proje(pid)}/denetim${sorgu({ sinir })}`),
+  /** Denetim kaydı JSONL olarak; süzgeç Denetim ekranınınkiyle aynı (karar, ajan kimliği, arama) */
+  denetimDisaAktar: (pid: string, suzgec: { karar?: string; ajan?: string; q?: string }) => indir(`${proje(pid)}/denetim/disa-aktar${sorgu(suzgec)}`),
   politika: (pid: string) => istek<PolitikaKurali[]>(`${proje(pid)}/politika`),
   politikaKaydet: (pid: string, kurallar: PolitikaKurali[]) =>
     istek<PolitikaKurali[]>(`${proje(pid)}/politika`, { method: "PUT", govde: kurallar }),

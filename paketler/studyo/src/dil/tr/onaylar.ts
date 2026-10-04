@@ -162,7 +162,7 @@ export const onaylar = {
       isten_cikarma: "Ekipten çıkarma teklifleri",
       teslim: "Biten işin kabulü",
     } as Record<OnayTuru, string>,
-    aciklama: "Soru ve teslim sizin cevabınızı ister; bu yüzden varsayılan olarak kapsam dışıdır.",
+    aciklama: "Birleştirme, soru ve teslim sizin kararınızı ister; bu yüzden varsayılan olarak kapsam dışıdır.",
     varsayilan: "Varsayılana dön",
     /** turler: dile göre birleştirilmiş tür adları ("İşe alım, Birleştirme ve Ana yasa") */
     uyari: (turler: string) => `Otomatik onay açık: ${turler} onayları kendiliğinden veriliyor. Her biri Geçmiş'te kayıtlı.`,

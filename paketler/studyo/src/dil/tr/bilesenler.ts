@@ -18,6 +18,14 @@ export const bilesenler = {
     bugunkuKullanim: "Bugünkü kullanım",
     pay: (oran: number) => `Ekipte en çok kullananın yüzde ${oran} kadarı`,
   },
+  /** Masaüstü güncellemesi indirildi: üst çubuğun altındaki şerit */
+  guncelleme: {
+    etiket: "Güncelleme hazır",
+    hazir: (surum: string) => `ArnOrg ${surum} hazır; yeniden başlatınca kurulur.`,
+    yenidenBaslat: "Yeniden başlat",
+    baslatiliyor: "Yeniden başlatılıyor…",
+    sonra: "Sonra",
+  },
   kullanim: {
     /** Pencere adları türe göre; model pencereleri "Haftalık · <model>" */
     pencere: {

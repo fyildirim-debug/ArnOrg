@@ -15,6 +15,9 @@ export const denetim: typeof tr = {
   butunAjanlar: "All agents",
   araEtiket: "Search records",
   araYer: "Search: command, path, rule",
+  disaAktar: "Export",
+  disaAktarIpucu: "Download the records that match the filters as a JSONL file (oldest first)",
+  disaAktarBos: "No records match the filters; nothing was downloaded.",
   eslesenYok: "No matching records",
   eslesenYokMetin: "Loosen the filters.",
   henuzYok: "No records yet",
@@ -28,6 +31,8 @@ export const denetim: typeof tr = {
     kural: "Rule",
   },
   dahaGoster: (n: number) => `Show ${n} more`,
+  altAjan: "subagent",
+  altAjanIpucu: (kimlik: string) => `Made by a subagent the agent started · ${kimlik}`,
   politika: "Policy",
   politikaAlt: "allow · deny · ask for approval",
 

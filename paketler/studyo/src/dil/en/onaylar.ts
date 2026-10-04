@@ -152,7 +152,7 @@ export const onaylar: typeof tr = {
       isten_cikarma: "Proposals to let someone go",
       teslim: "Accepting finished work",
     },
-    aciklama: "Questions and deliveries need your answer, so they're out of scope by default.",
+    aciklama: "Merges, questions and deliveries need your decision, so they're out of scope by default.",
     varsayilan: "Reset to default",
     uyari: (turler: string) => `Auto-approve is on: ${turler} approvals are granted automatically. Each one is recorded in History.`,
     uyariBos: "Auto-approve is on, but the scope is empty; nothing is granted automatically.",

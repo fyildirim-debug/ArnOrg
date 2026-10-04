@@ -1,6 +1,7 @@
 // Çekirdek HTTP API'si için fetch sarmalayıcısı
 import type { ApiHatasi as ApiHataGovdesi } from "@arnorg/ortak";
 import { sozluk } from "../dil";
+import { dosyaAdiOku } from "../yardimcilar/indirme";
 import { anahtar, anahtarAyarla } from "./anahtar";
 
 export class ApiHatasi extends Error {
@@ -40,8 +41,22 @@ function durumMetni(durum: number): string {
 }
 
 export async function istek<T>(yol: string, secenek: IstekSecenekleri = {}): Promise<T> {
+  const yanit = await yanitAl(yol, secenek, "application/json");
+  if (yanit.status === 204) return undefined as T;
+  const metin = await yanit.text();
+  return (metin ? JSON.parse(metin) : undefined) as T;
+}
+
+/** Çekirdekten dosya indirir (JSON yerine ham gövde); dosya adı Content-Disposition başlığından okunur */
+export async function indir(yol: string, sinyal?: AbortSignal): Promise<{ veri: Blob; dosyaAdi: string | null }> {
+  const yanit = await yanitAl(yol, { sinyal }, "*/*");
+  return { veri: await yanit.blob(), dosyaAdi: dosyaAdiOku(yanit.headers.get("Content-Disposition")) };
+}
+
+/** İsteği anahtarla gönderir; başarısız yanıtı çekirdeğin hata metniyle ApiHatasi'na çevirir */
+async function yanitAl(yol: string, secenek: IstekSecenekleri, kabul: string): Promise<Response> {
   const { method = "GET", govde, sinyal } = secenek;
-  const basliklar: Record<string, string> = { Accept: "application/json" };
+  const basliklar: Record<string, string> = { Accept: kabul };
   const a = anahtar();
   if (a) basliklar.Authorization = `Bearer ${a}`;
   if (govde !== undefined) basliklar["Content-Type"] = "application/json";
@@ -70,10 +85,7 @@ export async function istek<T>(yol: string, secenek: IstekSecenekleri = {}): Pro
     if (yanit.status === 401) anahtarAyarla(null);
     throw new ApiHatasi(mesaj, yanit.status);
   }
-
-  if (yanit.status === 204) return undefined as T;
-  const metin = await yanit.text();
-  return (metin ? JSON.parse(metin) : undefined) as T;
+  return yanit;
 }
 
 /** Hata nesnesinden kullanıcıya gösterilecek metni çıkarır */

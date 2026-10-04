@@ -15,6 +15,9 @@ export const denetim = {
   butunAjanlar: "Bütün ajanlar",
   araEtiket: "Kayıtlarda ara",
   araYer: "Ara: komut, yol, kural",
+  disaAktar: "Dışa aktar",
+  disaAktarIpucu: "Süzgece uyan kayıtları JSONL dosyası olarak indir (eskiden yeniye)",
+  disaAktarBos: "Süzgece uyan kayıt yok; dosya indirilmedi.",
   eslesenYok: "Eşleşen kayıt yok",
   eslesenYokMetin: "Süzgeçleri gevşetin.",
   henuzYok: "Henüz kayıt yok",
@@ -28,6 +31,9 @@ export const denetim = {
     kural: "Kural",
   },
   dahaGoster: (n: number) => `${n} kayıt daha göster`,
+  /** Çağrıyı ajanın Agent aracıyla açtığı alt ajan yaptıysa ajan adının yanında */
+  altAjan: "alt ajan",
+  altAjanIpucu: (kimlik: string) => `Bu çağrıyı ajanın açtığı bir alt ajan yaptı · ${kimlik}`,
   politika: "Politika",
   politikaAlt: "izin · ret · onaya sor",
 

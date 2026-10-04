@@ -54,6 +54,11 @@ export class DosyaIzleyici {
     this.izlenenler.delete(anahtar);
   }
 
+  /** Silinen ajanın alanını izlemeyi bırakır (worktree kaldırılınca her dosya için olay yağmasın) */
+  alaniBirak(projeId: string, alan: string): void {
+    for (const [kok, i] of this.izlenenler) if (i.projeId === projeId && i.alan === alan) this.birak(kok);
+  }
+
   async kapat(): Promise<void> {
     for (const z of this.bekleyen.values()) clearTimeout(z);
     await Promise.all([...this.izlenenler.values()].map((i) => i.izleyici.close()));

@@ -17,7 +17,8 @@ Electron ana süreci (dist/ana.js)
 - **Çekirdek süreci:** Electron'un `utilityProcess`'i (Node ortamı, Electron ile aynı ikili). Çıktısı `logs/cekirdek.log` dosyasına yazılır. 60 sn içinde hazır olmazsa ya da beklenmedik biçimde durursa kaydın son satırları ve **Yeniden başlat** düğmesiyle hata sayfası açılır.
 - **Kapanış:** çekirdeğe `kapat` mesajı gider (`sunucu.kapat()`), 5 sn içinde çıkmazsa süreç sonlandırılır.
 - **Güvenlik:** `contextIsolation`, `sandbox`, `webSecurity` açık, `nodeIntegration` kapalı. Pencere yalnız çekirdeğin kökünde gezinebilir; başka http(s) adresleri sistem tarayıcısında açılır, diğer her şey engellenir. Yeni pencere, `<webview>` ve izinler (pano, bildirim, tam ekran dışında) kapalı; yazım denetimi sözlük indirmesin diye kapalı.
-- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url), klasorSec(), dikkatCek(), oneGetir() }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar; `klasorSec` sistemin klasör seçicisini açar (proje açarken yol yazılmaz); `dikkatCek` pencere arkadayken görev çubuğunda yanıp söner (önemli an bildirimi), `oneGetir` pencereyi öne alır (masaüstü bildirimine tıklanınca). Hepsi yalnız çekirdek kökünden yüklenmiş ana pencereden çağrılabilir.
+- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url), klasorSec(), dikkatCek(), oneGetir(), guncelleme: { durum(), dinle(f), kur() } }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar; `klasorSec` sistemin klasör seçicisini açar (proje açarken yol yazılmaz); `dikkatCek` pencere arkadayken görev çubuğunda yanıp söner (önemli an bildirimi), `oneGetir` pencereyi öne alır (masaüstü bildirimine tıklanınca); `guncelleme` otomatik güncellemenin durumunu verir, değişince haber verir ve indirilen sürümü kurup uygulamayı yeniden başlatır. Hepsi yalnız çekirdek kökünden yüklenmiş ana pencereden çağrılabilir.
+- **Güncelleme:** paketlenmiş uygulama açılışta ve açık kaldıkça 6 saatte bir GitHub sürümlerini denetler, yeni sürümü arka planda indirir (`src/guncelleme.ts`). Sistem bildirimi gönderilmez; Stüdyo indirilen sürüm için üst çubuğun altında "yeniden başlatınca kurulur" şeridi gösterir. **Yeniden başlat** hemen kurar (`quitAndInstall`); kurulmazsa güncelleme uygulama kapanırken kurulur.
 - **Pencere:** konum ve boyut `pencere-durumu.json` dosyasında hatırlanır; menü Türkçedir (Dosya, Düzen, Görünüm, Pencere, Yardım), Windows ve Linux'ta Alt ile görünür.
 
 ### Çekirdek sözleşmesi
@@ -61,6 +62,7 @@ ARNORG_SAHTE_CEKIRDEK=1 npm run masaustu
 | `ARNORG_KULLANICI_DIZINI=<dizin>` | kullanıcı verisi dizinini değiştirir |
 | `ARNORG_DENEME_EKRAN_GORUNTUSU=<png>` | ana pencere (ya da hata sayfası) yüklenince ekran görüntüsü alınır ve uygulama kapanır; çekirdek durduysa çıkış kodu 1 |
 | `ARNORG_GUNCELLEME=kapali` | otomatik güncelleme denetimini kapatır |
+| `ARNORG_SAHTE_GUNCELLEME=<sürüm>` | yalnız paketsiz uygulamada: güncelleme indirmesi taklit edilir, Stüdyo'da güncelleme şeridi çıkar; **Yeniden başlat** bir şey kurmadan uygulamayı yeniden açar |
 
 Root olarak çalışılan konteynerlerde ve GitHub koşucularında Chromium sandbox'ı kurulamaz; `--no-sandbox` verin (`npx electron paketler/masaustu --no-sandbox`). Ekransız makinede: `xvfb-run -a ...`.
 

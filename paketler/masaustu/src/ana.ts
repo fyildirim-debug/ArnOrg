@@ -17,10 +17,19 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CekirdekSureci, type CekirdekBaglantisi } from "./cekirdek-sureci.js";
 import { ayniKokMu } from "./denetimler.js";
-import { guncellemeyiDenetle } from "./guncelleme.js";
+import { Guncelleme } from "./guncelleme.js";
 import { disaridaAc, guvenligiKur, oturumAyarlariniKur } from "./guvenlik.js";
 import { Kayit } from "./kayit.js";
-import { DIKKAT_KANALI, DISARIDA_AC_KANALI, DURUM_EYLEMLERI, DURUM_KANALLARI, KLASOR_SEC_KANALI, type DurumBilgisi, type DurumEylemi } from "./kopru.js";
+import {
+  DIKKAT_KANALI,
+  DISARIDA_AC_KANALI,
+  DURUM_EYLEMLERI,
+  DURUM_KANALLARI,
+  GUNCELLEME_KANALLARI,
+  KLASOR_SEC_KANALI,
+  type DurumBilgisi,
+  type DurumEylemi,
+} from "./kopru.js";
 import { menuyuKur } from "./menu.js";
 import { pencereDurumunuOku, pencereDurumunuYaz } from "./pencere-durumu.js";
 import { yollariBul } from "./yollar.js";
@@ -74,6 +83,10 @@ function basla(): void {
   let cikiliyor = false;
   let cikisKodu = 0;
   let guncellemeDenetlendi = false;
+  // Otomatik güncelleme durumu ana pencereye iletilir; Stüdyo indirilen sürüm için şerit gösterir
+  const guncelleme = new Guncelleme(kayit, (d) => {
+    if (anaPencere && !anaPencere.isDestroyed()) anaPencere.webContents.send(GUNCELLEME_KANALLARI.durum, d);
+  });
 
   const baslatiliyor = (): DurumBilgisi => ({
     asama: "baslatiliyor",
@@ -256,7 +269,7 @@ function basla(): void {
     void pencere.loadURL(adres.toString());
     if (!guncellemeDenetlendi) {
       guncellemeDenetlendi = true;
-      void guncellemeyiDenetle(kayit);
+      void guncelleme.baslat();
     }
   }
 
@@ -329,6 +342,12 @@ function basla(): void {
       p.flashFrame(true);
     }
   });
+  /** İstek çekirdek kökünden yüklenmiş ana pencereden mi */
+  const anaPenceredenMi = (olay: Electron.IpcMainInvokeEvent): boolean =>
+    !!anaPencere && olay.sender === anaPencere.webContents && !!cekirdekKoku && ayniKokMu(olay.senderFrame?.url ?? "", cekirdekKoku);
+  // Güncelleme: anlık durum ve indirilen sürümü kurup yeniden başlatma (yalnız ana pencere)
+  ipcMain.handle(GUNCELLEME_KANALLARI.al, (olay) => (anaPenceredenMi(olay) ? guncelleme.durum : null));
+  ipcMain.handle(GUNCELLEME_KANALLARI.kur, (olay) => anaPenceredenMi(olay) && guncelleme.kur());
   ipcMain.handle(DISARIDA_AC_KANALI, (olay, url: unknown) => {
     // Yalnız çekirdek kökünden yüklenmiş ana pencere isteyebilir
     const cerceve = olay.senderFrame?.url ?? "";
@@ -358,6 +377,7 @@ function basla(): void {
     olay.preventDefault();
     if (kapanisBasladi) return;
     kapanisBasladi = true;
+    guncelleme.durdur();
     void (async () => {
       if (anaPencere && !anaPencere.isDestroyed()) pencereDurumunuYaz(pencereDurumuDosyasi, anaPencere);
       await cekirdek.durdur();

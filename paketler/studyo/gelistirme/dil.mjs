@@ -26,5 +26,5 @@ export function ayrilma(ad) {
   return `${ad}'${"çfhkpsşt".includes(k.at(-1) ?? "") ? "t" : "d"}${"aıou".includes(unlu) ? "an" : "en"}`;
 }
 
-/** Otomatik onayın varsayılan türleri (ortak'taki VARSAYILAN_OTOMATIK_ONAY_TURLERI ile aynı) */
-export const VARSAYILAN_OTOMATIK_ONAY_TURLERI = ["arac", "ise_alim", "birlestirme", "anayasa", "isten_cikarma"];
+/** Otomatik onayın varsayılan türleri (ortak'taki VARSAYILAN_OTOMATIK_ONAY_TURLERI ile aynı; birleştirme kurula kalır) */
+export const VARSAYILAN_OTOMATIK_ONAY_TURLERI = ["arac", "ise_alim", "anayasa", "isten_cikarma"];

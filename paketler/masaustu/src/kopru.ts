@@ -33,3 +33,29 @@ export const KLASOR_SEC_KANALI = "arnorg:klasor-sec";
 export const DIKKAT_KANALI = "arnorg:dikkat";
 
 export type DikkatIstegi = "cek" | "one-getir";
+
+/**
+ * Otomatik güncellemenin aşaması: yok (güncel ya da denetlenmedi), denetleniyor, iniyor (yeni sürüm bulundu),
+ * hazir (indirildi; yeniden başlatınca kurulur), hata (denetim ya da indirme başarısız)
+ */
+export type GuncellemeAsamasi = "yok" | "denetleniyor" | "iniyor" | "hazir" | "hata";
+
+/** Ana süreçten ana pencereye iletilen güncelleme durumu (Stüdyo'da @arnorg/ortak MasaustuGuncellemeDurumu ile aynı) */
+export interface GuncellemeDurumu {
+  asama: GuncellemeAsamasi;
+  /** Bulunan yeni sürüm (ör. "0.0.5") */
+  surum: string | null;
+  /** İndirme ilerlemesi (0–100); bilinmiyorsa null */
+  yuzde: number | null;
+  hata: string | null;
+}
+
+/** Ana pencerenin güncelleme köprüsü kanalları */
+export const GUNCELLEME_KANALLARI = {
+  /** Anlık durum (invoke) */
+  al: "arnorg-guncelleme:al",
+  /** Durum değişti (ana süreçten ana pencereye send) */
+  durum: "arnorg-guncelleme:durum",
+  /** İndirilen güncellemeyi kur ve yeniden başlat (invoke) */
+  kur: "arnorg-guncelleme:kur",
+} as const;

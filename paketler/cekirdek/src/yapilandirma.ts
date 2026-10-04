@@ -18,6 +18,7 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   claudeYolu: null,
   varsayilanIzinModu: "bypassPermissions",
   onaySuresiSn: 900,
+  denetimSaklamaGun: 90,
   disEditor: process.platform === "win32" ? "code" : "codium",
   tikanmaDakika: 20,
   besSaatlikSinirYuzde: 90,
@@ -75,6 +76,7 @@ export class Yapilandirma {
     if (degisiklik.claudeYolu !== undefined) temiz.claudeYolu = degisiklik.claudeYolu ? String(degisiklik.claudeYolu) : null;
     if (degisiklik.varsayilanIzinModu) temiz.varsayilanIzinModu = degisiklik.varsayilanIzinModu;
     if (typeof degisiklik.onaySuresiSn === "number") temiz.onaySuresiSn = Math.min(Math.max(30, degisiklik.onaySuresiSn), 86_400);
+    if (typeof degisiklik.denetimSaklamaGun === "number" && Number.isFinite(degisiklik.denetimSaklamaGun)) temiz.denetimSaklamaGun = Math.min(Math.max(0, Math.round(degisiklik.denetimSaklamaGun)), 3650);
     if (typeof degisiklik.disEditor === "string") temiz.disEditor = degisiklik.disEditor.trim();
     const yuzde = (v: number) => Math.min(Math.max(0, Math.round(v)), 100);
     if (typeof degisiklik.besSaatlikSinirYuzde === "number") temiz.besSaatlikSinirYuzde = yuzde(degisiklik.besSaatlikSinirYuzde);

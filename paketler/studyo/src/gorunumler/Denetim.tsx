@@ -1,13 +1,17 @@
-// Denetim: karar bekleyen araç çağrıları, denetim kaydı ve politika kuralları
+// Denetim: karar bekleyen araç çağrıları, denetim kaydı (süzgeç ve JSONL dışa aktarım) ve politika kuralları
 import type { Karar } from "@arnorg/ortak";
 import { useMemo, useState } from "react";
+import { api } from "../api/uclar";
 import { BekleyenCagri } from "../bilesenler/denetim/BekleyenCagri";
 import { PolitikaDuzenleyici } from "../bilesenler/denetim/PolitikaDuzenleyici";
 import { Bos, Iskelet } from "../bilesenler/Durumlar";
-import { useSozluk } from "../dil";
-import { ajanaGit } from "../durum/arayuz";
+import { Simge } from "../bilesenler/Simge";
+import { sozluk, useSozluk } from "../dil";
+import { ajanaGit, bildir } from "../durum/arayuz";
 import { useVeri } from "../durum/veri";
 import { akilliZaman, saatSaniye } from "../yardimcilar/bicim";
+import { blobuKaydet } from "../yardimcilar/indirme";
+import { useIslem } from "../yardimcilar/kancalar";
 
 const SAYFA = 150;
 const KARAR_SIRASI: (Karar | "tumu")[] = ["tumu", "izin", "ret", "sor", "degisti"];
@@ -19,10 +23,25 @@ export function Denetim() {
   const denetim = useVeri((d) => d.denetim);
   const ajanlar = useVeri((d) => d.ajanlar);
   const yukleme = useVeri((d) => d.projeYukleme);
+  const pid = useVeri((d) => d.aktifProjeId);
   const [karar, setKarar] = useState<Karar | "tumu">("tumu");
   const [ajanId, setAjanId] = useState("");
   const [arama, setArama] = useState("");
   const [goster, setGoster] = useState(SAYFA);
+  const { suruyor, calistir } = useIslem();
+
+  // Süzgeç çekirdekte de aynıdır; ekranda yüklü olanlarla sınırlı kalmaz, tablodaki bütün kayıtlara uygulanır
+  const disaAktar = () =>
+    void calistir("disa", async () => {
+      if (!pid) return;
+      const suzgec = { karar: karar === "tumu" ? undefined : karar, ajan: ajanId || undefined, q: arama.trim() || undefined };
+      const { veri, dosyaAdi } = await api.denetimDisaAktar(pid, suzgec);
+      if (!veri.size) {
+        bildir("bilgi", sozluk().denetim.disaAktarBos);
+        return;
+      }
+      blobuKaydet(veri, dosyaAdi ?? `arnorg-denetim-${pid}.jsonl`);
+    });
 
   const bekleyenler = onaylar.filter((o) => o.tur === "arac" && o.durum === "bekliyor").sort((a, b) => a.olusturma.localeCompare(b.olusturma));
   const sayilar = useMemo(() => {
@@ -93,6 +112,10 @@ export function Denetim() {
             value={arama}
             onChange={(e) => setArama(e.target.value)}
           />
+          <button type="button" className="dugme suzgec-disa" onClick={disaAktar} disabled={suruyor !== null || !denetim.length} title={t.disaAktarIpucu}>
+            {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="indir" />}
+            {t.disaAktar}
+          </button>
         </div>
         {yukleme === "yukleniyor" && !denetim.length ? <Iskelet satir={6} /> : null}
         {yukleme !== "yukleniyor" && !suzulmus.length ? (
@@ -120,9 +143,16 @@ export function Denetim() {
                       {akilliZaman(k.zaman)}
                     </td>
                     <td>
-                      <button type="button" className="metin-dugme tablo-ajan" onClick={() => ajanaGit(k.ajanId)}>
-                        {k.ajanAd}
-                      </button>
+                      <span className="denetim-ajan">
+                        <button type="button" className="metin-dugme tablo-ajan" onClick={() => ajanaGit(k.ajanId)}>
+                          {k.ajanAd}
+                        </button>
+                        {k.altAjan ? (
+                          <span className="etiket denetim-alt-ajan" title={t.altAjanIpucu(k.altAjan)}>
+                            {t.altAjan}
+                          </span>
+                        ) : null}
+                      </span>
                     </td>
                     <td>
                       <code className="arac">{k.arac.replace(/^mcp__[^_]+__/, "")}</code>

@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -14,6 +15,7 @@ import {
   kanalAciklamasi,
   type HafizaTuru,
   type IstemciOlayi,
+  type Karar,
   type KodSembolTuru,
   type OnayDurumu,
   type Saglik,
@@ -21,6 +23,8 @@ import {
   type TerminalIstemciMesaji,
 } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
+import { jsonlSatiri, suzgeceUyar, type DenetimSuzgeci } from "./denetim-arsivi.js";
+import type { DenetimImleci } from "./depo.js";
 import { dil, iki } from "./dil.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
@@ -34,7 +38,7 @@ import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import type { TerminalYoneticisi } from "./terminal.js";
-import { ArnorgHatasi, bulunamadi } from "./yardimci.js";
+import { ArnorgHatasi, bugun, bulunamadi, sadelestir } from "./yardimci.js";
 
 export interface SunucuSecenekleri {
   sirket: Sirket;
@@ -138,6 +142,7 @@ const semalar = {
     claudeYolu: z.string().nullable().optional(),
     varsayilanIzinModu: izinModu.optional(),
     onaySuresiSn: z.number().optional(),
+    denetimSaklamaGun: z.number().int().min(0).max(3650).optional(),
     disEditor: z.string().max(200).optional(),
     tikanmaDakika: z.number().optional(),
     besSaatlikSinirYuzde: z.number().min(0).max(100).optional(),
@@ -554,6 +559,29 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     sirket.proje(param(i, "pid"));
     return sirket.depo.denetimKayitlari(param(i, "pid"), Math.min(sayi(sorgu(i, "sinir"), 300), 2000));
   });
+  // Dışa aktarım: Denetim ekranının süzgeciyle (karar, ajan, q) tablodaki kayıtlar JSONL olarak, eskiden yeniye.
+  // Sayfa sayfa okunup akıtılır; saklama süresi dolup arşive taşınanlar <veri>/arsiv altındadır.
+  app.get("/api/projeler/:pid/denetim/disa-aktar", async (i, yanit) => {
+    const p = sirket.proje(param(i, "pid"));
+    const karar = sorgu(i, "karar") || null;
+    if (karar && !["izin", "ret", "sor", "degisti"].includes(karar)) throw new ArnorgHatasi(iki("Geçersiz karar.", "Invalid decision."));
+    const suzgec: DenetimSuzgeci = { karar: karar as Karar | null, ajanId: sorgu(i, "ajan") || null, q: sorgu(i, "q")?.slice(0, 500) || null };
+    const dosyaAdi = `arnorg-denetim-${sadelestir(p.ad)}-${bugun()}.jsonl`;
+    async function* satirlar() {
+      let imlec: DenetimImleci | null = null;
+      do {
+        const sayfa = sirket.depo.denetimSayfasi(p.id, imlec);
+        imlec = sayfa.imlec;
+        const metin = sayfa.kayitlar.filter((k) => suzgeceUyar(k, suzgec)).map(jsonlSatiri).join("");
+        if (metin) yield metin;
+      } while (imlec);
+    }
+    return yanit
+      .header("Content-Type", "application/x-ndjson; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="${dosyaAdi}"`)
+      .header("Cache-Control", "no-store")
+      .send(Readable.from(satirlar()));
+  });
   app.get("/api/projeler/:pid/politika", async (i) => sirket.politika(param(i, "pid")));
   app.put("/api/projeler/:pid/politika", async (i) => sirket.politikaYaz(param(i, "pid"), govde(semalar.politika, i)));
   app.get("/api/projeler/:pid/onaylar", async (i) => {
@@ -642,8 +670,14 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/kullanim", async (i) => sirket.kullanimOzeti(param(i, "pid")));
 
   // ---------------- WebSocket: canlı olaylar ----------------
+  // Bağlı Stüdyo sayısı: abonelik kullanımı yalnız biri bağlıyken (ya da ajanlar beklerken) dönemsel okunur
+  let studyoIstemcisi = 0;
+  sirket.hesap.istemciVar = () => studyoIstemcisi > 0;
   app.get("/ws", { websocket: true }, (soket) => {
     let abone: string | null = null;
+    studyoIstemcisi++;
+    // Stüdyo bağlandı: kullanım bayatsa hemen okunur
+    sirket.hesap.istemciBaglandi();
     const gonder = (o: SunucuOlayi) => {
       if (soket.readyState === soket.OPEN) soket.send(JSON.stringify(o));
     };
@@ -662,6 +696,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
       }
     });
     soket.on("close", () => {
+      studyoIstemcisi--;
       clearInterval(nabiz);
       birak();
     });

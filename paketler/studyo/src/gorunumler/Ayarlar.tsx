@@ -71,10 +71,12 @@ export function Ayarlar() {
   const sinirGecersiz = !!taslak && (yuzdeGecersiz(taslak.besSaatlikSinirYuzde) || yuzdeGecersiz(taslak.haftalikSinirYuzde));
   const hesap = useVeri((d) => d.hesap);
   const tikanmaGecersiz = !!taslak && (!Number.isFinite(taslak.tikanmaDakika) || taslak.tikanmaDakika < 0 || taslak.tikanmaDakika > 1440);
+  const saklamaGecersiz =
+    !!taslak && taslak.denetimSaklamaGun !== undefined && !(Number.isInteger(taslak.denetimSaklamaGun) && taslak.denetimSaklamaGun >= 0 && taslak.denetimSaklamaGun <= 3650);
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz) return;
+    if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz) return;
     void calistir("kaydet", async () => {
       const a = await api.ayarlariKaydet({
         ...taslak,
@@ -246,6 +248,24 @@ export function Ayarlar() {
                   </span>
                 </div>
                 <div className="alan">
+                  <label htmlFor="ay-saklama">{t.cekirdek.saklama}</label>
+                  <input
+                    id="ay-saklama"
+                    className="girdi"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={3650}
+                    step={1}
+                    value={Number.isFinite(taslak.denetimSaklamaGun) ? taslak.denetimSaklamaGun : ""}
+                    onChange={(e) => degistir({ denetimSaklamaGun: e.target.valueAsNumber })}
+                    aria-invalid={saklamaGecersiz ? true : undefined}
+                  />
+                  <span className={saklamaGecersiz ? "alan-hata" : "alan-ipucu"}>
+                    {saklamaGecersiz ? t.cekirdek.saklamaHata : t.cekirdek.saklamaIpucu}
+                  </span>
+                </div>
+                <div className="alan">
                   <label htmlFor="ay-tikanma">{t.cekirdek.tikanma}</label>
                   <input
                     id="ay-tikanma"
@@ -329,7 +349,7 @@ export function Ayarlar() {
                 <button
                   type="submit"
                   className="dugme dugme-ana"
-                  disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz}
+                  disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz}
                 >
                   {suruyor ? <span className="doner" aria-hidden="true" /> : null}
                   {s.genel.kaydet}

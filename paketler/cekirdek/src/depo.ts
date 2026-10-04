@@ -237,6 +237,12 @@ CREATE INDEX IF NOT EXISTS zeka_gunlugu_zaman ON zeka_gunlugu(zaman);
 
 type Satir = Record<string, unknown>;
 
+/** Denetim sayfalamasında kalınan yer: son kaydın zamanı ve satır sırası */
+export interface DenetimImleci {
+  zaman: string;
+  sira: number;
+}
+
 const AKIS_SINIRI = 3000;
 
 export class Depo {
@@ -282,6 +288,11 @@ export class Depo {
       .prepare("UPDATE onaylar SET veri = json_remove(veri, '$.gunlukButceUsd') WHERE json_valid(veri) AND json_type(veri, '$.gunlukButceUsd') IS NOT NULL")
       .run();
     this.db.prepare("DELETE FROM denetim WHERE kural IN ('Bütçe', 'Şirket bütçesi')").run();
+    // 0.0.4: denetim kaydında alt ajan kimliği (Agent aracıyla açılan alt ajanın çağrıları); eski kayıtlarda boş
+    const denetimSutunlari = (this.db.prepare("PRAGMA table_info(denetim)").all() as Satir[]).map((s) => String(s.name));
+    if (!denetimSutunlari.includes("alt_ajan")) this.db.exec("ALTER TABLE denetim ADD COLUMN alt_ajan TEXT");
+    // 0.0.4: saklama süresi dolan kayıtlar (bütün projeler) zamana göre arşivlenir
+    this.db.exec("CREATE INDEX IF NOT EXISTS denetim_zaman ON denetim(zaman)");
   }
 
   kapat(): void {
@@ -595,32 +606,66 @@ export class Depo {
 
   // ---------------- denetim ----------------
 
-  denetimEkle(k: Omit<DenetimKaydi, "id" | "zaman">): DenetimKaydi {
-    const kayit: DenetimKaydi = { id: kimlik(), zaman: simdi(), ...k };
+  /** altAjan verilmezse ana ajanın kendi çağrısı sayılır */
+  denetimEkle(k: Omit<DenetimKaydi, "id" | "zaman" | "altAjan"> & { altAjan?: string | null }): DenetimKaydi {
+    const kayit: DenetimKaydi = { id: kimlik(), zaman: simdi(), ...k, altAjan: k.altAjan ?? null };
     this.db
       .prepare(
-        "INSERT INTO denetim (id, proje_id, ajan_id, ajan_ad, arac, girdi_ozeti, karar, kural, neden, arac_kimligi, zaman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO denetim (id, proje_id, ajan_id, ajan_ad, arac, girdi_ozeti, karar, kural, neden, arac_kimligi, alt_ajan, zaman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(kayit.id, kayit.projeId, kayit.ajanId, kayit.ajanAd, kayit.arac, kayit.girdiOzeti, kayit.karar, kayit.kural, kayit.neden, kayit.aracKimligi, kayit.zaman);
+      .run(kayit.id, kayit.projeId, kayit.ajanId, kayit.ajanAd, kayit.arac, kayit.girdiOzeti, kayit.karar, kayit.kural, kayit.neden, kayit.aracKimligi, kayit.altAjan, kayit.zaman);
     return kayit;
   }
 
+  private denetimSatiri(s: Satir): DenetimKaydi {
+    return {
+      id: String(s.id),
+      projeId: String(s.proje_id),
+      ajanId: String(s.ajan_id),
+      ajanAd: String(s.ajan_ad),
+      arac: String(s.arac),
+      girdiOzeti: String(s.girdi_ozeti),
+      karar: String(s.karar) as DenetimKaydi["karar"],
+      kural: (s.kural as string | null) ?? null,
+      neden: (s.neden as string | null) ?? null,
+      aracKimligi: (s.arac_kimligi as string | null) ?? null,
+      altAjan: (s.alt_ajan as string | null) ?? null,
+      zaman: String(s.zaman),
+    };
+  }
+
   denetimKayitlari(projeId: string, sinir = 300): DenetimKaydi[] {
-    return (this.db.prepare("SELECT * FROM denetim WHERE proje_id = ? ORDER BY zaman DESC, rowid DESC LIMIT ?").all(projeId, sinir) as Satir[]).map(
-      (s) => ({
-        id: String(s.id),
-        projeId: String(s.proje_id),
-        ajanId: String(s.ajan_id),
-        ajanAd: String(s.ajan_ad),
-        arac: String(s.arac),
-        girdiOzeti: String(s.girdi_ozeti),
-        karar: String(s.karar) as DenetimKaydi["karar"],
-        kural: (s.kural as string | null) ?? null,
-        neden: (s.neden as string | null) ?? null,
-        aracKimligi: (s.arac_kimligi as string | null) ?? null,
-        zaman: String(s.zaman),
-      }),
+    return (this.db.prepare("SELECT * FROM denetim WHERE proje_id = ? ORDER BY zaman DESC, rowid DESC LIMIT ?").all(projeId, sinir) as Satir[]).map((s) =>
+      this.denetimSatiri(s),
     );
+  }
+
+  /**
+   * Projenin denetim kayıtları eskiden yeniye, sayfa sayfa (dışa aktarım). sonra: önceki sayfanın son imleci.
+   * Her sayfa ayrı bir sorgudur; sayfalar arasında bağlantı başka isteklere açık kalır.
+   */
+  denetimSayfasi(projeId: string, sonra: DenetimImleci | null, sinir = 1000): { kayitlar: DenetimKaydi[]; imlec: DenetimImleci | null } {
+    const satirlar = (
+      sonra
+        ? this.db
+            .prepare("SELECT rowid AS sira, * FROM denetim WHERE proje_id = ? AND (zaman, rowid) > (?, ?) ORDER BY zaman, rowid LIMIT ?")
+            .all(projeId, sonra.zaman, sonra.sira, sinir)
+        : this.db.prepare("SELECT rowid AS sira, * FROM denetim WHERE proje_id = ? ORDER BY zaman, rowid LIMIT ?").all(projeId, sinir)
+    ) as Satir[];
+    const son = satirlar.at(-1);
+    return { kayitlar: satirlar.map((s) => this.denetimSatiri(s)), imlec: son && satirlar.length === sinir ? { zaman: String(son.zaman), sira: Number(son.sira) } : null };
+  }
+
+  /** Verilen andan eski denetim kayıtları (bütün projeler, eskiden yeniye); saklama süresi dolanların arşivi için */
+  denetimEskiler(once: string, sinir = 2000): DenetimKaydi[] {
+    return (this.db.prepare("SELECT * FROM denetim WHERE zaman < ? ORDER BY zaman, rowid LIMIT ?").all(once, sinir) as Satir[]).map((s) => this.denetimSatiri(s));
+  }
+
+  denetimSil(idler: string[]): void {
+    const sil = this.db.prepare("DELETE FROM denetim WHERE id = ?");
+    this.db.transaction((l: string[]) => {
+      for (const id of l) sil.run(id);
+    })(idler);
   }
 
   /** Verilen andan bu yana karar türüne göre denetim sayıları */

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DenetimArsivi } from "./denetim-arsivi.js";
 import { Depo } from "./depo.js";
 import { Gozetmen } from "./gozetmen.js";
 import { DosyaIzleyici } from "./izleyici.js";
@@ -53,6 +54,11 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   sirket.hesap.baslat();
   // Uzak deposu olan projeler arada bir eşitlenir
   sirket.esitlemeBaslat();
+  // Klasörü elle silinmiş ajan worktree'lerinin bayat git kayıtları temizlenir
+  void sirket.calismaAlanlariniBuda();
+  // Saklama süresi dolan denetim kayıtları aylık arşiv dosyalarına taşınır (açılışta ve günde bir)
+  const denetimArsivi = new DenetimArsivi(depo, yapilandirma);
+  denetimArsivi.baslat();
   // Global zekânın bakımı (birleştirme, emekliye ayırma)
   sirket.kuresel.baslat();
   // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
@@ -68,6 +74,7 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
     for (const a of depo.ajanlar(p.id)) if (a.calismaAlani && a.calismaAlani !== p.yol && fs.existsSync(a.calismaAlani)) izleyici.izle(p.id, a.id, a.calismaAlani);
   }
   olaylar.dinle((o) => {
+    if (o.tur === "ajan.silindi") izleyici.alaniBirak(o.projeId, o.ajanId);
     if (o.tur === "proje.guncellendi" && fs.existsSync(o.proje.yol)) izleyici.izle(o.proje.id, "ana", o.proje.yol);
     if (o.tur === "ajan.guncellendi" && o.ajan.calismaAlani && fs.existsSync(o.ajan.calismaAlani)) {
       const p = depo.proje(o.ajan.projeId);
@@ -97,6 +104,7 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
       if (kapandi) return;
       kapandi = true;
       gozetmen.durdur();
+      denetimArsivi.durdur();
       await sirket.kodZekasi.kapat();
       sirket.kapat();
       terminaller.hepsiniKapat();

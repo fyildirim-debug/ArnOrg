@@ -8,6 +8,8 @@ import { ClaudeAsistaniCekmecesi, ClaudeUyariSeridi } from "./bilesenler/ClaudeA
 import { CanliRay } from "./bilesenler/CanliRay";
 import { Iskelet } from "./bilesenler/Durumlar";
 import { Gezinti } from "./bilesenler/Gezinti";
+import { GuncellemeSeridi } from "./bilesenler/GuncellemeSeridi";
+import { Seritler } from "./bilesenler/Seritler";
 import { Simge } from "./bilesenler/Simge";
 import { UstCubuk } from "./bilesenler/UstCubuk";
 import { git, hataBildir, PROJESIZ_GORUNUMLER, rayiDegistir, useArayuz, type Gorunum } from "./durum/arayuz";
@@ -129,7 +131,10 @@ function Studyo() {
   return (
     <div className="kabuk">
       <UstCubuk rayDugmesi={rayDugmesi} />
-      <ClaudeUyariSeridi />
+      <Seritler>
+        <ClaudeUyariSeridi />
+        <GuncellemeSeridi />
+      </Seritler>
       <div className="govde">
         <Gezinti />
         <main className={`ana${tam ? " ana-tam" : ""}`} ref={anaRef} id="ana-icerik">

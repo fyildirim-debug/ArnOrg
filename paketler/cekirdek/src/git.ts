@@ -133,11 +133,42 @@ export async function dalVarMi(dizin: string, dal: string): Promise<boolean> {
 
 /** Ajan için worktree açar; varsa dokunmaz */
 export async function worktreeAc(repo: string, hedef: string, dal: string, temel: string): Promise<void> {
+  // Klasörü elle silinmiş eski kayıt "var" sayılmasın: önce bayat kayıtlar budanır
+  await worktreeBuda(repo).catch(() => undefined);
   const mevcutlar = await worktreeler(repo);
   if (mevcutlar.some((w) => path.resolve(w.yol) === path.resolve(hedef))) return;
   fs.mkdirSync(path.dirname(hedef), { recursive: true });
   if (await dalVarMi(repo, dal)) await git(repo, ["worktree", "add", hedef, dal]);
   else await git(repo, ["worktree", "add", "-b", dal, hedef, temel]);
+}
+
+/** Klasörü silinmiş worktree'lerin bayat kayıtlarını temizler (git worktree prune); dallara dokunmaz */
+export async function worktreeBuda(repo: string): Promise<void> {
+  await git(repo, ["worktree", "prune"]);
+}
+
+/** Çalışma alanındaki commit'lenmemiş değişiklik sayısı: değişen, aşamadaki ve izlenmeyen dosyalar (yok sayılanlar hariç) */
+export async function commitlenmemisSayisi(dizin: string): Promise<number> {
+  return (await git(dizin, ["status", "--porcelain"])).split("\n").filter(Boolean).length;
+}
+
+export type WorktreeKaldirma = { durum: "kaldirildi" } | { durum: "kirli"; degisiklik: number } | { durum: "kayitsiz" };
+
+/**
+ * Ajan worktree'sini kaldırır (git worktree remove); dal ve commit'ler kalır. Yalnız repoya kayıtlı ve temiz alan
+ * silinir: commit'lenmemiş değişiklik (izlenmeyen dosya dahil) varsa dokunulmaz ("kirli"). Repoya kayıtlı olmayan
+ * klasöre hiç dokunulmaz; klasörü zaten silinmişse yalnız bayat kayıt budanır ("kayitsiz").
+ */
+export async function worktreeKaldir(repo: string, yol: string): Promise<WorktreeKaldirma> {
+  const kayitli = (await worktreeler(repo)).some((w) => ayniYol(w.yol, yol));
+  if (!kayitli || !fs.existsSync(yol)) {
+    if (kayitli) await worktreeBuda(repo);
+    return { durum: "kayitsiz" };
+  }
+  const degisiklik = await commitlenmemisSayisi(yol);
+  if (degisiklik > 0) return { durum: "kirli", degisiklik };
+  await git(repo, ["worktree", "remove", yol]);
+  return { durum: "kaldirildi" };
 }
 
 export type DegisiklikHaritasi = Map<string, "M" | "A" | "D" | "?">;

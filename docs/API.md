@@ -23,7 +23,7 @@
 | GET | `/api/hesap?tazele=1` | — | `HesapDurumu`: Claude Code'un fiili girişi (plan, e-posta, kaynak), abonelik pencereleri (5 saatlik, haftalık, model başına yüzde ve sıfırlanma), ayardaki sınır aşıldıysa `sinir`, Claude Code abonelik dışı bir girişle (API anahtarı, bulut sağlayıcı) çalışıyorsa `uyari`. `tazele=1` Claude Code'a yeniden sorar (açık bir ajan oturumu varsa onun üzerinden, yoksa mesaj göndermeyen kısa bir yoklamayla; token harcanmaz) |
 | GET | `/api/roller` | — | `Rol[]` |
 
-`Ayarlar` içinde 0.0.2 ile gelenler: `dil` (`tr` | `en`; arayüz, ajan talimatları, ArnOrg'un kanal mesajları ve hata metinleri bu dilde), `projeKoku` (yeni projelerin ve klonların varsayılan yeri; boşsa `~/ArnOrg`), `ghYolu` (GitHub CLI; boşsa ArnOrg'un indirdiği ya da PATH'teki `gh`), `kurulumTamam` (ilk açılış sihirbazı bitti mi).
+`Ayarlar` içinde 0.0.2 ile gelenler: `dil` (`tr` | `en`; arayüz, ajan talimatları, ArnOrg'un kanal mesajları ve hata metinleri bu dilde), `projeKoku` (yeni projelerin ve klonların varsayılan yeri; boşsa `~/ArnOrg`), `ghYolu` (GitHub CLI; boşsa ArnOrg'un indirdiği ya da PATH'teki `gh`), `kurulumTamam` (ilk açılış sihirbazı bitti mi). 0.0.4 ile gelen: `denetimSaklamaGun` (0–3650 tam gün, varsayılan 90, 0 süresiz; bkz. "Denetim ve onaylar").
 
 ## Kurulum: Claude Code, git, GitHub CLI
 
@@ -34,6 +34,10 @@
 - oturum kapanır, konuşma kimliği saklanır; ajan `duraklatildi` durumuna "Claude Code girişi bekleniyor" açıklamasıyla geçer;
 - `kurulum.durum` tazelenip yayınlanır; kurula en çok 10 dakikada bir `eylem: "claude_giris"` taşıyan `kurul.bildirimi` gider;
 - ajanlar beklerken çekirdek durumu dakikada bir okur. Girişsizden hazıra geçişte (ArnOrg'dan ya da terminalden giriş) ve ArnOrg'dan yapılan her başarılı girişte bekleyen ajanlar aynı konuşmayı sürdürerek kaldıkları yerden devam eder.
+
+**Güncelleme şeridi (masaüstü, 0.0.4).** Paketlenmiş masaüstü uygulaması açılışta ve açık kaldıkça 6 saatte bir GitHub sürümlerini denetler (electron-updater `checkForUpdates`; sistem bildirimi gönderilmez) ve yeni sürümü arka planda indirir. Durum ön yükleme köprüsünden gelir: `window.arnorg.guncelleme = { durum(), dinle(f), kur() }` (`MasaustuGuncellemesi`, `MasaustuGuncellemeDurumu`; aşamalar `yok`, `denetleniyor`, `iniyor`, `hazir`, `hata`). Sürüm indirilince (`hazir`) Stüdyo üst çubuğun altında "ArnOrg <sürüm> hazır; yeniden başlatınca kurulur." şeridini gösterir: **Yeniden başlat** hemen kurar ve uygulamayı yeniden açar (`quitAndInstall`); **Sonra** şeridi o sürüm için pencere oturumu boyunca gizler, güncelleme uygulama kapanırken yine kurulur. Tarayıcıda köprü olmadığından şerit hiç görünmez.
+
+Şeritler (Claude Code uyarısı ve güncelleme) üst çubuğun altındaki tek kapta (`.seritler`, kabuk ızgarasının 2. satırı) alt alta durur. Kabın toplam yüksekliği `--serit-yukseklik` CSS değişkenine yazılır; kurula açılır pencereler ve dar ekranda kayan ray ikisi birden açıkken de şeritlerin altından başlar.
 
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
@@ -88,7 +92,7 @@ Uzak deposu olan projeler 10 dakikada bir eşitlenir (`EsitlemeSonucu`; ayrışm
 | GET | `/api/projeler/:pid/ajanlar` | — | `Ajan[]` |
 | POST | `/api/projeler/:pid/ajanlar` | `AjanIseAlIstegi` | `Ajan` (kurulun doğrudan işe alımı) |
 | PATCH | `/api/ajanlar/:aid` | `AjanGuncelleIstegi` | `Ajan` |
-| DELETE | `/api/ajanlar/:aid?devralan=<aid>` | — | `{tamam:true}` (kurulun işten çıkarması: oturum kapanır, açık görevleri, sözleri ve defteri devralana, verilmezse yöneticisine geçer; kimlik dosyası ve worktree kalır) |
+| DELETE | `/api/ajanlar/:aid?devralan=<aid>` | — | `{tamam:true}` (kurulun işten çıkarması: oturum kapanır, açık görevleri, sözleri ve defteri devralana, verilmezse yöneticisine geçer; kimlik dosyası silinir, çalışma alanı aşağıdaki kurala göre kaldırılır) |
 | POST | `/api/ajanlar/:aid/baslat` | `AjanBaslatIstegi` | `Ajan` |
 | POST | `/api/ajanlar/:aid/mesaj` | `AjanMesajIstegi` | `{tamam:true}` (oturum kapalıysa açılır) |
 | POST | `/api/ajanlar/:aid/kes` | — | `{tamam:true}` |
@@ -98,6 +102,8 @@ Uzak deposu olan projeler 10 dakikada bir eşitlenir (`EsitlemeSonucu`; ayrışm
 | GET | `/api/ajanlar/:aid/akis?sinir=300` | — | `AkisOgesi[]` (eskiden yeniye) |
 
 Ajan oturumu kurallarla açılır: temiz ortam, kendi worktree'si (`arnorg/<ajan>` dalı), Claude Code sistem talimatı + rol metni, `PreToolUse` denetim kapısı, ArnOrg MCP araçları (`mcp__arnorg__*`).
+
+**Çalışma alanı temizliği (0.0.4).** Ajan işten çıkarılınca worktree'si `git worktree remove` ile kaldırılır; `arnorg/<ajan>` dalı ve commit'leri kalır. Commit'lenmemiş değişiklik (izlenmeyen dosya dahil, yok sayılanlar hariç) varsa ya da kaldırma başarısız olursa alana dokunulmaz; #genel'e ArnOrg adıyla ve kurula `bildirim` (uyarı) olarak kısa not düşülür. Repoya kayıtlı olmayan klasöre hiç dokunulmaz. Çekirdek açılırken, proje bağlanırken ve bir worktree açılmadan önce `git worktree prune` ile klasörü elle silinmiş bayat kayıtlar temizlenir.
 
 ## Görevler
 
@@ -134,12 +140,17 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
 | GET | `/api/projeler/:pid/denetim?sinir=300` | — | `DenetimKaydi[]` (yeniden eskiye) |
+| GET | `/api/projeler/:pid/denetim/disa-aktar?karar=&ajan=&q=` | — | JSONL (`application/x-ndjson`): satır başına bir `DenetimKaydi`, eskiden yeniye; `Content-Disposition: attachment; filename="arnorg-denetim-<proje>-<YYYY-AA-GG>.jsonl"`. Süzgeç Denetim ekranınınkiyle aynıdır: `karar` (`izin` \| `ret` \| `sor` \| `degisti`), `ajan` (ajan kimliği), `q` (araç, girdi, kural ve nedende Türkçe harf duyarsız arama). Tablodaki bütün kayıtlara uygulanır, ekranda yüklü 300 kayıtla sınırlı değildir. Geçersiz `karar` 400 |
 | GET | `/api/projeler/:pid/politika` | — | `PolitikaKurali[]` |
 | PUT | `/api/projeler/:pid/politika` | `PolitikaKurali[]` | `PolitikaKurali[]` |
 | GET | `/api/projeler/:pid/onaylar?durum=bekliyor` | — | `Onay[]` (yeniden eskiye) |
 | POST | `/api/onaylar/:oid` | `OnayKararIstegi` | `Onay` |
 
 `arac` türündeki onay, bir ajanın araç çağrısını bekletir; süre dolarsa `zaman_asimi` olur ve çağrı reddedilir. `ise_alim` onayı CEO'nun teklifidir; onaylanınca ajan oluşturulur.
+
+**Saklama ve arşiv (0.0.4).** `Ayarlar.denetimSaklamaGun` günden (varsayılan 90) eski denetim kayıtları, bütün projeler için, veri dizinindeki `arsiv/denetim-<yıl>-<ay>.jsonl` dosyalarına (kaydın UTC ayına göre, dışa aktarımla aynı biçimde) eklenir ve tablodan silinir. Çekirdek açılışta (birkaç saniye sonra) ve sonra günde bir arşivler; süre ayarı değişince sıradaki bakışta (en geç 15 dakika) arşivler. Önce dosyaya yazılır, sonra silinir; dosya yazılamazsa kayıt tabloda kalır. `0` süresiz demektir, hiçbir kayıt taşınmaz. Dışa aktarım ucu yalnız tablodakileri verir; arşivdekiler bu dosyalardadır.
+
+`DenetimKaydi.altAjan` (0.0.4): çağrıyı ajanın Agent (Task) aracıyla açtığı bir alt ajan yaptıysa Claude Code'un verdiği alt ajan kimliği (`PreToolUse` kancasında `agent_id`, izin sorusunda `agentID`); ana ajanın kendi çağrısında ve 0.0.4 öncesi kayıtlarda `null`. Stüdyo bu kayıtları ajan adının yanında "alt ajan" etiketiyle gösterir.
 
 ## Kod
 
@@ -204,6 +215,8 @@ Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-
 ArnOrg yalnız Claude aboneliğiyle çalışır. Ajanlar makinedeki Claude Code girişiyle (claude.ai Pro, Max ya da Team) çalışır. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ve bulut sağlayıcı değişkenleri (`CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`) ajan ortamına hiçbir zaman verilmez. Claude Code makinede API anahtarıyla giriş yapmışsa `HesapDurumu.uyari` `/login` ile claude.ai hesabına geçmeyi söyler. Kullanım yalnız token ve plan penceresi yüzdesiyle izlenir; tutar, bütçe ya da `maxBudgetUsd` yoktur.
 
 Sınır planın pencereleridir: ajanlar `besSaatlikSinirYuzde` (varsayılan 90) ya da `haftalikSinirYuzde` (varsayılan 95) aşılınca durdurulur. Bu sürede denetim kapısı araç çağrılarını "Kullanım sınırı" kuralıyla reddeder, ajanlara gelen mesajlar saklanır. Pencere açılınca ajanlar saklanan mesajlarla uyanır. Arayüz token ve pencere yüzdesi gösterir.
+
+**Okuma sıklığı (0.0.4).** Kullanım dönemsel olarak yalnız gerektiğinde okunur: en az bir Stüdyo WebSocket istemcisi (`/ws`) bağlıyken, açık bir ajan oturumu varken ya da abonelik sınırında bekleyen ajan varken; sınır aşıkken 2, değilken 5 dakikada bir. Kimse beklemese de aşılan sınırın sıfırlanma anı geçince bir kez okunur (an bilinmiyorsa sınır sürdükçe), eski sınır işleri boşuna durdurmasın. Stüdyo bağlanınca son okuma bayatsa hemen okunur. Stüdyo kapalıyken ve ajan çalışmıyorken Claude Code süreci açılmaz. `GET /api/hesap?tazele=1` her zaman okur.
 
 Eski sürümden gelen veritabanında token sayıları `kullanim` tablosuna taşınır; API kipine ait tutar, bütçe ve bütçe onayı kayıtları silinir. Ayarlar dosyasındaki eski `girisYontemi` ve `gunlukButceUsd` alanları okunmaz, ilk kayıtta dosyadan düşer.
 
@@ -343,7 +356,7 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 
 `OnayTuru`: `arac`, `ise_alim`, `birlestirme`, `genel`, `anayasa`, `isten_cikarma`, `teslim`.
 
-- **Otomatik onay:** projede `otomatikOnay.etkin` açıkken türü `otomatikOnay.turler` içinde olan onaylar bekletilmeden verilir ve "Otomatik onay" notuyla kaydedilir; açıldığı anda bekleyen uygun onaylar da verilir. Varsayılan türler: `arac`, `ise_alim`, `birlestirme`, `anayasa`, `isten_cikarma` (`genel` ve `teslim` kurulun kendisine kalır).
+- **Otomatik onay:** projede `otomatikOnay.etkin` açıkken türü `otomatikOnay.turler` içinde olan onaylar bekletilmeden verilir ve "Otomatik onay" notuyla kaydedilir; açıldığı anda bekleyen uygun onaylar da verilir. Varsayılan türler: `arac`, `ise_alim`, `anayasa`, `isten_cikarma` (`birlestirme`, `genel` ve `teslim` kurulun kendisine kalır). 0.0.4'te `birlestirme` varsayılandan çıktı; projede kaydedilmiş bir seçim varsa olduğu gibi kalır.
 - **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
 - **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
 - **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar.

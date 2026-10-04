@@ -203,7 +203,7 @@ export class Sirket {
     // Dosya değişiklikleri dizini artımlı günceller; silinen ajanın alanı dizinden çıkar
     olaylar.dinle((o) => this.kodZekasi.olay(o));
     this.karakterleriTamamla();
-    this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
+    this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali, () => this.hesabaAjanBekliyor());
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
     this.kurulum = new Kurulum(yapilandirma, olaylar, {
       claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined),
@@ -293,6 +293,12 @@ export class Sirket {
       if (k) return k;
     }
     return null;
+  }
+
+  /** Abonelik kullanımı ajanlar için okunmalı mı: açık ajan oturumu ya da sınırda (pencerenin açılmasını) bekleyen ajan var */
+  private hesabaAjanBekliyor(): boolean {
+    for (const o of this.oturumlar.values()) if (o.acik) return true;
+    return this.sinirdaBekleyenler.size > 0;
   }
 
   /** Abonelik penceresi ayardaki sınırı aştı ya da sıfırlandı */
@@ -398,6 +404,8 @@ export class Sirket {
     }
     kok = gitIslemleri.gercekYol(kok);
     if (this.depo.projeler().some((p) => gitIslemleri.ayniYol(p.yol, kok))) throw new ArnorgHatasi(iki("Bu repo zaten bir ArnOrg projesi.", "This repository is already an ArnOrg project."), 409);
+    // Bağlanan repoda klasörü silinmiş eski worktree'lerin bayat kayıtları temizlenir
+    await gitIslemleri.worktreeBuda(kok).catch(() => undefined);
 
     // Çalışma dalı: istenen dal (yoksa açılır), yoksa reponun o anki dalı
     if (istenenDal) await gitIslemleri.dalaGec(kok, istenenDal);
@@ -651,7 +659,8 @@ export class Sirket {
     return this.ajan(id);
   }
 
-  ajanSil(id: string): void {
+  /** Ajanı ekipten siler; dönen söz, git çalışma alanının temizliği (calismaAlaniniKaldir) bitince çözülür */
+  ajanSil(id: string): Promise<void> {
     const a = this.ajan(id);
     if (a.rol === "ceo") throw new ArnorgHatasi(iki("CEO işten çıkarılamaz.", "The CEO cannot be dismissed."), 409);
     this.oturumlar.get(id)?.kapat();
@@ -668,6 +677,38 @@ export class Sirket {
     }
     this.olaylar.yayinla({ tur: "ajan.silindi", projeId: a.projeId, ajanId: id });
     this.projeYayinla(a.projeId);
+    return this.calismaAlaniniKaldir(a);
+  }
+
+  /**
+   * Ayrılan ajanın git çalışma alanı: commit'lenmemiş değişiklik yoksa kaldırılır (dal ve commit'ler kalır). Varsa ya da
+   * kaldırılamazsa dokunulmaz; #genel'e ve kurula kısa not düşülür. Hata fırlatmaz.
+   */
+  private async calismaAlaniniKaldir(a: Ajan): Promise<void> {
+    const p = this.depo.proje(a.projeId);
+    const yol = a.calismaAlani;
+    if (!p || !yol || gitIslemleri.ayniYol(yol, p.yol) || !fs.existsSync(p.yol)) return;
+    const dal = a.dal ?? "?";
+    let not: string;
+    try {
+      const sonuc = await gitIslemleri.worktreeKaldir(p.yol, yol);
+      if (sonuc.durum !== "kirli") return;
+      not = iki(
+        `${ilgi(a.ad)} çalışma alanında commit'lenmemiş ${sonuc.degisiklik} değişiklik var; worktree silinmedi: ${yol} (dal ${dal}). İnceleyip commit'leyin ya da git worktree remove --force ile silin.`,
+        `${a.ad}'s workspace has ${sonuc.degisiklik} uncommitted change${sonuc.degisiklik === 1 ? "" : "s"}, so the worktree was kept: ${yol} (branch ${dal}). Review and commit them, or delete it with git worktree remove --force.`,
+      );
+    } catch (h) {
+      not = iki(`${ilgi(a.ad)} çalışma alanı kaldırılamadı (${yol}): ${(h as Error).message}`, `Could not remove ${a.ad}'s workspace (${yol}): ${(h as Error).message}`);
+    }
+    this.duyur(a.projeId, not);
+    this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: not, projeId: a.projeId });
+  }
+
+  /** Bayat worktree kayıtlarını budar (klasörü elle silinmiş ajan alanları); proje verilmezse bütün projeler */
+  async calismaAlanlariniBuda(projeId?: string): Promise<void> {
+    for (const p of projeId ? [this.proje(projeId)] : this.depo.projeler()) {
+      if (fs.existsSync(p.yol)) await gitIslemleri.worktreeBuda(p.yol).catch(() => undefined);
+    }
   }
 
   // ===================================================================
@@ -786,7 +827,7 @@ export class Sirket {
     let oturum = this.oturumlar.get(ajan.id);
     if (oturum) return oturum;
     const id = ajan.id;
-    const izinSor: CanUseTool = async (arac, girdi, s) => this.izinSor(id, arac, girdi, s.toolUseID);
+    const izinSor: CanUseTool = async (arac, girdi, s) => this.izinSor(id, arac, girdi, s.toolUseID, s.agentID);
     oturum = new AjanOturumu({
       ajan: () => this.ajan(id),
       cwd,
@@ -795,7 +836,7 @@ export class Sirket {
       araclar: () => arnorgAraclari(this, id),
       yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []),
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
-      kapi: (arac, girdi, aracKimligi) => this.kapi(id, arac, girdi, aracKimligi),
+      kapi: (arac, girdi, aracKimligi, altAjan) => this.kapi(id, arac, girdi, aracKimligi, altAjan),
       izinSor,
       aracSonrasi: (arac, girdi) => this.aracSonrasi(id, arac, girdi),
       aracHatasi: (arac, girdi, hata) => this.hatirlatici.hataSonrasi(this.ajan(id), arac, girdi, hata),
@@ -1023,7 +1064,8 @@ export class Sirket {
     return kurallar;
   }
 
-  private denetimKaydet(ajan: Ajan, arac: string, girdi: Record<string, unknown>, karar: Karar, kural: string | null, neden: string | null, aracKimligi?: string): void {
+  /** altAjan: çağrıyı ajanın açtığı bir alt ajan yaptıysa onun kimliği (PreToolUse agent_id, canUseTool agentID) */
+  private denetimKaydet(ajan: Ajan, arac: string, girdi: Record<string, unknown>, karar: Karar, kural: string | null, neden: string | null, aracKimligi?: string, altAjan?: string): void {
     const kayit = this.depo.denetimEkle({
       projeId: ajan.projeId,
       ajanId: ajan.id,
@@ -1034,6 +1076,7 @@ export class Sirket {
       kural,
       neden,
       aracKimligi: aracKimligi ?? null,
+      altAjan: altAjan ?? null,
     });
     this.olaylar.yayinla({ tur: "denetim.kaydi", kayit });
   }
@@ -1042,8 +1085,8 @@ export class Sirket {
     return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: neden } };
   }
 
-  /** PreToolUse: her araç çağrısı buradan geçer */
-  async kapi(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<HookJSONOutput> {
+  /** PreToolUse: her araç çağrısı buradan geçer; altAjan, çağrıyı yapan alt ajanın kimliği (ana ajanın kendi çağrısında yok) */
+  async kapi(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string, altAjan?: string): Promise<HookJSONOutput> {
     const ajan = this.depo.ajan(ajanId);
     if (!ajan) return this.ret(iki("ArnOrg: ajan bulunamadı.", "ArnOrg: agent not found."));
     if (arac.startsWith("mcp__arnorg__")) return {};
@@ -1058,7 +1101,7 @@ export class Sirket {
         `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (kurulun sınırı %${sinir.sinirYuzde}). Başka araç çağırma; ne yaptığını ve sıradaki adımı iki cümleyle yaz ve dur. Pencere açılınca ArnOrg seni uyandıracak.`,
         `Subscription ${sinir.pencere.toLocaleLowerCase("en")} usage is at ${sinir.yuzde}% (the board's limit is ${sinir.sinirYuzde}%). Don't call any more tools; write what you did and your next step in two sentences, then stop. ArnOrg will wake you when the window opens.`,
       );
-      this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kullanım sınırı", "Usage limit"), neden, aracKimligi);
+      this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kullanım sınırı", "Usage limit"), neden, aracKimligi, altAjan);
       return this.ret(neden);
     }
 
@@ -1068,37 +1111,37 @@ export class Sirket {
       const kilit = hedef ? this.kullaniciKilitleri.get(hedef) : undefined;
       if (hedef && kilit && kilit > Date.now()) {
         const neden = iki("Bu dosyayı şu an yönetim kurulu düzenliyor. Birkaç saniye sonra dosyayı yeniden oku ve sonra düzenle.", "The board is editing this file right now. Re-read the file in a few seconds, then edit it.");
-        this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kurul kilidi", "Board lock"), neden, aracKimligi);
+        this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kurul kilidi", "Board lock"), neden, aracKimligi, altAjan);
         return this.ret(neden);
       }
     }
 
     const sonuc = degerlendir([...anayasaPolitikasi(this.anayasa(proje.id)), ...this.politika(proje.id)], arac, girdi, { cwd, projeKoku: proje.yol, rol: ajan.rol });
     if (sonuc.karar === "ret") {
-      this.denetimKaydet(ajan, arac, girdi, "ret", sonuc.kural, sonuc.neden, aracKimligi);
+      this.denetimKaydet(ajan, arac, girdi, "ret", sonuc.kural, sonuc.neden, aracKimligi, altAjan);
       return this.ret(iki(`ArnOrg politikası reddetti. ${sonuc.neden ?? ""} Gerekliyse kurula_sor ile gerekçeli izin iste.`, `ArnOrg policy denied this. ${sonuc.neden ?? ""} If it is needed, ask the board for permission with reasons using kurula_sor.`));
     }
     if (sonuc.karar === "sor") {
-      this.denetimKaydet(ajan, arac, girdi, "sor", sonuc.kural, sonuc.neden, aracKimligi);
+      this.denetimKaydet(ajan, arac, girdi, "sor", sonuc.kural, sonuc.neden, aracKimligi, altAjan);
       const k = await this.kararBekle(ajan, "arac", `${ajan.ad} · ${arac}`, girdiOzeti(arac, girdi), { arac, girdi, kural: sonuc.kural, aracKimligi });
-      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi);
+      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi, altAjan);
       if (!k.izin) return this.ret(iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`));
       this.yazmaKaydet(ajanId, cwd, arac, girdi);
-      return this.imzasiz(ajan, arac, girdi, aracKimligi) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki("Yönetim kurulu onayladı", "The board approved") } };
+      return this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki("Yönetim kurulu onayladı", "The board approved") } };
     }
     this.yazmaKaydet(ajanId, cwd, arac, girdi);
-    const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi);
+    const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan);
     if (imzasiz) return imzasiz;
-    if (!SESSIZ_ARACLAR.has(arac)) this.denetimKaydet(ajan, arac, girdi, "izin", null, null, aracKimligi);
+    if (!SESSIZ_ARACLAR.has(arac)) this.denetimKaydet(ajan, arac, girdi, "izin", null, null, aracKimligi, altAjan);
     return {};
   }
 
   /** Commit komutundaki Claude imzasını siler ve çağrıyı değiştirilmiş girdiyle geçirir */
-  private imzasiz(ajan: Ajan, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): HookJSONOutput | null {
+  private imzasiz(ajan: Ajan, arac: string, girdi: Record<string, unknown>, aracKimligi?: string, altAjan?: string): HookJSONOutput | null {
     const yeni = imzaAyikla(arac, girdi);
     if (!yeni) return null;
     const neden = iki("Commit mesajındaki Claude imzası çıkarıldı.", "The Claude signature was removed from the commit message.");
-    this.denetimKaydet(ajan, arac, yeni, "degisti", iki("İmzasız commit", "Unsigned commit"), neden, aracKimligi);
+    this.denetimKaydet(ajan, arac, yeni, "degisti", iki("İmzasız commit", "Unsigned commit"), neden, aracKimligi, altAjan);
     return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: `ArnOrg: ${neden}`, updatedInput: yeni } };
   }
 
@@ -1142,7 +1185,7 @@ export class Sirket {
   }
 
   /** Claude Code'un izin sorduğu çağrı (bypass dışı modlar, plan onayı) */
-  private async izinSor(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<PermissionResult> {
+  private async izinSor(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string, altAjan?: string): Promise<PermissionResult> {
     const ajan = this.depo.ajan(ajanId);
     if (!ajan) return { behavior: "deny", message: iki("Ajan bulunamadı.", "Agent not found.") };
     if (arac.startsWith("mcp__arnorg__")) return { behavior: "allow", updatedInput: girdi };
@@ -1150,7 +1193,7 @@ export class Sirket {
     const baslik = planMi ? iki(`${ajan.ad} · Plan onayı`, `${ajan.ad} · Plan approval`) : iki(`${ajan.ad} · ${arac} izni istiyor`, `${ajan.ad} · requests ${arac}`);
     const ayrinti = planMi ? String(girdi.plan ?? "") : girdiOzeti(arac, girdi);
     const k = await this.kararBekle(ajan, "arac", baslik, ayrinti, { arac, girdi, kural: iki("Claude Code izin sorusu", "Claude Code permission prompt"), aracKimligi });
-    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi);
+    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi, altAjan);
     return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`) };
   }
 
@@ -1302,7 +1345,7 @@ export class Sirket {
         }
       }
     }
-    this.ajanSil(id);
+    const temizlik = this.ajanSil(id);
     this.duyur(
       a.projeId,
       iki(
@@ -1310,6 +1353,8 @@ export class Sirket {
         `${a.ad} (${rolAdiDilde(a)}) left the team${aktarilan ? `; open work and knowledge were handed over to ${aktarilan.ad}` : ""}.`,
       ),
     );
+    // Çalışma alanı notu (kirliyse) ayrılık duyurusundan sonra gelir
+    await temizlik;
     return { devralan: aktarilan };
   }
 

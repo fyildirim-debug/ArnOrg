@@ -1,7 +1,7 @@
 /* Uygulama kabuğu: üst çubuk, sol menü, ana alan, canlı akış rayı, bildirimler, çekmece */
 .kabuk {
   display: grid;
-  /* üst çubuk, Claude Code uyarı şeridi (yoksa sıfır yükseklik), gövde */
+  /* üst çubuk, şeritler (Claude Code uyarısı, masaüstü güncellemesi; yoksa sıfır yükseklik), gövde */
   grid-template-rows: auto auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
@@ -10,11 +10,59 @@
 .kabuk > .ust {
   grid-row: 1;
 }
-.kabuk > .claude-serit {
+.kabuk > .seritler {
   grid-row: 2;
 }
 .kabuk > .govde {
   grid-row: 3;
+}
+/* Şerit kabı: şeritler alt alta; toplam yüksekliği --serit-yukseklik olarak yazılır (Seritler.tsx) */
+.seritler {
+  display: grid;
+  min-width: 0;
+}
+
+/* ---------- güncelleme şeridi (masaüstü) ----------
+   İyi haber: mercan uyarı değil; mürekkep zemin, kıl çizgi, küçük yeşil işaret, nötr düğme */
+.guncelleme-serit {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-s);
+  color: var(--bone);
+}
+.guncelleme-serit p {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+.guncelleme-serit-isaret {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.guncelleme-serit-eylem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .guncelleme-serit {
+    flex-wrap: wrap;
+  }
+  .guncelleme-serit p {
+    flex-basis: calc(100% - 1.25rem);
+  }
+  .guncelleme-serit-eylem {
+    margin-left: 1.25rem;
+  }
 }
 
 /* ---------- üst çubuk ---------- */
