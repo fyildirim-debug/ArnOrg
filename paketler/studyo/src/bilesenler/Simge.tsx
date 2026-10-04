@@ -169,6 +169,49 @@ const YOLLAR = {
       <path d="M8 4.75V8l2.25 1.5" />
     </>
   ),
+  // Kurulum, GitHub ve klasör seçici
+  tamam: <path d="m3.25 8.5 3 3 6.5-7" />,
+  halka: <circle cx="8" cy="8" r="5.25" />,
+  uyari: (
+    <>
+      <path d="M8 2.25 14.25 13.25H1.75z" />
+      <path d="M8 6.5v3M8 11.25v.01" />
+    </>
+  ),
+  kopyala: (
+    <>
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+      <path d="M10.5 5.5v-3h-8v8h3" />
+    </>
+  ),
+  dal: (
+    <>
+      <circle cx="4.5" cy="3.5" r="1.5" />
+      <circle cx="4.5" cy="12.5" r="1.5" />
+      <circle cx="11.5" cy="4.5" r="1.5" />
+      <path d="M4.5 5v6M11.5 6c0 3.5-7 2.5-7 5" />
+    </>
+  ),
+  ev: (
+    <>
+      <path d="M2 7.75 8 2.5l6 5.25" />
+      <path d="M3.75 6.5v7h8.5v-7M6.75 13.5v-3.5h2.5v3.5" />
+    </>
+  ),
+  yukari: <path d="M8 13.5V3M4 7l4-4 4 4" />,
+  indir: <path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11" />,
+  kure: (
+    <>
+      <circle cx="8" cy="8" r="5.75" />
+      <path d="M2.25 8h11.5M8 2.25c-2.25 2.25-2.25 9.25 0 11.5M8 2.25c2.25 2.25 2.25 9.25 0 11.5" />
+    </>
+  ),
+  depo: (
+    <>
+      <path d="M3.5 13.25V3.5a1 1 0 0 1 1-1h8v9h-7.75a1.25 1.25 0 0 0 0 2.5h7.75" />
+      <path d="M6 5.5h4" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type SimgeAdi = keyof typeof YOLLAR;

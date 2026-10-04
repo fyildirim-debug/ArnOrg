@@ -10,8 +10,28 @@ export const ayarlar: typeof tr = {
   dil: {
     aciklama: "The interface and the agents use this language. Running agents switch at their next session.",
   },
+  claude: {
+    baslik: "Claude Code",
+  },
+  github: {
+    baslik: "GitHub",
+  },
+  projeKoku: {
+    baslik: "Project folder",
+    aciklama: "New projects and repositories cloned from GitHub are created in this folder.",
+    varsayilanEtiket: "default",
+    degistir: "Change",
+    varsayilan: "Use default",
+    secBaslik: "Choose the project folder",
+    kaydedildi: (yol: string) => `New projects will be created in ${yol}.`,
+  },
+  kurulum: {
+    baslik: "First-run setup",
+    aciklama: "Shows the language, Claude Code, GitHub, first project and kickoff steps again. Your settings and projects stay as they are.",
+    ac: "Reopen the setup wizard",
+  },
   giris: {
-    baslik: "Claude sign-in",
+    baslik: "Subscription and limits",
     kaynak: "sign-in",
     ulasilamadi: (hata: string) => `Couldn't reach Claude Code: ${hata}`,
     okunmadi: "Claude Code sign-in hasn't been read yet.",
@@ -28,6 +48,8 @@ export const ayarlar: typeof tr = {
     baslik: "Core",
     claudeYolu: "Claude Code path",
     claudeYoluOrnek: "Empty: PATH first, then the binary bundled with the SDK",
+    ghYolu: "GitHub CLI (gh) path",
+    ghYoluOrnek: "Empty: PATH first, then the copy ArnOrg downloaded",
     izinModu: "Default permission mode",
     izinModuIpucu: "Whatever the mode, every call passes through the PreToolUse gate.",
     sure: "Decision timeout (seconds)",

@@ -1,14 +1,19 @@
-// Projeler: liste, yeni proje / var olan repoyu bağlama, listeden çıkarma
+// Projeler: liste; yeni proje, GitHub'dan açma ve klasör bağlama (sihirbazla aynı bileşen); proje ayarları
+// (çalışma dalı, uzak depo, otomatik gönderim); listeden çıkarma
 import type { ProjeOzeti } from "@arnorg/ortak";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
+import { DisBaglanti } from "../bilesenler/DisBaglanti";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { GorevDagilimi } from "../bilesenler/GorevDagilimi";
 import { OnaySor } from "../bilesenler/OnaySor";
+import { ProjeAcici, type AcmaYolu } from "../bilesenler/ProjeAcici";
+import { ProjeAyarlari } from "../bilesenler/ProjeAyarlari";
 import { Simge } from "../bilesenler/Simge";
 import { bildir, git, hataBildir, useArayuz } from "../durum/arayuz";
-import { projeleriYukle, projeUygula, projeyiSec, useVeri } from "../durum/veri";
+import { kurulumuYukle, useKurulum } from "../durum/kurulum";
+import { projeleriYukle, projeyiSec, useVeri } from "../durum/veri";
 import { tarih, token } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
@@ -18,16 +23,23 @@ export function Projeler() {
   const projeler = useVeri((d) => d.projeler);
   const yukleme = useVeri((d) => d.projelerYukleme);
   const yeniIstek = useArayuz((d) => d.yeniProjeIstegi);
-  const [formAcik, setFormAcik] = useState(false);
+  // Aynı düğmeye yeniden basılınca da o sekme öne gelsin: her istek yeni numara alır
+  const [acici, setAcici] = useState<{ yol: AcmaYolu; no: number } | null>(null);
+  const ac = (yol: AcmaYolu) => setAcici((x) => ({ yol, no: (x?.no ?? 0) + 1 }));
 
   useEffect(() => {
     projeleriYukle().catch(() => undefined);
+    if (useKurulum.getState().yukleme === "bos") void kurulumuYukle();
   }, []);
   useEffect(() => {
-    if (yeniIstek) setFormAcik(true);
+    if (yeniIstek) ac("yeni");
   }, [yeniIstek]);
 
   const bos = yukleme === "hazir" && projeler.length === 0;
+  const acildi = () => {
+    setAcici(null);
+    git("karargah");
+  };
 
   return (
     <>
@@ -36,9 +48,17 @@ export function Projeler() {
           <h1>{t.baslik}</h1>
           <p>{t.aciklama}</p>
         </div>
-        {!formAcik && !bos ? (
+        {!bos ? (
           <div className="baslik-eylem">
-            <button type="button" className="dugme dugme-ana" onClick={() => setFormAcik(true)}>
+            <button type="button" className="dugme" aria-pressed={acici?.yol === "github"} onClick={() => ac("github")}>
+              <Simge ad="depo" />
+              {t.githubdanAc}
+            </button>
+            <button type="button" className="dugme" aria-pressed={acici?.yol === "klasor"} onClick={() => ac("klasor")}>
+              <Simge ad="klasor" />
+              {t.klasorBagla}
+            </button>
+            <button type="button" className="dugme dugme-ana" onClick={() => ac("yeni")}>
               <Simge ad="arti" />
               {t.yeniProje}
             </button>
@@ -46,7 +66,15 @@ export function Projeler() {
         ) : null}
       </div>
 
-      {formAcik || bos ? <YeniProjeFormu kapat={bos ? undefined : () => setFormAcik(false)} ilk={bos} /> : null}
+      {acici || bos ? (
+        <ProjeAcmaPaneli
+          ilk={bos}
+          baslangic={acici?.yol ?? "yeni"}
+          istek={acici?.no ?? 0}
+          kapat={bos ? undefined : () => setAcici(null)}
+          acildi={acildi}
+        />
+      ) : null}
 
       {yukleme === "yukleniyor" && projeler.length === 0 ? <Iskelet satir={6} /> : null}
       {yukleme === "hata" ? <HataKutu metin={t.listeAlinamadi} yeniden={() => projeleriYukle().catch(hataBildir)} /> : null}
@@ -67,14 +95,53 @@ export function Projeler() {
   );
 }
 
+function ProjeAcmaPaneli({
+  ilk,
+  baslangic,
+  istek,
+  kapat,
+  acildi,
+}: {
+  ilk: boolean;
+  baslangic: AcmaYolu;
+  istek: number;
+  kapat?: () => void;
+  acildi: (p: ProjeOzeti) => void;
+}) {
+  const s = useSozluk();
+  const f = s.projeler.form;
+  return (
+    <section className="panel yeni-proje" aria-labelledby="proje-ac-baslik">
+      <div className="panel-ust">
+        <h2 id="proje-ac-baslik">{ilk ? f.ilkBaslik : f.baslik}</h2>
+        {kapat ? (
+          <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" onClick={kapat} aria-label={f.kapat}>
+            <Simge ad="kapat" boyut={12} />
+          </button>
+        ) : null}
+      </div>
+      {ilk ? (
+        <p className="panel-aciklama">
+          {f.ilkAciklamaOnce}
+          <code>.arnorg/</code>
+          {f.ilkAciklamaSonra}
+        </p>
+      ) : null}
+      <ProjeAcici baslangic={baslangic} istek={istek} acildi={acildi} />
+    </section>
+  );
+}
+
 function ProjeSatiri({ proje: p }: { proje: ProjeOzeti }) {
   const s = useSozluk();
   const t = s.projeler;
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [cikar, setCikar] = useState(false);
+  const [ayarAcik, setAyarAcik] = useState(false);
   const { suruyor, calistir } = useIslem();
   const acik = p.id === aktifProjeId;
   const toplamGorev = Object.values(p.gorevSayilari ?? {}).reduce((a, b) => a + b, 0);
+  const ayarId = `proje-ayar-${p.id}`;
 
   const ac = () => {
     if (!acik) projeyiSec(p.id);
@@ -96,6 +163,12 @@ function ProjeSatiri({ proje: p }: { proje: ProjeOzeti }) {
           {p.ad}
         </button>
         <code className="proje-yol">{p.yol}</code>
+        {p.github ? (
+          <DisBaglanti href={`https://github.com/${p.github}`} className="baglanti proje-uzak">
+            <Simge ad="depo" boyut={11} />
+            {p.github}
+          </DisBaglanti>
+        ) : null}
         {p.aciklama ? <p>{p.aciklama}</p> : null}
       </div>
       <div className="proje-gorev">
@@ -127,6 +200,17 @@ function ProjeSatiri({ proje: p }: { proje: ProjeOzeti }) {
         <button
           type="button"
           className="dugme dugme-kucuk dugme-sessiz dugme-simge"
+          onClick={() => setAyarAcik(!ayarAcik)}
+          aria-expanded={ayarAcik}
+          aria-controls={ayarAcik ? ayarId : undefined}
+          aria-label={t.ayar.acEtiket(p.ad)}
+          title={t.ayar.ac}
+        >
+          <Simge ad="ayarlar" boyut={13} />
+        </button>
+        <button
+          type="button"
+          className="dugme dugme-kucuk dugme-sessiz dugme-simge"
           onClick={() => setCikar(true)}
           aria-label={t.cikarEtiket(p.ad)}
           title={t.listedenCikar}
@@ -141,128 +225,11 @@ function ProjeSatiri({ proje: p }: { proje: ProjeOzeti }) {
           </OnaySor>
         </div>
       ) : null}
-    </li>
-  );
-}
-
-function yolMutlakMi(yol: string): boolean {
-  return yol.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(yol) || yol.startsWith("\\\\") || yol.startsWith("~");
-}
-
-function YeniProjeFormu({ kapat, ilk }: { kapat?: () => void; ilk?: boolean }) {
-  const s = useSozluk();
-  const f = s.projeler.form;
-  const [ad, setAd] = useState("");
-  const [yol, setYol] = useState("");
-  const [olustur, setOlustur] = useState(true);
-  const [aciklama, setAciklama] = useState("");
-  const [denendi, setDenendi] = useState(false);
-  const { suruyor, hata, calistir } = useIslem();
-
-  const adHata = !ad.trim() ? f.adGerekli : null;
-  const yolHata = !yol.trim() ? f.yolGerekli : !yolMutlakMi(yol.trim()) ? f.yolMutlak : null;
-
-  const gonder = (e: FormEvent) => {
-    e.preventDefault();
-    setDenendi(true);
-    if (adHata || yolHata) return;
-    void calistir("olustur", async () => {
-      const p = await api.projeOlustur({ ad: ad.trim(), yol: yol.trim(), olustur, aciklama: aciklama.trim() || undefined });
-      projeUygula(p);
-      projeyiSec(p.id);
-      bildir("basari", sozluk().projeler.form.acildi(p.ad));
-      git("karargah");
-    }, true);
-  };
-
-  return (
-    <section className="panel yeni-proje" aria-labelledby="yeni-proje-baslik">
-      <div className="panel-ust">
-        <h2 id="yeni-proje-baslik">{ilk ? f.ilkBaslik : s.projeler.yeniProje}</h2>
-        {kapat ? (
-          <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" onClick={kapat} aria-label={f.kapat}>
-            <Simge ad="kapat" boyut={12} />
-          </button>
-        ) : null}
-      </div>
-      {ilk ? (
-        <p className="panel-aciklama">
-          {f.ilkAciklamaOnce}
-          <code>.arnorg/</code>
-          {f.ilkAciklamaSonra}
-        </p>
+      {ayarAcik ? (
+        <div className="proje-onay">
+          <ProjeAyarlari proje={p} id={ayarId} />
+        </div>
       ) : null}
-      <form className="form-izgara" onSubmit={gonder} noValidate>
-        <div className="alan tam">
-          <span className="alan-ad" id="kip-ad">
-            {f.kaynak}
-          </span>
-          <div className="bolumlu" role="group" aria-labelledby="kip-ad">
-            <button type="button" aria-pressed={olustur} onClick={() => setOlustur(true)}>
-              {f.yeniRepo}
-            </button>
-            <button type="button" aria-pressed={!olustur} onClick={() => setOlustur(false)}>
-              {f.varOlanRepo}
-            </button>
-          </div>
-          <span className="alan-ipucu">
-            {olustur ? f.yeniRepoIpucu : f.varOlanIpucu}
-          </span>
-        </div>
-        <div className="alan">
-          <label htmlFor="proje-ad">{f.ad}</label>
-          <input
-            id="proje-ad"
-            className="girdi"
-            value={ad}
-            onChange={(e) => setAd(e.target.value)}
-            placeholder={f.adOrnek}
-            aria-invalid={denendi && adHata ? true : undefined}
-            autoFocus
-          />
-          {denendi && adHata ? <span className="alan-hata">{adHata}</span> : null}
-        </div>
-        <div className="alan">
-          <label htmlFor="proje-yol">{f.yol}</label>
-          <input
-            id="proje-yol"
-            className="girdi"
-            value={yol}
-            onChange={(e) => setYol(e.target.value)}
-            placeholder={olustur ? f.yolOrnekYeni : f.yolOrnekVar}
-            spellCheck={false}
-            aria-invalid={denendi && yolHata ? true : undefined}
-          />
-          {denendi && yolHata ? <span className="alan-hata">{yolHata}</span> : null}
-        </div>
-        <div className="alan tam">
-          <label htmlFor="proje-aciklama">{f.aciklama}</label>
-          <textarea
-            id="proje-aciklama"
-            className="metin-alani"
-            rows={2}
-            value={aciklama}
-            onChange={(e) => setAciklama(e.target.value)}
-            placeholder={f.aciklamaOrnek}
-          />
-        </div>
-        {hata ? (
-          <div className="tam">
-            <HataKutu baslik={f.acilamadi} metin={hata} />
-          </div>
-        ) : null}
-        <div className="tam dugme-satir">
-          <button type="submit" className="dugme dugme-ana" disabled={suruyor !== null}>
-            {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-            {olustur ? f.olustur : f.bagla}
-          </button>
-          {kapat ? (
-            <button type="button" className="dugme dugme-sessiz" onClick={kapat}>
-              {s.genel.vazgec}
-            </button>
-          ) : null}
-        </div>
-      </form>
-    </section>
+    </li>
   );
 }

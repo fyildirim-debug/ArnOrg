@@ -1,5 +1,5 @@
-// Ayarlar: dil, Claude girişi ve abonelik sınırları, çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri,
-// bağlantı ve hakkında satırı
+// Ayarlar: dil, Claude Code ve GitHub kurulumu, abonelik sınırları, çekirdek ayarları, proje kökü, ilk kurulum
+// sihirbazı, sağlık bilgisi, bu tarayıcının tercihleri, bağlantı ve hakkında satırı
 import {
   ARNORG_SURUMU,
   DIL_ADLARI,
@@ -15,11 +15,15 @@ import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { api } from "../api/uclar";
 import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
+import { ClaudeKurulumu } from "../bilesenler/ClaudeKurulumu";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { GithubKurulumu } from "../bilesenler/GithubKurulumu";
+import { useKlasorSecici } from "../bilesenler/KlasorSecici";
 import { IZIN_MODLARI, izinModuAdi } from "../bilesenler/Kisi";
 import { pencereAdi } from "../bilesenler/Kullanim";
-import { bildir } from "../durum/arayuz";
-import { hesabiYukle, useVeri } from "../durum/veri";
+import { bildir, hataBildir } from "../durum/arayuz";
+import { kurulumuYukle, useKurulum } from "../durum/kurulum";
+import { ayarlariKaydet, hesabiYukle, useVeri } from "../durum/veri";
 import { akilliZaman, yuzde } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 import { sirketAdiAyarla, useTercihler } from "../yardimcilar/tercihler";
@@ -72,7 +76,11 @@ export function Ayarlar() {
     e.preventDefault();
     if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz) return;
     void calistir("kaydet", async () => {
-      const a = await api.ayarlariKaydet({ ...taslak, claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null });
+      const a = await api.ayarlariKaydet({
+        ...taslak,
+        claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null,
+        ghYolu: taslak.ghYolu?.trim() ? taslak.ghYolu.trim() : null,
+      });
       setAyarlar(a);
       setTaslak(a);
       bildir("basari", sozluk().ayarlar.kaydedildi);
@@ -84,6 +92,11 @@ export function Ayarlar() {
     setTaslak((x) => (x ? { ...x, dil } : x));
     setSaglik((x) => (x ? { ...x, dil } : x));
     useVeri.setState((d) => (d.saglik ? { saglik: { ...d.saglik, dil } } : {}));
+  };
+  // Proje kökü kendi düğmesiyle hemen kaydedilir; formdaki kopyalar eski değeri geri yazmasın
+  const projeKokuKaydedildi = (projeKoku: string | null) => {
+    setAyarlar((x) => (x ? { ...x, projeKoku } : x));
+    setTaslak((x) => (x ? { ...x, projeKoku } : x));
   };
   const degistir = (d: Partial<AyarlarTipi>) => setTaslak((x) => (x ? { ...x, ...d } : x));
   const disEditorOzel = taslak && !DIS_EDITORLER.some(([k]) => k === taslak.disEditor);
@@ -101,214 +114,241 @@ export function Ayarlar() {
       {!taslak && !hata ? <Iskelet satir={8} /> : null}
 
       <div className="ayarlar-yerlesim">
-        {taslak ? (
-          <form className="ayar-bolum" onSubmit={kaydet} noValidate>
-            <h2 className="ara-baslik">{t.giris.baslik}</h2>
-            <div className="hesap-durum" role="status">
-              {hesap?.durum === "hazir" ? (
-                <p>
-                  <b>{hesap.plan ? `Claude ${hesap.plan}` : "Claude Code"}</b>
-                  {hesap.eposta ? ` · ${hesap.eposta}` : ""}
-                  {hesap.kaynak ? <small> · {t.giris.kaynak}: {hesap.kaynak}</small> : null}
-                </p>
-              ) : (
-                <p className="soluk">
-                  {hesap?.durum === "hata" ? t.giris.ulasilamadi(hesap.hata ?? "") : t.giris.okunmadi}
-                </p>
-              )}
-              {hesap?.pencereler.length ? (
-                <p className="hesap-pencereler">
-                  {hesap.pencereler
-                    .filter((p) => p.tur === "bes_saat" || p.tur === "haftalik")
-                    .map((p) => `${pencereAdi(s, p)} ${yuzde(p.yuzde)}${p.sifirlanma ? ` (${t.giris.sifirlanma(akilliZaman(p.sifirlanma))})` : ""}`)
-                    .join(" · ")}
-                </p>
-              ) : null}
-              {hesap?.uyari ? <p className="alan-hata">{hesap.uyari}</p> : null}
-              <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)}>
-                {t.giris.yenidenOku}
-              </button>
-            </div>
-            <div className="form-izgara">
-              <p className="alan-ipucu tam">{t.giris.abonelik}</p>
-              <div className="alan">
-                <label htmlFor="ay-bes">{t.giris.besSaat}</label>
-                <input
-                  id="ay-bes"
-                  className="girdi"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={Number.isFinite(taslak.besSaatlikSinirYuzde) ? taslak.besSaatlikSinirYuzde : ""}
-                  onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
-                  aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
-                />
-                <span className="alan-ipucu">{t.giris.besSaatIpucu}</span>
+        <div className="ayar-sol">
+          <section className="ayar-bolum" aria-labelledby="ayar-claude-baslik">
+            <h2 className="ara-baslik" id="ayar-claude-baslik">
+              {t.claude.baslik}
+            </h2>
+            <ClaudeKurulumu />
+          </section>
+          <section className="ayar-bolum" aria-labelledby="ayar-github-baslik">
+            <h2 className="ara-baslik" id="ayar-github-baslik">
+              {t.github.baslik}
+            </h2>
+            <GithubKurulumu />
+          </section>
+          {taslak ? (
+            <form className="ayar-bolum" onSubmit={kaydet} noValidate>
+              <h2 className="ara-baslik">{t.giris.baslik}</h2>
+              <div className="hesap-durum" role="status">
+                {hesap?.durum === "hazir" ? (
+                  <p>
+                    <b>{hesap.plan ? `Claude ${hesap.plan}` : "Claude Code"}</b>
+                    {hesap.eposta ? ` · ${hesap.eposta}` : ""}
+                    {hesap.kaynak ? <small> · {t.giris.kaynak}: {hesap.kaynak}</small> : null}
+                  </p>
+                ) : (
+                  <p className="soluk">
+                    {hesap?.durum === "hata" ? t.giris.ulasilamadi(hesap.hata ?? "") : t.giris.okunmadi}
+                  </p>
+                )}
+                {hesap?.pencereler.length ? (
+                  <p className="hesap-pencereler">
+                    {hesap.pencereler
+                      .filter((p) => p.tur === "bes_saat" || p.tur === "haftalik")
+                      .map((p) => `${pencereAdi(s, p)} ${yuzde(p.yuzde)}${p.sifirlanma ? ` (${t.giris.sifirlanma(akilliZaman(p.sifirlanma))})` : ""}`)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+                {hesap?.uyari ? <p className="alan-hata">{hesap.uyari}</p> : null}
+                <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)}>
+                  {t.giris.yenidenOku}
+                </button>
               </div>
-              <div className="alan">
-                <label htmlFor="ay-hafta">{t.giris.hafta}</label>
-                <input
-                  id="ay-hafta"
-                  className="girdi"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={Number.isFinite(taslak.haftalikSinirYuzde) ? taslak.haftalikSinirYuzde : ""}
-                  onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
-                  aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
-                />
-                <span className="alan-ipucu">{t.giris.haftaIpucu}</span>
-              </div>
-            </div>
-
-            <h2 className="ara-baslik">{t.cekirdek.baslik}</h2>
-            <div className="form-izgara">
-              <div className="alan tam">
-                <label htmlFor="ay-claude">{t.cekirdek.claudeYolu}</label>
-                <input
-                  id="ay-claude"
-                  className="girdi"
-                  value={taslak.claudeYolu ?? ""}
-                  onChange={(e) => degistir({ claudeYolu: e.target.value })}
-                  placeholder={t.cekirdek.claudeYoluOrnek}
-                  spellCheck={false}
-                />
-              </div>
-              <div className="alan">
-                <label htmlFor="ay-mod">{t.cekirdek.izinModu}</label>
-                <select
-                  id="ay-mod"
-                  className="secim"
-                  value={taslak.varsayilanIzinModu}
-                  onChange={(e) => degistir({ varsayilanIzinModu: e.target.value as IzinModu })}
-                >
-                  {IZIN_MODLARI.map((k) => [k, izinModuAdi(k)] as const).map(([k, ad]) => (
-                    <option key={k} value={k}>
-                      {ad}
-                    </option>
-                  ))}
-                </select>
-                <span className="alan-ipucu">{t.cekirdek.izinModuIpucu}</span>
-              </div>
-              <div className="alan">
-                <label htmlFor="ay-sure">{t.cekirdek.sure}</label>
-                <input
-                  id="ay-sure"
-                  className="girdi"
-                  type="number"
-                  min={10}
-                  step={10}
-                  value={Number.isFinite(taslak.onaySuresiSn) ? taslak.onaySuresiSn : ""}
-                  onChange={(e) => degistir({ onaySuresiSn: e.target.valueAsNumber })}
-                  aria-invalid={sureGecersiz ? true : undefined}
-                />
-                <span className={sureGecersiz ? "alan-hata" : "alan-ipucu"}>
-                  {sureGecersiz ? t.cekirdek.sureHata : t.cekirdek.sureIpucu}
-                </span>
-              </div>
-              <div className="alan">
-                <label htmlFor="ay-tikanma">{t.cekirdek.tikanma}</label>
-                <input
-                  id="ay-tikanma"
-                  className="girdi"
-                  type="number"
-                  min={0}
-                  max={1440}
-                  step={5}
-                  value={Number.isFinite(taslak.tikanmaDakika) ? taslak.tikanmaDakika : ""}
-                  onChange={(e) => degistir({ tikanmaDakika: e.target.valueAsNumber })}
-                  aria-invalid={tikanmaGecersiz ? true : undefined}
-                />
-                <span className={tikanmaGecersiz ? "alan-hata" : "alan-ipucu"}>
-                  {tikanmaGecersiz ? t.cekirdek.tikanmaHata : t.cekirdek.tikanmaIpucu}
-                </span>
-              </div>
-              <div className="alan">
-                <label htmlFor="ay-editor">{t.cekirdek.editor}</label>
-                <select
-                  id="ay-editor"
-                  className="secim"
-                  value={disEditorOzel ? "ozel" : taslak.disEditor}
-                  onChange={(e) => degistir({ disEditor: e.target.value === "ozel" ? "" : e.target.value })}
-                >
-                  {DIS_EDITORLER.map(([k, ad]) => (
-                    <option key={k} value={k}>
-                      {ad}
-                    </option>
-                  ))}
-                  <option value="ozel">{t.cekirdek.editorBaska}</option>
-                </select>
-              </div>
-              {disEditorOzel ? (
+              <div className="form-izgara">
+                <p className="alan-ipucu tam">{t.giris.abonelik}</p>
                 <div className="alan">
-                  <label htmlFor="ay-editor-ozel">{t.cekirdek.editorKomutu}</label>
+                  <label htmlFor="ay-bes">{t.giris.besSaat}</label>
                   <input
-                    id="ay-editor-ozel"
+                    id="ay-bes"
                     className="girdi"
-                    value={taslak.disEditor}
-                    onChange={(e) => degistir({ disEditor: e.target.value })}
-                    placeholder="zed"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Number.isFinite(taslak.besSaatlikSinirYuzde) ? taslak.besSaatlikSinirYuzde : ""}
+                    onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
+                    aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
+                  />
+                  <span className="alan-ipucu">{t.giris.besSaatIpucu}</span>
+                </div>
+                <div className="alan">
+                  <label htmlFor="ay-hafta">{t.giris.hafta}</label>
+                  <input
+                    id="ay-hafta"
+                    className="girdi"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Number.isFinite(taslak.haftalikSinirYuzde) ? taslak.haftalikSinirYuzde : ""}
+                    onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
+                    aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
+                  />
+                  <span className="alan-ipucu">{t.giris.haftaIpucu}</span>
+                </div>
+              </div>
+
+              <h2 className="ara-baslik">{t.cekirdek.baslik}</h2>
+              <div className="form-izgara">
+                <div className="alan tam">
+                  <label htmlFor="ay-claude">{t.cekirdek.claudeYolu}</label>
+                  <input
+                    id="ay-claude"
+                    className="girdi"
+                    value={taslak.claudeYolu ?? ""}
+                    onChange={(e) => degistir({ claudeYolu: e.target.value })}
+                    placeholder={t.cekirdek.claudeYoluOrnek}
                     spellCheck={false}
                   />
                 </div>
-              ) : null}
-            </div>
-            <h2 className="ara-baslik">{t.kodZekasi.baslik}</h2>
-            <div className="form-izgara">
-              <div className="alan tam">
-                <span className="alan-ad" id="kz-model-ad">
-                  {t.kodZekasi.model}
-                </span>
-                <div className="bolumlu" role="group" aria-labelledby="kz-model-ad">
-                  {KOD_ZEKASI_MODELLERI.map((k) => (
-                    <button key={k} type="button" aria-pressed={taslak.kodZekasiModeli === k} onClick={() => degistir({ kodZekasiModeli: k })}>
-                      {t.kodZekasi.modeller[k]}
-                    </button>
-                  ))}
+                <div className="alan tam">
+                  <label htmlFor="ay-gh">{t.cekirdek.ghYolu}</label>
+                  <input
+                    id="ay-gh"
+                    className="girdi"
+                    value={taslak.ghYolu ?? ""}
+                    onChange={(e) => degistir({ ghYolu: e.target.value })}
+                    placeholder={t.cekirdek.ghYoluOrnek}
+                    spellCheck={false}
+                  />
                 </div>
-                <span className="alan-ipucu">
-                  {taslak.kodZekasiModeli === "kapali"
-                    ? t.kodZekasi.kapaliIpucu
-                    : (() => {
-                        const kz = t.kodZekasi;
-                        const m = modeller.find((x) => x.secim === taslak.kodZekasiModeli);
-                        if (!m) return kz.modelIpucu;
-                        // Model adı ve açıklaması çekirdekten gelir
-                        return `${m.ad}: ${m.aciklama} ${m.indirildi ? kz.indirildi(m.diskMb) : kz.indirilecek(m.indirmeMb)} ${kz.yerel}`;
-                      })()}
-                </span>
+                <div className="alan">
+                  <label htmlFor="ay-mod">{t.cekirdek.izinModu}</label>
+                  <select
+                    id="ay-mod"
+                    className="secim"
+                    value={taslak.varsayilanIzinModu}
+                    onChange={(e) => degistir({ varsayilanIzinModu: e.target.value as IzinModu })}
+                  >
+                    {IZIN_MODLARI.map((k) => [k, izinModuAdi(k)] as const).map(([k, ad]) => (
+                      <option key={k} value={k}>
+                        {ad}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="alan-ipucu">{t.cekirdek.izinModuIpucu}</span>
+                </div>
+                <div className="alan">
+                  <label htmlFor="ay-sure">{t.cekirdek.sure}</label>
+                  <input
+                    id="ay-sure"
+                    className="girdi"
+                    type="number"
+                    min={10}
+                    step={10}
+                    value={Number.isFinite(taslak.onaySuresiSn) ? taslak.onaySuresiSn : ""}
+                    onChange={(e) => degistir({ onaySuresiSn: e.target.valueAsNumber })}
+                    aria-invalid={sureGecersiz ? true : undefined}
+                  />
+                  <span className={sureGecersiz ? "alan-hata" : "alan-ipucu"}>
+                    {sureGecersiz ? t.cekirdek.sureHata : t.cekirdek.sureIpucu}
+                  </span>
+                </div>
+                <div className="alan">
+                  <label htmlFor="ay-tikanma">{t.cekirdek.tikanma}</label>
+                  <input
+                    id="ay-tikanma"
+                    className="girdi"
+                    type="number"
+                    min={0}
+                    max={1440}
+                    step={5}
+                    value={Number.isFinite(taslak.tikanmaDakika) ? taslak.tikanmaDakika : ""}
+                    onChange={(e) => degistir({ tikanmaDakika: e.target.valueAsNumber })}
+                    aria-invalid={tikanmaGecersiz ? true : undefined}
+                  />
+                  <span className={tikanmaGecersiz ? "alan-hata" : "alan-ipucu"}>
+                    {tikanmaGecersiz ? t.cekirdek.tikanmaHata : t.cekirdek.tikanmaIpucu}
+                  </span>
+                </div>
+                <div className="alan">
+                  <label htmlFor="ay-editor">{t.cekirdek.editor}</label>
+                  <select
+                    id="ay-editor"
+                    className="secim"
+                    value={disEditorOzel ? "ozel" : taslak.disEditor}
+                    onChange={(e) => degistir({ disEditor: e.target.value === "ozel" ? "" : e.target.value })}
+                  >
+                    {DIS_EDITORLER.map(([k, ad]) => (
+                      <option key={k} value={k}>
+                        {ad}
+                      </option>
+                    ))}
+                    <option value="ozel">{t.cekirdek.editorBaska}</option>
+                  </select>
+                </div>
+                {disEditorOzel ? (
+                  <div className="alan">
+                    <label htmlFor="ay-editor-ozel">{t.cekirdek.editorKomutu}</label>
+                    <input
+                      id="ay-editor-ozel"
+                      className="girdi"
+                      value={taslak.disEditor}
+                      onChange={(e) => degistir({ disEditor: e.target.value })}
+                      placeholder="zed"
+                      spellCheck={false}
+                    />
+                  </div>
+                ) : null}
               </div>
-              <div className="alan tam">
-                <label className="secenek">
-                  <input type="checkbox" checked={taslak.kodZekasiOtomatik} onChange={(e) => degistir({ kodZekasiOtomatik: e.target.checked })} />
-                  {t.kodZekasi.otomatik}
-                </label>
-                <span className="alan-ipucu">{t.kodZekasi.otomatikIpucu}</span>
+              <h2 className="ara-baslik">{t.kodZekasi.baslik}</h2>
+              <div className="form-izgara">
+                <div className="alan tam">
+                  <span className="alan-ad" id="kz-model-ad">
+                    {t.kodZekasi.model}
+                  </span>
+                  <div className="bolumlu" role="group" aria-labelledby="kz-model-ad">
+                    {KOD_ZEKASI_MODELLERI.map((k) => (
+                      <button key={k} type="button" aria-pressed={taslak.kodZekasiModeli === k} onClick={() => degistir({ kodZekasiModeli: k })}>
+                        {t.kodZekasi.modeller[k]}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="alan-ipucu">
+                    {taslak.kodZekasiModeli === "kapali"
+                      ? t.kodZekasi.kapaliIpucu
+                      : (() => {
+                          const kz = t.kodZekasi;
+                          const m = modeller.find((x) => x.secim === taslak.kodZekasiModeli);
+                          if (!m) return kz.modelIpucu;
+                          // Model adı ve açıklaması çekirdekten gelir
+                          return `${m.ad}: ${m.aciklama} ${m.indirildi ? kz.indirildi(m.diskMb) : kz.indirilecek(m.indirmeMb)} ${kz.yerel}`;
+                        })()}
+                  </span>
+                </div>
+                <div className="alan tam">
+                  <label className="secenek">
+                    <input type="checkbox" checked={taslak.kodZekasiOtomatik} onChange={(e) => degistir({ kodZekasiOtomatik: e.target.checked })} />
+                    {t.kodZekasi.otomatik}
+                  </label>
+                  <span className="alan-ipucu">{t.kodZekasi.otomatikIpucu}</span>
+                </div>
               </div>
-            </div>
-            <div className="dugme-satir ayar-kaydet">
-              <button
-                type="submit"
-                className="dugme dugme-ana"
-                disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz}
-              >
-                {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-                {s.genel.kaydet}
-              </button>
-              {kirli ? (
-                <button type="button" className="dugme dugme-sessiz" onClick={() => setTaslak(ayarlar)}>
-                  {s.genel.vazgec}
+              <div className="dugme-satir ayar-kaydet">
+                <button
+                  type="submit"
+                  className="dugme dugme-ana"
+                  disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz}
+                >
+                  {suruyor ? <span className="doner" aria-hidden="true" /> : null}
+                  {s.genel.kaydet}
                 </button>
-              ) : (
-                <span className="alan-ipucu">{t.degisiklikYok}</span>
-              )}
-            </div>
-          </form>
-        ) : null}
+                {kirli ? (
+                  <button type="button" className="dugme dugme-sessiz" onClick={() => setTaslak(ayarlar)}>
+                    {s.genel.vazgec}
+                  </button>
+                ) : (
+                  <span className="alan-ipucu">{t.degisiklikYok}</span>
+                )}
+              </div>
+            </form>
+          ) : null}
+        </div>
 
         <div className="ayar-yan">
+          <ProjeKoku ayarlar={ayarlar} kaydedildi={projeKokuKaydedildi} />
+          <IlkKurulumBolumu />
           {saglik ? <SaglikBilgisi saglik={saglik} /> : null}
           <YerelTercihler />
         </div>
@@ -349,6 +389,86 @@ function DilSecimi({ kaydedildi }: { kaydedildi: (dil: Dil) => void }) {
           ))}
         </div>
         <span className="alan-ipucu">{s.ayarlar.dil.aciklama}</span>
+      </div>
+    </section>
+  );
+}
+
+/** Yeni projelerin ve klonlanan depoların açıldığı klasör; klasör seçicisiyle değişir, hemen kaydedilir */
+function ProjeKoku({ ayarlar, kaydedildi }: { ayarlar: AyarlarTipi | null; kaydedildi: (projeKoku: string | null) => void }) {
+  const s = useSozluk();
+  const t = s.ayarlar.projeKoku;
+  const kurulumKoku = useKurulum((d) => d.durum?.projeKoku ?? null);
+  const { sec, pencere } = useKlasorSecici();
+  const { suruyor, calistir } = useIslem();
+  const ozel = ayarlar?.projeKoku ?? null;
+  const gecerli = ozel ?? kurulumKoku;
+
+  useEffect(() => {
+    if (useKurulum.getState().yukleme === "bos") void kurulumuYukle();
+  }, []);
+
+  const kaydet = (projeKoku: string | null) =>
+    void calistir("kok", async () => {
+      const a = await ayarlariKaydet({ projeKoku });
+      kaydedildi(a.projeKoku);
+      const d = await kurulumuYukle(true);
+      bildir("basari", sozluk().ayarlar.projeKoku.kaydedildi(a.projeKoku ?? d?.projeKoku ?? ""));
+    });
+
+  const degistir = async () => {
+    const yol = await sec({ baslik: t.secBaslik, varsayilan: gecerli });
+    if (yol && yol !== ozel) kaydet(yol);
+  };
+
+  return (
+    <section className="ayar-bolum" aria-labelledby="ayar-kok-baslik">
+      <h2 className="ara-baslik" id="ayar-kok-baslik">
+        {t.baslik}
+      </h2>
+      <div className="konum-satir">
+        <code className="konum-yol">
+          {gecerli ?? "…"}
+          {!ozel && gecerli ? <small> · {t.varsayilanEtiket}</small> : null}
+        </code>
+        <button type="button" className="dugme dugme-kucuk" onClick={() => void degistir().catch(hataBildir)} disabled={suruyor !== null || !ayarlar}>
+          {suruyor ? <span className="doner" aria-hidden="true" /> : null}
+          {t.degistir}
+        </button>
+      </div>
+      <p className="alan-ipucu">
+        {t.aciklama}{" "}
+        {ozel ? (
+          <button type="button" className="metin-dugme" onClick={() => kaydet(null)} disabled={suruyor !== null}>
+            {t.varsayilan}
+          </button>
+        ) : null}
+      </p>
+      {pencere}
+    </section>
+  );
+}
+
+/** İlk kurulum sihirbazını yeniden açar (kabuk sihirbaza döner) */
+function IlkKurulumBolumu() {
+  const t = useSozluk().ayarlar.kurulum;
+  const { suruyor, calistir } = useIslem();
+  return (
+    <section className="ayar-bolum" aria-labelledby="ayar-kurulum-baslik">
+      <h2 className="ara-baslik" id="ayar-kurulum-baslik">
+        {t.baslik}
+      </h2>
+      <p className="alan-ipucu">{t.aciklama}</p>
+      <div>
+        <button
+          type="button"
+          className="dugme"
+          onClick={() => void calistir("ac", () => ayarlariKaydet({ kurulumTamam: false }))}
+          disabled={suruyor !== null}
+        >
+          {suruyor ? <span className="doner" aria-hidden="true" /> : null}
+          {t.ac}
+        </button>
       </div>
     </section>
   );

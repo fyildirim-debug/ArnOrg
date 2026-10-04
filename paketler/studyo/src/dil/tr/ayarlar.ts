@@ -9,8 +9,28 @@ export const ayarlar = {
   dil: {
     aciklama: "Arayüz ve ajanlar bu dili kullanır. Çalışan ajanlar bir sonraki oturumlarında yeni dile geçer.",
   },
+  claude: {
+    baslik: "Claude Code",
+  },
+  github: {
+    baslik: "GitHub",
+  },
+  projeKoku: {
+    baslik: "Proje kökü",
+    aciklama: "Yeni projeler ve GitHub'dan indirilen depolar bu klasörde açılır.",
+    varsayilanEtiket: "varsayılan",
+    degistir: "Değiştir",
+    varsayilan: "Varsayılana dön",
+    secBaslik: "Proje kökünü seçin",
+    kaydedildi: (yol: string) => `Proje kökü ${yol} oldu.`,
+  },
+  kurulum: {
+    baslik: "İlk kurulum",
+    aciklama: "Dil, Claude Code, GitHub, ilk proje ve hazırlık adımlarını yeniden gösterir. Ayarlarınız ve projeleriniz olduğu gibi kalır.",
+    ac: "İlk kurulum sihirbazını yeniden aç",
+  },
   giris: {
-    baslik: "Claude girişi",
+    baslik: "Abonelik ve sınırlar",
     /** " · giriş: claude.ai" */
     kaynak: "giriş",
     ulasilamadi: (hata: string) => `Claude Code'a ulaşılamadı: ${hata}`,
@@ -28,6 +48,8 @@ export const ayarlar = {
     baslik: "Çekirdek",
     claudeYolu: "Claude Code yolu",
     claudeYoluOrnek: "Boş: önce PATH, sonra SDK ile gelen ikili",
+    ghYolu: "GitHub CLI (gh) yolu",
+    ghYoluOrnek: "Boş: önce PATH, sonra ArnOrg'un indirdiği kopya",
     izinModu: "Varsayılan izin modu",
     izinModuIpucu: "Her çağrı modu ne olursa olsun PreToolUse kapısından geçer.",
     sure: "Karar süresi (saniye)",

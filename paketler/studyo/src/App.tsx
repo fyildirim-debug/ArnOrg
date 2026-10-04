@@ -68,11 +68,12 @@ function Studyo() {
   const anaRef = useRef<HTMLElement>(null);
 
   const ayarlar = useVeri((d) => d.ayarlar);
+  const [ayarlarDenendi, setAyarlarDenendi] = useState(false);
 
   useEffect(() => {
     canliBaglantiyiBaslat();
     void sagligiYukle();
-    void ayarlariYukle();
+    void ayarlariYukle().finally(() => setAyarlarDenendi(true));
     projeleriYukle().catch(hataBildir);
     if (useVeri.getState().aktifProjeId) void projeVerisiniYukle();
     return () => canliBaglantiyiKapat();
@@ -110,6 +111,9 @@ function Studyo() {
       <Simge ad="ray" />
     </button>
   ) : null;
+
+  // Ayarlar gelmeden kabuk çizilmez: ilk açılışta kabuk bir an görünüp sihirbaza dönmesin
+  if (!ayarlar && !ayarlarDenendi) return <Bildirimler />;
 
   // İlk açılış hazırlığı bitmeden (ya da atlanmadan) kabuk gösterilmez
   if (ayarlar && !ayarlar.kurulumTamam) {
