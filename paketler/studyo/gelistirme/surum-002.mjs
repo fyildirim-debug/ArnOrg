@@ -219,7 +219,7 @@ export function kur(c) {
   ].map(([tamAd, aciklama, ozel, varsayilanDal, dk]) => ({ ad: tamAd.split("/")[1], tamAd, sahip: tamAd.split("/")[0], aciklama, ozel, varsayilanDal, guncelleme: once(dk), adres: `https://github.com/${tamAd}` }));
   const girisGerekli = () => {
     if (!kurulum.github.kurulu) throw new Hata(412, ceviri("GitHub CLI (gh) kurulu değil. Kurulum adımından kurun.", "GitHub CLI (gh) is not installed. Install it from the setup step."));
-    if (!kurulum.github.girisYapildi) throw new Hata(401, ceviri("GitHub'a giriş yapılmamış.", "Not signed in to GitHub."));
+    if (!kurulum.github.girisYapildi) throw new Hata(412, ceviri("GitHub'a giriş yapılmamış.", "Not signed in to GitHub."));
   };
 
   rota("GET", "/api/github/hesap", () => (girisGerekli(), { kullanici: "furkan-y", ad: "Furkan YILDIRIM", eposta: "posta@furkanyildirim.com", kuruluslar: ["arnex-studio"] }));

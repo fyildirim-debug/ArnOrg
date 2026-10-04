@@ -372,6 +372,12 @@ const istemciler = new Set();
 const yayDinleyicileri = [];
 
 function yay(olay, projeId = null) {
+  // İlk kurulum kipinde sihirbaz bitene kadar tohum projelerin arka plan bildirimleri gelmez
+  if (process.env.ARNORG_KURULUM === "yeni" && !db.ayarlar.kurulumTamam) {
+    const tohum = (id) => id === "siparis-paneli" || id === "arnex-web";
+    if (olay.tur === "bildirim" && (!olay.projeId || tohum(olay.projeId))) return;
+    if (olay.tur === "proje.guncellendi" && tohum(olay.proje?.id)) return;
+  }
   const metin = JSON.stringify(olay);
   for (const i of istemciler) {
     const herkese = olay.tur === "proje.guncellendi" || olay.tur === "bildirim" || olay.tur === "hesap.guncellendi";
@@ -939,7 +945,11 @@ rota("PUT", "/api/ayarlar", ({ govde }) => {
 rota("GET", "/api/hesap", () => hesapCevabi());
 rota("GET", "/api/roller", () => V.roller);
 
-rota("GET", "/api/projeler", () => db.projeler.map(projeOzeti));
+// İlk kurulum kipi (ARNORG_KURULUM=yeni): kurulum bitene kadar tohum projeler görünmez, gerçek ilk açılış gibi
+const ILK_KURULUM = process.env.ARNORG_KURULUM === "yeni";
+const TOHUM_PROJELER = new Set(db.projeler.map((p) => p.id));
+const tohumGizli = (p) => ILK_KURULUM && !db.ayarlar.kurulumTamam && TOHUM_PROJELER.has(p.id);
+rota("GET", "/api/projeler", () => db.projeler.filter((p) => !tohumGizli(p)).map(projeOzeti));
 let projeEkleyici = null;
 let yonetimIsleyici = null;
 const onaySonucuDinleyicileri = [];

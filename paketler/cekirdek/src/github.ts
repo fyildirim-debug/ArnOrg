@@ -76,7 +76,7 @@ export class GithubIslemleri {
     const s = await komut(this.gh(), ["api", yol], { env: this.kurulum.ghOrtami(), zamanMs: 30_000 });
     if (s.kod !== 0) {
       const metin = (s.hata || s.cikti).trim();
-      if (/auth login|not logged|authenticat|401/i.test(metin)) throw new ArnorgHatasi(iki("GitHub'a giriş yapılmamış.", "Not signed in to GitHub."), 401);
+      if (/auth login|not logged|authenticat|401/i.test(metin)) throw new ArnorgHatasi(iki("GitHub'a giriş yapılmamış.", "Not signed in to GitHub."), 412);
       throw new ArnorgHatasi(`GitHub: ${metin.slice(0, 300)}`, 502);
     }
     try {
