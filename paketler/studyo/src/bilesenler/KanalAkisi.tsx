@@ -7,6 +7,7 @@ import { useDil, useSozluk } from "../dil";
 import { git } from "../durum/arayuz";
 import { kanalMesajlariniYukle, useVeri } from "../durum/veri";
 import { saat } from "../yardimcilar/bicim";
+import { KANALLARDA_YOK } from "../yardimcilar/kanallar";
 import { useAltaYapisik, useYeniGelenler } from "./altaYapis";
 import { Bos, HataKutu, Iskelet } from "./Durumlar";
 import { akistaBirlestir } from "./mesajGruplari";
@@ -14,8 +15,8 @@ import { DuzMetin } from "./MesajMetni";
 import { Simge } from "./Simge";
 import { YaziyorGostergesi } from "./YaziyorGostergesi";
 
-/** Akışa girmeyen kanal: kurul ile CEO'nun bire bir sohbeti yanında ayrıca gösteriliyor */
-const DISARIDA = ["yonetim"];
+/** Akışa girmeyen kanal: kurul ile CEO'nun bire bir sohbeti yanında ayrıca gösteriliyor (Kanallar ekranıyla aynı kural) */
+const DISARIDA = KANALLARDA_YOK;
 
 export function KanalAkisi() {
   const s = useSozluk();

@@ -421,6 +421,26 @@ export function mesajUygula(mesaj: Mesaj) {
   });
 }
 
+/** Kurulun kanalı kuruldu ya da değişti (üyeler, konuşma durumu); etkin projenin listesine işlenir */
+export function kanalUygula(projeId: string, kanal: Kanal) {
+  if (projeId !== al().aktifProjeId) return;
+  ayarla((d) => ({
+    kanallar: d.kanallar.some((k) => k.ad === kanal.ad) ? d.kanallar.map((k) => (k.ad === kanal.ad ? kanal : k)) : [...d.kanallar, kanal],
+  }));
+}
+
+/** Silinen kanal mesajları, okunmamışı ve yazıyor göstergesiyle birlikte düşer */
+export function kanalKaldir(projeId: string, ad: string) {
+  if (projeId !== al().aktifProjeId) return;
+  ayarla((d) => {
+    const { [ad]: _m, ...mesajlar } = d.mesajlar;
+    const { [ad]: _y, ...mesajYukleme } = d.mesajYukleme;
+    const { [ad]: _o, ...okunmamis } = d.okunmamis;
+    const { [ad]: _z, ...yaziyorlar } = d.yaziyorlar;
+    return { kanallar: d.kanallar.filter((k) => k.ad !== ad), mesajlar, mesajYukleme, okunmamis, yaziyorlar };
+  });
+}
+
 export function projeUygula(proje: ProjeOzeti) {
   ayarla((d) => ({ projeler: guncelleYaEkle(d.projeler, proje) }));
 }

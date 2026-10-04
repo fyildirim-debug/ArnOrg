@@ -15,6 +15,7 @@ import "./stiller/hafiza.css";
 import "./stiller/kod-zekasi.css";
 import "./stiller/kurulum.css";
 import "./stiller/sohbet.css";
+import "./stiller/kanallar.css";
 import "./stiller/zeka.css";
 import "./stiller/tavan.css";
 

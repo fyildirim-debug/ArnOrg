@@ -4,6 +4,7 @@ import { useSozluk, type Sozluk } from "../dil";
 import { git, PROJESIZ_GORUNUMLER, useArayuz, type Gorunum } from "../durum/arayuz";
 import { useHafiza } from "../durum/hafiza";
 import { useVeri } from "../durum/veri";
+import { kanallarOkunmamis } from "../yardimcilar/kanallar";
 import { Simge, type SimgeAdi } from "./Simge";
 
 interface Oge {
@@ -45,7 +46,8 @@ export function Gezinti() {
   const okunmamis = useVeri((d) => d.okunmamis);
   const bekleyenArac = onaylar.filter((o) => o.durum === "bekliyor" && o.tur === "arac").length;
   const bekleyenDiger = onaylar.filter((o) => o.durum === "bekliyor" && o.tur !== "arac").length;
-  const okunmamisToplam = Object.values(okunmamis).reduce((a, b) => a + b, 0);
+  // CEO ile bire bir sohbetin okunmamışları Kanallar'a sayılmaz (Karargâh'ta görünür)
+  const okunmamisToplam = kanallarOkunmamis(okunmamis);
   const bekleyenSoru = useHafiza((d) => (d.projeId === useVeri.getState().aktifProjeId ? d.sorular.filter((s) => s.durum === "bekliyor").length : 0));
   const navRef = useRef<HTMLElement>(null);
 

@@ -63,6 +63,7 @@ import { Hatirlatici, oncekiYanit, tercihGibi, uzmanBul, uzmanlariSirala } from 
 import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type SiradakiMesaj } from "./es-zamanlilik.js";
 import { GorevTavani } from "./gorev-tavani.js";
 import { MesaiyeDonus } from "./mesaiye-donus.js";
+import { OzelKanallar } from "./ozel-kanallar.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
 export { kisilikMetni } from "./talimat.js";
@@ -190,6 +191,8 @@ export class Sirket {
   readonly gorevTavani: GorevTavani;
   /** Açılışta mesaiye dönüş: kapanışta ya da çökmede çalışan ajanlar kaldıkları yerden sürer */
   readonly mesai: MesaiyeDonus;
+  /** Kurulun kurduğu kanallar ve üyelerinin serbest konuşması (ozel-kanallar.ts, kanal-konusmasi.ts) */
+  readonly kanallar: OzelKanallar;
 
   constructor(
     readonly depo: Depo,
@@ -247,6 +250,32 @@ export class Sirket {
       teslimEt: (id, mesajlar) => this.siradanTeslim(id, mesajlar),
       siraDegisti: (id, sirada) => this.siraAciklamasiYaz(id, sirada),
     });
+    // Kurulun kanalları: kurulun mesajına yanıt kurul kaynaklıdır (tavandan muaf); konuşma turu ArnOrg kaynaklıdır, tavana
+    // ve abonelik sınırına uyar, döngü korumasına takılmaz
+    this.kanallar = new OzelKanallar(depo, olaylar, {
+      uyandir: (id, metin, kurul) =>
+        kurul
+          ? this.ajanaMesaj(id, metin, "next", { tur: "kurul" }).then(
+              () => true,
+              (h) => {
+                this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: this.depo.ajan(id)?.projeId });
+                return false;
+              },
+            )
+          : this.uyandir(id, metin, null),
+      // Turlar arası beklemede açılan gösterge uyandırmada yeniden açılmaz (söner-yanar titremesi olmasın)
+      yaziyor: (id, _pid, kanal, acik) => {
+        const a = this.depo.ajan(id);
+        const y = this.yaziyorlar.get(id);
+        if (acik && a && y?.kanal !== kanal) this.yaziyorBaslat(a, kanal);
+        else if (!acik && y?.kanal === kanal) this.yaziyorBitir(id);
+      },
+      duyur: (pid, kanal, metin) => this.duyur(pid, metin, kanal),
+      sinirda: () => Boolean(this.hesap.sinir),
+      siradaMi: (id) => this.esZamanlilik.siradaMi(id),
+      kurulMesaji: (pid, kanal, metin) => this.mesajGonder(pid, kanal, KURUL, metin),
+    });
+    olaylar.dinle((o) => this.kanallar.olay(o));
     this.gorevTavani = new GorevTavani({
       depo,
       temelTavan: () => this.yapilandirma.ayarlar.gorevTokenTavani,
@@ -603,6 +632,7 @@ export class Sirket {
 
   projeSil(id: string): void {
     for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
+    this.kanallar.projeKaldir(id);
     this.kodZekasi.projeKaldir(id);
     const p = this.depo.proje(id);
     if (p) this.birlestirmeKuyrugu.projeKaldir(p);
@@ -721,6 +751,7 @@ export class Sirket {
     }
     for (const alt of this.depo.ajanlar(a.projeId)) if (alt.yoneticiId === id) this.depo.ajanGuncelle(alt.id, { yoneticiId: a.yoneticiId });
     this.depo.ajanSil(id);
+    this.kanallar.uyeAyrildi(a.projeId, id);
     try {
       ekipDosyasiSil(this.proje(a.projeId).yol, a.ad);
     } catch {
@@ -1095,10 +1126,11 @@ export class Sirket {
       const a = this.depo.ajan(id);
       if (!projeId || a?.projeId === projeId) o.kapat();
     }
-    // Mesai durdu: sıradaki mesajlar düşer, durdurulan ajanlar açılışta uyanmaz
+    // Mesai durdu: sıradaki mesajlar düşer, durdurulan ajanlar açılışta uyanmaz, kurul kanallarındaki konuşmalar durur
     const projede = (id: string) => !projeId || this.depo.ajan(id)?.projeId === projeId;
     this.esZamanlilik.dusur(projede);
     this.mesai.cikar(projede);
+    this.kanallar.konusmalariDurdur(projeId);
   }
 
   private akisEkle(ajanId: string, oge: AkisOgesi): void {
@@ -1980,6 +2012,8 @@ export class Sirket {
     let alicilar = anilanlar;
     // Kurulun #genel ve #yonetim mesajı (anma yoksa) CEO'ya gider
     if (!gonderenAjan && (temizKanal === "genel" || temizKanal === "yonetim") && !alicilar.length && ceo) alicilar = [ceo];
+    // Kurulun kanalında üyeleri konuşma motoru uyandırır (söz sırası); burada yalnız üye olmayan anılanlar
+    alicilar = this.kanallar.dogrudanUyanacaklar(projeId, temizKanal, gonderenId, alicilar);
     if (!gonderenAjan) {
       // Kurul kalıcı bir kural koyuyor gibiyse global zekâya gözlem olarak gider (projeye özgü değilse)
       if (govde.length <= 400 && tercihGibi(govde)) this.gozle({ metin: govde, kaynak: "tercih", projeId, projeAd: proje.ad });
@@ -2365,6 +2399,7 @@ export class Sirket {
       // Depo kapanmışsa kayıt yazılamaz; açılışta çalışan durumda kalanlar yine okunur
     }
     this.esZamanlilik.kapat();
+    this.kanallar.kapat();
     this.birlestirmeKuyrugu.kapat();
     this.hesap.durdur();
     this.kurulum.kapat();

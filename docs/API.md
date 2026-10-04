@@ -122,8 +122,23 @@ Durum geçişleri `GOREV_GECISLERI` tablosuna uyar. Bağımlılığı bitmemiş 
 | GET | `/api/projeler/:pid/kanallar` | — | `Kanal[]` |
 | GET | `/api/projeler/:pid/kanallar/:kanal/mesajlar?sinir=200` | — | `Mesaj[]` (eskiden yeniye) |
 | POST | `/api/projeler/:pid/kanallar/:kanal/mesajlar` | `{metin}` | `Mesaj` |
+| POST | `/api/projeler/:pid/kanallar` | `KanalOlusturIstegi` `{ad, aciklama?, uyeler}` | `Kanal`; aynı ad ya da ArnOrg'un kanal adı 409, geçersiz ad ya da üye 400 |
+| PATCH | `/api/projeler/:pid/kanallar/:kanal` | `KanalGuncelleIstegi` `{aciklama?, uyeler?}` | `Kanal` |
+| DELETE | `/api/projeler/:pid/kanallar/:kanal` | — | `{tamam}`; kanal mesajlarıyla silinir |
+| POST | `/api/projeler/:pid/kanallar/:kanal/konusma` | `KonusmaIstegi` `{islem: "baslat" \| "durdur", konu?}` | `Kanal`; iki üyeden az 409, abonelik sınırında 429 |
 
-Kurul mesajında `@Ad` ile anılan ajan uyanır ve mesajı alır. `#genel` kanalına anma olmadan yazılan mesaj CEO'ya gider. Varsayılan kanallar: `genel`, `muhendislik`.
+Kurul mesajında `@Ad` ile anılan ajan uyanır ve mesajı alır. `#genel` kanalına anma olmadan yazılan mesaj CEO'ya gider. Varsayılan kanallar: `genel`, `muhendislik`. Stüdyo `#yonetim`'i (kurul ile CEO'nun bire bir sohbeti) Kanallar ekranında göstermez; o sohbet Karargâh'tadır.
+
+**Kurulun kanalları (0.0.5).** Kurul kanal kurar (`ozel: true`), çalışanları üye yapar. Ad mesaj gönderirken geçerli olan desene uyar (küçük harf, `^[\p{L}\p{N}_-]{1,40}$`; boşluklar tireye döner); sistem kanallarının kimlikleri ve İngilizce görünen adları (`general`, `ceo`, `engineering`, `meetings`) alınamaz. Üyeler yalnız o projenin ajanlarıdır; işten çıkarılan ajan üyeliklerden düşer. Düzenleme ve silme yalnız kurulun kanallarında yapılır (diğerleri 409). `Kanal` bu kanallarda ayrıca `uyeler`, `konusma` (`suruyor` | `durdu`), `konu`, `konusmaBaslangic` ve `olusturma` taşır. Değişiklikler `kanal.guncellendi` ve `kanal.silindi` olaylarıyla yayınlanır.
+
+**Serbest konuşma.** Konuşma tek konuşmacılıdır: her mesajdan sonra sıradaki **tek** üye 1,5–3 sn beklemeyle uyandırılır (bu sırada kanalda "yazıyor" görünür); kanalda aynı anda en çok bir bekleyen konuşmacı olur.
+
+- Sıradaki üye: mesajda `@` ile anılan üye (gönderen hariç); anılan yoksa üye listesinde gönderenden sonraki üye (döngüsel). Üye olmayan ajan da kanala yazabilir ama sıra yalnız üyeler arasında döner.
+- Kurul kanala yazınca anılan üyeler, anılan yoksa son konuşan üyeden sonraki üye yanıt verir. Konuşma `durdu` ise yalnız bu yanıt gelir; `suruyor` ise her üye mesajından sonra sıradaki üye uyandırılır, tur sınırı yoktur ve kurul durdurana dek sürer.
+- `baslat`'ta konu verilirse kanala kurulun mesajı olarak yazılır ve ilk konuşmacıyı uyandırır; konu yoksa son mesajlardan devam edilir. `durdur` bekleyen uyandırmayı iptal eder; o an yanıt yazan üye mesajını bitirir ama zincir sürmez.
+- Uyandırma metni kanalı, konuyu, üyeleri ve son 10 mesajı verir; yanıtın `mesaj_gonder` ile o kanala yazılmasını, söz vermek için yalnız kanalın üyelerinin `@Ad` ile anılmasını, işi olan üyenin işine dönmeden önce yalnız bir mesaj yazmasını, işi olmayanın yanıtından sonra durmasını ister. Konuşma turu ArnOrg kaynaklıdır: döngü korumasına takılmaz, eşzamanlı ajan tavanına uyar (tavan doluysa konuşmacı sıraya girer ve beklenir); kurulun mesajına yanıt kurul kaynaklıdır.
+- Üye uyanamazsa, oturumu hata verirse ya da 4 dk içinde kanala yazmazsa sıradakine geçilir; turu kanala yazmadan biterse (kuyrukta başka turu yoksa) 15 sn sonra geçilir. Üyelerin hepsi art arda yanıt vermezse, iki üyeden aza düşülürse ya da abonelik sınırına gelinirse konuşma kendiliğinden durur ve kanala kısa bir ArnOrg duyurusu düşer.
+- Mesaiyi durdur, projenin silinmesi ve ArnOrg'un kapanması konuşmaları durdurur; açılışta bütün konuşmalar `durdu` başlar.
 
 ## Notlar
 
@@ -401,7 +416,7 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 - **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
 - **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
 - **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar.
-- **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken; yazıyor göstergesi).
+- **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken ya da serbest konuşmada sırası geldiğinde; yazıyor göstergesi), `kanal.guncellendi` (`{projeId, kanal}`: kurulun kanalı kuruldu, üyeleri ya da konuşma durumu değişti), `kanal.silindi` (`{projeId, kanal}`).
 
 ## Rapor ve tıkanma koruması
 

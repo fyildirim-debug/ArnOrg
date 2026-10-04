@@ -436,6 +436,24 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.post("/api/projeler/:pid/kanallar/:kanal/mesajlar", async (i) =>
     sirket.mesajGonder(param(i, "pid"), param(i, "kanal"), KURUL, govde(semalar.kanalMesaji, i).metin),
   );
+  // Kurulun kurduğu kanallar: üyeler ve serbest konuşma (ozel-kanallar.ts)
+  const kanalUyeleri = z.array(z.string().min(1).max(100)).max(50);
+  app.post("/api/projeler/:pid/kanallar", async (i) => {
+    const g = z.object({ ad: z.string().min(1).max(60), aciklama: z.string().max(300).optional(), uyeler: kanalUyeleri }).parse(i.body ?? {});
+    return sirket.kanallar.olustur(param(i, "pid"), g);
+  });
+  app.patch("/api/projeler/:pid/kanallar/:kanal", async (i) => {
+    const g = z.object({ aciklama: z.string().max(300).optional(), uyeler: kanalUyeleri.optional() }).parse(i.body ?? {});
+    return sirket.kanallar.guncelle(param(i, "pid"), param(i, "kanal"), g);
+  });
+  app.delete("/api/projeler/:pid/kanallar/:kanal", async (i) => {
+    sirket.kanallar.sil(param(i, "pid"), param(i, "kanal"));
+    return tamam;
+  });
+  app.post("/api/projeler/:pid/kanallar/:kanal/konusma", async (i) => {
+    const g = z.object({ islem: z.enum(["baslat", "durdur"]), konu: z.string().max(2000).optional() }).parse(i.body ?? {});
+    return sirket.kanallar.konusmaIslemi(param(i, "pid"), param(i, "kanal"), g);
+  });
 
   // ---------------- notlar ----------------
   app.get("/api/projeler/:pid/notlar", async (i) => notlariListele(sirket.proje(param(i, "pid")).yol));

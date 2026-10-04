@@ -392,14 +392,60 @@ export function kanalAciklamasi(kanal: string, kayitli: string, dil: Dil): strin
 
 /** Görünen adı kanal kimliğine çevirir: "#general" → "genel"; bilinmeyen ad olduğu gibi kalır */
 export function kanalKimligi(ad: string): string {
-  const temiz = ad.trim().replace(/^#/, "").toLowerCase();
+  // "İ".toLowerCase() noktalı birleşik "i̇" verir ve ad geçersiz sayılır; Türkçe büyük İ önce düz i olur
+  const temiz = ad.trim().replace(/^#/, "").replace(/İ/g, "i").toLowerCase();
   return Object.entries(KANAL_ADLARI_EN).find(([, en]) => en === temiz)?.[0] ?? temiz;
 }
+
+/** Kurulun kurduğu kanalın adı: harf, rakam, tire ve alt çizgi (1–40; mesaj gönderirken geçerli olan desen) */
+export const KANAL_ADI_DESENI = /^[\p{L}\p{N}_-]{1,40}$/u;
+
+/** Kurulun yazdığı kanal adını kimliğe çevirir: baştaki # ve boşluklar gider, boşluk tire olur, küçük harfe iner */
+export function kanalAdiDuzelt(ad: string): string {
+  return ad.trim().replace(/^#+/, "").trim().replace(/\s+/g, "-").replace(/İ/g, "i").toLowerCase();
+}
+
+/** Sistem kanalının kimliği ya da İngilizce görünen adı mı (#genel, #general…); kurulun kanalı bu adları alamaz */
+export function sistemKanaliMi(ad: string): boolean {
+  return (SISTEM_KANALLARI as readonly string[]).includes(kanalKimligi(ad));
+}
+
+/** Kurulun kanalındaki serbest konuşma: suruyor iken üyeler sırayla birbirine yanıt verir, durdu iken kurula tek yanıt gelir */
+export type KonusmaDurumu = "suruyor" | "durdu";
 
 export interface Kanal {
   ad: string;
   aciklama: string;
   mesajSayisi: number;
+  /** Kurulun kurduğu kanal (üyeleri ve serbest konuşması olur); sistem kanallarında ve ajanların açtığı kanallarda yok */
+  ozel?: boolean;
+  /** Kurulun kanalının üyeleri (ajan kimlikleri); konuşma sırası bu düzende döner */
+  uyeler?: string[];
+  konusma?: KonusmaDurumu;
+  /** Konuşmanın konusu (başlatırken verildiyse) */
+  konu?: string | null;
+  /** Konuşmanın son başladığı an; konuşma durunca da kalır */
+  konusmaBaslangic?: Zaman | null;
+  olusturma?: Zaman;
+}
+
+/** POST /api/projeler/:pid/kanallar */
+export interface KanalOlusturIstegi {
+  ad: string;
+  aciklama?: string;
+  uyeler: string[];
+}
+
+/** PATCH /api/projeler/:pid/kanallar/:kanal */
+export interface KanalGuncelleIstegi {
+  aciklama?: string;
+  uyeler?: string[];
+}
+
+/** POST /api/projeler/:pid/kanallar/:kanal/konusma; konu verilirse kanala kurulun mesajı olarak yazılır */
+export interface KonusmaIstegi {
+  islem: "baslat" | "durdur";
+  konu?: string;
 }
 
 export interface Mesaj {
@@ -1088,6 +1134,9 @@ export type SunucuOlayi =
   | { tur: "kurulum.durum"; durum: KurulumDurumu }
   /** Ajan bir kanaldaki mesaja yanıt hazırlıyor (yazıyor göstergesi); yaziyor=false ile biter */
   | { tur: "kanal.yaziyor"; projeId: string; kanal: string; ajanId: string; ad: string; yaziyor: boolean }
+  /** Kurulun kanalı kuruldu ya da değişti (açıklama, üyeler, konuşma durumu) */
+  | { tur: "kanal.guncellendi"; projeId: string; kanal: Kanal }
+  | { tur: "kanal.silindi"; projeId: string; kanal: string }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };
 
 export type IstemciOlayi = { tur: "abone"; projeId: string | null } | { tur: "ping" };

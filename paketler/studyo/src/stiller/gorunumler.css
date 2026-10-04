@@ -1316,18 +1316,24 @@ button.onay-kisi:hover b {
   padding-left: var(--b-5);
 }
 .kanal-ust {
+  display: grid;
+  gap: var(--b-2);
+  min-width: 0;
+  padding-bottom: var(--b-3);
+  border-bottom: 1px solid var(--line);
+}
+.kanal-kimlik {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.25rem 0.75rem;
-  padding-bottom: var(--b-3);
-  border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
-.kanal-ust b {
+.kanal-kimlik b {
   color: var(--paper);
   font-size: var(--t-s);
 }
-.kanal-ust span {
+.kanal-kimlik span {
   color: var(--muted);
   font-size: var(--t-2xs);
 }

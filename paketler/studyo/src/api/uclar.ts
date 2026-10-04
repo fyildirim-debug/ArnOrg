@@ -55,6 +55,9 @@ import type {
   KodSembolu,
   KodZekasiModelBilgisi,
   Kanal,
+  KanalGuncelleIstegi,
+  KanalOlusturIstegi,
+  KonusmaIstegi,
   KullanimOzeti,
   Mesaj,
   ModelAdi,
@@ -120,6 +123,12 @@ export const api = {
     istek<Mesaj[]>(`${proje(pid)}/kanallar/${k(kanal)}/mesajlar${sorgu({ sinir })}`),
   mesajGonder: (pid: string, kanal: string, metin: string) =>
     istek<Mesaj>(`${proje(pid)}/kanallar/${k(kanal)}/mesajlar`, { method: "POST", govde: { metin } }),
+  /** Kurulun kanalı: kurma, açıklama ve üyeler, silme (mesajlarıyla), serbest konuşmayı başlatma ve durdurma */
+  kanalKur: (pid: string, i: KanalOlusturIstegi) => istek<Kanal>(`${proje(pid)}/kanallar`, { method: "POST", govde: i }),
+  kanalGuncelle: (pid: string, kanal: string, i: KanalGuncelleIstegi) =>
+    istek<Kanal>(`${proje(pid)}/kanallar/${k(kanal)}`, { method: "PATCH", govde: i }),
+  kanalSil: (pid: string, kanal: string) => istek<Tamam>(`${proje(pid)}/kanallar/${k(kanal)}`, { method: "DELETE" }),
+  konusma: (pid: string, kanal: string, i: KonusmaIstegi) => istek<Kanal>(`${proje(pid)}/kanallar/${k(kanal)}/konusma`, { method: "POST", govde: i }),
 
   // Notlar
   notlar: (pid: string) => istek<NotDosyasi[]>(`${proje(pid)}/notlar`),

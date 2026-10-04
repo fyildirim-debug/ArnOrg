@@ -17,6 +17,8 @@ import {
   canliEkle,
   denetimdenCanli,
   gorevUygula,
+  kanalKaldir,
+  kanalUygula,
   kurulBildirimiEkle,
   mesajUygula,
   onayUygula,
@@ -251,6 +253,14 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "kanal.yaziyor":
       if (olay.projeId === pid) yaziyorUygula(olay.kanal, olay.ajanId, olay.ad, olay.yaziyor);
+      return;
+
+    case "kanal.guncellendi":
+      kanalUygula(olay.projeId, olay.kanal);
+      return;
+
+    case "kanal.silindi":
+      kanalKaldir(olay.projeId, olay.kanal);
       return;
 
     case "kurul.bildirimi":

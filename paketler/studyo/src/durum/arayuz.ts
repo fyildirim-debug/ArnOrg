@@ -1,6 +1,7 @@
 // Arayüz durumu: etkin ekran, seçimler, canlı akış rayı, bildirimler
 import { create } from "zustand";
 import { hataMetni } from "../api/istek";
+import { kanalEkrani } from "../yardimcilar/kanallar";
 
 export type Gorunum =
   | "projeler"
@@ -85,6 +86,11 @@ export interface GitParametreleri {
 }
 
 export function git(gorunum: Gorunum, p: GitParametreleri = {}) {
+  // CEO ile bire bir sohbet Kanallar'da değil Karargâh'ta (yardimcilar/kanallar.ts)
+  if (gorunum === "kanallar" && kanalEkrani(p.kanal) === "karargah") {
+    gorunum = "karargah";
+    p = { ...p, kanal: undefined };
+  }
   useArayuz.setState((d) => ({
     gorunum,
     ajanId: p.ajanId !== undefined ? p.ajanId : d.ajanId,

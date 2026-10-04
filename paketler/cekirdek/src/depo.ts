@@ -245,6 +245,9 @@ export interface DenetimImleci {
 
 const AKIS_SINIRI = 3000;
 
+/** Kanal ve mesaj sayısı; WHERE ve ORDER BY çağıran yerde eklenir */
+const KANAL_SORGUSU = "SELECT k.*, (SELECT count(*) FROM mesajlar m WHERE m.proje_id = k.proje_id AND m.kanal = k.ad) sayi FROM kanallar k";
+
 export class Depo {
   readonly db: Database.Database;
 
@@ -283,6 +286,14 @@ export class Depo {
     if (!projeSutunlari.includes("test_zaman_asimi_dk")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_zaman_asimi_dk REAL NOT NULL DEFAULT 20");
     // Kurul ile CEO'nun bire bir kanalı her projede bulunur
     this.db.prepare("INSERT OR IGNORE INTO kanallar (proje_id, ad, aciklama) SELECT id, 'yonetim', 'Yönetim kurulu ile CEO''nun bire bir sohbeti' FROM projeler").run();
+    // 0.0.5: kurulun kurduğu kanallar (özel); üyeler ajan kimlikleri (JSON), serbest konuşmanın durumu ve konusu
+    const kanalSutunlari = (this.db.prepare("PRAGMA table_info(kanallar)").all() as Satir[]).map((s) => String(s.name));
+    if (!kanalSutunlari.includes("ozel")) this.db.exec("ALTER TABLE kanallar ADD COLUMN ozel INTEGER NOT NULL DEFAULT 0");
+    if (!kanalSutunlari.includes("uyeler")) this.db.exec("ALTER TABLE kanallar ADD COLUMN uyeler TEXT NOT NULL DEFAULT '[]'");
+    if (!kanalSutunlari.includes("konusma")) this.db.exec("ALTER TABLE kanallar ADD COLUMN konusma TEXT NOT NULL DEFAULT 'durdu'");
+    if (!kanalSutunlari.includes("konu")) this.db.exec("ALTER TABLE kanallar ADD COLUMN konu TEXT");
+    if (!kanalSutunlari.includes("konusma_baslangic")) this.db.exec("ALTER TABLE kanallar ADD COLUMN konusma_baslangic TEXT");
+    if (!kanalSutunlari.includes("olusturma")) this.db.exec("ALTER TABLE kanallar ADD COLUMN olusturma TEXT");
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
     if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
     if (ajanSutunlari.includes("gunluk_butce")) this.db.exec("ALTER TABLE ajanlar DROP COLUMN gunluk_butce");
@@ -578,14 +589,72 @@ export class Depo {
   }
 
   kanallar(projeId: string): Kanal[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT k.ad, k.aciklama, (SELECT count(*) FROM mesajlar m WHERE m.proje_id = k.proje_id AND m.kanal = k.ad) sayi
-           FROM kanallar k WHERE k.proje_id = ? ORDER BY k.ad = 'genel' DESC, k.ad`,
-        )
-        .all(projeId) as Satir[]
-    ).map((s) => ({ ad: String(s.ad), aciklama: String(s.aciklama), mesajSayisi: Number(s.sayi) }));
+    return (this.db.prepare(`${KANAL_SORGUSU} WHERE k.proje_id = ? ORDER BY k.ad = 'genel' DESC, k.ad`).all(projeId) as Satir[]).map((s) => this.kanalSatiri(s));
+  }
+
+  kanal(projeId: string, ad: string): Kanal | null {
+    const s = this.db.prepare(`${KANAL_SORGUSU} WHERE k.proje_id = ? AND k.ad = ?`).get(projeId, ad) as Satir | undefined;
+    return s ? this.kanalSatiri(s) : null;
+  }
+
+  /** Kurulun kanalında üyeler ve konuşma alanları da gelir; sistem kanallarında ve ajanların açtığı kanallarda yok */
+  private kanalSatiri(s: Satir): Kanal {
+    const kanal: Kanal = { ad: String(s.ad), aciklama: String(s.aciklama), mesajSayisi: Number(s.sayi) };
+    if (Number(s.ozel) !== 1) return kanal;
+    return {
+      ...kanal,
+      ozel: true,
+      uyeler: jsonOku<string[]>(s.uyeler as string, []),
+      konusma: s.konusma === "suruyor" ? "suruyor" : "durdu",
+      konu: (s.konu as string | null) ?? null,
+      konusmaBaslangic: (s.konusma_baslangic as string | null) ?? null,
+      olusturma: String(s.olusturma ?? ""),
+    };
+  }
+
+  /** Kurulun kanalını açar; adın boşta olduğunu çağıran denetler */
+  ozelKanalEkle(k: { projeId: string; ad: string; aciklama: string; uyeler: string[] }): Kanal {
+    this.db
+      .prepare("INSERT INTO kanallar (proje_id, ad, aciklama, ozel, uyeler, konusma, olusturma) VALUES (?, ?, ?, 1, ?, 'durdu', ?)")
+      .run(k.projeId, k.ad, k.aciklama, JSON.stringify(k.uyeler), simdi());
+    return this.kanal(k.projeId, k.ad)!;
+  }
+
+  kanalGuncelle(projeId: string, ad: string, alanlar: Partial<Pick<Kanal, "aciklama" | "uyeler" | "konusma" | "konu" | "konusmaBaslangic">>): Kanal | null {
+    const sutunlar: Record<string, string> = { aciklama: "aciklama", uyeler: "uyeler", konusma: "konusma", konu: "konu", konusmaBaslangic: "konusma_baslangic" };
+    const atamalar: string[] = [];
+    const degerler: unknown[] = [];
+    for (const [k, v] of Object.entries(alanlar)) {
+      if (v === undefined || !sutunlar[k]) continue;
+      atamalar.push(`${sutunlar[k]} = ?`);
+      degerler.push(Array.isArray(v) ? JSON.stringify(v) : v);
+    }
+    if (atamalar.length) this.db.prepare(`UPDATE kanallar SET ${atamalar.join(", ")} WHERE proje_id = ? AND ad = ?`).run(...degerler, projeId, ad);
+    return this.kanal(projeId, ad);
+  }
+
+  /** Kanalı mesajlarıyla siler */
+  kanalSil(projeId: string, ad: string): void {
+    this.db.transaction(() => {
+      this.db.prepare("DELETE FROM mesajlar WHERE proje_id = ? AND kanal = ?").run(projeId, ad);
+      this.db.prepare("DELETE FROM kanallar WHERE proje_id = ? AND ad = ?").run(projeId, ad);
+    })();
+  }
+
+  /** Ajanı kurulun kanallarının üyeliğinden düşürür; üyeliği değişen kanalların adları */
+  kanalUyesiniCikar(projeId: string, ajanId: string): string[] {
+    const degisen: string[] = [];
+    for (const k of this.kanallar(projeId)) {
+      if (!k.ozel || !k.uyeler?.includes(ajanId)) continue;
+      this.kanalGuncelle(projeId, k.ad, { uyeler: k.uyeler.filter((id) => id !== ajanId) });
+      degisen.push(k.ad);
+    }
+    return degisen;
+  }
+
+  /** Bütün serbest konuşmaları durdurur (açılışta: beklenmedik abonelik harcaması olmasın); duran konuşma sayısı */
+  konusmalariDurdur(): number {
+    return this.db.prepare("UPDATE kanallar SET konusma = 'durdu' WHERE konusma != 'durdu'").run().changes;
   }
 
   mesajEkle(m: Omit<Mesaj, "id" | "zaman">): Mesaj {

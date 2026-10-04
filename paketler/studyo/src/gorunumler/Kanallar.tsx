@@ -1,12 +1,16 @@
 // Kanallar: kanal listesi, akan mesajlar (anma ve görev kodu vurgulu), yazıyor göstergesi, yazma alanı.
 // Yeni mesaj yumuşakça girer ve liste alta iner; kullanıcı yukarı kaydırdıysa yerinde kalır ve "yeni mesaj" düğmesi çıkar.
-// ArnOrg'un başlangıç ve iş duyuruları kendi imzasıyla görünür.
-import { ARNORG_GONDEREN, kanalAciklamasi, kanalGorunenAdi, KURUL, type Ajan, type Mesaj } from "@arnorg/ortak";
-import { useEffect, useMemo, useState } from "react";
+// ArnOrg'un başlangıç ve iş duyuruları kendi imzasıyla görünür. CEO ile bire bir sohbet burada değil Karargâh'tadır.
+// Liste ArnOrg'un ve ajanların kanallarıyla kurulun kurduğu kanalları ayırır; kurulun kanalında üyeler ve serbest konuşma
+// başlıktaki şeritten yönetilir (bilesenler/kanal).
+import { ARNORG_GONDEREN, kanalAciklamasi, kanalGorunenAdi, KURUL, type Ajan, type Kanal, type Mesaj } from "@arnorg/ortak";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "../api/uclar";
 import { useAltaYapisik, useYeniGelenler } from "../bilesenler/altaYapis";
 import { AnmaliYazi } from "../bilesenler/AnmaliYazi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { KanalCekmecesi } from "../bilesenler/kanal/KanalCekmecesi";
+import { KonusmaSeridi } from "../bilesenler/kanal/KonusmaSeridi";
 import { GonderenAvatar } from "../bilesenler/Kisi";
 import { gunEtiketi, gunlereAyir } from "../bilesenler/mesajGruplari";
 import { MesajMetni } from "../bilesenler/MesajMetni";
@@ -16,6 +20,7 @@ import { useDil, useSozluk } from "../dil";
 import { ajanaGit, useArayuz } from "../durum/arayuz";
 import { kanalMesajlariniYukle, kanalOkundu, mesajUygula, useVeri } from "../durum/veri";
 import { saat, tarih } from "../yardimcilar/bicim";
+import { kanalGruplari } from "../yardimcilar/kanallar";
 import { useIslem } from "../yardimcilar/kancalar";
 
 const BOS: Mesaj[] = [];
@@ -29,14 +34,58 @@ export function Kanallar() {
   const yukleme = useVeri((d) => d.projeYukleme);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const secili = useArayuz((d) => d.kanal);
-  const kanal = kanallar.find((k) => k.ad === secili) ?? kanallar[0];
-  const kanalAdi = kanal?.ad ?? secili;
+  const [kurAcik, setKurAcik] = useState(false);
+  const grupId = useId().replace(/[^\w-]/g, "");
+  const listeRef = useRef<HTMLElement>(null);
+  // CEO sohbeti listede yok; ArnOrg'un ve ajanların kanalları önce, kurulun kurdukları sonra
+  const { sirket, kurulun } = useMemo(() => kanalGruplari(kanallar), [kanallar]);
+  const gorunen = useMemo(() => [...sirket, ...kurulun], [sirket, kurulun]);
+  const kanal = gorunen.find((k) => k.ad === secili) ?? gorunen[0];
+  const kanalAdi = kanal?.ad ?? "";
 
   useEffect(() => {
     if (!kanalAdi) return;
     kanalMesajlariniYukle(kanalAdi).catch(() => undefined);
     kanalOkundu(kanalAdi);
   }, [kanalAdi]);
+
+  // Dar ekranda liste yatay kayar; seçili kanal (yeni kurulan da) görünür kalsın
+  useEffect(() => {
+    const nav = listeRef.current;
+    const etkin = nav?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!nav || !etkin || nav.scrollWidth <= nav.clientWidth) return;
+    const kutu = etkin.getBoundingClientRect();
+    const sol = kutu.left - nav.getBoundingClientRect().left + nav.scrollLeft - nav.clientWidth / 2 + kutu.width / 2;
+    nav.scrollTo({ left: Math.max(0, sol) });
+  }, [kanalAdi, gorunen.length]);
+
+  const kanalDugmesi = (k: Kanal) => {
+    const yazan = yaziyorlar[k.ad];
+    const yaziyor = yazan?.length ? s.sohbet.yaziyor(yazan.map((y) => y.ad)) : null;
+    const canli = k.ozel && k.konusma === "suruyor";
+    return (
+      <button
+        key={k.ad}
+        type="button"
+        className="kanal-dugme"
+        aria-current={k.ad === kanalAdi ? "true" : undefined}
+        onClick={() => useArayuz.setState({ kanal: k.ad })}
+        title={yaziyor ?? (canli ? s.kanallar.konusmaSuruyor : undefined)}
+      >
+        <span className="tek-satir"># {kanalGorunenAdi(k.ad, dil)}</span>
+        {yaziyor ? (
+          <span className="kanal-yaziyor" role="img" aria-label={yaziyor}>
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : canli ? (
+          <span className="kanal-canli" role="img" aria-label={s.kanallar.konusmaSuruyor} />
+        ) : null}
+        {okunmamis[k.ad] && k.ad !== kanalAdi ? <span className="rozet">{okunmamis[k.ad]}</span> : <small>{k.mesajSayisi}</small>}
+      </button>
+    );
+  };
 
   return (
     <div className="kanallar">
@@ -45,48 +94,47 @@ export function Kanallar() {
           <h1>{s.kanallar.baslik}</h1>
           <p>{s.kanallar.altBaslik}</p>
         </div>
+        {aktifProjeId ? (
+          <div className="baslik-eylem">
+            <button type="button" className="dugme dugme-ana" onClick={() => setKurAcik(true)}>
+              <Simge ad="arti" />
+              {s.kanallar.kanalKur}
+            </button>
+          </div>
+        ) : null}
       </div>
-      {yukleme === "yukleniyor" && !kanallar.length ? <Iskelet satir={6} /> : null}
-      {yukleme === "hazir" && !kanallar.length ? (
+      {yukleme === "yukleniyor" && !gorunen.length ? <Iskelet satir={6} /> : null}
+      {yukleme === "hazir" && !gorunen.length ? (
         <Bos baslik={s.kanallar.yokBaslik}>{s.kanallar.yokMetin(kanalGorunenAdi("genel", dil), kanalGorunenAdi("muhendislik", dil))}</Bos>
       ) : null}
-      {kanallar.length ? (
+      {gorunen.length ? (
         <div className="kanal-yerlesim">
-          <nav className="kanal-liste" aria-label={s.kanallar.baslik}>
-            {kanallar.map((k) => {
-              const yazan = yaziyorlar[k.ad];
-              const yaziyor = yazan?.length ? s.sohbet.yaziyor(yazan.map((y) => y.ad)) : null;
-              return (
-                <button
-                  key={k.ad}
-                  type="button"
-                  className="kanal-dugme"
-                  aria-current={k.ad === kanalAdi ? "true" : undefined}
-                  onClick={() => useArayuz.setState({ kanal: k.ad })}
-                  title={yaziyor ?? undefined}
-                >
-                  <span className="tek-satir"># {kanalGorunenAdi(k.ad, dil)}</span>
-                  {yaziyor ? (
-                    <span className="kanal-yaziyor" role="img" aria-label={yaziyor}>
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  ) : null}
-                  {okunmamis[k.ad] && k.ad !== kanalAdi ? <span className="rozet">{okunmamis[k.ad]}</span> : <small>{k.mesajSayisi}</small>}
-                </button>
-              );
-            })}
+          <nav className="kanal-liste" aria-label={s.kanallar.baslik} ref={listeRef}>
+            <div className="kanal-grup" role="group" aria-labelledby={`${grupId}-sirket`}>
+              <span className="kanal-grup-ad" id={`${grupId}-sirket`}>
+                {s.kanallar.grupSirket}
+              </span>
+              {sirket.map(kanalDugmesi)}
+            </div>
+            <div className="kanal-grup kanal-grup-kurulun" role="group" aria-labelledby={`${grupId}-kurulun`}>
+              <span className="kanal-grup-ad" id={`${grupId}-kurulun`}>
+                {s.kanallar.grupKurulun}
+              </span>
+              {kurulun.map(kanalDugmesi)}
+              {kurulun.length ? null : <span className="kanal-grup-bos">{s.kanallar.kurulunBos}</span>}
+            </div>
           </nav>
           {/* Proje ya da kanal değişince kaydırma ve giriş durumu baştan kurulur */}
-          <KanalIcerigi key={`${aktifProjeId}:${kanalAdi}`} kanal={kanalAdi} aciklama={kanalAciklamasi(kanalAdi, kanal?.aciklama ?? "", dil)} />
+          <KanalIcerigi key={`${aktifProjeId}:${kanalAdi}`} kanal={kanalAdi} aciklama={kanalAciklamasi(kanalAdi, kanal?.aciklama ?? "", dil)} ozel={kanal?.ozel ? kanal : null} />
         </div>
       ) : null}
+      {kurAcik ? <KanalCekmecesi kapat={() => setKurAcik(false)} kuruldu={(ad) => useArayuz.setState({ kanal: ad })} /> : null}
     </div>
   );
 }
 
-function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) {
+/** ozel: kurulun kanalıysa kanalın kendisi (başlık şeridi, yazma ipucu ve boş durum ona göre) */
+function KanalIcerigi({ kanal, aciklama, ozel }: { kanal: string; aciklama: string; ozel: Kanal | null }) {
   const s = useSozluk();
   const dil = useDil();
   /** Görünen ad: sistem kanalları İngilizcede kendi adlarıyla anılır; kimlik değişmez */
@@ -121,9 +169,12 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
 
   return (
     <section className="kanal-ic" aria-label={`#${ad}`}>
-      <header className="kanal-ust">
-        <b># {ad}</b>
-        {aciklama ? <span>{aciklama}</span> : null}
+      <header className={`kanal-ust${ozel ? " kanal-ust-ozel" : ""}`}>
+        <div className="kanal-kimlik">
+          <b># {ad}</b>
+          {aciklama ? <span>{aciklama}</span> : null}
+        </div>
+        {ozel ? <KonusmaSeridi kanal={ozel} /> : null}
       </header>
       <div className="kanal-pencere">
         <ol className="mesajlar" ref={ref} onScroll={kaydirildi} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label={`#${ad}`}>
@@ -140,7 +191,7 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
           {mesajlar && mesajlar.length === 0 ? (
             <li>
               <Bos kucuk baslik={s.kanallar.sessiz(ad)}>
-                {s.kanallar.sessizMetin}
+                {ozel ? s.kanallar.sessizKurulun : s.kanallar.sessizMetin}
               </Bos>
             </li>
           ) : null}
@@ -173,7 +224,7 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
           degistir={setMetin}
           gonder={gonder}
           ajanlar={ajanlar}
-          placeholder={kanal === "genel" ? s.kanallar.yazGenel(ad) : s.kanallar.yazDiger(ad)}
+          placeholder={kanal === "genel" ? s.kanallar.yazGenel(ad) : ozel ? s.kanallar.yazKurulun(ad) : s.kanallar.yazDiger(ad)}
         />
         <button type="button" className="dugme dugme-ana" onClick={gonder} disabled={!metin.trim() || suruyor !== null} aria-label={s.genel.gonder}>
           {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="gonder" boyut={13} />}
