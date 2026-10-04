@@ -73,7 +73,7 @@ git tag -a v0.0.2 -m "ArnOrg 0.0.2"
 git push origin main v0.0.2            # surum.yml paketler ve sürümü yayınlar
 ```
 
-Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.2` yazılabilir; etiket main'in son commit'ine sürümle birlikte konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 Geliştirme:
 

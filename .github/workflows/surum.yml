@@ -1,20 +1,34 @@
-# Sürüm: v* etiketinde Windows ve Linux paketleri üretilir ve GitHub sürümü olarak yayınlanır.
+# Sürüm: Windows ve Linux paketleri üretilir ve GitHub sürümü olarak yayınlanır.
 # Her mimari kendi koşucusunda paketlenir (npm yalnız o makinenin yerel paketlerini kurar).
 #
-# Sürüm çıkarma: npm run surum -- <sürüm>, docs/surumler/v<sürüm>.md notları, commit,
-# git tag -a v<sürüm> ve etiketi gönderme. Etiket paket sürümleriyle uyuşmazsa ya da notlar
-# yoksa paketleme başlamadan durur (betikler/surum.mjs --denetle).
-#
-# Elle çalıştırma (workflow_dispatch) yalnız paketleri üretir, sürüm açmaz.
+# Sürüm çıkarma: npm run surum -- <sürüm>, docs/surumler/v<sürüm>.md notları, commit; sonra
+#   - v<sürüm> etiketini gönderin, ya da
+#   - Actions → Sürüm → Run workflow ile "surum" alanına v<sürüm> yazın: etiket seçilen dalın
+#     son commit'ine sürümle birlikte konur.
+# Etiket paket sürümleriyle uyuşmazsa ya da notlar yoksa paketleme başlamadan durur
+# (betikler/surum.mjs --denetle). "surum" boş bırakılırsa yalnız paketler yapıt olarak üretilir.
 name: Sürüm
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      surum:
+        description: "Yayınlanacak sürüm etiketi (ör. v0.0.2); boş: yalnız paketler"
+        required: false
+        default: ""
 
 permissions:
   contents: read
+
+env:
+  # Etiket gönderiminde etiketin adı, elle çalıştırmada girilen sürüm
+  SURUM_ETIKETI: ${{ github.event_name == 'push' && github.ref_name || inputs.surum }}
+
+concurrency:
+  group: surum-${{ github.event_name == 'push' && github.ref_name || inputs.surum || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   paketle:
@@ -44,9 +58,9 @@ jobs:
           cache: npm
 
       - name: Etiket, paket sürümleri ve sürüm notları
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.SURUM_ETIKETI != ''
         shell: bash
-        run: node betikler/surum.mjs --denetle "$GITHUB_REF_NAME"
+        run: node betikler/surum.mjs --denetle "$SURUM_ETIKETI"
 
       - name: rpm aracı
         if: runner.os == 'Linux'
@@ -83,7 +97,7 @@ jobs:
   yayinla:
     name: Sürümü yayınla
     needs: paketle
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' || inputs.surum != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,10 +115,13 @@ jobs:
       - name: Dosyalar
         run: ls -la cikti
 
+      # Etiket yoksa (elle çalıştırma) sürümle birlikte bu commit'e konur
       - uses: softprops/action-gh-release@v2
         with:
-          name: ArnOrg ${{ github.ref_name }}
-          body_path: docs/surumler/${{ github.ref_name }}.md
+          tag_name: ${{ env.SURUM_ETIKETI }}
+          target_commitish: ${{ github.sha }}
+          name: ArnOrg ${{ env.SURUM_ETIKETI }}
+          body_path: docs/surumler/${{ env.SURUM_ETIKETI }}.md
           draft: false
           prerelease: false
           make_latest: true

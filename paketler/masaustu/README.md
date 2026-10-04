@@ -154,7 +154,7 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 ## CI
 
 - `.github/workflows/ci.yml`: main'e gönderim ve çekme isteklerinde Ubuntu ve Windows'ta `npm ci`, `npm run typecheck`, `npm test`, `npm run build` ve kabuk derlemesi; Linux'ta sahte çekirdekle Electron duman testi (ekran görüntüsü yapıt olarak yüklenir).
-- `.github/workflows/surum.yml`: `v*` etiketinde önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. Elle çalıştırma yalnız paketleri yapıt olarak üretir.
+- `.github/workflows/surum.yml`: `v*` etiketinde (ya da elle çalıştırmada `surum` girdisiyle) önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. `surum` boş elle çalıştırma yalnız paketleri yapıt olarak üretir.
 
 ## Sürüm çıkarma
 
@@ -167,3 +167,5 @@ git add -A && git commit -m "Sürüm 0.0.2"
 git tag -a v0.0.2 -m "ArnOrg 0.0.2"
 git push origin main v0.0.2
 ```
+
+Etiket gönderilemiyorsa (ör. yalnız dal gönderimine izin veren ortamlar): **Actions → Sürüm → Run workflow**, `surum` alanına `v0.0.2`. İş akışı aynı denetimi yapar, etiketi seçilen dalın son commit'ine sürümle birlikte koyar.
