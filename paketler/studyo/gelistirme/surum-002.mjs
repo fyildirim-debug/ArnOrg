@@ -4,7 +4,7 @@
 //
 //   ARNORG_KURULUM=yeni  ilk açılış sihirbazı görünür: Claude girişi yok, gh kurulu değil, git kimliği boş
 
-import { ceviri, DIL } from "./dil.mjs";
+import { ayrilma, ceviri, DIL, VARSAYILAN_OTOMATIK_ONAY_TURLERI, yonelme } from "./dil.mjs";
 
 const YENI = process.env.ARNORG_KURULUM === "yeni";
 const EV = "/home/furkan";
@@ -22,7 +22,7 @@ export function kur(c) {
     "siparis-paneli": { uzakAdres: "https://github.com/furkan-y/siparis-paneli.git", github: "furkan-y/siparis-paneli", otomatikGonder: true, hazirlik: "tamam" },
     "arnex-web": { uzakAdres: null, github: null, otomatikGonder: true, hazirlik: "bekliyor" },
   };
-  for (const p of db.projeler) Object.assign(p, { uzakAdres: null, github: null, otomatikGonder: true, hazirlik: "tamam", otomatikOnay: { etkin: false, turler: [] } }, projeVarsayilanlari[p.id] ?? {});
+  for (const p of db.projeler) Object.assign(p, { uzakAdres: null, github: null, otomatikGonder: true, hazirlik: "tamam", otomatikOnay: { etkin: false, turler: [...VARSAYILAN_OTOMATIK_ONAY_TURLERI] } }, projeVarsayilanlari[p.id] ?? {});
   Object.assign(db.ayarlar, { ghYolu: null, projeKoku: null, kurulumTamam: !YENI });
 
   // -------------------------------------------------------------------------
@@ -239,7 +239,7 @@ export function kur(c) {
   /** Gerçek çekirdekteki POST /api/projeler'in sahte karşılığı (klonlama sonrasında da kullanılır) */
   function projeEkle(ad, yol, aciklama, dal, uzak) {
     const id = ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
-    const p = { id, ad, yol, aciklama: aciklama ?? "", varsayilanDal: dal || "main", olusturma: simdi(), uzakAdres: uzak ? `https://github.com/${uzak}.git` : null, github: uzak ?? null, otomatikGonder: true, hazirlik: "bekliyor", otomatikOnay: { etkin: false, turler: [] } };
+    const p = { id, ad, yol, aciklama: aciklama ?? "", varsayilanDal: dal || "main", olusturma: simdi(), uzakAdres: uzak ? `https://github.com/${uzak}.git` : null, github: uzak ?? null, otomatikGonder: true, hazirlik: "bekliyor", otomatikOnay: { etkin: false, turler: [...VARSAYILAN_OTOMATIK_ONAY_TURLERI] } };
     db.projeler.push(p);
     db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: ceviri("Hazırlık bekliyor", "Waiting for the kickoff"), gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "bypassPermissions", bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: "k01", olusturma: simdi() });
     db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "yonetim", aciklama: "" }, { ad: c.MUHENDISLIK, aciklama: "" }];
@@ -340,7 +340,7 @@ export function kur(c) {
       const acildi = govde.otomatikOnay.etkin && !pr.otomatikOnay.etkin;
       pr.otomatikOnay = { etkin: Boolean(govde.otomatikOnay.etkin), turler: govde.otomatikOnay.turler ?? [] };
       mesajEkle(pr.id, "genel", "arnorg", pr.otomatikOnay.etkin ? ceviri("Kurul otomatik onayı açtı; seçili türdeki onaylar kendiliğinden verilecek.", "The board turned on auto-approval; approvals of the selected types will be granted automatically.") : ceviri("Kurul otomatik onayı kapattı.", "The board turned off auto-approval."));
-      if (acildi) for (const o of db.onaylar) if (o.projeId === pr.id && o.durum === "bekliyor" && pr.otomatikOnay.turler.includes(o.tur)) otomatikOnayla(o);
+      if (pr.otomatikOnay.etkin) for (const o of db.onaylar) if (o.projeId === pr.id && o.durum === "bekliyor" && pr.otomatikOnay.turler.includes(o.tur)) otomatikOnayla(o);
     }
     projeYay(pr.id);
     return projeOzeti(pr);
@@ -420,8 +420,8 @@ export function kur(c) {
     const adim = hazirlikAdimi[pid] ?? 0;
     if (!pr || pr.hazirlik !== "suruyor" || adim >= HAZIRLIK.length) return false;
     hazirlikAdimi[pid] = adim + 1;
-    ceoYazar(pid, "yonetim", HAZIRLIK[adim], 2400);
     const a = ceo(pid);
+    ceoYazar(pid, "yonetim", HAZIRLIK[adim].replace(/\bAda\b/, a?.ad ?? "Ada"), 2400);
     if (adim === 2 && a) {
       // Ana yasa önerisi kurula gider
       setTimeout(() => {
@@ -443,6 +443,24 @@ export function kur(c) {
         ).map(([baslik, metin], i) => ({ no: i + 1, baslik, metin, kural: i === 0 ? { hedef: "yol", desenler: ["(^|/)\\.env(\\.|$)"], karar: "ret" } : null }));
         onayAc(pid, a.id, "anayasa", ceviri(`Ana yasa önerisi · ${maddeler.length} madde`, `Constitution proposal · ${maddeler.length} articles`), [ceviri("Hazırlık görüşmesinde kurulla konuşuldu.", "Discussed with the board in the kickoff."), "", ...maddeler.map((m) => `${m.no}. ${m.baslik} — ${m.metin}`)].join("\n"), { maddeler, gerekce: "" });
       }, 9000);
+    }
+    if (adim === 3 && a) {
+      // CEO'nun söylediği ilk ekip teklifleri kurula gider
+      setTimeout(() => {
+        for (const [ad, rol, rolAd, gerekce] of ceviri(
+          [
+            ["Deniz", "backend", "Backend geliştirici", "API, veritabanı ve testler için bir backend geliştirici; ilk uçtan uca akışın arka yüzü ona ait."],
+            ["Ece", "frontend", "Frontend geliştirici", "Giriş ekranı ve ilk akışın arayüzü için bir frontend geliştirici."],
+          ],
+          [
+            ["Deniz", "backend", "Backend developer", "A backend developer for the API, the database and the tests; the back end of the first end-to-end flow is theirs."],
+            ["Ece", "frontend", "Frontend developer", "A frontend developer for the sign-in screen and the first flow's interface."],
+          ],
+        )) {
+          if (projeAjanlari(pid).some((x) => x.ad === ad)) continue;
+          onayAc(pid, a.id, "ise_alim", ceviri(`İşe alım: ${ad} · ${rolAd}`, `Hiring: ${ad} · ${rolAd}`), `${gerekce}\n\n${ceviri("Model", "Model")}: sonnet · ${ceviri("Yönetici", "Manager")}: ${a.ad}`, { ad, rol, model: "sonnet", yoneticiAd: a.ad, gerekce });
+        }
+      }, 5000);
     }
     if (adim === HAZIRLIK.length - 1) {
       setTimeout(() => {
@@ -675,7 +693,7 @@ export function kur(c) {
     const sira = { etkin: 0, aday: 1, emekli: 2 };
     return { kurallar: [...zeka.kurallar].sort((a, b) => sira[a.durum] - sira[b.durum] || b.guven - a.guven), gunluk: zeka.gunluk, sayilar };
   };
-  const zekaYay = (k, g) => herkeseYay({ tur: "zeka.guncellendi", kural: k, gunluk: g });
+  const zekaYay = (k, g, silinenId) => herkeseYay({ tur: "zeka.guncellendi", kural: k, gunluk: g, ...(silinenId ? { silinenId } : {}) });
   const kuralGerekli = (id) => {
     const k = zeka.kurallar.find((x) => x.id === id);
     if (!k) throw new Hata(404, ceviri("Kural bulunamadı.", "Rule not found."));
@@ -686,6 +704,7 @@ export function kur(c) {
     const metin = String(govde?.metin ?? "").trim();
     if (metin.length < 5) throw new Hata(400, ceviri("Kural 5–600 karakter olmalı.", "A rule must be 5–600 characters."));
     const k = kural(metin, govde?.kapsam ?? [], "kurul", 0.9, "etkin", 1, 0, 0, 0, 0);
+    k.kanitlar = [{ projeId: null, projeAd: null, metin, zaman: simdi() }];
     zeka.kurallar.unshift(k);
     zekaYay(k, gunluk("duzenlendi", ceviri(`Kurul ekledi: ${metin}`, `Added by the board: ${metin}`), k.id));
     return k;
@@ -711,13 +730,14 @@ export function kur(c) {
       if (k.guven < 0.3) k.durum = "emekli";
     }
     k.guncelleme = simdi();
-    zekaYay(k, gunluk("geri_bildirim", `${ceviri("Yönetim kurulu", "The board")}: ${govde?.sonuc} — ${k.metin}`, k.id));
+    const sonucAdi = govde?.sonuc === "ise_yaradi" ? ceviri("işe yaradı", "helped") : govde?.sonuc === "ihlal" ? ceviri("çiğnendi", "was broken") : ceviri("yanlış bulundu", "was found wrong");
+    zekaYay(k, gunluk("geri_bildirim", `${ceviri("Yönetim kurulu", "The board")}: ${sonucAdi} — ${k.metin}`, k.id));
     return k;
   });
   rota("DELETE", "/api/zeka/kurallar/:id", ({ p }) => {
     const k = kuralGerekli(p.id);
     zeka.kurallar = zeka.kurallar.filter((x) => x.id !== k.id);
-    zekaYay(null, gunluk("duzenlendi", ceviri(`Kurul sildi: ${k.metin}`, `Deleted by the board: ${k.metin}`), null));
+    zekaYay(null, gunluk("duzenlendi", ceviri(`Kurul sildi: ${k.metin}`, `Deleted by the board: ${k.metin}`), null), k.id);
     return { tamam: true };
   });
   // Ara sıra öğrenme: aday kurala kanıt gelir, güven artar, gerekirse standart olur
@@ -816,7 +836,16 @@ export function kur(c) {
   rota("POST", "/api/ajanlar/:aid/aktar", ({ p, govde }) => {
     const veren = ajanGerekli(p.aid);
     const alan = ajanGerekli(String(govde?.kime ?? ""));
-    return { mesaj: ceviri(`${alan.ad}'e aktarıldı: ${(kisisel[veren.id] ?? []).length} kişisel madde, defter.`, `Transferred to ${alan.ad}: ${(kisisel[veren.id] ?? []).length} personal entries, journal.`) };
+    if (veren.id === alan.id) throw new Hata(400, ceviri("Kendine aktarım yapamazsın.", "You cannot transfer to yourself."));
+    const verenin = kisisel[veren.id] ?? [];
+    const tarih = simdi().slice(0, 10);
+    const not = String(govde?.not ?? "").trim();
+    // Alanın kişisel hafızasına devir notu, defterine devir bölümü
+    kisisel[alan.id] = [...(kisisel[alan.id] ?? []).filter((m) => !m.includes(`(${tarih})`) || !m.includes(veren.ad)), ceviri(`${ayrilma(veren.ad)} devir aldım (${tarih}): defterimde "Devir" bölümüne bak.${not ? ` ${not}` : ""}`, `I took over from ${veren.ad} (${tarih}): see the "Handover" section in my journal.${not ? ` ${not}` : ""}`)];
+    const onceki = db.defterler[alan.id]?.icerik ?? db.defterler[alan.id] ?? "";
+    const bolum = [ceviri(`## Devir: ${veren.ad} → ${alan.ad}, ${tarih}`, `## Handover: ${veren.ad} → ${alan.ad}, ${tarih}`), ...verenin.map((m) => `- ${m}`)].join("\n");
+    db.defterler[alan.id] = { icerik: `${onceki ? `${onceki}\n\n` : ""}${bolum}`, guncelleme: simdi() };
+    return { mesaj: ceviri(`${yonelme(alan.ad)} aktarıldı: ${verenin.length} kişisel madde, defter.`, `Transferred to ${alan.ad}: ${verenin.length} personal entries, journal.`) };
   });
 
   return { kurulBildirimi, ceoYazar, yaziyor, dil: DIL };

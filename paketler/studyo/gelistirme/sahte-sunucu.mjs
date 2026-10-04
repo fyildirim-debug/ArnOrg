@@ -11,7 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ceviri, kanalGorunenAdi } from "./dil.mjs";
+import { ceviri, kanalGorunenAdi, yonelme } from "./dil.mjs";
 import { dilBul } from "./dosyalar.mjs";
 import * as KZ from "./kod-zekasi-verisi.mjs";
 import { kur as surum002 } from "./surum-002.mjs";
@@ -1020,10 +1020,23 @@ rota("PATCH", "/api/ajanlar/:aid", ({ p, govde }) => {
   ajanYay(a);
   return a;
 });
-rota("DELETE", "/api/ajanlar/:aid", ({ p }) => {
+rota("DELETE", "/api/ajanlar/:aid", ({ p, q }) => {
   const a = ajanGerekli(p.aid);
+  // Çekirdekteki gibi: CEO çıkarılamaz; açık işler devralana (verilmezse yöneticisine) geçer
+  if (a.rol === "ceo") throw new Hata(400, ceviri("CEO işten çıkarılamaz.", "The CEO cannot be let go."));
+  const devralanId = q.get("devralan") || a.yoneticiId;
+  const devralan = devralanId ? db.ajanlar.find((x) => x.id === devralanId && x.projeId === a.projeId && x.id !== a.id) : null;
   db.ajanlar = db.ajanlar.filter((x) => x.id !== a.id);
-  for (const g of db.gorevler) if (g.atananId === a.id) g.atananId = null;
+  for (const g of db.gorevler) if (g.atananId === a.id) g.atananId = devralan?.id ?? null;
+  mesajEkle(
+    a.projeId,
+    "genel",
+    "arnorg",
+    ceviri(
+      `${a.ad} (${a.rolAdi}) ekipten ayrıldı${devralan ? `; açık işleri ve bildikleri ${yonelme(devralan.ad)} devredildi` : ""}.`,
+      `${a.ad} (${a.rolAdi}) left the team${devralan ? `; open work and knowledge were handed over to ${devralan.ad}` : ""}.`,
+    ),
+  );
   yay({ tur: "ajan.silindi", projeId: a.projeId, ajanId: a.id }, a.projeId);
   projeYay(a.projeId);
   return { tamam: true };
@@ -1997,8 +2010,12 @@ function terminalBagla(ws, id) {
         "9f3d7aa T-24: cursor pagination\r\n4be1c02 T-22: product catalog API\r\n1a07e9d T-16: database schema",
       ),
     "npm test": () => "\r\n \x1b[32m✓\x1b[0m tests/api/siparisler.test.ts (2 tests) 41ms\r\n \x1b[32m✓\x1b[0m tests/api/sayfalama.test.ts (2 tests) 12ms\r\n\r\n Test Files  \x1b[32m2 passed\x1b[0m (2)\r\n      Tests  \x1b[32m4 passed\x1b[0m (4)",
+    // Teslim testindeki çalıştırma komutu (Test paneli)
+    "npm install && npm run dev": () =>
+      "\r\nadded 412 packages, and audited 413 packages in 6s\r\n\r\n> siparis-paneli@0.3.0 dev\r\n> vite\r\n\r\n  \x1b[32mVITE\x1b[0m v7.1.4  ready in 412 ms\r\n\r\n  \x1b[32m➜\x1b[0m  Local:   \x1b[36mhttp://localhost:5173/\x1b[0m",
+    "npm run dev": () => "\r\n> siparis-paneli@0.3.0 dev\r\n> vite\r\n\r\n  \x1b[32mVITE\x1b[0m v7.1.4  ready in 398 ms\r\n\r\n  \x1b[32m➜\x1b[0m  Local:   \x1b[36mhttp://localhost:5173/\x1b[0m",
     clear: () => "\x1b[2J\x1b[H",
-    help: () => ceviri("Sahte komutlar: ls, pwd, git status, git log --oneline, npm test, clear, echo", "Mock commands: ls, pwd, git status, git log --oneline, npm test, clear, echo"),
+    help: () => ceviri("Sahte komutlar: ls, pwd, git status, git log --oneline, npm test, npm run dev, clear, echo", "Mock commands: ls, pwd, git status, git log --oneline, npm test, npm run dev, clear, echo"),
   };
   ws.mesaj = (ham) => {
     let m;
