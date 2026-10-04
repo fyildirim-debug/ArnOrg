@@ -31,7 +31,8 @@ afterAll(() => {
 describe("proje açma ve çalışma dalı", () => {
   it("yol verilmezse proje kökünde açar; seçilen dalda çalışır; hazırlık bekler", async () => {
     const p = await sirket.projeOlustur({ ad: "Örnek Proje", olustur: true, dal: "gelistirme" });
-    expect(p.yol).toBe(fs.realpathSync(path.join(gecici, "projeler", "ornek-proje")));
+    // Windows'ta geçici dizin kısa adla (RUNNER~1) gelebilir; iki tarafı da sistemin çözdüğü uzun yola çevir
+    expect(fs.realpathSync.native(p.yol)).toBe(fs.realpathSync.native(path.join(gecici, "projeler", "ornek-proje")));
     expect(p.varsayilanDal).toBe("gelistirme");
     expect(git(p.yol, "symbolic-ref", "--short", "HEAD")).toBe("gelistirme");
     expect(p.hazirlik).toBe("bekliyor");
@@ -71,7 +72,8 @@ describe("uzak depoyla eşitleme", () => {
     git(baska, "push", "-q", "origin", "gelistirme");
     const s = await sirket.esitle(proje().id);
     expect(s.durum).toBe("cekildi");
-    expect(fs.readFileSync(path.join(proje().yol, "yeni.txt"), "utf8")).toBe("uzaktan\n");
+    // Windows'ta git satır sonunu CRLF'ye çevirebilir (core.autocrlf)
+    expect(fs.readFileSync(path.join(proje().yol, "yeni.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("uzaktan\n");
     expect((await sirket.esitle(proje().id)).durum).toBe("guncel");
   });
 
