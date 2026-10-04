@@ -60,11 +60,12 @@ extraResources:
   - from: ../studyo/dist
     to: studyo
 
+# Güncelleme kaynağı (app-update.yml). Paketleri CI yükler (--publish never); sürümü surum.yml yayınlar.
 publish:
   provider: github
   owner: fyildirim-debug
   repo: ArnOrg
-  releaseType: draft
+  releaseType: release
 
 # ---------------------------------------------------------------------------
 # Windows: NSIS (kurulum sihirbazı) ve MSI. Mimari komut satırından verilir (--x64 / --arm64).

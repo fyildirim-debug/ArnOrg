@@ -1,7 +1,7 @@
 {
   "name": "arnorg",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Claude Code ajanlarından kurulan yazılım şirketi: proje, ekip, planlama, canlı denetim ve kod editörü",
   "type": "module",
   "workspaces": [
@@ -21,7 +21,8 @@
     "test": "vitest run",
     "serve": "node paketler/cekirdek/dist/cli.js serve",
     "masaustu": "npm run start -w @arnorg/masaustu",
-    "paketle": "npm run build && npm run paketle -w @arnorg/masaustu"
+    "paketle": "npm run build && npm run paketle -w @arnorg/masaustu",
+    "surum": "node betikler/surum.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

@@ -1,6 +1,6 @@
 // Ajanların ArnOrg ile konuştuğu süreç içi MCP araçları (mcp__arnorg__*)
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
+import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
@@ -35,7 +35,7 @@ const durumSemasi = z.enum(GOREV_DURUMLARI as [GorevDurumu, ...GorevDurumu[]]);
 const sembolTuruSemasi = z.enum(Object.keys(KOD_SEMBOL_TURU_ADLARI) as [KodSembolTuru, ...KodSembolTuru[]]);
 
 export function arnorgAraclari(sirket: Sirket, ajanId: string): McpSdkServerConfigWithInstance {
-  return createSdkMcpServer({ name: "arnorg", version: "0.1.0", tools: arnorgAracListesi(sirket, ajanId) });
+  return createSdkMcpServer({ name: "arnorg", version: ARNORG_SURUMU, tools: arnorgAracListesi(sirket, ajanId) });
 }
 
 /** Ajanın araç tanımları (testler işleyicileri doğrudan çağırabilsin diye ayrı) */

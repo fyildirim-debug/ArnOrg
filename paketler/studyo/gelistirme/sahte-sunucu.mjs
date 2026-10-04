@@ -18,7 +18,7 @@ import * as V from "./veri.mjs";
 const PORT = Number(process.env.PORT ?? 47820);
 const ANAHTAR = process.env.ARNORG_ANAHTAR ?? "gelistirme";
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-const SURUM = "0.1.0";
+const SURUM = JSON.parse(fs.readFileSync(new URL("../../../package.json", import.meta.url), "utf8")).version;
 
 const simdi = () => new Date().toISOString();
 const sonra = (sn) => new Date(Date.now() + sn * 1000).toISOString();

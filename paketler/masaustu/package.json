@@ -3,7 +3,7 @@
   "productName": "ArnOrg",
   "desktopName": "arnorg.desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "ArnOrg masaüstü uygulaması (Electron kabuğu)",
   "author": {
     "name": "Furkan YILDIRIM",

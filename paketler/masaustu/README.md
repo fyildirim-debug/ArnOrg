@@ -136,7 +136,7 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 
 ### Otomatik güncelleme
 
-`electron-builder.yml` → `publish` GitHub sürümlerini (fyildirim-debug/ArnOrg, taslak) gösterir; paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir. Uygulama tarafındaki kod hazırdır (`src/guncelleme.ts`) ama `electron-updater` henüz bağımlılık değildir; eklenince (`npm install electron-updater -w @arnorg/masaustu`) paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar. NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez.
+`electron-builder.yml` → `publish` GitHub sürümlerini (fyildirim-debug/ArnOrg) gösterir; paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir, sürüm iş akışı bunları sürüme ekler. Paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar (`src/guncelleme.ts`, `electron-updater`). NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez. Depo özelken güncelleyici sürümleri okuyamaz; denetim yalnız kayda bir satır yazar, uygulama etkilenmez.
 
 ## Windows notları
 
@@ -154,4 +154,16 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 ## CI
 
 - `.github/workflows/ci.yml`: main'e gönderim ve çekme isteklerinde Ubuntu ve Windows'ta `npm ci`, `npm run typecheck`, `npm test`, `npm run build` ve kabuk derlemesi; Linux'ta sahte çekirdekle Electron duman testi (ekran görüntüsü yapıt olarak yüklenir).
-- `.github/workflows/surum.yml`: `v*` etiketinde Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir, sürüm etiketten alınır, dosyalar taslak GitHub sürümüne eklenir. Elle çalıştırma yalnız paketleri yapıt olarak üretir.
+- `.github/workflows/surum.yml`: `v*` etiketinde önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. Elle çalıştırma yalnız paketleri yapıt olarak üretir.
+
+## Sürüm çıkarma
+
+Sürüm kökteki `package.json`'dan gelir; tüm paketler, kilit dosyası ve `ARNORG_SURUMU` aynı sürümü taşır (`paketler/cekirdek/src/surum.test.ts` denetler).
+
+```bash
+npm run surum -- 0.0.2                 # sürümü her yerde günceller
+# docs/surumler/v0.0.2.md: sürüm notları (sürüm sayfasının gövdesi)
+git add -A && git commit -m "Sürüm 0.0.2"
+git tag -a v0.0.2 -m "ArnOrg 0.0.2"
+git push origin main v0.0.2
+```

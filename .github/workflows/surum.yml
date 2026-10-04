@@ -1,5 +1,9 @@
-# Sürüm: v* etiketinde Windows ve Linux paketleri üretilir, taslak GitHub sürümüne eklenir.
+# Sürüm: v* etiketinde Windows ve Linux paketleri üretilir ve GitHub sürümü olarak yayınlanır.
 # Her mimari kendi koşucusunda paketlenir (npm yalnız o makinenin yerel paketlerini kurar).
+#
+# Sürüm çıkarma: npm run surum -- <sürüm>, docs/surumler/v<sürüm>.md notları, commit,
+# git tag -a v<sürüm> ve etiketi gönderme. Etiket paket sürümleriyle uyuşmazsa ya da notlar
+# yoksa paketleme başlamadan durur (betikler/surum.mjs --denetle).
 #
 # Elle çalıştırma (workflow_dispatch) yalnız paketleri üretir, sürüm açmaz.
 name: Sürüm
@@ -26,7 +30,8 @@ jobs:
           - ad: linux-x64
             os: ubuntu-latest
             hedef: --linux --x64
-          # Arm64 Linux koşucusu açık depolarda ücretsizdir; özel depoda kullanılamıyorsa bu satırı kaldırın.
+          # Arm64 Linux koşucusu (ubuntu-24.04-arm) açık depolarda ücretsiz, 2026'dan beri özel depolarda da var;
+          # kullanılamazsa bu satırı kaldırın, yoksa iş kuyrukta bekler ve sürüm açılmaz.
           - ad: linux-arm64
             os: ubuntu-24.04-arm
             hedef: --linux --arm64
@@ -38,17 +43,17 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Etiket, paket sürümleri ve sürüm notları
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: node betikler/surum.mjs --denetle "$GITHUB_REF_NAME"
+
       - name: rpm aracı
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
 
       - name: Bağımlılıklar
         run: npm ci
-
-      - name: Sürümü etiketten al
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: npm pkg set version="${GITHUB_REF_NAME#v}" -w @arnorg/masaustu
 
       - name: Derleme (Stüdyo + çekirdek)
         run: npm run build
@@ -76,25 +81,32 @@ jobs:
           compression-level: 0
 
   yayinla:
-    name: Taslak sürüm
+    name: Sürümü yayınla
     needs: paketle
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # Yalnız sürüm notları gerekir
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: docs/surumler
+
       - uses: actions/download-artifact@v4
         with:
-          path: paketler
+          path: cikti
           merge-multiple: true
 
       - name: Dosyalar
-        run: ls -la paketler
+        run: ls -la cikti
 
       - uses: softprops/action-gh-release@v2
         with:
-          draft: true
           name: ArnOrg ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: docs/surumler/${{ github.ref_name }}.md
+          draft: false
+          prerelease: false
+          make_latest: true
           fail_on_unmatched_files: true
-          files: paketler/*
+          files: cikti/*

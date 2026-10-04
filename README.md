@@ -20,7 +20,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 
 ## Durum
 
-Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: Stüdyo'dan proje açılır, brief verilir, CEO işe alım teklif eder, onaylanınca görev açılıp çalışan başlar, çalışan kendi worktree'sinde kodu yazıp test eder, CEO farkı inceleyip birleştirme ister, kurul onaylayınca iş main'e girer. Gerçek bir Claude Code oturumuyla (haiku) bu döngü yaklaşık iki dakika sürdü.
+İlk sürüm **0.0.1** yayında. Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: Stüdyo'dan proje açılır, brief verilir, CEO işe alım teklif eder, onaylanınca görev açılıp çalışan başlar, çalışan kendi worktree'sinde kodu yazıp test eder, CEO farkı inceleyip birleştirme ister, kurul onaylayınca iş main'e girer. Gerçek bir Claude Code oturumuyla (haiku) bu döngü yaklaşık iki dakika sürdü.
 
 | Ekran | |
 |---|---|
@@ -32,6 +32,18 @@ Faz 0–2 tamam, Faz 3'ün bir kısmı çalışıyor. Uçtan uca doğrulandı: S
 | Bağımlılık grafiği | ![Bağımlılık grafiği](docs/gorseller/kod-zekasi-grafik.png) |
 | Denetim | ![Denetim](docs/gorseller/denetim.png) |
 | Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/kod.png) |
+
+## Kurulum
+
+Kurulum dosyaları [Sürümler](https://github.com/fyildirim-debug/ArnOrg/releases) sayfasındadır:
+
+| Sistem | Dosya |
+|---|---|
+| Windows 10/11 · x64 | `ArnOrg-Kurulum-<sürüm>-x64.exe` (Türkçe kurulum sihirbazı) ya da kurumsal dağıtım için `ArnOrg-<sürüm>-x64.msi` |
+| Linux · x64 | `ArnOrg-<sürüm>-x86_64.AppImage` (kurulumsuz), `ArnOrg-<sürüm>-amd64.deb`, `ArnOrg-<sürüm>-x86_64.rpm` |
+| Linux · arm64 | `ArnOrg-<sürüm>-arm64.AppImage`, `ArnOrg-<sürüm>-arm64.deb`, `ArnOrg-<sürüm>-aarch64.rpm` |
+
+Kurmadan önce Claude Code'u kurup terminalde bir kez `claude` açın ve `/login` ile claude.ai hesabınızla (Pro, Max ya da Team) giriş yapın; git de gerekir (Windows'ta Git for Windows). Kurulum dosyaları imzasızdır: Windows SmartScreen uyarısında **Ek bilgi → Yine de çalıştır**. AppImage için FUSE 2 gerekir (Ubuntu 24.04: `sudo apt install libfuse2t64`).
 
 ## Çalıştırma
 
@@ -50,7 +62,18 @@ npm run build && npm run masaustu    # Electron içinde çekirdek + Stüdyo
 npm run paketle                      # bulunduğunuz platformun paketleri (Linux: AppImage, deb, rpm; Windows: NSIS, MSI)
 ```
 
-Sürüm paketleri `v*` etiketinde GitHub Actions'ta Windows ve Linux için üretilir; ayrıntı [`paketler/masaustu/README.md`](paketler/masaustu/README.md).
+Sürüm paketleri `v*` etiketinde GitHub Actions'ta Windows ve Linux için üretilir ve GitHub sürümü olarak yayınlanır; ayrıntı [`paketler/masaustu/README.md`](paketler/masaustu/README.md).
+
+Sürüm çıkarma (sürümler [`docs/surumler/`](docs/surumler) altında):
+
+```bash
+npm run surum -- 0.0.2                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.2.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.2 -m "ArnOrg 0.0.2"
+git push origin main v0.0.2            # surum.yml paketler ve sürümü yayınlar
+```
+
+Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 Geliştirme:
 
