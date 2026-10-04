@@ -1,15 +1,20 @@
 // Onaylar: bekleyen kararlar üstte (süresi azalan önce, sonra en uzun bekleyen), sonuçlananlar altta sakin bir geçmişte.
-// Türe göre süzgeç iki bölüme de uygulanır; geçmiş ayrıca sonuca göre süzülür.
+// Türe göre süzgeç iki bölüme de uygulanır; geçmiş ayrıca sonuca göre süzülür. Başlığın yanında otomatik onay kutusu;
+// açıkken başlığın altında uyarı satırı. Önemli an penceresinden "Onaylar'da aç" gelince o onay görünür kılınıp vurgulanır.
 import type { Onay, OnayDurumu, OnayTuru } from "@arnorg/ortak";
 import { useEffect, useMemo, useState } from "react";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { OnayOgesi } from "../bilesenler/OnayOgesi";
+import { OtomatikOnayKutusu, OtomatikOnayUyarisi } from "../bilesenler/OtomatikOnay";
 import { useSozluk } from "../dil";
+import { useSohbet, vurguyuBitir } from "../durum/sohbet";
 import { projeVerisiniYukle, rolleriYukle, useVeri } from "../durum/veri";
 
 type Sonuc = Exclude<OnayDurumu, "bekliyor">;
 
-const TURLER: (OnayTuru | "tumu")[] = ["tumu", "ise_alim", "birlestirme", "genel", "arac"];
+const TURLER: (OnayTuru | "tumu")[] = ["tumu", "teslim", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "arac"];
+/** Vurgu bu süre sonra söner */
+const VURGU_MS = 2400;
 const SONUCLAR: (Sonuc | "tumu")[] = ["tumu", "onaylandi", "reddedildi", "zaman_asimi"];
 /** Geçmişte bir seferde gösterilen satır */
 const GECMIS_SAYFA = 30;
@@ -36,11 +41,38 @@ export function Onaylar() {
   const [tur, setTur] = useState<OnayTuru | "tumu">("tumu");
   const [sonuc, setSonuc] = useState<Sonuc | "tumu">("tumu");
   const [gecmisSiniri, setGecmisSiniri] = useState(GECMIS_SAYFA);
+  const vurgulu = useSohbet((d) => d.vurguluOnayId);
 
   useEffect(() => {
     // İşe alım verisindeki rol adları için
     rolleriYukle().catch(() => undefined);
   }, []);
+
+  // "Onaylar'da aç": onay süzgeçte gizliyse süzgeç açılır; kabuk ekranı başa aldıktan sonra öğeye kaydırılır
+  const vurguluOnay = vurgulu ? onaylar.find((o) => o.id === vurgulu) : undefined;
+  useEffect(() => {
+    if (!vurgulu) return;
+    if (!vurguluOnay) {
+      // Liste henüz yüklenmediyse bekler; yüklendiği hâlde yoksa vurgu bırakılır
+      if (yukleme !== "yukleniyor") vurguyuBitir();
+      return;
+    }
+    if (tur !== "tumu" && vurguluOnay.tur !== tur) setTur("tumu");
+    if (vurguluOnay.durum !== "bekliyor") {
+      setSonuc("tumu");
+      setGecmisSiniri((n) => Math.max(n, onaylar.length));
+    }
+    const kaydir = window.setTimeout(() => {
+      const azHareket = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById(`onay-${vurgulu}`)?.scrollIntoView({ block: "center", behavior: azHareket ? "auto" : "smooth" });
+    }, 80);
+    const son = window.setTimeout(vurguyuBitir, VURGU_MS);
+    return () => {
+      window.clearTimeout(kaydir);
+      window.clearTimeout(son);
+    };
+    // Vurgulanan onay ya da durumu değişince bir kez
+  }, [vurgulu, vurguluOnay?.id, vurguluOnay?.durum, yukleme]);
 
   const { bekleyenler, sonuclananlar, gecmis, sayilar } = useMemo(() => {
     const turda = onaylar.filter((o) => tur === "tumu" || o.tur === tur);
@@ -62,7 +94,8 @@ export function Onaylar() {
           <h1>{t.baslik}</h1>
           <p>{t.altBaslik}</p>
         </div>
-        <div className="baslik-eylem">
+        <div className="baslik-eylem onay-baslik-eylem">
+          <OtomatikOnayKutusu />
           <select
             className="secim suzgec-secim"
             aria-label={t.tureGore}
@@ -80,6 +113,8 @@ export function Onaylar() {
           </select>
         </div>
       </div>
+
+      <OtomatikOnayUyarisi />
 
       {ilkYukleme ? <Iskelet satir={6} /> : null}
       {yuklenemedi ? <HataKutu metin={projeHatasi ?? t.alinamadi} yeniden={() => void projeVerisiniYukle()} /> : null}

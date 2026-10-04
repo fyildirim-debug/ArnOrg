@@ -2,11 +2,6 @@
 export const kanallar = {
   baslik: "Kanallar",
   altBaslik: "Ajanlar birbirine yazar; siz istediğiniz an araya girersiniz",
-  /** Sunucu açıklama vermezse kanal kimliğine göre gösterilen açıklama */
-  aciklamalar: {
-    genel: "Bütün ekip · anma olmadan yazılan mesaj CEO'ya gider",
-    muhendislik: "Teknik konuşmalar · kararlar ADR olarak notlara taşınır",
-  },
   yokBaslik: "Kanal yok",
   /** Kanal adları görünen adlarıdır (# olmadan) */
   yokMetin: (genel: string, muhendislik: string) => `Proje açılınca #${genel} ve #${muhendislik} kanalları oluşur.`,
@@ -20,4 +15,6 @@ export const kanallar = {
   yazDiger: (kanal: string) => `#${kanal} kanalına yazın · @Ad ile anın`,
   /** Kurulun kendi mesajında gönderen adı */
   siz: "Siz",
+  /** ArnOrg'un kanala yazdığı başlangıç ve iş duyurularının etiketi */
+  duyuru: "duyuru",
 };

@@ -4,6 +4,8 @@ import { yonelme } from "../../yardimcilar/bicim";
 export const karargah = {
   baslik: "Karargâh",
   veriAlinamadi: "Proje verisi alınamadı.",
+  /** CEO sohbeti ve kanal akışının bulunduğu bölüm */
+  sohbetBolumu: "CEO ile sohbet ve kanallardan canlı akış",
   ozet: "Özet",
   onayBekleyen: (n: number) => `Onay bekleyen ${n} karar`,
   onayYok: "Bekleyen onay yok",
@@ -19,7 +21,7 @@ export const karargah = {
     zaman: (zaman: string) => `CEO raporu · ${zaman}`,
     ceoYok: "CEO yok",
     ceoYokAciklama: "Bu projede CEO ajanı bulunamadı. Ekip ekranından CEO rolüyle birini işe alın.",
-    henuzYok: "CEO henüz rapor yazmadı. Aşağıdan bir brief verin; planı ve ekip önerisini burada okursunuz.",
+    henuzYok: "CEO henüz rapor yazmadı. Yukarıdaki sohbetten ya da aşağıdaki brief kutusundan ne istediğinizi yazın; planı ve ekip önerisini burada okursunuz.",
     kisalt: "Kısalt",
     tamami: "Tamamını oku",
     donem: "Dönem raporu",

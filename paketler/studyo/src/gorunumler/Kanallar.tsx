@@ -1,24 +1,33 @@
-// Kanallar: kanal listesi, mesajlar (anma ve görev kodu vurgulu), yazma alanı
-import { kanalGorunenAdi, KURUL, type Mesaj } from "@arnorg/ortak";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+// Kanallar: kanal listesi, akan mesajlar (anma ve görev kodu vurgulu), yazıyor göstergesi, yazma alanı.
+// Yeni mesaj yumuşakça girer ve liste alta iner; kullanıcı yukarı kaydırdıysa yerinde kalır ve "yeni mesaj" düğmesi çıkar.
+// ArnOrg'un başlangıç ve iş duyuruları kendi imzasıyla görünür.
+import { ARNORG_GONDEREN, kanalAciklamasi, kanalGorunenAdi, KURUL, type Ajan, type Mesaj } from "@arnorg/ortak";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/uclar";
+import { useAltaYapisik, useYeniGelenler } from "../bilesenler/altaYapis";
 import { AnmaliYazi } from "../bilesenler/AnmaliYazi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { GonderenAvatar } from "../bilesenler/Kisi";
+import { gunEtiketi, gunlereAyir } from "../bilesenler/mesajGruplari";
+import { MesajMetni } from "../bilesenler/MesajMetni";
 import { Simge } from "../bilesenler/Simge";
-import { ZenginBlok } from "../bilesenler/ZenginMetin";
+import { KIMSE_YAZMIYOR, YaziyorGostergesi } from "../bilesenler/YaziyorGostergesi";
 import { useDil, useSozluk } from "../dil";
 import { ajanaGit, useArayuz } from "../durum/arayuz";
 import { kanalMesajlariniYukle, kanalOkundu, mesajUygula, useVeri } from "../durum/veri";
 import { saat, tarih } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
+const BOS: Mesaj[] = [];
+
 export function Kanallar() {
   const s = useSozluk();
   const dil = useDil();
   const kanallar = useVeri((d) => d.kanallar);
   const okunmamis = useVeri((d) => d.okunmamis);
+  const yaziyorlar = useVeri((d) => d.yaziyorlar);
   const yukleme = useVeri((d) => d.projeYukleme);
+  const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const secili = useArayuz((d) => d.kanal);
   const kanal = kanallar.find((k) => k.ad === secili) ?? kanallar[0];
   const kanalAdi = kanal?.ad ?? secili;
@@ -44,58 +53,37 @@ export function Kanallar() {
       {kanallar.length ? (
         <div className="kanal-yerlesim">
           <nav className="kanal-liste" aria-label={s.kanallar.baslik}>
-            {kanallar.map((k) => (
-              <button
-                key={k.ad}
-                type="button"
-                className="kanal-dugme"
-                aria-current={k.ad === kanalAdi ? "true" : undefined}
-                onClick={() => useArayuz.setState({ kanal: k.ad })}
-              >
-                <span className="tek-satir"># {kanalGorunenAdi(k.ad, dil)}</span>
-                {okunmamis[k.ad] && k.ad !== kanalAdi ? <span className="rozet">{okunmamis[k.ad]}</span> : <small>{k.mesajSayisi}</small>}
-              </button>
-            ))}
+            {kanallar.map((k) => {
+              const yazan = yaziyorlar[k.ad];
+              const yaziyor = yazan?.length ? s.sohbet.yaziyor(yazan.map((y) => y.ad)) : null;
+              return (
+                <button
+                  key={k.ad}
+                  type="button"
+                  className="kanal-dugme"
+                  aria-current={k.ad === kanalAdi ? "true" : undefined}
+                  onClick={() => useArayuz.setState({ kanal: k.ad })}
+                  title={yaziyor ?? undefined}
+                >
+                  <span className="tek-satir"># {kanalGorunenAdi(k.ad, dil)}</span>
+                  {yaziyor ? (
+                    <span className="kanal-yaziyor" role="img" aria-label={yaziyor}>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  ) : null}
+                  {okunmamis[k.ad] && k.ad !== kanalAdi ? <span className="rozet">{okunmamis[k.ad]}</span> : <small>{k.mesajSayisi}</small>}
+                </button>
+              );
+            })}
           </nav>
-          <KanalIcerigi
-            key={kanalAdi}
-            kanal={kanalAdi}
-            aciklama={kanal?.aciklama || (s.kanallar.aciklamalar as Record<string, string>)[kanalAdi] || ""}
-          />
+          {/* Proje ya da kanal değişince kaydırma ve giriş durumu baştan kurulur */}
+          <KanalIcerigi key={`${aktifProjeId}:${kanalAdi}`} kanal={kanalAdi} aciklama={kanalAciklamasi(kanalAdi, kanal?.aciklama ?? "", dil)} />
         </div>
       ) : null}
     </div>
   );
-}
-
-interface Grup {
-  gun: string;
-  mesajlar: { m: Mesaj; devam: boolean }[];
-}
-
-/** Güne ayırır; aynı göndericinin 5 dakika içindeki ardışık mesajları birleştirir */
-function grupla(mesajlar: Mesaj[]): Grup[] {
-  const gruplar: Grup[] = [];
-  let onceki: Mesaj | null = null;
-  for (const m of mesajlar) {
-    const gun = tarih(m.zaman);
-    let g = gruplar[gruplar.length - 1];
-    if (!g || g.gun !== gun) {
-      g = { gun, mesajlar: [] };
-      gruplar.push(g);
-      onceki = null;
-    }
-    const devam = !!onceki && onceki.gonderenId === m.gonderenId && new Date(m.zaman).getTime() - new Date(onceki.zaman).getTime() < 5 * 60_000;
-    g.mesajlar.push({ m, devam });
-    onceki = m;
-  }
-  return gruplar;
-}
-
-function gunEtiketi(gun: string, s: { bugun: string; dun: string }): string {
-  const bugun = tarih(new Date().toISOString());
-  const dun = tarih(new Date(Date.now() - 86_400_000).toISOString());
-  return gun === bugun ? s.bugun : gun === dun ? s.dun : gun;
 }
 
 function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) {
@@ -107,28 +95,25 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
   const mesajlar = useVeri((d) => d.mesajlar[kanal]);
   const yukleme = useVeri((d) => d.mesajYukleme[kanal]);
   const ajanlar = useVeri((d) => d.ajanlar);
+  const yazanlar = useVeri((d) => d.yaziyorlar[kanal]) ?? KIMSE_YAZMIYOR;
   const [metin, setMetin] = useState("");
   const { suruyor, calistir } = useIslem();
-  const listeRef = useRef<HTMLOListElement>(null);
-  const alttaRef = useRef(true);
-  const gruplar = useMemo(() => grupla(mesajlar ?? []), [mesajlar]);
-
-  useLayoutEffect(() => {
-    const l = listeRef.current;
-    if (l && alttaRef.current) l.scrollTop = l.scrollHeight;
-  }, [mesajlar]);
+  const liste = mesajlar ?? BOS;
+  const gruplar = useMemo(() => gunlereAyir(liste, tarih), [liste]);
+  const { ref, kaydirildi, yeni, alta, altaKilitle } = useAltaYapisik<HTMLOListElement>({ sayi: liste.length, degisim: yazanlar.length });
+  const yeniMi = useYeniGelenler(() => liste.map((m) => m.id), !!mesajlar, aktifProjeId);
 
   useEffect(() => {
     // Bu kanal açıkken gelen mesajlar okunmuş sayılır
     kanalOkundu(kanal);
-  }, [kanal, mesajlar?.length]);
+  }, [kanal, liste.length]);
 
   const gonder = () => {
     const temiz = metin.trim();
     if (!temiz || !aktifProjeId) return;
     void calistir("gonder", async () => {
       const m = await api.mesajGonder(aktifProjeId, kanal, temiz);
-      alttaRef.current = true;
+      altaKilitle();
       mesajUygula(m);
       setMetin("");
     });
@@ -140,46 +125,46 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
         <b># {ad}</b>
         {aciklama ? <span>{aciklama}</span> : null}
       </header>
-      <ol
-        className="mesajlar"
-        ref={listeRef}
-        onScroll={(e) => {
-          const l = e.currentTarget;
-          alttaRef.current = l.scrollHeight - l.scrollTop - l.clientHeight < 48;
-        }}
-        aria-live="polite"
-        aria-relevant="additions"
-      >
-        {yukleme === "yukleniyor" && !mesajlar ? (
-          <li>
-            <Iskelet satir={6} />
-          </li>
+      <div className="kanal-pencere">
+        <ol className="mesajlar" ref={ref} onScroll={kaydirildi} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label={`#${ad}`}>
+          {yukleme === "yukleniyor" && !mesajlar ? (
+            <li>
+              <Iskelet satir={6} />
+            </li>
+          ) : null}
+          {yukleme === "hata" ? (
+            <li>
+              <HataKutu metin={s.kanallar.mesajlarAlinamadi} yeniden={() => void kanalMesajlariniYukle(kanal, true).catch(() => undefined)} />
+            </li>
+          ) : null}
+          {mesajlar && mesajlar.length === 0 ? (
+            <li>
+              <Bos kucuk baslik={s.kanallar.sessiz(ad)}>
+                {s.kanallar.sessizMetin}
+              </Bos>
+            </li>
+          ) : null}
+          {gruplar.map((g) => (
+            <li key={g.gun} className="mesaj-gun">
+              <div className="gun-ayrac" role="separator">
+                <span>{gunEtiketi(g.gun, tarih, s.kanallar)}</span>
+              </div>
+              <ol className="mesaj-grup">
+                {g.mesajlar.map(({ m, devam }) => (
+                  <MesajSatiri key={m.id} mesaj={m} devam={devam} ajanlar={ajanlar} yeni={yeniMi(m.id)} />
+                ))}
+              </ol>
+            </li>
+          ))}
+        </ol>
+        {yeni > 0 ? (
+          <button type="button" className="yeni-mesaj-dugme" onClick={() => alta()} title={s.sohbet.enAlta}>
+            <Simge ad="asagi" boyut={12} />
+            {s.sohbet.yeniMesaj(yeni)}
+          </button>
         ) : null}
-        {yukleme === "hata" ? (
-          <li>
-            <HataKutu metin={s.kanallar.mesajlarAlinamadi} yeniden={() => void kanalMesajlariniYukle(kanal, true)} />
-          </li>
-        ) : null}
-        {mesajlar && mesajlar.length === 0 ? (
-          <li>
-            <Bos kucuk baslik={s.kanallar.sessiz(ad)}>
-              {s.kanallar.sessizMetin}
-            </Bos>
-          </li>
-        ) : null}
-        {gruplar.map((g) => (
-          <li key={g.gun} className="mesaj-gun">
-            <div className="gun-ayrac" role="separator">
-              <span>{gunEtiketi(g.gun, s.kanallar)}</span>
-            </div>
-            <ol className="mesaj-grup">
-              {g.mesajlar.map(({ m, devam }) => (
-                <MesajSatiri key={m.id} mesaj={m} devam={devam} />
-              ))}
-            </ol>
-          </li>
-        ))}
-      </ol>
+      </div>
+      <YaziyorGostergesi kisiler={yazanlar} className="kanal-yaziyor-satir" />
       <div className="kanal-yaz">
         <AnmaliYazi
           id={`yaz-${kanal}`}
@@ -199,18 +184,33 @@ function KanalIcerigi({ kanal, aciklama }: { kanal: string; aciklama: string }) 
   );
 }
 
-function MesajSatiri({ mesaj, devam }: { mesaj: Mesaj; devam: boolean }) {
+function MesajSatiri({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: boolean; ajanlar: Ajan[]; yeni: boolean }) {
   const s = useSozluk();
-  const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === mesaj.gonderenId));
+  // Giriş hareketi yalnız öğe ilk çizildiğinde karar verilir; sonraki çizimler hareketi kesmez
+  const [girer] = useState(yeni);
   const kurul = mesaj.gonderenId === KURUL;
+  const sistem = mesaj.gonderenId === ARNORG_GONDEREN;
+  const ajan = kurul || sistem ? undefined : ajanlar.find((a) => a.id === mesaj.gonderenId);
   return (
-    <li className={`mesaj${kurul ? " mesaj-siz" : ""}${devam ? " mesaj-devam" : ""}`}>
-      <div className="mesaj-av">{devam ? <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time> : <GonderenAvatar gonderenId={mesaj.gonderenId} ad={mesaj.gonderenAd} ajan={ajan} />}</div>
+    <li className={`mesaj${kurul ? " mesaj-siz" : ""}${sistem ? " mesaj-arnorg" : ""}${devam ? " mesaj-devam" : ""}${girer ? " mesaj-yeni" : ""}`}>
+      <div className="mesaj-av">
+        {devam ? (
+          <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time>
+        ) : sistem ? (
+          <span className="av av-arnorg" aria-hidden="true">
+            A
+          </span>
+        ) : (
+          <GonderenAvatar gonderenId={mesaj.gonderenId} ad={mesaj.gonderenAd} ajan={ajan} />
+        )}
+      </div>
       <div className="mesaj-govde">
         {!devam ? (
           <div className="mesaj-ust">
             {kurul ? (
               <b>{s.kanallar.siz}</b>
+            ) : sistem ? (
+              <b>{s.genel.arnorg}</b>
             ) : ajan ? (
               <button type="button" className="mesaj-ad" onClick={() => ajanaGit(ajan.id)}>
                 {ajan.ad}
@@ -219,11 +219,11 @@ function MesajSatiri({ mesaj, devam }: { mesaj: Mesaj; devam: boolean }) {
               <b>{mesaj.gonderenAd}</b>
             )}
             <small>
-              {kurul ? s.genel.kurul : (ajan?.rolAdi ?? "")} · <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time>
+              {kurul ? s.genel.kurul : sistem ? s.kanallar.duyuru : (ajan?.rolAdi ?? "")} · <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time>
             </small>
           </div>
         ) : null}
-        <ZenginBlok metin={mesaj.metin} />
+        <MesajMetni metin={mesaj.metin} />
       </div>
     </li>
   );

@@ -4,6 +4,7 @@ import type { karargah as tr } from "../tr/karargah";
 export const karargah: typeof tr = {
   baslik: "Headquarters",
   veriAlinamadi: "Couldn't load project data.",
+  sohbetBolumu: "Conversation with the CEO and live channel feed",
   ozet: "Summary",
   onayBekleyen: (n: number) => `${n} ${n === 1 ? "decision awaits" : "decisions await"} approval`,
   onayYok: "No pending approvals",
@@ -19,7 +20,7 @@ export const karargah: typeof tr = {
     zaman: (zaman: string) => `CEO report · ${zaman}`,
     ceoYok: "No CEO",
     ceoYokAciklama: "This project has no CEO agent. Hire someone with the CEO role from the Team screen.",
-    henuzYok: "The CEO hasn't reported yet. Give a brief below; the plan and the proposed team will show up here.",
+    henuzYok: "The CEO hasn't reported yet. Say what you want in the conversation above or the brief box below; the plan and the proposed team will show up here.",
     kisalt: "Show less",
     tamami: "Read all",
     donem: "Weekly report",

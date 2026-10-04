@@ -1,5 +1,5 @@
 // Onaylar (Türkçe)
-import type { OnayDurumu, OnayTuru } from "@arnorg/ortak";
+import type { AnayasaKurali, OnayDurumu, OnayTuru } from "@arnorg/ortak";
 import { yonelme } from "../../yardimcilar/bicim";
 
 export const onaylar = {
@@ -118,9 +118,59 @@ export const onaylar = {
     girdi: "Girdi",
     kural: "Kural",
     aracKimligi: "Çağrı kimliği",
+    maddeler: "Maddeler",
+    ayrilan: "Ayrılacak",
+    devralanId: "Devralan",
+    testAdimlari: "Test adımları",
+    calistir: "Çalıştır",
+    adres: "Adres",
+    baslik: "Başlık",
   },
   dosya: (n: number) => `${n} dosya`,
   rolVarsayilani: "rol varsayılanı",
   karakterOtomatik: "Otomatik · role göre seçilir",
   secenekIpucu: "Seçiminizi nota yazın; not ajana yanıt olarak gider.",
+
+  /** Ana yasa önerisi: maddeler ve denetim kapısında uygulanan makine kuralları */
+  anayasa: {
+    kural: "Makine kuralı",
+    hedefEtiketi: "Hedef",
+    hedef: { komut: "Komut", yol: "Dosya yolu", url: "Adres", arac: "Araç" } as Record<AnayasaKurali["hedef"], string>,
+    desen: (_n: number) => "Desen",
+    kararEtiketi: "Karar",
+    karar: { ret: "Reddedilir", sor: "Kurula sorulur" } as Record<AnayasaKurali["karar"], string>,
+    yalnizTalimat: "Talimat · makine kuralı yok",
+  },
+  /** İşten çıkarma: devralan belirtilmemişse */
+  devralanYok: "Yöneticisi devralır",
+
+  /** Otomatik onay: seçili türdeki onaylar kendiliğinden verilir, kayıt yine tutulur */
+  oto: {
+    etiket: "Otomatik onay",
+    ipucuKapali: (n: number) =>
+      n ? `İşaretlerseniz kapsamdaki ${n} bekleyen onay hemen verilir.` : "İşaretlerseniz kapsamdaki onaylar kendiliğinden verilir.",
+    ipucuAcik: "Kapsamdaki onaylar kendiliğinden veriliyor.",
+    kapsam: "Kapsam",
+    kapsamSayisi: (n: number, toplam: number) => `${n}/${toplam}`,
+    kapsamEtiketi: "Kendiliğinden onaylanacak türler",
+    turAciklama: {
+      arac: "Komut, dosya ve ağ çağrıları",
+      ise_alim: "CEO'nun kadro teklifleri",
+      birlestirme: "İncelenmiş dalın çalışma dalına girmesi",
+      genel: "Kurula sorulan sorular",
+      anayasa: "Ana yasa önerileri",
+      isten_cikarma: "Ekipten çıkarma teklifleri",
+      teslim: "Biten işin kabulü",
+    } as Record<OnayTuru, string>,
+    aciklama: "Soru ve teslim sizin cevabınızı ister; bu yüzden varsayılan olarak kapsam dışıdır.",
+    varsayilan: "Varsayılana dön",
+    /** turler: dile göre birleştirilmiş tür adları ("İşe alım, Birleştirme ve Ana yasa") */
+    uyari: (turler: string) => `Otomatik onay açık: ${turler} onayları kendiliğinden veriliyor. Her biri Geçmiş'te kayıtlı.`,
+    uyariBos: "Otomatik onay açık ama kapsam boş; hiçbir onay kendiliğinden verilmiyor.",
+    kapat: "Otomatik onayı kapat",
+    acildi: (n: number) =>
+      n ? `Otomatik onay açık. Kapsamdaki ${n} bekleyen onay hemen veriliyor.` : "Otomatik onay açık. Kapsamdaki yeni onaylar kendiliğinden verilecek.",
+    kapandi: "Otomatik onay kapandı. Onaylar yine sizi bekler.",
+    kapsamGuncellendi: "Otomatik onay kapsamı güncellendi.",
+  },
 };

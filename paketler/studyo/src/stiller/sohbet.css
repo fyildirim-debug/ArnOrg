@@ -1,1 +1,1211 @@
-/* Karargâh sohbeti, canlı kanal akışı, kurula açılır pencereler, teslim testi */
+/* Karargâh sohbeti, canlı kanal akışı, kurula açılır pencereler, teslim testi, otomatik onay ve yeni onay türleri.
+   FY dili: kart, balon ve gölge yok; ayrım kıl çizgi, ton ve tipografiyle. Tek yazılmış an önemli an penceresinin
+   girişi; mesajlar yalnız gelişlerini hafifçe belli eder. Hareket azaltılmışsa temel.css hepsini söndürür. */
+
+/* ---------- Karargâh: CEO ile sohbet + kanallardan canlı ---------- */
+.karargah-sohbet {
+  container: karargah-sohbet / inline-size;
+  margin-bottom: var(--b-8);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.karargah-sohbet-ic {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(15.5rem, 1fr);
+  height: clamp(30rem, calc(100dvh - 13rem), 46rem);
+}
+
+/* İki sütunun ortak başlık şeridi */
+.sohbet-serit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-1) var(--b-3);
+  min-height: 2.875rem;
+  padding: var(--b-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.sohbet-serit h2 {
+  font-size: var(--t-s);
+  font-weight: 600;
+  color: var(--paper);
+}
+.sohbet-kim {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--paper);
+  font-size: var(--t-xs);
+  cursor: pointer;
+}
+.sohbet-kim:hover b {
+  color: var(--coral-hi);
+}
+.sohbet-kanal {
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.sohbet-pencere {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.sohbet-durum {
+  list-style: none;
+  padding: var(--b-3) 0;
+}
+.sohbet-durum .bos {
+  padding: var(--b-4) 0;
+}
+
+/* ---------- CEO ile bire bir ---------- */
+.ceo-sohbet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding-right: var(--b-6);
+  border-right: 1px solid var(--line);
+}
+.sohbet-liste {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  padding: var(--b-3) var(--b-2) var(--b-4) 0;
+}
+.sohbet-liste:focus-visible,
+.akis-liste:focus-visible,
+.mesajlar:focus-visible {
+  outline-offset: -2px;
+}
+.sohbet-gun + .sohbet-gun {
+  margin-top: var(--b-3);
+}
+.sohbet-grup {
+  list-style: none;
+  display: grid;
+}
+.sohbet-mesaj {
+  display: grid;
+  gap: 0 0.75rem;
+  padding: 0.875rem 0 0.125rem;
+}
+.sohbet-devam {
+  padding-top: 0.625rem;
+}
+.sohbet-ajan {
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+}
+.sohbet-av {
+  padding-top: 0.125rem;
+}
+.sohbet-govde {
+  min-width: 0;
+}
+.sohbet-ust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 0.5rem;
+  margin-bottom: 0.125rem;
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+.sohbet-ust b,
+.sohbet-ad {
+  color: var(--paper);
+  font-size: var(--t-s);
+  font-weight: 600;
+}
+.sohbet-ad {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: color var(--hiz) ease;
+}
+.sohbet-ad:hover {
+  color: var(--coral-hi);
+}
+.sohbet-ust time {
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+}
+.sohbet-metin {
+  max-width: 66ch;
+  color: var(--paper);
+  font-size: var(--t-s);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+/* Kurul: sağda, kâğıt tonunda; tek kıl çizgiyle CEO'dan ayrılır */
+.sohbet-kurul {
+  justify-items: end;
+  padding-left: 14%;
+}
+.sohbet-kurul .sohbet-govde {
+  max-width: 60ch;
+  padding-right: 0.875rem;
+  border-right: 1px solid var(--line-hover);
+}
+.sohbet-kurul .sohbet-ust {
+  justify-content: flex-end;
+}
+.sohbet-kurul .sohbet-metin {
+  color: var(--bone);
+}
+/* ArnOrg'un sohbet içindeki duyurusu: iki ince çizgi arasında tek satır */
+.sohbet-sistem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.625rem;
+  margin: 0.75rem 0;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+}
+.sohbet-sistem time {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.sohbet-sistem-imza,
+.kb-imza {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--r-1);
+  background: var(--coral);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+/* Bir bildirime yanıtta yanıtlanan konu (Kanallar'daki .mesaj p kuralını da geçer) */
+.mesaj-alinti,
+.mesaj p.mesaj-alinti {
+  margin: 0.125rem 0 0.375rem;
+  padding-left: 0.625rem;
+  border-left: 1px solid var(--line-hover);
+  color: var(--muted);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Yazma alanı */
+.sohbet-yaz {
+  display: grid;
+  gap: 0.375rem;
+  padding: var(--b-3) 0 var(--b-3);
+  border-top: 1px solid var(--line);
+}
+.sohbet-yaz-satir {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--b-2);
+}
+.sohbet-yaz-satir > .dugme {
+  height: 2.5rem;
+}
+.sohbet-yanit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-left: 0.625rem;
+  border-left: 1px solid var(--coral-cizgi);
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.sohbet-ipucu {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.sohbet-ceosuz {
+  padding: var(--b-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+/* Hazırlık görüşmesi çağrısı ve durum satırı */
+.hazirlik {
+  display: grid;
+  gap: var(--b-3);
+  padding: var(--b-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.hazirlik-metin {
+  max-width: 64ch;
+  color: var(--bone);
+  font-size: var(--t-xs);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.hazirlik-metin b {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--paper);
+  font-size: var(--t-m);
+  font-weight: 600;
+}
+.hazirlik-eylem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--b-2);
+}
+.hazirlik-suruyor {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+.hazirlik-suruyor i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  transform: translateY(-1px);
+  animation: nabiz 1.8s ease-in-out infinite;
+}
+
+/* ---------- Yazıyor göstergesi ---------- */
+.yaziyor {
+  display: grid;
+  align-content: center;
+  gap: 0.125rem;
+  min-height: 1.75rem;
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.yaziyor-satir {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.yaziyor-nokta,
+.kanal-yaziyor {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.yaziyor-nokta i,
+.kanal-yaziyor i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--coral);
+  animation: yaziyor 1.2s ease-in-out infinite;
+}
+.yaziyor-nokta i:nth-child(2),
+.kanal-yaziyor i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.yaziyor-nokta i:nth-child(3),
+.kanal-yaziyor i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes yaziyor {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.sohbet-yaziyor {
+  padding-left: 2.25rem;
+}
+
+/* ---------- Yeni mesaj düğmesi ---------- */
+.yeni-mesaj-dugme {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--coral-cizgi);
+  border-radius: 999px;
+  background: var(--ink-2);
+  color: var(--paper);
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: yeni-mesaj-gir var(--hiz-yavas) var(--egri);
+  transition:
+    border-color var(--hiz) ease,
+    color var(--hiz) ease;
+}
+.yeni-mesaj-dugme svg {
+  color: var(--coral);
+}
+.yeni-mesaj-dugme:hover {
+  border-color: var(--coral);
+  color: var(--coral-hi);
+}
+@keyframes yeni-mesaj-gir {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+
+/* Mesajların gelişi: yalnız sonradan düşenler, kısa ve hafif */
+.sohbet-yeni,
+.mesaj-yeni,
+.akis-yeni {
+  animation: mesaj-gir 420ms var(--egri) both;
+}
+@keyframes mesaj-gir {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+}
+
+/* ---------- Kanallardan canlı akış ---------- */
+.kanal-akisi {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding-left: var(--b-5);
+}
+.akis-baglanti {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.akis-baglanti i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.akis-bagli {
+  color: var(--ok);
+}
+.akis-baglaniyor {
+  color: var(--warn);
+}
+.akis-baglaniyor i {
+  animation: nabiz 1s ease-in-out infinite;
+}
+.akis-kopuk {
+  color: var(--sil);
+}
+.akis-tumu {
+  margin: -0.25rem -0.25rem -0.25rem auto;
+}
+.akis-liste {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  padding: var(--b-2) var(--b-1) var(--b-2) 0;
+}
+.akis-satir {
+  list-style: none;
+}
+.akis-satir + .akis-satir {
+  border-top: 1px solid var(--line-soft);
+}
+.akis-dugme {
+  display: grid;
+  gap: 0.1875rem;
+  width: 100%;
+  padding: 0.5625rem 0.375rem;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--hiz) ease;
+}
+.akis-dugme:hover {
+  background: var(--ink-2);
+}
+.akis-dugme:focus-visible {
+  outline-offset: -2px;
+}
+.akis-ust {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: var(--t-xs);
+}
+.akis-kanal {
+  flex: none;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.akis-dugme:hover .akis-kanal {
+  color: var(--coral-hi);
+}
+.akis-kim {
+  color: var(--paper);
+  font-weight: 600;
+}
+.akis-sistem .akis-kim {
+  color: var(--coral-hi);
+}
+.akis-ust time {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.akis-metin {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--bone);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.akis-yaziyor {
+  border-top: 1px solid var(--line);
+}
+
+/* Dar kapta (telefon, ray açık dar pencere): önce sohbet, altında akış */
+@container karargah-sohbet (max-width: 46rem) {
+  .karargah-sohbet-ic {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .ceo-sohbet {
+    height: clamp(26rem, 74dvh, 40rem);
+    padding-right: 0;
+    border-right: 0;
+  }
+  .kanal-akisi {
+    height: 25rem;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .sohbet-kurul {
+    padding-left: 8%;
+  }
+}
+
+/* ---------- Kanallar ekranı: akan liste ---------- */
+.kanal-ic {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+.kanal-pencere {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+.kanal-pencere > .mesajlar {
+  flex: 1;
+  min-width: 0;
+  overscroll-behavior: contain;
+}
+.kanal-yaziyor-satir {
+  padding-left: 3.25rem;
+}
+.kanal-dugme .kanal-yaziyor {
+  margin-left: auto;
+  margin-right: 0.25rem;
+}
+.av-arnorg {
+  border-color: var(--coral);
+  border-radius: var(--r-2);
+  background: var(--coral);
+  color: var(--ink);
+}
+.mesaj-arnorg .mesaj-ust small {
+  color: var(--coral-hi);
+}
+.mesaj-arnorg .zengin p {
+  color: var(--bone);
+}
+
+/* ---------- Önemli an pencereleri ---------- */
+.kurul-bildirimleri {
+  position: fixed;
+  top: calc(var(--ust-yukseklik) + 0.75rem);
+  right: 1rem;
+  /* Çekmecenin perdesinin (60) altında: modal açıkken onun ardında kalır */
+  z-index: 55;
+  display: grid;
+  gap: 0.5rem;
+  width: min(23rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.kb-yigin {
+  display: grid;
+  gap: 0.5rem;
+}
+.kb-genis .kb-yigin {
+  max-height: calc(100dvh - var(--ust-yukseklik) - 5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+.kb {
+  position: relative;
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.875rem 1rem 0.9375rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--ink-2);
+  overflow: hidden;
+  pointer-events: auto;
+  animation: kb-gir 560ms var(--egri) both;
+}
+/* Üst kıl çizgi: dikkat isteyen türlerde mercan, giriş anında soldan sağa çizilir */
+.kb::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+}
+.kb-eylemli::before {
+  background: var(--coral);
+  animation: kb-cizgi 760ms var(--egri) 140ms both;
+}
+@keyframes kb-gir {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+    clip-path: inset(0 0 0 100% round var(--r-3));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0 round var(--r-3));
+  }
+}
+@keyframes kb-cizgi {
+  from {
+    transform: scaleX(0);
+  }
+}
+.kb-ust {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: -0.3125rem -0.5rem 0 0;
+}
+.kb-tur {
+  min-width: 0;
+  color: var(--coral);
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.kb-oneri .kb-tur,
+.kb-bilgi .kb-tur {
+  color: var(--bone);
+}
+.kb-uyari .kb-tur {
+  color: var(--warn);
+}
+.kb-alt-tur {
+  color: var(--muted);
+  font-weight: 400;
+}
+.kb-ust time {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.kb-kim {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.kb-kim b {
+  color: var(--paper);
+  font-weight: 600;
+}
+.kb-baslik {
+  color: var(--paper);
+  font-size: var(--t-m);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.kb-metin {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--bone);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.kb-metin-acik {
+  display: block;
+  max-height: 40vh;
+  overflow-y: auto;
+  -webkit-line-clamp: unset;
+}
+.kb-devami {
+  justify-self: start;
+  font-size: var(--t-2xs);
+}
+.kb-sonuc {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kb-sonuc-onaylandi {
+  color: var(--ok);
+}
+.kb-sonuc-reddedildi {
+  color: var(--sil);
+}
+.kb-eylem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  margin-top: 0.375rem;
+}
+.kb-onaylar {
+  margin-left: auto;
+  font-size: var(--t-2xs);
+}
+.kb-ret {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+}
+.kb-masaustu {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+.kb-masaustu .kb-eylem {
+  margin-top: 0.125rem;
+}
+.kb-alt {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.kb-alt-dugme {
+  height: 1.625rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--ink-2);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    color var(--hiz) ease,
+    border-color var(--hiz) ease;
+}
+.kb-alt-dugme:hover {
+  border-color: var(--line-hover);
+  color: var(--paper);
+}
+@media (max-width: 520px) {
+  .kurul-bildirimleri {
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    width: auto;
+  }
+}
+
+/* ---------- Teslim testi (çekmece) ---------- */
+.test-paneli {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-6);
+}
+.test-kimlik {
+  display: grid;
+  gap: 0.5rem;
+}
+.test-kimlik h3 {
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+.test-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  color: var(--muted);
+  font-size: var(--t-xs);
+}
+.test-meta-etiket {
+  color: var(--muted-2);
+}
+.test-meta code {
+  color: var(--bone);
+}
+.test-sonuc {
+  color: var(--warn);
+  font-size: var(--t-xs);
+}
+.test-bolum {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-3);
+}
+.test-bolum-baslik {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.test-bolum-baslik small {
+  color: var(--muted-2);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.test-ozet {
+  max-width: 62ch;
+  color: var(--bone);
+  font-size: var(--t-s);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.test-not {
+  font-size: var(--t-xs);
+}
+.test-adimlari {
+  list-style: none;
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.test-adimlari li {
+  border-bottom: 1px solid var(--line);
+}
+.test-adim {
+  display: grid;
+  grid-template-columns: auto 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.625rem;
+  padding: 0.6875rem 0.25rem;
+  color: var(--paper);
+  font-size: var(--t-s);
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background-color var(--hiz) ease;
+}
+.test-adim:hover {
+  background: var(--ink-2);
+}
+.test-adim input {
+  transform: translateY(2px);
+}
+.test-adim-no {
+  color: var(--muted-2);
+  font-size: var(--t-xs);
+}
+.test-adim-tamam .test-adim-metin {
+  color: var(--muted);
+}
+.test-komut {
+  margin: 0;
+  color: var(--bone);
+}
+.test-terminal-durum {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+.test-terminal-durum i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-2);
+}
+.test-terminal-acik i {
+  background: var(--ok);
+}
+.test-terminal-aciliyor i {
+  background: var(--warn);
+  animation: nabiz 1s ease-in-out infinite;
+}
+.test-cikti {
+  height: 15rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--bone);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.test-cikti-bos {
+  display: grid;
+  place-items: center;
+  color: var(--muted-2);
+  text-align: center;
+  white-space: normal;
+}
+.test-girdi {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.test-girdi-istem {
+  color: var(--coral);
+  font-weight: 600;
+}
+.test-adres {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.test-adres code {
+  color: var(--bone);
+}
+.cekmece-alt .teslim-karar {
+  flex: 1;
+}
+.teslim-karar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-3);
+}
+.teslim-not {
+  display: grid;
+  gap: 0.375rem;
+}
+.teslim-not label {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Onaylar: otomatik onay ---------- */
+.onay-baslik-eylem {
+  align-items: flex-start;
+}
+.oto-onay {
+  display: grid;
+  justify-items: start;
+  gap: 0.3125rem;
+  max-width: 100%;
+}
+.oto-onay-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.375rem;
+}
+.oto-onay-kutu {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  color: var(--paper);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color var(--hiz) ease,
+    background-color var(--hiz) ease;
+}
+.oto-onay-kutu:hover {
+  border-color: var(--line-hover);
+}
+.oto-onay-kutu:has(input:focus-visible) {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+.oto-onay-kutu input:focus-visible {
+  outline: none;
+}
+.oto-onay-acik .oto-onay-kutu {
+  border-color: var(--coral-cizgi);
+  background: var(--coral-zemin);
+}
+.oto-onay-ipucu {
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.45;
+}
+.oto-kapsam {
+  position: relative;
+}
+.oto-kapsam-dugme .sayi {
+  color: var(--paper);
+}
+.oto-kapsam-panel {
+  display: grid;
+  gap: 0.5rem;
+  width: min(21rem, calc(100vw - 2rem));
+  padding: 0.75rem;
+}
+.oto-kapsam-baslik {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.oto-kapsam-panel ul {
+  list-style: none;
+  display: grid;
+}
+.oto-tur {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.375rem;
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+.oto-tur:hover {
+  background: var(--ink-3);
+}
+.oto-tur input {
+  transform: translateY(2px);
+}
+.oto-tur-metin {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+.oto-tur-metin b {
+  color: var(--paper);
+  font-size: var(--t-xs);
+  font-weight: 500;
+}
+.oto-tur-metin small {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.oto-kapsam-aciklama {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+.oto-kapsam-panel > .metin-dugme {
+  justify-self: start;
+  font-size: var(--t-2xs);
+}
+.oto-uyari {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: calc(-1 * var(--b-2)) 0 var(--b-5);
+  padding: 0 0 var(--b-3);
+  border-bottom: 1px solid var(--coral-cizgi);
+  color: var(--bone);
+  font-size: var(--t-xs);
+  animation: acilir-gir var(--hiz-yavas) var(--egri);
+}
+.oto-uyari p {
+  flex: 1 1 22rem;
+  min-width: 0;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.oto-isik {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+
+/* "Onaylar'da aç" ile gelinen onay kısa süre vurgulanır */
+.onay-vurgulu {
+  animation: onay-vurgu 2.2s var(--egri) both;
+}
+@keyframes onay-vurgu {
+  0%,
+  35% {
+    background: var(--coral-zemin);
+    box-shadow: inset 0 1px 0 var(--coral);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 0 1px 0 transparent;
+  }
+}
+/* Hareket azaltılmışsa vurgu sönerek değil, durduğu sürece sabit görünür */
+@media (prefers-reduced-motion: reduce) {
+  .onay-vurgulu {
+    animation: none;
+    background: var(--coral-zemin);
+    box-shadow: inset 0 1px 0 var(--coral);
+  }
+}
+
+/* ---------- Onaylar: ana yasa maddeleri ---------- */
+.anayasa-maddeler {
+  list-style: none;
+  display: grid;
+  max-width: 70ch;
+  border-top: 1px solid var(--line-soft);
+}
+.anayasa-madde {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.anayasa-no {
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+.anayasa-icerik {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.anayasa-baslik {
+  color: var(--paper);
+  font-size: var(--t-s);
+  font-weight: 600;
+}
+.anayasa-metin {
+  color: var(--bone);
+  font-size: var(--t-s);
+  line-height: 1.6;
+}
+.anayasa-kural {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.875rem;
+  margin-top: 0.25rem;
+  font-size: var(--t-xs);
+}
+.anayasa-kural-ad {
+  color: var(--coral);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.anayasa-kural dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+.anayasa-kural dl > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.anayasa-kural dt {
+  color: var(--muted-2);
+}
+.anayasa-kural dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--paper);
+}
+.anayasa-desenler {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.anayasa-desenler code {
+  padding: 0 0.3em;
+  border-radius: var(--r-1);
+  background: var(--ink-3);
+  color: var(--bone);
+  overflow-wrap: anywhere;
+}
+.anayasa-karar-ret {
+  color: var(--sil);
+}
+.anayasa-karar-sor {
+  color: var(--warn);
+}
+.anayasa-talimat {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}

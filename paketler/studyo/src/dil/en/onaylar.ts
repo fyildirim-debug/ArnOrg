@@ -109,9 +109,59 @@ export const onaylar: typeof tr = {
     girdi: "Input",
     kural: "Rule",
     aracKimligi: "Call ID",
+    maddeler: "Articles",
+    ayrilan: "Leaving",
+    devralanId: "Takes over",
+    testAdimlari: "Test steps",
+    calistir: "Run",
+    adres: "Address",
+    baslik: "Title",
   },
   dosya: (n: number) => `${n} ${n === 1 ? "file" : "files"}`,
   rolVarsayilani: "role default",
   karakterOtomatik: "Automatic · picked by role",
   secenekIpucu: "Write your pick in the note; it goes to the agent as the answer.",
+
+  anayasa: {
+    kural: "Machine rule",
+    hedefEtiketi: "Target",
+    hedef: { komut: "Command", yol: "File path", url: "URL", arac: "Tool" },
+    desen: (n: number) => (n === 1 ? "Pattern" : "Patterns"),
+    kararEtiketi: "Decision",
+    karar: { ret: "Rejected", sor: "Asks the board" },
+    yalnizTalimat: "Instruction only · no machine rule",
+  },
+  devralanYok: "Their manager takes over",
+
+  oto: {
+    etiket: "Auto-approve",
+    ipucuKapali: (n: number) =>
+      n
+        ? `Tick it and ${n === 1 ? "the pending approval" : `the ${n} pending approvals`} in scope ${n === 1 ? "is" : "are"} granted right away.`
+        : "Tick it and approvals in scope are granted automatically.",
+    ipucuAcik: "Approvals in scope are granted automatically.",
+    kapsam: "Scope",
+    kapsamSayisi: (n: number, toplam: number) => `${n}/${toplam}`,
+    kapsamEtiketi: "Types granted automatically",
+    turAciklama: {
+      arac: "Commands, file and network calls",
+      ise_alim: "The CEO's hiring proposals",
+      birlestirme: "Reviewed branches going into the working branch",
+      genel: "Questions to the board",
+      anayasa: "Constitution proposals",
+      isten_cikarma: "Proposals to let someone go",
+      teslim: "Accepting finished work",
+    },
+    aciklama: "Questions and deliveries need your answer, so they're out of scope by default.",
+    varsayilan: "Reset to default",
+    uyari: (turler: string) => `Auto-approve is on: ${turler} approvals are granted automatically. Each one is recorded in History.`,
+    uyariBos: "Auto-approve is on, but the scope is empty; nothing is granted automatically.",
+    kapat: "Turn off auto-approve",
+    acildi: (n: number) =>
+      n
+        ? `Auto-approve is on. ${n === 1 ? "The pending approval" : `${n} pending approvals`} in scope ${n === 1 ? "is" : "are"} being granted now.`
+        : "Auto-approve is on. New approvals in scope will be granted automatically.",
+    kapandi: "Auto-approve is off. Approvals wait for you again.",
+    kapsamGuncellendi: "Auto-approve scope updated.",
+  },
 };

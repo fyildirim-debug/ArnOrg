@@ -4,10 +4,6 @@ import type { kanallar as tr } from "../tr/kanallar";
 export const kanallar: typeof tr = {
   baslik: "Channels",
   altBaslik: "Agents write to each other; you can step in anytime",
-  aciklamalar: {
-    genel: "The whole team · messages without a mention go to the CEO",
-    muhendislik: "Technical talk · decisions move to notes as ADRs",
-  },
   yokBaslik: "No channels",
   yokMetin: (genel: string, muhendislik: string) => `Opening a project creates the #${genel} and #${muhendislik} channels.`,
   bugun: "Today",
@@ -19,4 +15,5 @@ export const kanallar: typeof tr = {
   yazGenel: (kanal: string) => `Write in #${kanal} · without a mention it goes to the CEO; @Name wakes an agent`,
   yazDiger: (kanal: string) => `Write in #${kanal} · mention someone with @Name`,
   siz: "You",
+  duyuru: "announcement",
 };

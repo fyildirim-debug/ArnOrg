@@ -1,4 +1,130 @@
 // Karargâh: CEO ile bire bir sohbet, kanallardan canlı akış, kurula açılır pencereler, teslim testi (İngilizce)
 import type { sohbet as tr } from "../tr/sohbet";
 
-export const sohbet: typeof tr = {};
+export const sohbet: typeof tr = {
+  yaziyor: (adlar: string[]) =>
+    adlar.length <= 1
+      ? `${adlar[0] ?? "Someone"} is typing`
+      : adlar.length === 2
+        ? `${adlar[0]} and ${adlar[1]} are typing`
+        : `${adlar[0]}, ${adlar[1]} and ${adlar.length - 2} ${adlar.length - 2 === 1 ? "other" : "others"} are typing`,
+  kanaldaYaziyor: (ad: string, kanal: string) => `${ad} is typing in #${kanal}`,
+  yeniMesaj: (n: number) => `${n} new ${n === 1 ? "message" : "messages"}`,
+  enAlta: "Jump to the latest message",
+
+  ceo: {
+    baslik: "With the CEO",
+    etiket: "One-on-one with the CEO",
+    kanal: (kanal: string) => `#${kanal} · one-on-one`,
+    yer: (ad: string) => `Write to ${ad}…`,
+    yazEtiketi: (ad: string) => `Message ${ad}`,
+    ipucu: "Enter sends · Shift+Enter for a new line",
+    bos: (ad: string) => `You haven't talked to ${ad} yet`,
+    bosMetin:
+      "This is just between you and the CEO. Write your goal, priority or question in plain words; the CEO answers here and hands the work to the team through the channels.",
+    ceoYok: "No CEO",
+    ceoYokMetin: "This project has no CEO agent. Hire someone with the CEO role from the Team screen and the conversation opens here.",
+    alinamadi: "Couldn't load the conversation.",
+    siz: "You",
+    yanit: (baslik: string) => `Replying to · ${baslik}`,
+    yanitKaldir: "Remove the reply context",
+  },
+
+  hazirlik: {
+    etiket: "Kickoff",
+    baslik: "The kickoff conversation is waiting",
+    metin: (ad: string) =>
+      `Before starting, ${ad} wants to talk through the project's goal, rules and first team with you. It happens in this conversation, one question at a time; at the end a constitution proposal comes to you for approval.`,
+    baslat: "Start the kickoff",
+    atla: "Skip",
+    atlaIpucu: "Work starts without the conversation; you can write to the CEO here anytime.",
+    suruyor: (ad: string) => `Kickoff in progress: ${ad} asks, you answer. At the end a constitution proposal comes to you for approval.`,
+    atlandi: "Kickoff skipped. You can write to the CEO in this conversation anytime.",
+  },
+
+  akis: {
+    baslik: "Live from the channels",
+    etiket: "Latest messages in the channels",
+    baglanti: { bagli: "live", baglaniyor: "connecting", kopuk: "offline" },
+    bos: "The channels are quiet",
+    bosMetin: "Messages flow in here as agents write to each other and ArnOrg announces that work has started.",
+    alinamadi: "Couldn't load channel messages.",
+    kanalaGit: (kanal: string) => `Open #${kanal}`,
+    tumu: "Go to Channels",
+  },
+
+  bildirim: {
+    etiket: "Key moments",
+    tur: {
+      onay: "Approval",
+      oneri: "Suggestion",
+      istek: "Request",
+      yetki: "Permission",
+      teslim: "Delivery",
+      bilgi: "Update",
+      uyari: "Warning",
+    },
+    devami: "Show more",
+    kisalt: "Show less",
+    onaylardaAc: "Open in Approvals",
+    denetimdeAc: "Decide in Audit",
+    testEt: "Test it",
+    yanitYaz: "Reply to the CEO",
+    kapat: "Dismiss",
+    hepsiniKapat: "Dismiss all",
+    daha: (n: number) => `+${n} more`,
+    daralt: "Collapse",
+    retNotu: "Rejection note",
+    retYer: "Why? Optional; sent to the agent",
+    sonuc: (durum: string, saat: string) => `${durum} · ${saat}`,
+    masaustu: {
+      soru: "Should I also let you know while the window is in the background?",
+      izinVer: "Allow desktop notifications",
+      simdiDegil: "Not now",
+      acildi: "Desktop notifications are on. Key moments also arrive as system notifications while the window is in the background.",
+      reddedildi: "Desktop notifications weren't allowed. You can turn them on in your browser or system settings.",
+    },
+  },
+
+  test: {
+    baslik: "Test the delivery",
+    teslimEden: "Delivered by",
+    dal: "Branch",
+    ozet: "Summary",
+    adimlar: "Test steps",
+    adimSayisi: (bitti: number, toplam: number) => `${bitti}/${toplam} ${toplam === 1 ? "step" : "steps"}`,
+    adimYok: "The delivery has no test steps; try it with the command below.",
+    komut: "Command",
+    komutYok: "The delivery has no command to run.",
+    calistir: "Run",
+    yenidenCalistir: "Run again",
+    calistirIpucu: "Opens a terminal in the main repository and runs the command",
+    durdur: "Stop",
+    durdurIpucu: "Interrupts the running command (Ctrl+C)",
+    terminaliKapat: "Close terminal",
+    cikti: "Output",
+    ciktiBos: "Press Run and the command's output streams here.",
+    terminal: {
+      kapali: "Terminal closed",
+      aciliyor: "Opening terminal…",
+      acik: "Terminal open · main repository",
+      kapandi: "Terminal closed",
+    },
+    terminalHata: (hata: string) => `Couldn't open the terminal: ${hata}`,
+    girdi: "Type into the terminal",
+    girdiYer: "Command or answer · Enter sends",
+    adres: "Address",
+    ac: "Open in browser",
+    kabul: "Accept",
+    geriBildirim: "Send feedback",
+    notEtiketi: "Feedback",
+    notYer: (ad: string) => `What didn't work, and what did you expect? Your note goes to ${ad} as work.`,
+    notGerekli: "Write what didn't work to send feedback.",
+    isaretsiz: (n: number) => `${n} ${n === 1 ? "step isn't" : "steps aren't"} checked.`,
+    kabulEdildi: (baslik: string) => `${baslik}: delivery accepted.`,
+    geriBildirimGitti: (ad: string) => `Your feedback went to ${ad} as work.`,
+    bulunamadi: "Delivery not found",
+    bulunamadiMetin: "This delivery isn't in the list. If the project changed or it was decided, check Approvals.",
+    sonuclandi: (durum: string) => `This delivery has been decided: ${durum}.`,
+  },
+};
