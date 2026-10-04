@@ -23,8 +23,9 @@ function argumanlariOku(argv: string[]) {
     const deger = argv[i + 1];
     if (a === "--port" && deger) (sonuc.port = Number(deger)), i++;
     else if (a === "--host" && deger) (sonuc.host = deger), i++;
-    else if (a === "--veri" && deger) (sonuc.veri = deger), i++;
-    else if (a === "--studyo" && deger) (sonuc.studyo = deger), i++;
+    // Göreli dizinler çalışılan dizine göre çözülür (Stüdyo'yu sunan katman mutlak yol ister)
+    else if (a === "--veri" && deger) (sonuc.veri = path.resolve(deger)), i++;
+    else if (a === "--studyo" && deger) (sonuc.studyo = path.resolve(deger)), i++;
     else if (a === "--izinli-host" && deger) sonuc.izinliHostlar.push(deger), i++;
   }
   return sonuc;
