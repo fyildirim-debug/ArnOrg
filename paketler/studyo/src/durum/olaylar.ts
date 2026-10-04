@@ -1,5 +1,5 @@
 // Sunucu olaylarını (WS /ws) depoya artımlı uygular
-import { KURUL, type SunucuOlayi } from "@arnorg/ortak";
+import { KURUL, type MasaustuKoprusu, type SunucuOlayi } from "@arnorg/ortak";
 import { CanliBaglanti } from "../api/canli";
 import { sozluk } from "../dil";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
@@ -270,18 +270,32 @@ function depoyaUygula(olay: SunucuOlayi) {
       return;
 
     case "zeka.guncellendi":
-      zekaOlayiUygula(olay.kural, olay.gunluk);
+      zekaOlayiUygula(olay.kural, olay.gunluk, olay.silinenId);
       return;
   }
 }
 
-/** Pencere arka plandaysa işletim sisteminin bildirimi; izin daha önce verildiyse */
+/** Masaüstü uygulamasının köprüsü; tarayıcıda ve eski sürümlerde yoktur */
+function masaustu(): MasaustuKoprusu | undefined {
+  return (window as Window & { arnorg?: MasaustuKoprusu }).arnorg;
+}
+
+/**
+ * Pencere arka plandaysa: masaüstü uygulamasında görev çubuğu yanıp söner (izin gerekmez); izin verildiyse işletim
+ * sisteminin bildirimi de gelir, tıklanınca pencere öne gelir.
+ */
 function masaustuBildirimi(b: { id: string; baslik: string; metin: string; ajanAd: string }) {
+  if (!document.hidden && document.hasFocus()) return;
+  try {
+    masaustu()?.dikkatCek?.();
+  } catch {
+    // eski masaüstü sürümü
+  }
   try {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    if (!document.hidden && document.hasFocus()) return;
     const n = new Notification(`${b.ajanAd} · ${b.baslik}`, { body: kisalt(b.metin, 180), tag: b.id });
     n.onclick = () => {
+      masaustu()?.oneGetir?.();
       window.focus();
       n.close();
     };
