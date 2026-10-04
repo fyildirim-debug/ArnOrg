@@ -28,8 +28,14 @@
   },
   "devDependencies": {
     "@arnorg/ortak": "*",
+    "@mozilla/readability": "^0.6.0",
     "@types/better-sqlite3": "^9.6.0",
+    "@types/turndown": "^5.0.6",
     "esbuild": "^0.28.2",
-    "tsx": "^4.23.15"
+    "linkedom": "^0.18.13",
+    "tsx": "^4.23.15",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
+    "unpdf": "^1.8.1"
   }
 }
