@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { anahtar, anahtarDinle } from "./api/anahtar";
 import { useDil, useSozluk } from "./dil";
 import { Bildirimler } from "./bilesenler/Bildirimler";
+import { KurulBildirimleri } from "./bilesenler/KurulBildirimleri";
 import { CanliRay } from "./bilesenler/CanliRay";
 import { Iskelet } from "./bilesenler/Durumlar";
 import { Gezinti } from "./bilesenler/Gezinti";
@@ -10,13 +11,14 @@ import { Simge } from "./bilesenler/Simge";
 import { UstCubuk } from "./bilesenler/UstCubuk";
 import { git, hataBildir, PROJESIZ_GORUNUMLER, rayiDegistir, useArayuz, type Gorunum } from "./durum/arayuz";
 import { canliBaglantiyiBaslat, canliBaglantiyiKapat } from "./durum/olaylar";
-import { projeleriYukle, projeVerisiniYukle, sagligiYukle, useVeri } from "./durum/veri";
+import { ayarlariYukle, projeleriYukle, projeVerisiniYukle, sagligiYukle, useVeri } from "./durum/veri";
 import { AjanOturumu } from "./gorunumler/AjanOturumu";
 import { AnahtarGerekli } from "./gorunumler/AnahtarGerekli";
 import { Ayarlar } from "./gorunumler/Ayarlar";
 import { Denetim } from "./gorunumler/Denetim";
 import { Ekip } from "./gorunumler/Ekip";
 import { Hafiza } from "./gorunumler/Hafiza";
+import { IlkKurulum } from "./gorunumler/IlkKurulum";
 import { Kanallar } from "./gorunumler/Kanallar";
 import { Karargah } from "./gorunumler/Karargah";
 import { Notlar } from "./gorunumler/Notlar";
@@ -24,6 +26,7 @@ import { Ofis } from "./gorunumler/Ofis";
 import { Onaylar } from "./gorunumler/Onaylar";
 import { Pano } from "./gorunumler/Pano";
 import { Projeler } from "./gorunumler/Projeler";
+import { Zeka } from "./gorunumler/Zeka";
 import { useMedya } from "./yardimcilar/kancalar";
 
 // Kod ekranı (VS Code tezgâhı) büyük; yalnız ilk açılışta yüklenir
@@ -64,9 +67,12 @@ function Studyo() {
   const [kodAcildi, setKodAcildi] = useState(false);
   const anaRef = useRef<HTMLElement>(null);
 
+  const ayarlar = useVeri((d) => d.ayarlar);
+
   useEffect(() => {
     canliBaglantiyiBaslat();
     void sagligiYukle();
+    void ayarlariYukle();
     projeleriYukle().catch(hataBildir);
     if (useVeri.getState().aktifProjeId) void projeVerisiniYukle();
     return () => canliBaglantiyiKapat();
@@ -105,6 +111,16 @@ function Studyo() {
     </button>
   ) : null;
 
+  // İlk açılış hazırlığı bitmeden (ya da atlanmadan) kabuk gösterilmez
+  if (ayarlar && !ayarlar.kurulumTamam) {
+    return (
+      <>
+        <IlkKurulum />
+        <Bildirimler />
+      </>
+    );
+  }
+
   return (
     <div className="kabuk">
       <UstCubuk rayDugmesi={rayDugmesi} />
@@ -136,6 +152,7 @@ function Studyo() {
         </main>
         {rayGorunur ? <CanliRay kapat={() => (genis ? rayiDegistir(false) : setRayKatman(false))} /> : null}
       </div>
+      <KurulBildirimleri />
       <Bildirimler />
     </div>
   );
@@ -172,6 +189,8 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Denetim />;
     case "onaylar":
       return <Onaylar />;
+    case "zeka":
+      return <Zeka />;
     case "ayarlar":
       return <Ayarlar />;
     case "kod":

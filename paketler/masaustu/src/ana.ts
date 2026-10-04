@@ -20,7 +20,7 @@ import { ayniKokMu } from "./denetimler.js";
 import { guncellemeyiDenetle } from "./guncelleme.js";
 import { disaridaAc, guvenligiKur, oturumAyarlariniKur } from "./guvenlik.js";
 import { Kayit } from "./kayit.js";
-import { DISARIDA_AC_KANALI, DURUM_EYLEMLERI, DURUM_KANALLARI, type DurumBilgisi, type DurumEylemi } from "./kopru.js";
+import { DISARIDA_AC_KANALI, DURUM_EYLEMLERI, DURUM_KANALLARI, KLASOR_SEC_KANALI, type DurumBilgisi, type DurumEylemi } from "./kopru.js";
 import { menuyuKur } from "./menu.js";
 import { pencereDurumunuOku, pencereDurumunuYaz } from "./pencere-durumu.js";
 import { yollariBul } from "./yollar.js";
@@ -301,6 +301,18 @@ function basla(): void {
     else if (eylem === "kayitlari-ac") shell.showItemInFolder(kayit.dosya);
     else app.quit();
   });
+  ipcMain.handle(KLASOR_SEC_KANALI, async (olay, secenek: unknown) => {
+    // Sistemin klasör seçicisi; yalnız çekirdek kökünden yüklenmiş ana pencere isteyebilir
+    const cerceve = olay.senderFrame?.url ?? "";
+    if (olay.sender !== anaPencere?.webContents || !cekirdekKoku || !ayniKokMu(cerceve, cekirdekKoku) || !anaPencere) return null;
+    const s = (secenek && typeof secenek === "object" ? secenek : {}) as { baslik?: unknown; varsayilan?: unknown };
+    const sonuc = await dialog.showOpenDialog(anaPencere, {
+      title: typeof s.baslik === "string" ? s.baslik.slice(0, 120) : "Klasör seç",
+      defaultPath: typeof s.varsayilan === "string" && s.varsayilan ? s.varsayilan : app.getPath("home"),
+      properties: ["openDirectory", "createDirectory", "promptToCreate"],
+    });
+    return sonuc.canceled ? null : (sonuc.filePaths[0] ?? null);
+  });
   ipcMain.handle(DISARIDA_AC_KANALI, (olay, url: unknown) => {
     // Yalnız çekirdek kökünden yüklenmiş ana pencere isteyebilir
     const cerceve = olay.senderFrame?.url ?? "";
@@ -348,17 +360,23 @@ function basla(): void {
       veriKlasorunuAc: () => void shell.openPath(yollar.veri),
       kayitKlasorunuAc: () => shell.showItemInFolder(kayit.dosya),
       hakkinda: () =>
-        void dialog.showMessageBox({
-          type: "info",
-          title: "ArnOrg hakkında",
-          message: `ArnOrg ${SURUM}`,
-          detail:
-            "Claude Code ajanlarından kurulan yazılım şirketi.\n\n" +
-            `Electron ${process.versions.electron}\nChromium ${process.versions.chrome}\nNode.js ${process.versions.node}\n` +
-            `${process.platform}-${process.arch}\n\n© 2026 Furkan YILDIRIM`,
-          buttons: ["Tamam"],
-          icon: simge,
-        }),
+        void dialog
+          .showMessageBox({
+            type: "info",
+            title: "ArnOrg hakkında",
+            message: `ArnOrg ${SURUM}`,
+            detail:
+              "Claude Code ajanlarından kurulan yazılım şirketi.\n\n" +
+              `Electron ${process.versions.electron}\nChromium ${process.versions.chrome}\nNode.js ${process.versions.node}\n` +
+              `${process.platform}-${process.arch}\n\nFurkan YILDIRIM · furkanyildirim.com\n© 2026`,
+            buttons: ["Tamam", "furkanyildirim.com"],
+            defaultId: 0,
+            cancelId: 0,
+            icon: simge,
+          })
+          .then((r) => {
+            if (r.response === 1) void shell.openExternal("https://furkanyildirim.com");
+          }),
     });
     durumPenceresiniGoster();
     cekirdek.baslat();

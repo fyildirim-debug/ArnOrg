@@ -18,6 +18,9 @@ import { onaylar } from "./onaylar";
 import { kod } from "./kod";
 import { kodZekasi } from "./kodZekasi";
 import { ofis } from "./ofis";
+import { kurulum } from "./kurulum";
+import { zeka } from "./zeka";
+import { sohbet } from "./sohbet";
 
 export const tr = {
   genel,
@@ -39,6 +42,9 @@ export const tr = {
   kod,
   kodZekasi,
   ofis,
+  kurulum,
+  zeka,
+  sohbet,
 };
 
 export type Sozluk = typeof tr;

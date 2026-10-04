@@ -13,6 +13,7 @@ export const gezinti: typeof tr = {
     hafiza: "Memory",
     kod: "Code",
     "kod-zekasi": "Code intel",
+    zeka: "Intelligence",
     denetim: "Audit",
     onaylar: "Approvals",
     projeler: "Projects",

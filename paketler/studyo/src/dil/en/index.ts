@@ -19,6 +19,9 @@ import { onaylar } from "./onaylar";
 import { kod } from "./kod";
 import { kodZekasi } from "./kodZekasi";
 import { ofis } from "./ofis";
+import { kurulum } from "./kurulum";
+import { zeka } from "./zeka";
+import { sohbet } from "./sohbet";
 
 export const en: Sozluk = {
   genel,
@@ -40,4 +43,7 @@ export const en: Sozluk = {
   kod,
   kodZekasi,
   ofis,
+  kurulum,
+  zeka,
+  sohbet,
 };

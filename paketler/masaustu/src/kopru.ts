@@ -25,3 +25,6 @@ export const DURUM_KANALLARI = {
 
 /** Ana pencerenin ön yükleme köprüsü kanalı */
 export const DISARIDA_AC_KANALI = "arnorg:disarida-ac";
+
+/** Ana pencerenin sistem klasör seçicisi kanalı */
+export const KLASOR_SEC_KANALI = "arnorg:klasor-sec";

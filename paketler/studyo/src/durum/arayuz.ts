@@ -16,6 +16,7 @@ export type Gorunum =
   | "kod-zekasi"
   | "denetim"
   | "onaylar"
+  | "zeka"
   | "ayarlar";
 
 /** Proje açık olmadan da gösterilebilen ekranlar */
@@ -61,7 +62,7 @@ function yaz(anahtar: string, deger: string) {
   }
 }
 
-const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "kod-zekasi", "denetim", "onaylar", "ayarlar"];
+const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "kod-zekasi", "denetim", "onaylar", "zeka", "ayarlar"];
 const kayitli = oku(DEPO.gorunum) as Gorunum | null;
 
 export const useArayuz = create<ArayuzDurumu>()(() => ({
