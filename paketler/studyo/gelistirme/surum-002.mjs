@@ -490,13 +490,19 @@ export function kur(c) {
   /** Kurulun #yonetim mesajı: hazırlık sürüyorsa sıradaki adım, yoksa CEO'nun kısa yanıtı */
   c.yonetimMesaji((pid, metin) => {
     if (hazirlikIlerle(pid)) return;
-    ceoYazar(
-      pid,
-      "yonetim",
-      metin.length > 80
-        ? ceviri("Not aldım. Ekiple konuşup bugün içinde sana kısa bir plan ve tahmin döneceğim.", "Noted. I'll talk to the team and get back to you today with a short plan and an estimate.")
-        : ceviri(`Anladım: "${metin}". Hemen ilgileniyorum; ilerlemeyi #genel'de görebilirsin.`, `Understood: "${metin}". I'm on it; you can follow the progress in #general.`),
-    );
+    // Kısa, doğal yanıtlar: güvenlik sorusuna gerekçeli cevap, başka soruya söz, gerisine onay
+    const kucuk = metin.toLocaleLowerCase("tr-TR");
+    const yanit = /güvenlik|security/.test(kucuk)
+      ? ceviri(
+          "Evet, şart. Ödeme verisi ve oturum jetonları aynı akıştan geçiyor; denetimsiz canlıya çıkarsak geri dönüşü pahalı olur. Güvenlik uzmanı teklifini Onaylar'a koydum, onaylarsan bu hafta başlar.",
+          "Yes, we do. Payment data and session tokens go through the same flow; going live without an audit would be expensive to undo. I've put a security specialist proposal in Approvals; if you approve, they start this week.",
+        )
+      : metin.trim().endsWith("?")
+        ? ceviri("İyi soru. Ekiple konuşup bugün gerekçesiyle kısa bir yanıt döneceğim.", "Good question. I'll check with the team and get back to you today with a short answer and the reasoning.")
+        : metin.length > 80
+          ? ceviri("Not aldım. Ekiple konuşup bugün içinde sana kısa bir plan ve tahmin döneceğim.", "Noted. I'll talk to the team and get back to you today with a short plan and an estimate.")
+          : ceviri("Tamam, hemen ilgileniyorum; ilerlemeyi #genel'de görebilirsin.", "Okay, I'm on it; you can follow the progress in #general.");
+    ceoYazar(pid, "yonetim", yanit);
   });
 
   // -------------------------------------------------------------------------
