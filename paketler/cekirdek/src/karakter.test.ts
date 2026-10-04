@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { KARAKTERLER, karakterBul, karakterSec } from "@arnorg/ortak/karakterler";
+import { KARAKTERLER, karakterBul, karakterMetni, karakterSec } from "@arnorg/ortak/karakterler";
 import { Depo } from "./depo.js";
 import { OlayYolu } from "./olaylar.js";
 import { kisilikMetni, Sirket } from "./sirket.js";
@@ -22,6 +22,30 @@ describe("karakter kataloğu", () => {
       expect(k.mizac).toHaveLength(3);
       expect(k.sozler.length).toBeGreaterThanOrEqual(3);
       expect(k.roller.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("her karakterin İngilizce metni eksiksiz; ad Türkçesiyle aynı kalır", () => {
+    const turkceHarf = /[çğıöşüÇĞİÖŞÜ]/;
+    for (const k of KARAKTERLER) {
+      const en = k.en;
+      expect(en, k.id).toBeDefined();
+      if (!en) continue;
+      // Ad kimliktir: görsel ve projedeki kayıtlı ajan adı ona bağlı
+      expect(en.ad, k.id).toBe(k.ad);
+      for (const alan of ["lakap", "ozet", "konusma", "calisma", "dikkat"] as const) {
+        expect(en[alan].trim(), `${k.id}.${alan}`).not.toBe("");
+        expect(en[alan], `${k.id}.${alan}`).not.toMatch(turkceHarf);
+      }
+      for (const alan of ["ozet", "konusma", "calisma", "dikkat"] as const) expect(en[alan], `${k.id}.${alan}`).not.toBe(k[alan]);
+      expect(en.mizac, k.id).toHaveLength(3);
+      expect(en.sozler, k.id).toHaveLength(k.sozler.length);
+      for (const m of [...en.mizac, ...en.sozler]) {
+        expect(m.trim(), k.id).not.toBe("");
+        expect(m, k.id).not.toMatch(turkceHarf);
+      }
+      expect(karakterMetni(k, "en")).toBe(en);
+      expect(karakterMetni(k, "tr")).toMatchObject({ ad: k.ad, lakap: k.lakap, sozler: k.sozler });
     }
   });
 

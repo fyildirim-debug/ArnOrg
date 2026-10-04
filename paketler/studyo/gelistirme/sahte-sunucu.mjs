@@ -4,16 +4,17 @@
 //
 //   node paketler/studyo/gelistirme/sahte-sunucu.mjs
 //   PORT=47820 ARNORG_ANAHTAR=gelistirme  (varsayılanlar)
+//   ARNORG_DIL=en  tohum verisi ve canlı metinler İngilizce (dil.mjs, tohum.mjs, *.en.mjs)
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ana, dilBul, katmanlar, listeSurumleri } from "./dosyalar.mjs";
-import * as H from "./hafiza-verisi.mjs";
+import { ceviri, kanalGorunenAdi } from "./dil.mjs";
+import { dilBul } from "./dosyalar.mjs";
 import * as KZ from "./kod-zekasi-verisi.mjs";
-import * as V from "./veri.mjs";
+import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
 const ANAHTAR = process.env.ARNORG_ANAHTAR ?? "gelistirme";
@@ -25,6 +26,8 @@ const sonra = (sn) => new Date(Date.now() + sn * 1000).toISOString();
 let sayac = 100;
 const yeniKimlik = (on) => `${on}-${(sayac++).toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 const kopya = (x) => structuredClone(x);
+/** Ajanların teknik kanalı: Türkçede #muhendislik, İngilizcede #engineering */
+const MUHENDISLIK = kanalAdi("muhendislik");
 
 // ---------------------------------------------------------------------------
 // Durum
@@ -38,7 +41,13 @@ const db = {
   gorevler: kopya(V.gorevler),
   kanallar: kopya(V.kanallar),
   mesajlar: kopya(V.mesajlar),
-  notlar: { "siparis-paneli": kopya(V.notlar), "arnex-web": { "vizyon.md": "# Vizyon\n\nArnex'i anlatan, hızlı ve sade bir site.\n", "mimari.md": "# Mimari\n\nAstro, içerik koleksiyonları.\n" } },
+  notlar: {
+    "siparis-paneli": kopya(V.notlar),
+    "arnex-web": {
+      "vizyon.md": ceviri("# Vizyon\n\nArnex'i anlatan, hızlı ve sade bir site.\n", "# Vision\n\nA fast, simple site that tells the Arnex story.\n"),
+      "mimari.md": ceviri("# Mimari\n\nAstro, içerik koleksiyonları.\n", "# Architecture\n\nAstro, content collections.\n"),
+    },
+  },
   notZamanlari: { "siparis-paneli": kopya(V.notZamanlari), "arnex-web": { "vizyon.md": V.once(60 * 24 * 2), "mimari.md": V.once(60 * 24 * 2) } },
   politika: { "siparis-paneli": kopya(V.politika), "arnex-web": kopya(V.politika).slice(0, 3) },
   denetim: kopya(V.denetim),
@@ -80,9 +89,9 @@ const hesapDurumu = {
   saglayici: "firstParty",
   pencereVar: true,
   pencereler: [
-    { tur: "bes_saat", ad: "5 saatlik pencere", yuzde: 42, sifirlanma: sonra(60 * 112) },
-    { tur: "haftalik", ad: "Haftalık", yuzde: 18, sifirlanma: sonra(60 * 60 * 24 * 4) },
-    { tur: "haftalik_opus", ad: "Haftalık · Opus", yuzde: 9, sifirlanma: sonra(60 * 60 * 24 * 4) },
+    { tur: "bes_saat", ad: ceviri("5 saatlik pencere", "5-hour window"), yuzde: 42, sifirlanma: sonra(60 * 112) },
+    { tur: "haftalik", ad: ceviri("Haftalık", "Weekly"), yuzde: 18, sifirlanma: sonra(60 * 60 * 24 * 4) },
+    { tur: "haftalik_opus", ad: ceviri("Haftalık · Opus", "Weekly · Opus"), yuzde: 9, sifirlanma: sonra(60 * 60 * 24 * 4) },
   ],
   uyari: null,
   hata: null,
@@ -391,7 +400,7 @@ function kullan(ajanId, token) {
 
 function mesajEkle(pid, kanal, gonderenId, metin) {
   const ajanlar = projeAjanlari(pid);
-  const gonderenAd = gonderenId === "kurul" ? "Yönetim kurulu" : (ajanBul(gonderenId)?.ad ?? gonderenId);
+  const gonderenAd = gonderenId === "kurul" ? ceviri("Yönetim kurulu", "Board") : (ajanBul(gonderenId)?.ad ?? gonderenId);
   const anilanlar = ajanlar.filter((a) => new RegExp(`@${a.ad}\\b`, "iu").test(metin)).map((a) => a.id);
   const m = { id: yeniKimlik("m"), projeId: pid, kanal, gonderenId, gonderenAd, metin, anilanlar, zaman: simdi() };
   db.mesajlar.push(m);
@@ -403,7 +412,7 @@ function mesajEkle(pid, kanal, gonderenId, metin) {
 function aracCalistir(ajanId, arac, girdi, sonuc, { ozet, hata = false, karar = "izin", kural = null, token = 1200 } = {}) {
   const kimlik = yeniKimlik("toolu");
   akisEkle(ajanId, { tur: "arac_cagrisi", arac, aracKimligi: kimlik, girdi });
-  denetimEkle(ajanId, arac, ozet ?? JSON.stringify(girdi).slice(0, 80), karar, kural, karar === "ret" ? "Politika" : null);
+  denetimEkle(ajanId, arac, ozet ?? JSON.stringify(girdi).slice(0, 80), karar, kural, karar === "ret" ? ceviri("Politika", "Policy") : null);
   setTimeout(() => {
     akisEkle(ajanId, { tur: "arac_sonucu", aracKimligi: kimlik, metin: sonuc, hata });
     kullan(ajanId, token);
@@ -418,24 +427,55 @@ let listeAdimi = 1;
 const K = V.CALISMA_KOKU;
 
 const sahne = [
-  () => calisiyorsa("kerem", () => aracCalistir("kerem", "Read", { file_path: `${K}/kerem/src/auth/jetonDeposu.ts` }, "// Erişim ve yenileme jetonlarını bellekte… (14 satır)", { ozet: "src/auth/jetonDeposu.ts" })),
+  () =>
+    calisiyorsa("kerem", () =>
+      aracCalistir("kerem", "Read", { file_path: `${K}/kerem/src/auth/jetonDeposu.ts` }, ceviri("// Erişim ve yenileme jetonlarını bellekte… (14 satır)", "// Keeps the access and refresh tokens in memory… (14 lines)"), {
+        ozet: "src/auth/jetonDeposu.ts",
+      }),
+    ),
   () => calisiyorsa("ece", eceDuzenler),
-  () => calisiyorsa("kerem", () => aracCalistir("kerem", "mcp__arnorg__not_yaz", { yol: "kararlar/ADR-004-jeton-yenileme.md", metin: "…" }, "Not güncellendi.", { ozet: "kararlar/ADR-004-jeton-yenileme.md", token: 2400 })),
-  () => calisiyorsa("ece", () => aracCalistir("ece", "Bash", { command: "npm run test -- liste", description: "Liste testlerini çalıştır" }, " ✓ tests/liste.test.tsx (4 tests) 88ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)", { ozet: "npm run test -- liste", kural: "Test komutları" })),
+  () =>
+    calisiyorsa("kerem", () =>
+      aracCalistir("kerem", "mcp__arnorg__not_yaz", { yol: "kararlar/ADR-004-jeton-yenileme.md", metin: "…" }, ceviri("Not güncellendi.", "Note updated."), { ozet: "kararlar/ADR-004-jeton-yenileme.md", token: 2400 }),
+    ),
+  () =>
+    calisiyorsa("ece", () =>
+      aracCalistir(
+        "ece",
+        "Bash",
+        { command: "npm run test -- liste", description: ceviri("Liste testlerini çalıştır", "Run the list tests") },
+        " ✓ tests/liste.test.tsx (4 tests) 88ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)",
+        { ozet: "npm run test -- liste", kural: ceviri("Test komutları", "Test commands") },
+      ),
+    ),
   () =>
     calisiyorsa("ada", () => {
-      akisEkle("ada", { tur: "dusunce", metin: "T-26 incelemeye yaklaşıyor; Onur'un oturumu kapalı. İnceleme sırası için Kerem'e yazmalıyım." });
-      aracCalistir("ada", "mcp__arnorg__mesaj_gonder", { kanal: "muhendislik", metin: "@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?" }, "Mesaj #muhendislik kanalına yazıldı.", { ozet: "#muhendislik · T-26 incelemesi", token: 1800 });
-      setTimeout(() => mesajEkle("siparis-paneli", "muhendislik", "ada", "@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?"), 800);
+      akisEkle("ada", {
+        tur: "dusunce",
+        metin: ceviri("T-26 incelemeye yaklaşıyor; Onur'un oturumu kapalı. İnceleme sırası için Kerem'e yazmalıyım.", "T-26 is close to review and Onur's session is closed. I should ask Kerem about the review order."),
+      });
+      aracCalistir(
+        "ada",
+        "mcp__arnorg__mesaj_gonder",
+        { kanal: MUHENDISLIK, metin: ceviri("@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?", "@Kerem T-26 could go into review today; shall we wake Onur up?") },
+        ceviri("Mesaj #muhendislik kanalına yazıldı.", "Message posted to #engineering."),
+        { ozet: ceviri("#muhendislik · T-26 incelemesi", "#engineering · T-26 review"), token: 1800 },
+      );
+      setTimeout(() => mesajEkle("siparis-paneli", MUHENDISLIK, "ada", ceviri("@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?", "@Kerem T-26 could go into review today; shall we wake Onur up?")), 800);
     }),
   () => calisiyorsa("kerem", () => aracCalistir("kerem", "Grep", { pattern: "yenileniyor", path: `${K}/kerem/src` }, "src/auth/oturum.ts:6:let yenileniyor: Promise<void> | null = null;", { ozet: "\"yenileniyor\" src/" })),
   () =>
     calisiyorsa("ece", () => {
-      aracCalistir("ece", "WebFetch", { url: "https://cdn.example.com/ikonlar.json" }, "ArnOrg politikası reddetti: Ağ erişimi (izinli alan adı değil)", { ozet: "https://cdn.example.com/ikonlar.json", hata: true, karar: "ret", kural: "Ağ erişimi" });
+      aracCalistir("ece", "WebFetch", { url: "https://cdn.example.com/ikonlar.json" }, ceviri("ArnOrg politikası reddetti: Ağ erişimi (izinli alan adı değil)", "Denied by ArnOrg policy: Network access (domain not allowed)"), {
+        ozet: "https://cdn.example.com/ikonlar.json",
+        hata: true,
+        karar: "ret",
+        kural: ceviri("Ağ erişimi", "Network access"),
+      });
     }),
   () =>
     calisiyorsa("kerem", () => {
-      mesajEkle("siparis-paneli", "muhendislik", "kerem", "Evet, Onur'u T-26 için uyandırıyorum. @Ece incelemeye geçince haber ver.");
+      mesajEkle("siparis-paneli", MUHENDISLIK, "kerem", ceviri("Evet, Onur'u T-26 için uyandırıyorum. @Ece incelemeye geçince haber ver.", "Yes, I'm waking Onur up for T-26. @Ece let me know when it moves to review."));
       kullan("kerem", 1200);
     }),
 ];
@@ -457,7 +497,7 @@ function eceDuzenler() {
     db.katmanlar.ece[yol] = yeni;
     zamanlar.set(`ece\0${yol}`, Date.now());
     yay({ tur: "dosya.degisti", projeId: "siparis-paneli", alan: "ece", yol, ajanId: "ece" }, "siparis-paneli");
-    akisEkle("ece", { tur: "arac_sonucu", aracKimligi: kimlik, metin: "Dosya güncellendi." });
+    akisEkle("ece", { tur: "arac_sonucu", aracKimligi: kimlik, metin: ceviri("Dosya güncellendi.", "File updated.") });
     kullan("ece", 1800);
   }, 600);
 }
@@ -470,9 +510,19 @@ setInterval(() => {
 
 // Bekleyen araç çağrıları: süre dolunca reddedilir; karar verilince bir süre sonra yenisi gelir
 const sorulacaklar = [
-  { ajanId: "deniz", arac: "Bash", girdi: { command: "git push origin arnorg/deniz/T-24 --force", description: "Dalı zorla gönder" }, kural: "Dışarı push ve yayın → onaya sor" },
-  { ajanId: "kerem", arac: "WebFetch", girdi: { url: "https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation" }, kural: "Ağ erişimi → onaya sor" },
-  { ajanId: "ece", arac: "Bash", girdi: { command: "npm publish --access public", description: "Bileşen paketini yayınla" }, kural: "Dışarı push ve yayın → onaya sor" },
+  {
+    ajanId: "deniz",
+    arac: "Bash",
+    girdi: { command: "git push origin arnorg/deniz/T-24 --force", description: ceviri("Dalı zorla gönder", "Force-push the branch") },
+    kural: ceviri("Dışarı push ve yayın → onaya sor", "Outbound push and publish → ask for approval"),
+  },
+  { ajanId: "kerem", arac: "WebFetch", girdi: { url: "https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation" }, kural: ceviri("Ağ erişimi → onaya sor", "Network access → ask for approval") },
+  {
+    ajanId: "ece",
+    arac: "Bash",
+    girdi: { command: "npm publish --access public", description: ceviri("Bileşen paketini yayınla", "Publish the component package") },
+    kural: ceviri("Dışarı push ve yayın → onaya sor", "Outbound push and publish → ask for approval"),
+  },
 ];
 let soruAdimi = 0;
 
@@ -514,8 +564,8 @@ setInterval(() => {
     yay({ tur: "onay.sonuc", onay: o }, o.projeId);
     const a = ajanBul(o.ajanId);
     if (a && o.tur === "arac") {
-      akisEkle(a.id, { tur: "arac_sonucu", aracKimligi: o.veri.aracKimligi, metin: "Karar süresi doldu; çağrı reddedildi.", hata: true });
-      denetimEkle(a.id, o.veri.arac, o.baslik, "ret", null, "Süre doldu");
+      akisEkle(a.id, { tur: "arac_sonucu", aracKimligi: o.veri.aracKimligi, metin: ceviri("Karar süresi doldu; çağrı reddedildi.", "The decision window expired; the call was denied."), hata: true });
+      denetimEkle(a.id, o.veri.arac, o.baslik, "ret", null, ceviri("Süre doldu", "Timed out"));
       a.durum = "calisiyor";
       ajanYay(a);
     }
@@ -524,7 +574,10 @@ setInterval(() => {
   }
 }, 1000);
 
-setTimeout(() => yay({ tur: "bildirim", seviye: "uyari", metin: "T-24 20 dakikadır ilerlemiyor; Deniz'e hatırlatıldı.", projeId: "siparis-paneli" }), 25_000);
+setTimeout(
+  () => yay({ tur: "bildirim", seviye: "uyari", metin: ceviri("T-24 20 dakikadır ilerlemiyor; Deniz'e hatırlatıldı.", "T-24 hasn't moved in 20 minutes; Deniz was reminded."), projeId: "siparis-paneli" }),
+  25_000,
+);
 
 // ---------------------------------------------------------------------------
 // Ofis canlandırması: anmalı mesajlar, #toplanti, görev geçişleri, durum değişimleri,
@@ -536,20 +589,38 @@ const OFIS = "siparis-paneli";
 const ofisAjanlari = () => projeAjanlari(OFIS).filter((a) => a.durum !== "kapali");
 const rastgeleSec = (liste) => liste[Math.floor(Math.random() * liste.length)];
 
-const ANMALI = [
-  (a) => `@${a} sipariş listesinde \`sonrakiImlec\` boş gelirse ne gösterelim?`,
-  (a) => `@${a} T-24 testleri yeşil, **422 gövdesine** bir göz atar mısın?`,
-  (a) => `@${a} ADR-005'i güncelledim; imleç alanının adı değişmedi.`,
-  (a) => `@${a} hata kutusundaki metni kısalttım, tasarım sistemine uygun mu?`,
-  (a) => `@${a} CI'da Windows işi 3 dakika uzadı, önbelleği açıyorum. Bir sakıncası var mı?`,
-  (a) => `@${a} durum rozetinin renklerini [taslağa](notlar/tasarim.md) ekledim.`,
-  (a) => `@${a} yarın sabah için kısa bir eşleşme yapalım mı? Kargo entegrasyonunu birlikte bölelim.`,
-];
-const GENEL = [
-  "Sprint panosunu güncelledim; T-27 bağımlılıkları netleşti.",
-  "Kargo firması belgelerini okudum, ilk izlenimler notlarda.",
-  "Kullanım pencereleri rahat; 5 saatlik pencere %50'nin altında.",
-];
+const ANMALI = ceviri(
+  [
+    (a) => `@${a} sipariş listesinde \`sonrakiImlec\` boş gelirse ne gösterelim?`,
+    (a) => `@${a} T-24 testleri yeşil, **422 gövdesine** bir göz atar mısın?`,
+    (a) => `@${a} ADR-005'i güncelledim; imleç alanının adı değişmedi.`,
+    (a) => `@${a} hata kutusundaki metni kısalttım, tasarım sistemine uygun mu?`,
+    (a) => `@${a} CI'da Windows işi 3 dakika uzadı, önbelleği açıyorum. Bir sakıncası var mı?`,
+    (a) => `@${a} durum rozetinin renklerini [taslağa](notlar/tasarim.md) ekledim.`,
+    (a) => `@${a} yarın sabah için kısa bir eşleşme yapalım mı? Kargo entegrasyonunu birlikte bölelim.`,
+  ],
+  [
+    (a) => `@${a} what should the order list show when \`sonrakiImlec\` comes back empty?`,
+    (a) => `@${a} the T-24 tests are green; could you take a look at the **422 body**?`,
+    (a) => `@${a} I updated ADR-005; the cursor field name hasn't changed.`,
+    (a) => `@${a} I shortened the text in the error box; does it fit the design system?`,
+    (a) => `@${a} the Windows job in CI got 3 minutes slower, so I'm turning on the cache. Any objections?`,
+    (a) => `@${a} I added the status badge colors to the [draft](notlar/tasarim.md).`,
+    (a) => `@${a} shall we pair for a bit tomorrow morning? We could split up the shipping integration together.`,
+  ],
+);
+const GENEL = ceviri(
+  [
+    "Sprint panosunu güncelledim; T-27 bağımlılıkları netleşti.",
+    "Kargo firması belgelerini okudum, ilk izlenimler notlarda.",
+    "Kullanım pencereleri rahat; 5 saatlik pencere %50'nin altında.",
+  ],
+  [
+    "I updated the sprint board; the T-27 dependencies are clear now.",
+    "I read the carrier's docs; first impressions are in the notes.",
+    "Usage windows look fine; the 5-hour window is under 50%.",
+  ],
+);
 
 function anmaliMesaj() {
   const ajanlar = ofisAjanlari().filter((a) => a.durum !== "duraklatildi");
@@ -561,30 +632,56 @@ function anmaliMesaj() {
   }
   const alici = rastgeleSec(projeAjanlari(OFIS).filter((a) => a.id !== g.id));
   if (!alici) return;
-  mesajEkle(OFIS, Math.random() < 0.6 ? "muhendislik" : "genel", g.id, rastgeleSec(ANMALI)(alici.ad));
+  mesajEkle(OFIS, Math.random() < 0.6 ? MUHENDISLIK : "genel", g.id, rastgeleSec(ANMALI)(alici.ad));
   // Karşılık
   setTimeout(() => {
     const a = ajanBul(alici.id);
     if (!a || a.durum === "kapali") return;
-    mesajEkle(OFIS, "muhendislik", a.id, rastgeleSec(["Bakıyorum, birazdan dönerim.", `Tamam @${g.ad}, böyle kalsın.`, "Uygun, devam edebilirsin.", "Bir şey eklemem gerek; notlara yazıyorum."]));
+    mesajEkle(
+      OFIS,
+      MUHENDISLIK,
+      a.id,
+      rastgeleSec(
+        ceviri(
+          ["Bakıyorum, birazdan dönerim.", `Tamam @${g.ad}, böyle kalsın.`, "Uygun, devam edebilirsin.", "Bir şey eklemem gerek; notlara yazıyorum."],
+          ["Looking at it, back in a bit.", `OK @${g.ad}, let's keep it that way.`, "Looks good, go ahead.", "I need to add something; writing it up in the notes."],
+        ),
+      ),
+    );
   }, 7000);
 }
 
 // Toplantı: çekirdekteki toplanti_yap ile aynı biçim. Çağıranın #toplanti duyurusu, her katılımcıya
 // "Toplantı (X çağırdı): …" sorusu (soru.guncellendi), yanıt gelince soru kapanır ve yanıt #toplanti'ya düşer
 let toplantiNo = 0;
-const GUNDEMLER = [
-  "Kargo entegrasyonunu nasıl bölelim? Tek firma mı, soyut katman mı?",
-  "Sprint 3 kapanışı: T-26 ve T-27 bu hafta yetişir mi?",
-  "Ödeme öncesi güvenlik denetimi hangi kapsamla yapılsın?",
-  "Sipariş listesinde 500+ satır için sanal kaydırma gerekli mi?",
-];
-const GORUSLER = [
-  "Önce tek firma; arayüzü soyut tutalım, ikinci firma gelince katmanı çıkarırız. Risk: firma API'si sık değişiyor.",
-  "T-26 yetişir; T-27 için T-24'ün 422 gövdesi netleşmeli. Risk: testler Windows'ta yavaş.",
-  "OWASP ASVS düzey 2 yeter; oturum ve jeton akışı öncelikli. Risk: üçüncü taraf betikler.",
-  "Evet, 500 üstünde sanal kaydırma; altında düz tablo. Risk: klavye gezintisi bozulmasın.",
-];
+const GUNDEMLER = ceviri(
+  [
+    "Kargo entegrasyonunu nasıl bölelim? Tek firma mı, soyut katman mı?",
+    "Sprint 3 kapanışı: T-26 ve T-27 bu hafta yetişir mi?",
+    "Ödeme öncesi güvenlik denetimi hangi kapsamla yapılsın?",
+    "Sipariş listesinde 500+ satır için sanal kaydırma gerekli mi?",
+  ],
+  [
+    "How should we split the shipping integration? One carrier, or an abstraction layer?",
+    "Sprint 3 wrap-up: will T-26 and T-27 make it this week?",
+    "What scope should the security audit before payments have?",
+    "Do we need virtual scrolling for 500+ rows in the order list?",
+  ],
+);
+const GORUSLER = ceviri(
+  [
+    "Önce tek firma; arayüzü soyut tutalım, ikinci firma gelince katmanı çıkarırız. Risk: firma API'si sık değişiyor.",
+    "T-26 yetişir; T-27 için T-24'ün 422 gövdesi netleşmeli. Risk: testler Windows'ta yavaş.",
+    "OWASP ASVS düzey 2 yeter; oturum ve jeton akışı öncelikli. Risk: üçüncü taraf betikler.",
+    "Evet, 500 üstünde sanal kaydırma; altında düz tablo. Risk: klavye gezintisi bozulmasın.",
+  ],
+  [
+    "One carrier first; keep the interface abstract and extract the layer when a second carrier comes along. Risk: the carrier's API changes often.",
+    "T-26 will make it; for T-27 the 422 body of T-24 has to be settled first. Risk: the tests are slow on Windows.",
+    "OWASP ASVS level 2 is enough; session and token flows come first. Risk: third-party scripts.",
+    "Yes, virtual scrolling above 500 rows and a plain table below that. Risk: keyboard navigation mustn't break.",
+  ],
+);
 function toplantiMesaji() {
   const ceo = projeAjanlari(OFIS).find((a) => a.rol === "ceo");
   if (!ceo || ceo.durum === "kapali") return;
@@ -593,9 +690,29 @@ function toplantiMesaji() {
   if (!katilimcilar.length) return;
   const n = toplantiNo++;
   const gundem = GUNDEMLER[n % GUNDEMLER.length];
-  mesajEkle(OFIS, "toplanti", ceo.id, `Toplantı: ${gundem}\nKatılımcılar: ${katilimcilar.map((a) => `@${a.ad}`).join(" ")}`);
+  mesajEkle(
+    OFIS,
+    "toplanti",
+    ceo.id,
+    ceviri(`Toplantı: ${gundem}\nKatılımcılar: ${katilimcilar.map((a) => `@${a.ad}`).join(" ")}`, `Meeting: ${gundem}\nParticipants: ${katilimcilar.map((a) => `@${a.ad}`).join(" ")}`),
+  );
   katilimcilar.forEach((a, i) => {
-    const s = { id: yeniKimlik("s"), projeId: OFIS, soranId: ceo.id, soranAd: ceo.ad, soruluId: a.id, soruluAd: a.ad, soru: `Toplantı (${ceo.ad} çağırdı): ${gundem}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk.`, yanit: null, durum: "bekliyor", olusturma: simdi(), yanitlanma: null };
+    const s = {
+      id: yeniKimlik("s"),
+      projeId: OFIS,
+      soranId: ceo.id,
+      soranAd: ceo.ad,
+      soruluId: a.id,
+      soruluAd: a.ad,
+      soru: ceviri(
+        `Toplantı (${ceo.ad} çağırdı): ${gundem}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk.`,
+        `Meeting (called by ${ceo.ad}): ${gundem}\n\nGive your view briefly: your proposal, your reasoning, the risk you see.`,
+      ),
+      yanit: null,
+      durum: "bekliyor",
+      olusturma: simdi(),
+      yanitlanma: null,
+    };
     db.sorular?.unshift(s);
     yay({ tur: "soru.guncellendi", soru: s }, OFIS);
     setTimeout(() => {
@@ -642,13 +759,13 @@ function gorevIlerlet() {
 
 // Durum değişimleri: Mert ve Onur işe girip çıkar, Selin arada çalışır
 const DURUM_AKISI = [
-  ["mert", "calisiyor", "T-27 uçtan uca testler"],
-  ["onur", "calisiyor", "T-19 incelemesi"],
-  ["selin", "calisiyor", "Liste ekranı boş durum çizimi"],
-  ["mert", "bosta", "T-27 için T-24'ü bekliyor"],
-  ["onur", "bosta", "İnceleme bitti"],
-  ["selin", "bosta", "Taslaklar teslim edildi"],
-  ["onur", "kapali", "T-19 düzeltmelerini bekliyor"],
+  ["mert", "calisiyor", ceviri("T-27 uçtan uca testler", "T-27 end-to-end tests")],
+  ["onur", "calisiyor", ceviri("T-19 incelemesi", "T-19 review")],
+  ["selin", "calisiyor", ceviri("Liste ekranı boş durum çizimi", "Drawing the list screen's empty state")],
+  ["mert", "bosta", ceviri("T-27 için T-24'ü bekliyor", "Waiting on T-24 for T-27")],
+  ["onur", "bosta", ceviri("İnceleme bitti", "Review done")],
+  ["selin", "bosta", ceviri("Taslaklar teslim edildi", "Drafts delivered")],
+  ["onur", "kapali", ceviri("T-19 düzeltmelerini bekliyor", "Waiting for the T-19 fixes")],
 ];
 let durumAdimi = 0;
 function durumDegistir() {
@@ -664,9 +781,9 @@ function durumDegistir() {
 
 // İşe alım: bekleyen teklif yoksa CEO yeni aday önerir (kapıda siluet olarak bekler)
 const ADAYLAR = [
-  { ad: "Defne", rol: "tasarim", model: "sonnet", gerekce: "Mobil ekranlar için ikinci tasarımcı; Selin'in yükü fazla." },
-  { ad: "Kaan", rol: "devops", model: "sonnet", gerekce: "Dağıtım hattı ve gözlem için ayrı bir DevOps." },
-  { ad: "Nil", rol: "test", model: "sonnet", gerekce: "Kargo entegrasyonu için ikinci test mühendisi." },
+  { ad: "Defne", rol: "tasarim", model: "sonnet", gerekce: ceviri("Mobil ekranlar için ikinci tasarımcı; Selin'in yükü fazla.", "A second designer for the mobile screens; Selin's workload is too heavy.") },
+  { ad: "Kaan", rol: "devops", model: "sonnet", gerekce: ceviri("Dağıtım hattı ve gözlem için ayrı bir DevOps.", "A dedicated DevOps engineer for the deployment pipeline and monitoring.") },
+  { ad: "Nil", rol: "test", model: "sonnet", gerekce: ceviri("Kargo entegrasyonu için ikinci test mühendisi.", "A second test engineer for the shipping integration.") },
 ];
 let adayNo = 0;
 function isAlimDongusu() {
@@ -704,8 +821,8 @@ function birlestirmeDongusu() {
     ajanId: "onur",
     tur: "birlestirme",
     baslik: `${g.kod} ${g.baslik} → main`,
-    ayrinti: "İnceleme tamam, testler geçti, çakışma yok.",
-    veri: { gorevId: g.id, dal: `arnorg/${g.atananId}/${g.kod}`, hedefDal: "main", dosyaSayisi: 4, eklenen: 126, silinen: 9, testler: "52/52 geçti" },
+    ayrinti: ceviri("İnceleme tamam, testler geçti, çakışma yok.", "Review done, tests passed, no conflicts."),
+    veri: { gorevId: g.id, dal: `arnorg/${g.atananId}/${g.kod}`, hedefDal: "main", dosyaSayisi: 4, eklenen: 126, silinen: 9, testler: ceviri("52/52 geçti", "52/52 passed") },
     durum: "bekliyor",
     olusturma: simdi(),
     sonGecerlilik: null,
@@ -724,7 +841,7 @@ function gozetmen() {
   const g = db.gorevler.find((x) => x.projeId === OFIS && x.durum === "calisiliyor" && x.atananId && ajanBul(x.atananId)?.durum !== "kapali");
   const a = g && ajanBul(g.atananId);
   if (!g || !a) return;
-  yay({ tur: "bildirim", seviye: "uyari", metin: `${g.kod} 20 dakikadır ilerlemiyor; ${a.ad} hatırlatıldı.`, projeId: OFIS });
+  yay({ tur: "bildirim", seviye: "uyari", metin: ceviri(`${g.kod} 20 dakikadır ilerlemiyor; ${a.ad} hatırlatıldı.`, `${g.kod} hasn't moved in 20 minutes; ${a.ad} was reminded.`), projeId: OFIS });
 }
 
 const OFIS_ADIMLARI = [anmaliMesaj, gorevIlerlet, durumDegistir, toplantiMesaji, anmaliMesaj, gorevIlerlet, isAlimDongusu, durumDegistir, anmaliMesaj, birlestirmeDongusu, gozetmen];
@@ -752,7 +869,7 @@ function oturumAc(a) {
   if (a.durum === "kapali" || a.durum === "duraklatildi" || a.durum === "hata") {
     a.durum = "calisiyor";
     a.oturumId ??= `oturum-${a.id}-${crypto.randomBytes(2).toString("hex")}`;
-    akisEkle(a.id, { tur: "sistem", metin: `Oturum açıldı · ${a.dal ?? "ana"} · ${a.model}` });
+    akisEkle(a.id, { tur: "sistem", metin: ceviri(`Oturum açıldı · ${a.dal ?? "ana"} · ${a.model}`, `Session opened · ${a.dal ?? "main"} · ${a.model}`) });
     ajanYay(a);
     projeYay(a.projeId);
   }
@@ -777,7 +894,10 @@ const GECISLER = {
   tamam: ["calisiliyor"],
   iptal: ["bekleyen"],
 };
-const DURUM_ADLARI = { bekleyen: "Bekleyen", planlandi: "Planlandı", calisiliyor: "Çalışılıyor", inceleme: "İncelemede", tamam: "Tamam", iptal: "İptal" };
+const DURUM_ADLARI = ceviri(
+  { bekleyen: "Bekleyen", planlandi: "Planlandı", calisiliyor: "Çalışılıyor", inceleme: "İncelemede", tamam: "Tamam", iptal: "İptal" },
+  { bekleyen: "Backlog", planlandi: "Planned", calisiliyor: "In progress", inceleme: "In review", tamam: "Done", iptal: "Cancelled" },
+);
 
 const rotalar = [];
 const rota = (yontem, desen, isleyici) => rotalar.push({ yontem, desen: new RegExp(`^${desen.replace(/:(\w+)/g, "(?<$1>[^/]+)")}$`), isleyici });
@@ -805,15 +925,18 @@ rota("GET", "/api/roller", () => V.roller);
 
 rota("GET", "/api/projeler", () => db.projeler.map(projeOzeti));
 rota("POST", "/api/projeler", ({ govde }) => {
-  if (!govde?.ad || !govde?.yol) throw new Hata(400, "Ad ve yol gerekli.");
-  if (!govde.yol.startsWith("/")) throw new Hata(400, "Yol mutlak olmalı.");
-  if (db.projeler.some((p) => p.yol === govde.yol)) throw new Hata(400, "Bu klasör zaten bir proje olarak bağlı.");
+  if (!govde?.ad || !govde?.yol) throw new Hata(400, ceviri("Ad ve yol gerekli.", "Name and path are required."));
+  if (!govde.yol.startsWith("/")) throw new Hata(400, ceviri("Yol mutlak olmalı.", "The path must be absolute."));
+  if (db.projeler.some((p) => p.yol === govde.yol)) throw new Hata(400, ceviri("Bu klasör zaten bir proje olarak bağlı.", "This folder is already linked as a project."));
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
   const p = { id, ad: govde.ad, yol: govde.yol, aciklama: govde.aciklama ?? "", varsayilanDal: "main", olusturma: simdi() };
   db.projeler.push(p);
-  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: "Brief bekliyor", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
-  db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: "muhendislik", aciklama: "" }, { ad: "toplanti", aciklama: "" }];
-  db.notlar[id] = { "vizyon.md": `# Vizyon\n\n${govde.aciklama ?? ""}\n`, "mimari.md": "# Mimari\n\n" };
+  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: ceviri("Brief bekliyor", "Waiting for a brief"), gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
+  db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: MUHENDISLIK, aciklama: "" }, { ad: "toplanti", aciklama: "" }];
+  db.notlar[id] = {
+    "vizyon.md": ceviri(`# Vizyon\n\n${govde.aciklama ?? ""}\n`, `# Vision\n\n${govde.aciklama ?? ""}\n`),
+    "mimari.md": ceviri("# Mimari\n\n", "# Architecture\n\n"),
+  };
   db.notZamanlari[id] = { "vizyon.md": simdi(), "mimari.md": simdi() };
   db.politika[id] = kopya(V.politika);
   const ozet = projeOzeti(p);
@@ -829,17 +952,17 @@ rota("DELETE", "/api/projeler/:pid", ({ p }) => {
 
 /** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>); null otomatik */
 function karakterDenetle(govde) {
-  if (govde && "karakter" in govde && govde.karakter !== null && !/^(k\d{2}|u-[a-z0-9-]{4,64})$/.test(String(govde.karakter))) throw new Hata(400, "Geçersiz karakter kimliği.");
+  if (govde && "karakter" in govde && govde.karakter !== null && !/^(k\d{2}|u-[a-z0-9-]{4,64})$/.test(String(govde.karakter))) throw new Hata(400, ceviri("Geçersiz karakter kimliği.", "Invalid character id."));
 }
 
 function projeGerekli(pid) {
   const p = proje(pid);
-  if (!p) throw new Hata(404, "Proje bulunamadı.");
+  if (!p) throw new Hata(404, ceviri("Proje bulunamadı.", "Project not found."));
   return p;
 }
 function ajanGerekli(aid) {
   const a = ajanBul(aid);
-  if (!a) throw new Hata(404, "Ajan bulunamadı.");
+  if (!a) throw new Hata(404, ceviri("Ajan bulunamadı.", "Agent not found."));
   return a;
 }
 
@@ -847,9 +970,9 @@ rota("GET", "/api/projeler/:pid/ajanlar", ({ p }) => (projeGerekli(p.pid), proje
 rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
   const pr = projeGerekli(p.pid);
   const rol = V.roller.find((r) => r.kimlik === govde?.rol);
-  if (!govde?.ad || !rol) throw new Hata(400, "Ad ve geçerli bir rol gerekli.");
+  if (!govde?.ad || !rol) throw new Hata(400, ceviri("Ad ve geçerli bir rol gerekli.", "A name and a valid role are required."));
   karakterDenetle(govde);
-  if (projeAjanlari(p.pid).some((a) => a.ad.toLocaleLowerCase("tr-TR") === govde.ad.toLocaleLowerCase("tr-TR"))) throw new Hata(400, "Bu adda bir çalışan zaten var.");
+  if (projeAjanlari(p.pid).some((a) => a.ad.toLocaleLowerCase("tr-TR") === govde.ad.toLocaleLowerCase("tr-TR"))) throw new Hata(400, ceviri("Bu adda bir çalışan zaten var.", "An employee with this name already exists."));
   const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9]+/g, "") || yeniKimlik("a");
   const a = {
     id,
@@ -860,7 +983,7 @@ rota("POST", "/api/projeler/:pid/ajanlar", ({ p, govde }) => {
     model: govde.model ?? rol.varsayilanModel,
     yoneticiId: govde.yoneticiId ?? null,
     durum: "kapali",
-    isAciklamasi: "Yeni işe alındı",
+    isAciklamasi: ceviri("Yeni işe alındı", "Just hired"),
     gorevId: null,
     oturumId: null,
     calismaAlani: rol.yonetici ? null : `${pr.id === "siparis-paneli" ? V.CALISMA_KOKU : pr.yol + "/.arnorg/calisma"}/${id}`,
@@ -898,29 +1021,39 @@ rota("POST", "/api/ajanlar/:aid/baslat", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
   oturumAc(a);
   const g = db.gorevler.find((x) => x.id === (govde?.gorevId ?? a.gorevId));
-  const talimat = govde?.talimat || (g ? `${g.kod} üzerinde çalış: ${g.baslik}.` : "Kaldığın yerden devam et.");
+  const talimat = govde?.talimat || (g ? ceviri(`${g.kod} üzerinde çalış: ${g.baslik}.`, `Work on ${g.kod}: ${g.baslik}.`) : ceviri("Kaldığın yerden devam et.", "Pick up where you left off."));
   akisEkle(a.id, { tur: "kullanici", metin: talimat });
   if (g) a.isAciklamasi = `${g.kod} ${g.baslik}`;
   ajanYay(a);
-  cevapla(a.id, `Başlıyorum. Önce ${g ? `${g.kod} kabul ölçütünü` : "son durumu"} okuyup bir plan çıkaracağım.`);
+  cevapla(
+    a.id,
+    ceviri(
+      `Başlıyorum. Önce ${g ? `${g.kod} kabul ölçütünü` : "son durumu"} okuyup bir plan çıkaracağım.`,
+      `Starting now. I'll read ${g ? `the ${g.kod} acceptance criteria` : "the latest status"} first and put together a plan.`,
+    ),
+  );
   return a;
 });
 rota("POST", "/api/ajanlar/:aid/mesaj", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
-  if (!govde?.metin) throw new Hata(400, "Mesaj boş olamaz.");
+  if (!govde?.metin) throw new Hata(400, ceviri("Mesaj boş olamaz.", "The message can't be empty."));
   const calisiyordu = a.durum === "calisiyor";
   oturumAc(a);
-  if (govde.oncelik === "now" && calisiyordu) akisEkle(a.id, { tur: "sonuc", hata: true, metin: "Kurul mesajı için kesildi" });
+  if (govde.oncelik === "now" && calisiyordu) akisEkle(a.id, { tur: "sonuc", hata: true, metin: ceviri("Kurul mesajı için kesildi", "Interrupted for a board message") });
   akisEkle(a.id, { tur: "kullanici", metin: govde.metin });
-  cevapla(a.id, `Not aldım: "${govde.metin.slice(0, 80)}". Buna göre devam ediyorum.`, govde.oncelik === "now" ? 900 : 2200);
+  cevapla(
+    a.id,
+    ceviri(`Not aldım: "${govde.metin.slice(0, 80)}". Buna göre devam ediyorum.`, `Noted: "${govde.metin.slice(0, 80)}". I'll carry on with that in mind.`),
+    govde.oncelik === "now" ? 900 : 2200,
+  );
   return { tamam: true };
 });
 rota("POST", "/api/ajanlar/:aid/kes", ({ p }) => {
   const a = ajanGerekli(p.aid);
   if (a.durum === "calisiyor" || a.durum === "karar_bekliyor") {
-    akisEkle(a.id, { tur: "sonuc", hata: true, metin: "Kurul tarafından kesildi" });
+    akisEkle(a.id, { tur: "sonuc", hata: true, metin: ceviri("Kurul tarafından kesildi", "Interrupted by the board") });
     a.durum = "duraklatildi";
-    a.isAciklamasi = "Kurul tarafından duraklatıldı";
+    a.isAciklamasi = ceviri("Kurul tarafından duraklatıldı", "Paused by the board");
     ajanYay(a);
     projeYay(a.projeId);
   }
@@ -929,7 +1062,7 @@ rota("POST", "/api/ajanlar/:aid/kes", ({ p }) => {
 rota("POST", "/api/ajanlar/:aid/durdur", ({ p }) => {
   const a = ajanGerekli(p.aid);
   if (a.durum !== "kapali") {
-    akisEkle(a.id, { tur: "sistem", metin: "Oturum kapatıldı · oturum kimliği saklandı" });
+    akisEkle(a.id, { tur: "sistem", metin: ceviri("Oturum kapatıldı · oturum kimliği saklandı", "Session closed · session id kept") });
     a.durum = "kapali";
     ajanYay(a);
     projeYay(a.projeId);
@@ -939,7 +1072,7 @@ rota("POST", "/api/ajanlar/:aid/durdur", ({ p }) => {
 rota("POST", "/api/ajanlar/:aid/mod", ({ p, govde }) => {
   const a = ajanGerekli(p.aid);
   a.izinModu = govde?.mod ?? a.izinModu;
-  if (a.durum !== "kapali") akisEkle(a.id, { tur: "sistem", metin: `İzin modu: ${a.izinModu}` });
+  if (a.durum !== "kapali") akisEkle(a.id, { tur: "sistem", metin: ceviri(`İzin modu: ${a.izinModu}`, `Permission mode: ${a.izinModu}`) });
   ajanYay(a);
   return a;
 });
@@ -959,7 +1092,7 @@ rota("GET", "/api/ajanlar/:aid/akis", ({ p, q }) => {
 rota("GET", "/api/projeler/:pid/gorevler", ({ p }) => (projeGerekli(p.pid), db.gorevler.filter((g) => g.projeId === p.pid)));
 rota("POST", "/api/projeler/:pid/gorevler", ({ p, govde }) => {
   projeGerekli(p.pid);
-  if (!govde?.baslik) throw new Hata(400, "Başlık gerekli.");
+  if (!govde?.baslik) throw new Hata(400, ceviri("Başlık gerekli.", "A title is required."));
   const no = Math.max(0, ...db.gorevler.filter((g) => g.projeId === p.pid).map((g) => g.no)) + 1;
   const g = {
     id: yeniKimlik("g"),
@@ -984,13 +1117,19 @@ rota("POST", "/api/projeler/:pid/gorevler", ({ p, govde }) => {
 });
 rota("PATCH", "/api/gorevler/:gid", ({ p, govde }) => {
   const g = db.gorevler.find((x) => x.id === p.gid);
-  if (!g) throw new Hata(404, "Görev bulunamadı.");
+  if (!g) throw new Hata(404, ceviri("Görev bulunamadı.", "Task not found."));
   if (govde?.durum && govde.durum !== g.durum) {
     if (!GECISLER[g.durum].includes(govde.durum))
-      throw new Hata(409, `${g.kod}: ${DURUM_ADLARI[g.durum]} → ${DURUM_ADLARI[govde.durum]} geçişine izin yok. İzin verilenler: ${GECISLER[g.durum].map((d) => DURUM_ADLARI[d]).join(", ")}.`);
+      throw new Hata(
+        409,
+        ceviri(
+          `${g.kod}: ${DURUM_ADLARI[g.durum]} → ${DURUM_ADLARI[govde.durum]} geçişine izin yok. İzin verilenler: ${GECISLER[g.durum].map((d) => DURUM_ADLARI[d]).join(", ")}.`,
+          `${g.kod}: moving from ${DURUM_ADLARI[g.durum]} to ${DURUM_ADLARI[govde.durum]} isn't allowed. Allowed: ${GECISLER[g.durum].map((d) => DURUM_ADLARI[d]).join(", ")}.`,
+        ),
+      );
     if (govde.durum === "calisiliyor") {
       const acik = (govde.bagimliliklar ?? g.bagimliliklar).map((id) => db.gorevler.find((x) => x.id === id)).filter((x) => x && x.durum !== "tamam");
-      if (acik.length) throw new Hata(409, `${g.kod} başlayamaz: bağımlılıklar bitmedi (${acik.map((x) => x.kod).join(", ")}).`);
+      if (acik.length) throw new Hata(409, ceviri(`${g.kod} başlayamaz: bağımlılıklar bitmedi (${acik.map((x) => x.kod).join(", ")}).`, `${g.kod} can't start: its dependencies aren't done (${acik.map((x) => x.kod).join(", ")}).`));
     }
   }
   for (const k of ["baslik", "aciklama", "kabulOlcutu", "durum", "atananId", "bagimliliklar", "etiket"]) if (govde && k in govde) g[k] = govde[k];
@@ -1019,19 +1158,22 @@ rota("GET", "/api/projeler/:pid/kanallar/:kanal/mesajlar", ({ p, q }) => {
 rota("POST", "/api/projeler/:pid/kanallar/:kanal/mesajlar", ({ p, govde }) => {
   projeGerekli(p.pid);
   const kanal = decodeURIComponent(p.kanal);
-  if (!govde?.metin?.trim()) throw new Hata(400, "Mesaj boş olamaz.");
+  if (!govde?.metin?.trim()) throw new Hata(400, ceviri("Mesaj boş olamaz.", "The message can't be empty."));
   const m = mesajEkle(p.pid, kanal, "kurul", govde.metin.trim());
   const hedefler = m.anilanlar.length ? m.anilanlar : kanal === "genel" ? projeAjanlari(p.pid).filter((a) => a.rol === "ceo").map((a) => a.id) : [];
   for (const aid of hedefler) {
     const a = ajanBul(aid);
     if (!a) continue;
     oturumAc(a);
-    akisEkle(aid, { tur: "kullanici", metin: `Kurul (#${kanal}): ${m.metin}` });
+    akisEkle(aid, { tur: "kullanici", metin: ceviri(`Kurul (#${kanal}): ${m.metin}`, `Board (#${kanalGorunenAdi(kanal)}): ${m.metin}`) });
     setTimeout(() => {
       const yanit =
         a.rol === "ceo"
-          ? `Not aldım. Kapsamını Kerem'le netleştirip panoya ekliyorum; tahmini süre iki gün. Planı bu akşamki raporda paylaşırım.`
-          : `Aldım, ${m.metin.length > 60 ? "bu notu" : `"${m.metin}"`} hesaba katarak devam ediyorum.`;
+          ? ceviri(
+              `Not aldım. Kapsamını Kerem'le netleştirip panoya ekliyorum; tahmini süre iki gün. Planı bu akşamki raporda paylaşırım.`,
+              `Noted. I'll pin down the scope with Kerem and add it to the board; my estimate is two days. I'll share the plan in tonight's report.`,
+            )
+          : ceviri(`Aldım, ${m.metin.length > 60 ? "bu notu" : `"${m.metin}"`} hesaba katarak devam ediyorum.`, `Got it, I'll keep ${m.metin.length > 60 ? "this note" : `"${m.metin}"`} in mind as I carry on.`);
       mesajEkle(p.pid, kanal, aid, yanit);
       akisEkle(aid, { tur: "asistan", metin: yanit });
       kullan(aid, 1800);
@@ -1047,13 +1189,13 @@ rota("GET", "/api/projeler/:pid/notlar", ({ p }) => {
 });
 rota("GET", "/api/projeler/:pid/not", ({ p, q }) => {
   const yol = q.get("yol") ?? "";
-  if (yol.includes("..")) throw new Hata(400, "Yol .. içeremez.");
+  if (yol.includes("..")) throw new Hata(400, ceviri("Yol .. içeremez.", "The path can't contain '..'."));
   const icerik = db.notlar[p.pid]?.[yol];
-  if (icerik === undefined) throw new Hata(404, "Not bulunamadı.");
+  if (icerik === undefined) throw new Hata(404, ceviri("Not bulunamadı.", "Note not found."));
   return { yol, icerik };
 });
 rota("PUT", "/api/projeler/:pid/not", ({ p, govde }) => {
-  if (!govde?.yol || govde.yol.includes("..")) throw new Hata(400, "Geçersiz yol.");
+  if (!govde?.yol || govde.yol.includes("..")) throw new Hata(400, ceviri("Geçersiz yol.", "Invalid path."));
   (db.notlar[p.pid] ??= {})[govde.yol] = govde.icerik ?? "";
   (db.notZamanlari[p.pid] ??= {})[govde.yol] = simdi();
   return { yol: govde.yol, baslik: (/^#\s+(.+)$/m.exec(govde.icerik ?? "")?.[1] ?? govde.yol).trim(), guncelleme: simdi() };
@@ -1069,8 +1211,8 @@ function hafizaYay(k) {
   yay({ tur: "hafiza.yeni", kayit: k }, k.projeId);
 }
 function hafizaEkle(pid, g, kaynak) {
-  if (!hafizaTurleri.includes(g?.tur)) throw new Hata(400, "Geçersiz hafıza türü.");
-  if (!g.baslik?.trim() || !g.metin?.trim()) throw new Hata(400, "Başlık ve metin gerekli.");
+  if (!hafizaTurleri.includes(g?.tur)) throw new Hata(400, ceviri("Geçersiz hafıza türü.", "Invalid memory type."));
+  if (!g.baslik?.trim() || !g.metin?.trim()) throw new Hata(400, ceviri("Başlık ve metin gerekli.", "A title and text are required."));
   const ayni = db.hafiza.find((k) => k.projeId === pid && !k.yerineGecen && k.tur === g.tur && sadeMetin(k.baslik) === sadeMetin(g.baslik));
   if (ayni && !g.yerineGectigi) {
     Object.assign(ayni, { metin: g.metin.trim(), etiketler: g.etiketler ?? [], onem: Math.max(ayni.onem, g.onem ?? 3), guncelleme: simdi() });
@@ -1121,7 +1263,7 @@ rota("GET", "/api/projeler/:pid/hafiza", ({ p, q }) => {
 });
 rota("POST", "/api/projeler/:pid/hafiza", ({ p, govde }) => {
   projeGerekli(p.pid);
-  return hafizaEkle(p.pid, govde, { ajanId: null, ad: "Yönetim kurulu" });
+  return hafizaEkle(p.pid, govde, { ajanId: null, ad: ceviri("Yönetim kurulu", "Board") });
 });
 const DURAK = new Set("ve veya ile icin bu bir ne mi gibi daha olarak olan var yok the and or".split(" "));
 const sozcukKumesi = (m) => new Set(sadeMetin(m).split(/[^a-z0-9]+/).filter((x) => x.length >= 3 && !DURAK.has(x)));
@@ -1148,7 +1290,7 @@ rota("POST", "/api/projeler/:pid/hafiza/ayri", ({ govde }) => {
 rota("POST", "/api/hafiza/:hid/birlestir", ({ p, govde }) => {
   const t = db.hafiza.find((x) => x.id === p.hid);
   const e = db.hafiza.find((x) => x.id === govde?.eskiyen);
-  if (!t || !e) throw new Hata(404, "Birleştirilecek kayıtlar bulunamadı.");
+  if (!t || !e) throw new Hata(404, ceviri("Birleştirilecek kayıtlar bulunamadı.", "The records to merge were not found."));
   Object.assign(t, { metin: govde.metin?.trim() || t.metin, etiketler: [...new Set([...t.etiketler, ...e.etiketler])], onem: Math.max(t.onem, e.onem), guncelleme: simdi() });
   Object.assign(e, { yerineGecen: t.id, guncelleme: simdi() });
   hafizaYay(t);
@@ -1157,7 +1299,7 @@ rota("POST", "/api/hafiza/:hid/birlestir", ({ p, govde }) => {
 });
 rota("PATCH", "/api/hafiza/:hid", ({ p, govde }) => {
   const k = db.hafiza.find((x) => x.id === p.hid);
-  if (!k) throw new Hata(404, "Hafıza kaydı bulunamadı.");
+  if (!k) throw new Hata(404, ceviri("Hafıza kaydı bulunamadı.", "Memory record not found."));
   for (const alan of ["tur", "baslik", "metin", "etiketler", "onem"]) if (govde?.[alan] !== undefined) k[alan] = govde[alan];
   k.guncelleme = simdi();
   hafizaYay(k);
@@ -1165,7 +1307,7 @@ rota("PATCH", "/api/hafiza/:hid", ({ p, govde }) => {
 });
 rota("DELETE", "/api/hafiza/:hid", ({ p }) => {
   const i = db.hafiza.findIndex((x) => x.id === p.hid);
-  if (i < 0) throw new Hata(404, "Hafıza kaydı bulunamadı.");
+  if (i < 0) throw new Hata(404, ceviri("Hafıza kaydı bulunamadı.", "Memory record not found."));
   const [k] = db.hafiza.splice(i, 1);
   yay({ tur: "hafiza.silindi", projeId: k.projeId, id: k.id }, k.projeId);
   return { tamam: true };
@@ -1183,7 +1325,7 @@ rota("GET", "/api/ajanlar/:aid/defter", ({ p }) => {
 });
 rota("PUT", "/api/ajanlar/:aid/defter", ({ p, govde }) => {
   ajanGerekli(p.aid);
-  if (typeof govde?.icerik !== "string" || govde.icerik.length > 6000) throw new Hata(400, "Defter en çok 6000 karakter olabilir.");
+  if (typeof govde?.icerik !== "string" || govde.icerik.length > 6000) throw new Hata(400, ceviri("Defter en çok 6000 karakter olabilir.", "The notebook can be at most 6000 characters."));
   db.defterler[p.aid] = govde.icerik.trim();
   db.defterZamanlari[p.aid] = simdi();
   return { tamam: true };
@@ -1218,12 +1360,12 @@ setInterval(() => {
 rota("GET", "/api/projeler/:pid/denetim", ({ p, q }) => db.denetim.filter((k) => k.projeId === p.pid).slice(0, Number(q.get("sinir") ?? 300)));
 rota("GET", "/api/projeler/:pid/politika", ({ p }) => db.politika[p.pid] ?? []);
 rota("PUT", "/api/projeler/:pid/politika", ({ p, govde }) => {
-  if (!Array.isArray(govde)) throw new Hata(400, "Kural listesi bekleniyor.");
+  if (!Array.isArray(govde)) throw new Hata(400, ceviri("Kural listesi bekleniyor.", "Expected a list of rules."));
   for (const k of govde) for (const d of k.desenler ?? []) {
     try {
       new RegExp(d, "i");
     } catch {
-      throw new Hata(400, `Geçersiz desen: ${d}`);
+      throw new Hata(400, ceviri(`Geçersiz desen: ${d}`, `Invalid pattern: ${d}`));
     }
   }
   db.politika[p.pid] = govde;
@@ -1235,8 +1377,8 @@ rota("GET", "/api/projeler/:pid/onaylar", ({ p, q }) => {
 });
 rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
   const o = db.onaylar.find((x) => x.id === p.oid);
-  if (!o) throw new Hata(404, "Onay bulunamadı.");
-  if (o.durum !== "bekliyor") throw new Hata(409, `Bu karar zaten verilmiş (${o.durum}).`);
+  if (!o) throw new Hata(404, ceviri("Onay bulunamadı.", "Approval not found."));
+  if (o.durum !== "bekliyor") throw new Hata(409, ceviri(`Bu karar zaten verilmiş (${o.durum}).`, `This decision has already been made (${o.durum}).`));
   const kabul = govde?.karar === "onayla";
   o.durum = kabul ? "onaylandi" : "reddedildi";
   o.sonuclanma = simdi();
@@ -1244,17 +1386,22 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
   const a = ajanBul(o.ajanId);
   if (o.tur === "arac" && a) {
     const komut = o.veri?.girdi?.command ?? o.veri?.girdi?.url ?? o.baslik;
-    denetimEkle(a.id, o.veri?.arac ?? "Bash", komut, kabul ? "izin" : "ret", kabul ? "Yönetim kurulu onayı" : "Yönetim kurulu reddi", o.not);
+    denetimEkle(a.id, o.veri?.arac ?? "Bash", komut, kabul ? "izin" : "ret", kabul ? ceviri("Yönetim kurulu onayı", "Board approval") : ceviri("Yönetim kurulu reddi", "Board rejection"), o.not);
     akisEkle(a.id, {
       tur: "arac_sonucu",
       aracKimligi: o.veri?.aracKimligi,
-      metin: kabul ? "To github.com:arnex/siparis-paneli.git\n   4be1c02..9f3d7aa  main -> main" : `Kurul reddetti${o.not ? `: ${o.not}` : "."}`,
+      metin: kabul ? "To github.com:arnex/siparis-paneli.git\n   4be1c02..9f3d7aa  main -> main" : ceviri(`Kurul reddetti${o.not ? `: ${o.not}` : "."}`, `Rejected by the board${o.not ? `: ${o.not}` : "."}`),
       hata: !kabul,
     });
     a.durum = "calisiyor";
     a.isAciklamasi = a.gorevId ? `${db.gorevler.find((g) => g.id === a.gorevId)?.kod ?? ""} ${db.gorevler.find((g) => g.id === a.gorevId)?.baslik ?? ""}`.trim() : a.isAciklamasi;
     ajanYay(a);
-    cevapla(a.id, kabul ? "Gönderildi. Görevi incelemeye alıyorum." : `Anlaşıldı${o.not ? `: ${o.not}` : ""}. Dalımı itip PR açıyorum.`);
+    cevapla(
+      a.id,
+      kabul
+        ? ceviri("Gönderildi. Görevi incelemeye alıyorum.", "Pushed. Moving the task to review.")
+        : ceviri(`Anlaşıldı${o.not ? `: ${o.not}` : ""}. Dalımı itip PR açıyorum.`, `Understood${o.not ? `: ${o.not}` : ""}. I'll push my branch and open a PR.`),
+    );
     setTimeout(yeniSoru, 45_000);
   }
   if (o.tur === "ise_alim" && kabul && o.veri) {
@@ -1269,7 +1416,7 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
       model: v.model ?? rol.varsayilanModel,
       yoneticiId: v.yoneticiId ?? null,
       durum: "bosta",
-      isAciklamasi: "İlk görevi bekliyor",
+      isAciklamasi: ceviri("İlk görevi bekliyor", "Waiting for a first task"),
       gorevId: null,
       oturumId: `oturum-${v.ad}-1`,
       calismaAlani: `${V.CALISMA_KOKU}/${v.ad.toLocaleLowerCase("tr-TR")}`,
@@ -1284,9 +1431,21 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
     db.ajanlar.push(yeni);
     db.katmanlar[yeni.id] = {};
     db.akislar[yeni.id] = [];
-    akisEkle(yeni.id, { tur: "sistem", metin: `Oturum açıldı · ${yeni.dal} · ${yeni.model}` });
+    akisEkle(yeni.id, { tur: "sistem", metin: ceviri(`Oturum açıldı · ${yeni.dal} · ${yeni.model}`, `Session opened · ${yeni.dal} · ${yeni.model}`) });
     ajanYay(yeni);
-    setTimeout(() => mesajEkle(o.projeId, "genel", "ada", `${yeni.ad} ekibe katıldı. @Kerem ilk görevini sen ata; ödeme işine geçmeden oturum ve jeton akışlarını denetlesin.`), 1200);
+    setTimeout(
+      () =>
+        mesajEkle(
+          o.projeId,
+          "genel",
+          "ada",
+          ceviri(
+            `${yeni.ad} ekibe katıldı. @Kerem ilk görevini sen ata; ödeme işine geçmeden oturum ve jeton akışlarını denetlesin.`,
+            `${yeni.ad} joined the team. @Kerem please assign the first task; the session and token flows should be audited before we move on to payments.`,
+          ),
+        ),
+      1200,
+    );
   }
   if (o.tur === "birlestirme" && kabul && o.veri?.gorevId) {
     const g = db.gorevler.find((x) => x.id === o.veri.gorevId);
@@ -1308,7 +1467,7 @@ rota("GET", "/api/projeler/:pid/calisma-alanlari", ({ p }) => (projeGerekli(p.pi
 // ---------------------------------------------------------------------------
 
 const kodDurumlari = new Map();
-const kodModelKimligi = () => (db.ayarlar.kodZekasiModeli === "kapali" ? null : `${KZ.MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli).kimlik}@q8`);
+const kodModelKimligi = () => (db.ayarlar.kodZekasiModeli === "kapali" ? null : `${MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli).kimlik}@q8`);
 
 function kodDurumu(pid, alan) {
   const anahtar = `${pid}:${alan}`;
@@ -1342,7 +1501,7 @@ function kodDizinleGoster(pid, alan, { yalnizGomme = false } = {}) {
   clearInterval(kodSuren.get(anahtar));
   const d = kodDurumu(pid, alan);
   const dizin = KZ.dizinKur(alanDosyalari(alan));
-  const model = KZ.MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli);
+  const model = MODELLER.find((m) => m.secim === db.ayarlar.kodZekasiModeli);
   Object.assign(d, { model: kodModelKimligi(), hata: null, toplamDosya: dizin.kayitlar.length, taranan: 0 });
   let asama = yalnizGomme ? "gomme" : "tarama";
   if (yalnizGomme) Object.assign(d, { gomulen: 0 });
@@ -1402,14 +1561,14 @@ function kodModelDegisti() {
 const kodAlani = (p, q) => {
   projeGerekli(p.pid);
   const alan = q.get("alan") || "ana";
-  if (alan !== "ana" && !calismaAlanlari(p.pid).some((a) => a.kimlik === alan)) throw new Hata(404, "Çalışma alanı bulunamadı.");
+  if (alan !== "ana" && !calismaAlanlari(p.pid).some((a) => a.kimlik === alan)) throw new Hata(404, ceviri("Çalışma alanı bulunamadı.", "Workspace not found."));
   const d = kodDurumu(p.pid, alan);
   // Hiç dizinlenmemiş alanda ilk sorgu taramayı başlatır
   if (d.durum === "bos" && !kodSuren.has(`${p.pid}:${alan}`)) kodDizinleGoster(p.pid, alan);
   return { alan, durum: d, dosyalar: alanDosyalari(alan), dizin: KZ.dizinKur(alanDosyalari(alan)) };
 };
 
-rota("GET", "/api/kod-zekasi/modeller", () => KZ.MODELLER);
+rota("GET", "/api/kod-zekasi/modeller", () => MODELLER);
 rota("GET", "/api/projeler/:pid/kod-zekasi", ({ p, q }) => {
   projeGerekli(p.pid);
   const alan = q.get("alan");
@@ -1428,14 +1587,14 @@ rota("POST", "/api/projeler/:pid/kod-zekasi/dizinle", ({ p, govde }) => {
 rota("GET", "/api/projeler/:pid/kod-zekasi/ara", ({ p, q }) => {
   const k = kodAlani(p, q);
   const sorgu = q.get("q") ?? "";
-  if (!sorgu.trim()) throw new Hata(400, "Arama metni (q) gerekli.");
+  if (!sorgu.trim()) throw new Hata(400, ceviri("Arama metni (q) gerekli.", "Search text (q) is required."));
   const sonuclar = KZ.ara(k.dizin, k.dosyalar, sorgu, { sinir: Number(q.get("sinir") ?? 20), yol: q.get("yol") ?? "" });
   return { sonuclar, durum: k.durum, yalnizSozcuk: !k.durum.model || k.durum.gomulen < k.durum.toplamParca, sureMs: 18 + Math.round(Math.random() * 60) };
 });
 rota("GET", "/api/projeler/:pid/kod-zekasi/benzer", ({ p, q }) => {
   const k = kodAlani(p, q);
   const sonuclar = KZ.benzer(k.dizin, k.dosyalar, q.get("yol") ?? "", Number(q.get("satir") ?? 1), Number(q.get("sinir") ?? 8));
-  if (!sonuclar) throw new Hata(404, `${q.get("yol")}:${q.get("satir")} dizinde yok.`);
+  if (!sonuclar) throw new Hata(404, ceviri(`${q.get("yol")}:${q.get("satir")} dizinde yok.`, `${q.get("yol")}:${q.get("satir")} is not in the index.`));
   return { sonuclar, durum: k.durum, yalnizSozcuk: !k.durum.model, sureMs: 12 };
 });
 rota("GET", "/api/projeler/:pid/kod-zekasi/semboller", ({ p, q }) => {
@@ -1445,7 +1604,7 @@ rota("GET", "/api/projeler/:pid/kod-zekasi/semboller", ({ p, q }) => {
 rota("GET", "/api/projeler/:pid/kod-zekasi/harita", ({ p, q }) => KZ.harita(kodAlani(p, q).dizin));
 rota("GET", "/api/projeler/:pid/kod-zekasi/bagimliliklar", ({ p, q }) => {
   const b = KZ.bagimliliklar(kodAlani(p, q).dizin, q.get("yol") ?? "");
-  if (!b) throw new Hata(404, `${q.get("yol")} dizinde yok.`);
+  if (!b) throw new Hata(404, ceviri(`${q.get("yol")} dizinde yok.`, `${q.get("yol")} is not in the index.`));
   return b;
 });
 rota("GET", "/api/projeler/:pid/kod-zekasi/grafik", ({ p, q }) => KZ.grafik(kodAlani(p, q).dizin, q.get("duzey") === "dosya" ? "dosya" : "klasor"));
@@ -1454,15 +1613,15 @@ rota("GET", "/api/projeler/:pid/dosya", ({ q }) => {
   const alan = q.get("alan") ?? "ana";
   const yol = q.get("yol") ?? "";
   const icerik = alanDosyalari(alan)[yol];
-  if (icerik === undefined) throw new Hata(404, "Dosya bulunamadı.");
+  if (icerik === undefined) throw new Hata(404, ceviri("Dosya bulunamadı.", "File not found."));
   const duz = duzenleyen(alan, yol);
   return { yol, icerik, dil: dilBul(yol), saltOkunur: duz !== null, duzenleyenAjanId: duz };
 });
 rota("PUT", "/api/projeler/:pid/dosya", ({ p, govde }) => {
   const { alan, yol, icerik } = govde ?? {};
-  if (!alan || !yol) throw new Hata(400, "Alan ve yol gerekli.");
+  if (!alan || !yol) throw new Hata(400, ceviri("Alan ve yol gerekli.", "Workspace and path are required."));
   const duz = duzenleyen(alan, yol);
-  if (duz) throw new Hata(409, `${ajanBul(duz)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce duraklatın.`);
+  if (duz) throw new Hata(409, ceviri(`${ajanBul(duz)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce duraklatın.`, `${ajanBul(duz)?.ad ?? "An agent"} is editing this file. Pause them first.`));
   if (alan === "ana") db.ana[yol] = icerik;
   else (db.katmanlar[alan] ??= {})[yol] = icerik;
   yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
@@ -1505,12 +1664,12 @@ const zamanAnahtari = (alan, yol) => `${alan}\0${yol}`;
 const degisme = (alan, yol) => zamanlar.get(zamanAnahtari(alan, yol)) ?? ACILIS;
 const temizYol = (y) => String(y ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
 function yolDenetle(yol) {
-  if (yol.split("/").some((p) => p === "..")) throw new Hata(400, "Geçersiz dosya yolu.");
+  if (yol.split("/").some((p) => p === "..")) throw new Hata(400, ceviri("Geçersiz dosya yolu.", "Invalid file path."));
   return yol;
 }
 function yazilabilirMi(yol) {
-  if (!yol) throw new Hata(403, "Çalışma alanının kökü değiştirilemez.");
-  if (yol.split("/").includes(".git")) throw new Hata(403, ".git içindeki dosyalar düzenleyiciden değiştirilemez.");
+  if (!yol) throw new Hata(403, ceviri("Çalışma alanının kökü değiştirilemez.", "The workspace root can't be changed."));
+  if (yol.split("/").includes(".git")) throw new Hata(403, ceviri(".git içindeki dosyalar düzenleyiciden değiştirilemez.", "Files inside .git can't be changed from the editor."));
 }
 function sahteYaz(alan, yol, icerik) {
   if (alan === "ana") db.ana[yol] = icerik;
@@ -1547,12 +1706,12 @@ const istekKonumu = (q) => ({ alan: q.get("alan") ?? "ana", yol: yolDenetle(temi
 rota("GET", "/api/projeler/:pid/fs/stat", ({ q }) => {
   const { alan, yol } = istekKonumu(q);
   const d = fsDurumu(alan, yol);
-  if (!d && q.get("yoksa") !== "bos") throw new Hata(404, `Bulunamadı: ${yol || "."}`);
+  if (!d && q.get("yoksa") !== "bos") throw new Hata(404, ceviri(`Bulunamadı: ${yol || "."}`, `Not found: ${yol || "."}`));
   return d;
 });
 rota("GET", "/api/projeler/:pid/fs/liste", ({ q }) => {
   const { alan, yol } = istekKonumu(q);
-  if (!klasorler(alan).has(yol)) throw new Hata(404, `Bulunamadı: ${yol || "."}`);
+  if (!klasorler(alan).has(yol)) throw new Hata(404, ceviri(`Bulunamadı: ${yol || "."}`, `Not found: ${yol || "."}`));
   const onek = yol ? `${yol}/` : "";
   const girdiler = new Map();
   for (const k of klasorler(alan)) if (k.startsWith(onek) && k !== yol && !k.slice(onek.length).includes("/")) girdiler.set(k.slice(onek.length), "klasor");
@@ -1564,7 +1723,7 @@ rota("GET", "/api/projeler/:pid/fs/icerik", ({ q }) => {
   const icerik = alanDosyalari(alan)[yol];
   if (icerik === undefined) {
     if (q.get("yoksa") === "bos") return { __durum: 204 };
-    throw new Hata(404, `Bulunamadı: ${yol}`);
+    throw new Hata(404, ceviri(`Bulunamadı: ${yol}`, `Not found: ${yol}`));
   }
   return { __ham: Buffer.from(icerik) };
 });
@@ -1572,10 +1731,10 @@ rota("PUT", "/api/projeler/:pid/fs/icerik", ({ p, q, ham }) => {
   const { alan, yol } = istekKonumu(q);
   yazilabilirMi(yol);
   const var_ = yol in alanDosyalari(alan);
-  if (!var_ && q.get("olustur") !== "1") throw new Hata(404, `Bulunamadı: ${yol}`);
-  if (var_ && q.get("ustune") !== "1") throw new Hata(409, `Zaten var: ${yol}`);
+  if (!var_ && q.get("olustur") !== "1") throw new Hata(404, ceviri(`Bulunamadı: ${yol}`, `Not found: ${yol}`));
+  if (var_ && q.get("ustune") !== "1") throw new Hata(409, ceviri(`Zaten var: ${yol}`, `Already exists: ${yol}`));
   const duz = duzenleyen(alan, yol);
-  if (duz) throw new Hata(409, `${ajanBul(duz)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`);
+  if (duz) throw new Hata(409, ceviri(`${ajanBul(duz)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`, `${ajanBul(duz)?.ad ?? "An agent"} is editing this file. Pause the agent first.`));
   sahteYaz(alan, yol, (ham ?? Buffer.alloc(0)).toString("utf8"));
   yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
   return fsDurumu(alan, yol);
@@ -1584,7 +1743,7 @@ rota("POST", "/api/projeler/:pid/fs/klasor", ({ p, govde }) => {
   const alan = govde?.alan ?? "ana";
   const yol = yolDenetle(temizYol(govde?.yol));
   yazilabilirMi(yol);
-  if (fsDurumu(alan, yol)) throw new Hata(409, `Zaten var: ${yol}`);
+  if (fsDurumu(alan, yol)) throw new Hata(409, ceviri(`Zaten var: ${yol}`, `Already exists: ${yol}`));
   if (!bosKlasorler.has(alan)) bosKlasorler.set(alan, new Set());
   bosKlasorler.get(alan).add(yol);
   yay({ tur: "dosya.degisti", projeId: p.pid, alan, yol, ajanId: null }, p.pid);
@@ -1594,13 +1753,13 @@ rota("DELETE", "/api/projeler/:pid/fs", ({ p, q }) => {
   const { alan, yol } = istekKonumu(q);
   yazilabilirMi(yol);
   const d = fsDurumu(alan, yol);
-  if (!d) throw new Hata(404, `Bulunamadı: ${yol}`);
+  if (!d) throw new Hata(404, ceviri(`Bulunamadı: ${yol}`, `Not found: ${yol}`));
   if (d.tur === "dosya") {
-    if (duzenleyen(alan, yol)) throw new Hata(409, "Bir ajan bu dosyayı düzenliyor. Önce ajanı duraklatın.");
+    if (duzenleyen(alan, yol)) throw new Hata(409, ceviri("Bir ajan bu dosyayı düzenliyor. Önce ajanı duraklatın.", "An agent is editing this file. Pause the agent first."));
     sahteSil(alan, yol);
   } else {
     const icindekiler = Object.keys(alanDosyalari(alan)).filter((f) => f.startsWith(`${yol}/`));
-    if (icindekiler.length && q.get("ozyinelemeli") !== "1") throw new Hata(409, `Klasör boş değil: ${yol}`);
+    if (icindekiler.length && q.get("ozyinelemeli") !== "1") throw new Hata(409, ceviri(`Klasör boş değil: ${yol}`, `Folder is not empty: ${yol}`));
     for (const f of icindekiler) sahteSil(alan, f);
     for (const k of [...(bosKlasorler.get(alan) ?? [])]) if (k === yol || k.startsWith(`${yol}/`)) bosKlasorler.get(alan).delete(k);
   }
@@ -1615,8 +1774,8 @@ rota("POST", "/api/projeler/:pid/fs/tasi", ({ p, govde }) => {
   yazilabilirMi(hedef);
   const dosyalar = alanDosyalari(alan);
   const tasinacak = kaynak in dosyalar ? [kaynak] : Object.keys(dosyalar).filter((f) => f.startsWith(`${kaynak}/`));
-  if (!tasinacak.length) throw new Hata(404, `Bulunamadı: ${kaynak}`);
-  if (fsDurumu(alan, hedef) && !govde?.ustune) throw new Hata(409, `Zaten var: ${hedef}`);
+  if (!tasinacak.length) throw new Hata(404, ceviri(`Bulunamadı: ${kaynak}`, `Not found: ${kaynak}`));
+  if (fsDurumu(alan, hedef) && !govde?.ustune) throw new Hata(409, ceviri(`Zaten var: ${hedef}`, `Already exists: ${hedef}`));
   for (const f of tasinacak) {
     const yeni = hedef + f.slice(kaynak.length);
     sahteYaz(alan, yeni, dosyalar[f]);
@@ -1651,13 +1810,13 @@ function globUyar(desenler, yol) {
 }
 rota("POST", "/api/projeler/:pid/fs/ara", ({ govde }) => {
   const alan = govde?.alan ?? "ana";
-  if (!govde?.desen) throw new Hata(400, "Arama deseni boş olamaz.");
+  if (!govde?.desen) throw new Hata(400, ceviri("Arama deseni boş olamaz.", "The search pattern can't be empty."));
   const kaynak = govde.regex ? govde.desen : govde.desen.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   let duzenli;
   try {
     duzenli = new RegExp(govde.tamSozcuk ? `(?<![\\p{L}\\p{N}_])(?:${kaynak})(?![\\p{L}\\p{N}_])` : kaynak, `gmu${govde.harfDuyarli ? "" : "i"}`);
   } catch (h) {
-    throw new Hata(400, `Geçersiz düzenli ifade: ${h.message}`);
+    throw new Hata(400, ceviri(`Geçersiz düzenli ifade: ${h.message}`, h.message));
   }
   const dahil = (govde.dahil ?? []).map(globDuzenli);
   const haric = (govde.haric ?? []).map(globDuzenli);
@@ -1711,12 +1870,12 @@ rota("GET", "/api/projeler/:pid/git/icerik", ({ q }) => {
   const kume = ref === "indeks" ? db.indeks : ref === "temel" || alan !== "ana" ? db.ana : db.anaHead;
   if (!(yol in kume)) {
     if (q.get("yoksa") === "bos") return { __durum: 204 };
-    throw new Hata(404, `Bu sürümde dosya yok: ${yol}`);
+    throw new Hata(404, ceviri(`Bu sürümde dosya yok: ${yol}`, `No such file in this version: ${yol}`));
   }
   return { __ham: Buffer.from(kume[yol]) };
 });
 const yalnizAna = (alan) => {
-  if (alan !== "ana") throw new Hata(403, "Ajan çalışma alanları kaynak denetiminde salt okunurdur; git işlemleri yalnız ana repoda yapılır.");
+  if (alan !== "ana") throw new Hata(403, ceviri("Ajan çalışma alanları kaynak denetiminde salt okunurdur; git işlemleri yalnız ana repoda yapılır.", "Agent workspaces are read-only in source control; git operations only run in the main repo."));
 };
 const indekseKopyala = (hedef, kaynak, yollar) => {
   for (const y of yollar) {
@@ -1745,9 +1904,9 @@ rota("POST", "/api/projeler/:pid/git/degisiklikleri-at", ({ p, govde }) => {
 });
 rota("POST", "/api/projeler/:pid/git/commit", ({ govde }) => {
   yalnizAna(govde?.alan);
-  if (!govde?.mesaj?.trim()) throw new Hata(400, "Commit mesajı boş olamaz.");
+  if (!govde?.mesaj?.trim()) throw new Hata(400, ceviri("Commit mesajı boş olamaz.", "The commit message can't be empty."));
   if (govde.tumu) db.indeks = kopya(db.ana);
-  if (!kumeFarki(db.anaHead, db.indeks).length) throw new Hata(409, "Commit'lenecek aşamaya alınmış değişiklik yok.");
+  if (!kumeFarki(db.anaHead, db.indeks).length) throw new Hata(409, ceviri("Commit'lenecek aşamaya alınmış değişiklik yok.", "There are no staged changes to commit."));
   db.anaHead = kopya(db.indeks);
   return { commit: crypto.randomBytes(20).toString("hex") };
 });
@@ -1769,13 +1928,16 @@ function sahteRapor(pid) {
   const gorevler = db.gorevler.filter((g) => g.projeId === pid);
   const say = (d) => gorevler.filter((g) => g.durum === d).length;
   const k = kullanim(pid);
-  const sayi = (n) => n.toLocaleString("tr-TR");
+  const sayi = (n) => n.toLocaleString(ceviri("tr-TR", "en-US"));
   const pencereler = hesapDurumu.pencereler
     .filter((x) => x.tur === "bes_saat" || x.tur === "haftalik")
-    .map((x) => `${x.ad} %${Math.round(x.yuzde)}`)
+    .map((x) => ceviri(`${x.ad} %${Math.round(x.yuzde)}`, `${x.ad} ${Math.round(x.yuzde)}%`))
     .join(" · ");
-  const markdown = `# Durum raporu · ${gun}\n\n## Özet\n\n- Tamamlanan: ${say("tamam")} · süren: ${say("calisiliyor")} · incelemede: ${say("inceleme")}\n- Kullanım: ${sayi(k.toplamToken)} token (bugün ${sayi(k.bugunToken)})\n- Abonelik: ${pencereler}\n`;
-  return { baslik: `Durum raporu · ${gun}`, yol: `raporlar/${gun}.md`, baslangic: simdi(), markdown };
+  const markdown = ceviri(
+    `# Durum raporu · ${gun}\n\n## Özet\n\n- Tamamlanan: ${say("tamam")} · süren: ${say("calisiliyor")} · incelemede: ${say("inceleme")}\n- Kullanım: ${sayi(k.toplamToken)} token (bugün ${sayi(k.bugunToken)})\n- Abonelik: ${pencereler}\n`,
+    `# Status report · ${gun}\n\n## Summary\n\n- Done: ${say("tamam")} · in progress: ${say("calisiliyor")} · in review: ${say("inceleme")}\n- Usage: ${sayi(k.toplamToken)} tokens (today ${sayi(k.bugunToken)})\n- Subscription: ${pencereler}\n`,
+  );
+  return { baslik: ceviri(`Durum raporu · ${gun}`, `Status report · ${gun}`), yol: `raporlar/${gun}.md`, baslangic: simdi(), markdown };
 }
 rota("GET", "/api/projeler/:pid/rapor", ({ p }) => sahteRapor(p.pid));
 rota("POST", "/api/projeler/:pid/rapor", ({ p }) => {
@@ -1791,7 +1953,7 @@ rota("POST", "/api/projeler/:pid/rapor", ({ p }) => {
 function terminalBagla(ws, id) {
   const t = db.terminaller.get(id);
   if (!t) {
-    ws.gonder("Terminal bulunamadı.\r\n");
+    ws.gonder(ceviri("Terminal bulunamadı.\r\n", "Terminal not found.\r\n"));
     ws.kapat();
     return;
   }
@@ -1799,19 +1961,26 @@ function terminalBagla(ws, id) {
   const dal = a?.dal ?? "main";
   const istem = () => `\x1b[32m${a ? a.id : "furkan"}@arnorg\x1b[0m \x1b[34m~/${a ? `calisma/${a.id}` : "siparis-paneli"}\x1b[0m \x1b[31m(${dal})\x1b[0m $ `;
   let satir = "";
-  ws.gonder(`\x1b[2mArnOrg sahte terminali · ${t.alan} · gerçek kabuk değildir\x1b[0m\r\n${istem()}`);
+  ws.gonder(ceviri(`\x1b[2mArnOrg sahte terminali · ${t.alan} · gerçek kabuk değildir\x1b[0m\r\n${istem()}`, `\x1b[2mArnOrg mock terminal · ${t.alan} · not a real shell\x1b[0m\r\n${istem()}`));
   const komutlar = {
     ls: () => [...new Set(Object.keys(alanDosyalari(t.alan)).map((y) => y.split("/")[0]))].sort().join("  "),
     pwd: () => (a?.calismaAlani ?? V.PROJE_KOKU),
     "git status": () => {
       const k = db.katmanlar[t.alan] ?? {};
-      const satirlar = Object.keys(k).map((y) => `\t\x1b[31m${degisiklik(t.alan, y) === "A" ? "yeni dosya:" : "değiştirildi:"}   ${y}\x1b[0m`);
-      return `Dal ${dal}\r\n${satirlar.length ? `Commit için hazırlanmamış değişiklikler:\r\n${satirlar.join("\r\n")}` : "çalışma ağacı temiz"}`;
+      const satirlar = Object.keys(k).map((y) => `\t\x1b[31m${degisiklik(t.alan, y) === "A" ? ceviri("yeni dosya:", "new file:") : ceviri("değiştirildi:", "modified:")}   ${y}\x1b[0m`);
+      return ceviri(
+        `Dal ${dal}\r\n${satirlar.length ? `Commit için hazırlanmamış değişiklikler:\r\n${satirlar.join("\r\n")}` : "çalışma ağacı temiz"}`,
+        `On branch ${dal}\r\n${satirlar.length ? `Changes not staged for commit:\r\n${satirlar.join("\r\n")}` : "nothing to commit, working tree clean"}`,
+      );
     },
-    "git log --oneline": () => "9f3d7aa T-24: imleçle sayfalama\r\n4be1c02 T-22: ürün kataloğu API\r\n1a07e9d T-16: veritabanı şeması",
+    "git log --oneline": () =>
+      ceviri(
+        "9f3d7aa T-24: imleçle sayfalama\r\n4be1c02 T-22: ürün kataloğu API\r\n1a07e9d T-16: veritabanı şeması",
+        "9f3d7aa T-24: cursor pagination\r\n4be1c02 T-22: product catalog API\r\n1a07e9d T-16: database schema",
+      ),
     "npm test": () => "\r\n \x1b[32m✓\x1b[0m tests/api/siparisler.test.ts (2 tests) 41ms\r\n \x1b[32m✓\x1b[0m tests/api/sayfalama.test.ts (2 tests) 12ms\r\n\r\n Test Files  \x1b[32m2 passed\x1b[0m (2)\r\n      Tests  \x1b[32m4 passed\x1b[0m (4)",
     clear: () => "\x1b[2J\x1b[H",
-    help: () => "Sahte komutlar: ls, pwd, git status, git log --oneline, npm test, clear, echo",
+    help: () => ceviri("Sahte komutlar: ls, pwd, git status, git log --oneline, npm test, clear, echo", "Mock commands: ls, pwd, git status, git log --oneline, npm test, clear, echo"),
   };
   ws.mesaj = (ham) => {
     let m;
@@ -1831,7 +2000,7 @@ function terminalBagla(ws, id) {
         satir = "";
         let cikti = "";
         if (komut.startsWith("echo ")) cikti = komut.slice(5);
-        else if (komut) cikti = komutlar[komut]?.() ?? `${komut.split(" ")[0]}: komut bulunamadı (help yazın)`;
+        else if (komut) cikti = komutlar[komut]?.() ?? ceviri(`${komut.split(" ")[0]}: komut bulunamadı (help yazın)`, `${komut.split(" ")[0]}: command not found (type help)`);
         ws.gonder(`\r\n${cikti ? `${cikti}\r\n` : ""}${istem()}`);
       } else if (ch === "\x7f") {
         if (satir.length) {
@@ -1879,8 +2048,8 @@ function statikGonder(url, yanit) {
   if (!fs.existsSync(dosya) || fs.statSync(dosya).isDirectory()) dosya = path.join(DIST, "index.html");
   if (!fs.existsSync(dosya)) {
     yanit.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    yanit.end(`<!doctype html><meta charset="utf-8"><title>ArnOrg sahte çekirdek</title><body style="background:#0a0a0b;color:#f2f0ec;font:14px monospace;padding:2rem">
-<p>Stüdyo derlemesi yok. Önce <code>npm run build -w @arnorg/studyo</code> çalıştırın ya da Vite geliştirme sunucusunu kullanın:</p>
+    yanit.end(`<!doctype html><meta charset="utf-8"><title>${ceviri("ArnOrg sahte çekirdek", "ArnOrg mock core")}</title><body style="background:#0a0a0b;color:#f2f0ec;font:14px monospace;padding:2rem">
+<p>${ceviri("Stüdyo derlemesi yok. Önce <code>npm run build -w @arnorg/studyo</code> çalıştırın ya da Vite geliştirme sunucusunu kullanın:", "No Studio build found. Run <code>npm run build -w @arnorg/studyo</code> first, or use the Vite dev server:")}</p>
 <p><a style="color:#f27a68" href="http://localhost:5173/#anahtar=${ANAHTAR}">http://localhost:5173/#anahtar=${ANAHTAR}</a></p></body>`);
     return;
   }
@@ -1896,7 +2065,7 @@ const sunucu = http.createServer(async (istek, yanit) => {
     yanit.writeHead(durum, { "Content-Type": "application/json; charset=utf-8" });
     yanit.end(JSON.stringify(govde));
   };
-  if (istek.headers.authorization !== `Bearer ${ANAHTAR}`) return json(401, { hata: "Erişim anahtarı eksik ya da yanlış." });
+  if (istek.headers.authorization !== `Bearer ${ANAHTAR}`) return json(401, { hata: ceviri("Erişim anahtarı eksik ya da yanlış.", "The access key is missing or wrong.") });
 
   let govde;
   let hamGovde;
@@ -1909,7 +2078,7 @@ const sunucu = http.createServer(async (istek, yanit) => {
       try {
         govde = JSON.parse(ham);
       } catch {
-        return json(400, { hata: "Gövde geçerli JSON değil." });
+        return json(400, { hata: ceviri("Gövde geçerli JSON değil.", "The body is not valid JSON.") });
       }
     }
   }
@@ -1935,10 +2104,10 @@ const sunucu = http.createServer(async (istek, yanit) => {
     } catch (e) {
       if (e instanceof Hata) return json(e.durum, { hata: e.message });
       console.error(e);
-      return json(500, { hata: "Sahte çekirdekte beklenmeyen hata." });
+      return json(500, { hata: ceviri("Sahte çekirdekte beklenmeyen hata.", "Unexpected error in the mock core.") });
     }
   }
-  json(404, { hata: "Uç nokta bulunamadı." });
+  json(404, { hata: ceviri("Uç nokta bulunamadı.", "Endpoint not found.") });
 });
 
 sunucu.on("upgrade", (istek, soket) => {
