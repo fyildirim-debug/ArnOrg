@@ -17,6 +17,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
   - projelerin duracağı yer ve dil.
 
   Ardından CEO sizinle #yonetim'de kısa bir hazırlık görüşmesi yapar: ne yapacağınız, tercihleriniz, ana yasa, ilk işe alımlar ve ilk plan.
+- **Her ekranda Claude Code asistanı.** Claude Code sonradan bulunamaz ya da girişi düşerse üst çubuğun altındaki şerit aynı kurulumu çekmecede açar. Giriş hatası alan ajanlar hata vermek yerine duraklar; ArnOrg'dan ya da terminalden giriş yapınca kaldıkları yerden sürer.
 - **Yol yazmadan proje.**
   - Yeni proje `~/ArnOrg/<ad>` altına açılır.
   - Var olan klasör sistemin klasör seçicisiyle açılır.
@@ -105,13 +106,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.3                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.3.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.3 -m "ArnOrg 0.0.3"
-git push origin main v0.0.3            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.4                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.4.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.4 -m "ArnOrg 0.0.4"
+git push origin main v0.0.4            # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.3` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.4` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 Geliştirme:
 

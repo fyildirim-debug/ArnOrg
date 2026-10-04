@@ -17,6 +17,7 @@ A software company built from Claude Code agents. You open a project; the CEO ag
   - where projects live and which language to use.
   
   Then the CEO holds a short kickoff with you in #ceo: what you're building, your preferences, the constitution, the first hires and the first plan.
+- **A Claude Code assistant on every screen.** If Claude Code later goes missing or gets signed out, a bar under the top bar opens the same setup in a drawer. Agents that hit a sign-in error pause instead of failing and pick up where they left off once you sign in, from ArnOrg or from a terminal.
 - **Projects without typing paths.**
   - New projects go to `~/ArnOrg/<name>`.
   - An existing folder opens with the system folder picker.
@@ -105,13 +106,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.3                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.3.md and commit
-git tag -a v0.0.3 -m "ArnOrg 0.0.3"
-git push origin main v0.0.3            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.4                 # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.4.md and commit
+git tag -a v0.0.4 -m "ArnOrg 0.0.4"
+git push origin main v0.0.4            # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.3` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.4` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 Development:
 
