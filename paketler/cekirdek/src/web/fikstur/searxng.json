@@ -1,0 +1,10 @@
+{
+  "query": "electron updater",
+  "number_of_results": 0,
+  "results": [
+    { "url": "https://www.electron.build/auto-update", "title": "Auto Update - electron-builder", "content": "electron-updater supports private GitHub repositories with a token.", "engine": "google", "engines": ["google", "bing"], "score": 4.0, "category": "general", "publishedDate": null },
+    { "url": "https://example.org/blog/electron-updates", "title": "Shipping Electron updates", "content": "A walkthrough of update servers.", "engine": "brave", "engines": ["brave"], "score": 1.0, "category": "general", "publishedDate": "2026-01-15T00:00:00" },
+    { "url": "javascript:alert(1)", "title": "Kötü sonuç", "content": "", "engines": ["x"] }
+  ],
+  "answers": [], "corrections": [], "infoboxes": [], "suggestions": [], "unresponsive_engines": []
+}

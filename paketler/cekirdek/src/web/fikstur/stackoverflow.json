@@ -1,0 +1,45 @@
+{
+ "items": [
+  {
+   "tags": [
+    "javascript",
+    "node.js",
+    "electron",
+    "auto-update"
+   ],
+   "is_answered": false,
+   "view_count": 575,
+   "answer_count": 1,
+   "score": 0,
+   "last_activity_date": 1653373374,
+   "creation_date": 1651831617,
+   "last_edit_date": 1652955064,
+   "question_id": 72139735,
+   "content_license": "CC BY-SA 4.0",
+   "link": "https://stackoverflow.com/questions/72139735/electron-autoupdater-is-not-fetching-releases-from-private-repository",
+   "title": "Electron autoUpdater is not fetching releases from private repository",
+   "body": "<p>Electron autoUpdater is working fine with public repository but it could not find latest release from private repository.</p>\n<p>I had configured electron-updater also to use the github token:</p>\n<p>autoUpdater.setFeedURL({\nprovider: 'github',\nowner: '<em><strong><strong>',\nrepo: '</strong></strong></em>',\ntoken: '*****',\nprivate: true,\nhost: 'github.com'\n});</p>\n<p>It is throwing following\nerror: Unable to find latest version on GitHub, please ensure a production release exists: HttpError: 404</p>\n"
+  },
+  {
+   "tags": [
+    "gitlab",
+    "gitlab-ci",
+    "electron-updater"
+   ],
+   "is_answered": false,
+   "view_count": 2517,
+   "answer_count": 0,
+   "score": 1,
+   "last_activity_date": 1553018721,
+   "creation_date": 1553018721,
+   "question_id": 55247382,
+   "content_license": "CC BY-SA 4.0",
+   "link": "https://stackoverflow.com/questions/55247382/electron-updater-unable-to-parse-latest-yml-in-artifacts-of-gitlab-private-repo",
+   "title": "electron-updater unable to parse latest.yml in artifacts of gitlab private repo",
+   "body": "<p>I am trying to use Electron Updater with a GitLab Private Repository.</p>\n\n<p>Main Electron File (partial):</p>\n\n<pre><code>autoUpdater.requestHeaders = { 'PRIVATE-TOKEN': process.env.VUE_APP_GITLABSECRET }\nautoUpdater.autoDownload = true\n\nautoUpdater.setFeedURL({\n  provider: 'generic',\n  url: 'https://gitlab.com/SmellydogCoding/mchd-electronic-field-guide/-/jobs/artifacts/master/raw/dist_electron?job=build'\n})\n\nautoUpdater.on('checking-for-update', function () {\n  console.log('Checking for update...')\n})\n</code></pre>\n\n<p>When I start the app I get this error message:</p>\n\n<pre><code>Error"
+  }
+ ],
+ "has_more": true,
+ "quota_max": 300,
+ "quota_remaining": 283
+}

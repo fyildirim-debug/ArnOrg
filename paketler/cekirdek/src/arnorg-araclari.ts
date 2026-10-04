@@ -15,6 +15,8 @@ import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { kisalt, yonelme } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
+import { webAraclari } from "./web/araclar.js";
+import { aracAcik } from "./yetenekler.js";
 
 type Sonuc = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -994,7 +996,11 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           return metin(iki("Hazırlık tamamlandı olarak işaretlendi.", "The kickoff was marked complete."));
         }),
     ),
+    // ---------------- web ve araştırma (web/araclar.ts) ----------------
+    ...webAraclari(sirket, ajanId),
   ];
 
-  return araclar.map(onarimli);
+  // Kapalı yeteneklerin araçları listeden çıkar (yetenekler.ts); oturum açılırken okunur
+  const ajan = sirket.depo.ajan(ajanId);
+  return araclar.filter((t) => !ajan || aracAcik(ajan, `mcp__arnorg__${t.name}`)).map(onarimli);
 }

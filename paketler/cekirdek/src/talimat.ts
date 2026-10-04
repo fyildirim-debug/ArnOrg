@@ -6,6 +6,7 @@ import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
 import { rolBul } from "./roller.js";
 import { kisalt } from "./yardimci.js";
+import { yetenekTalimati } from "./yetenekler.js";
 
 /** Ofis karakterinin kişiliği: yalnız üslubu ve yaklaşımı belirler */
 export function kisilikMetni(karakterId: string | null, dil: Dil = "tr"): string {
@@ -100,6 +101,8 @@ export function talimatOlustur(b: TalimatBaglami): string {
           ]
         : []),
       "- When searching code, use mcp__arnorg__kod_ara first (semantic; ask in plain English or Turkish). Use sembol_bul for a definition you know by name, kod_haritasi for the project's structure, bagimliliklar for who uses a file, benzer_kod for duplicated code. Use Grep and Read when you already know where to look.",
+      // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
+      ...yetenekTalimati(ajan, "en"),
       "",
       "## Talking to the team (channels)",
       "- The team talks live in channels and the board watches. Use only mcp__arnorg__mesaj_gonder; whoever you @mention is notified. Read channels with mcp__arnorg__kanal_oku.",
@@ -164,6 +167,8 @@ export function talimatOlustur(b: TalimatBaglami): string {
         ]
       : []),
     "- Kodda bir şey ararken önce mcp__arnorg__kod_ara kullan (anlamsal; Türkçe ya da İngilizce doğal dille sorabilirsin). Tam adını bildiğin tanım için sembol_bul, projenin yapısı için kod_haritasi, bir dosyayı kimin kullandığı için bagimliliklar, tekrar eden kod için benzer_kod. Grep ve Read'i yer kesin belliyken kullan.",
+    // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
+    ...yetenekTalimati(ajan, "tr"),
     "",
     "## Ekiple konuşmak (kanallar)",
     "- Ekip kanallarda canlı konuşur, kurul da izler. Ekiple yalnız mcp__arnorg__mesaj_gonder ile konuş; @Ad ile andığın kişi uyarılır. Kanalları mcp__arnorg__kanal_oku ile oku.",

@@ -20,6 +20,7 @@ import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
 import { ClaudeKurulumu } from "../bilesenler/ClaudeKurulumu";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { GithubKurulumu } from "../bilesenler/GithubKurulumu";
+import { WebArastirma } from "../bilesenler/WebArastirma";
 import { useKlasorSecici } from "../bilesenler/KlasorSecici";
 import { IZIN_MODLARI, izinModuAdi } from "../bilesenler/Kisi";
 import { pencereAdi } from "../bilesenler/Kullanim";
@@ -369,6 +370,7 @@ export function Ayarlar() {
               </div>
             </form>
           ) : null}
+          <WebArastirma ayarlar={ayarlar} kaydedildi={(web) => [setAyarlar, setTaslak].forEach((f) => f((x) => (x ? { ...x, web } : x)))} />
         </div>
 
         <div className="ayar-yan">

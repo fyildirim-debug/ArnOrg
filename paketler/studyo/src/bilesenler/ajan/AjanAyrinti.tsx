@@ -15,6 +15,7 @@ import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, ModelAdi, m
 import { Simge } from "../Simge";
 import { MesajFormu, OturumDugmeleri } from "./AjanEylemleri";
 import { AjanZekasiBolumu } from "./AjanZekasi";
+import { AjanYetenekleri } from "./AjanYetenekleri";
 
 const IZIN_MODLARI = MODLAR as readonly IzinModu[];
 
@@ -119,6 +120,7 @@ function AjanGenel({
       ) : null}
 
       <AjanAyarlari ajan={ajan} />
+      <AjanYetenekleri ajan={ajan} />
       <IstenCikar ajan={ajan} />
     </>
   );

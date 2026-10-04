@@ -1,0 +1,153 @@
+{
+ "objects": [
+  {
+   "downloads": {
+    "monthly": 176172,
+    "weekly": 42706
+   },
+   "dependents": "7",
+   "updated": "2026-10-04T11:45:03.650Z",
+   "searchScore": 681.7207,
+   "package": {
+    "name": "electron-updater-yaml",
+    "keywords": [],
+    "version": "1.1.2",
+    "description": "Create yml/yaml files for `electron-updater`.",
+    "sanitized_name": "electron-updater-yaml",
+    "publisher": {
+     "email": "felix@felixrieseberg.com",
+     "username": "felixrieseberg"
+    },
+    "maintainers": [
+     {
+      "email": "felix@felixrieseberg.com",
+      "username": "felixrieseberg"
+     }
+    ],
+    "license": "MIT",
+    "date": "2023-06-07T19:48:35.875Z",
+    "links": {
+     "homepage": "https://github.com/felixrieseberg/electron-updater-yaml",
+     "repository": "git+https://github.com/felixrieseberg/electron-updater-yaml.git",
+     "bugs": "https://github.com/felixrieseberg/electron-updater-yaml/issues",
+     "npm": "https://www.npmjs.com/package/electron-updater-yaml"
+    }
+   },
+   "score": {
+    "final": 681.7207,
+    "detail": {
+     "popularity": 1,
+     "quality": 1,
+     "maintenance": 1
+    }
+   },
+   "flags": {
+    "insecure": 0
+   }
+  },
+  {
+   "downloads": {
+    "monthly": 14420176,
+    "weekly": 4422781
+   },
+   "dependents": "671",
+   "updated": "2026-10-04T11:40:35.119Z",
+   "searchScore": 396.71158,
+   "package": {
+    "name": "electron-updater",
+    "keywords": [],
+    "version": "6.8.9",
+    "description": "Cross platform updater for electron applications",
+    "sanitized_name": "electron-updater",
+    "publisher": {
+     "email": "npm-oidc-no-reply@github.com",
+     "trustedPublisher": {
+      "oidcConfigId": "oidc:3634deb4-a921-45cd-8342-4b06ddc18ec2",
+      "id": "github"
+     },
+     "username": "GitHub Actions"
+    },
+    "maintainers": [
+     {
+      "email": "develar@gmail.com",
+      "username": "develar"
+     },
+     {
+      "email": "crazym9@gmail.com",
+      "username": "onegoldfishh"
+     }
+    ],
+    "license": "MIT",
+    "date": "2026-06-05T06:18:09.685Z",
+    "links": {
+     "homepage": "https://github.com/electron-userland/electron-builder",
+     "repository": "git+https://github.com/electron-userland/electron-builder.git",
+     "bugs": "https://github.com/electron-userland/electron-builder/issues",
+     "npm": "https://www.npmjs.com/package/electron-updater"
+    }
+   },
+   "score": {
+    "final": 396.71158,
+    "detail": {
+     "popularity": 1,
+     "quality": 1,
+     "maintenance": 1
+    }
+   },
+   "flags": {
+    "insecure": 0
+   }
+  },
+  {
+   "downloads": {
+    "monthly": 1810,
+    "weekly": 1400
+   },
+   "dependents": 0,
+   "updated": "2026-09-30T06:56:14.747Z",
+   "searchScore": 367.7028,
+   "package": {
+    "name": "@usebruno/electron-updater",
+    "keywords": [],
+    "version": "6.8.9",
+    "description": "Cross platform updater for electron applications (hard fork of electron-updater@6.8.9)",
+    "sanitized_name": "@usebruno/electron-updater",
+    "publisher": {
+     "email": "anoop.md1421@gmail.com",
+     "username": "anoopmd"
+    },
+    "maintainers": [
+     {
+      "email": "anoop.md1421@gmail.com",
+      "username": "anoopmd"
+     },
+     {
+      "email": "siddharth@usebruno.com",
+      "username": "sid-bruno"
+     }
+    ],
+    "license": "MIT",
+    "date": "2026-09-18T13:37:53.154Z",
+    "links": {
+     "homepage": "https://github.com/electron-userland/electron-builder",
+     "repository": "git+https://github.com/electron-userland/electron-builder.git",
+     "bugs": "https://github.com/electron-userland/electron-builder/issues",
+     "npm": "https://www.npmjs.com/package/@usebruno/electron-updater"
+    }
+   },
+   "score": {
+    "final": 367.7028,
+    "detail": {
+     "popularity": 1,
+     "quality": 1,
+     "maintenance": 1
+    }
+   },
+   "flags": {
+    "insecure": 0
+   }
+  }
+ ],
+ "total": 20336,
+ "time": "2026-10-04T19:38:34.960Z"
+}

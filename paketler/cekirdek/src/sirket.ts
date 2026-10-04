@@ -67,6 +67,9 @@ import { OzelKanallar } from "./ozel-kanallar.js";
 import type { BrifingKaynagi, BrifingYaniti } from "@arnorg/ortak";
 import { Brifing } from "./brifing.js";
 import { ModelKataloguIzleyici, sdkModelOkuyucu } from "./model-katalogu.js";
+import { aracAcik, kapaliClaudeAraclari, kapaliYetenekNedeni, yetenekleriDogrula } from "./yetenekler.js";
+import { WebHizmeti } from "./web/index.js";
+import { webDenetimGirdisi } from "./web/etiketler.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
 export { kisilikMetni } from "./talimat.js";
@@ -445,6 +448,19 @@ export class Sirket {
     if (bekleyenler.length) this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Abonelik penceresi açıldı; ajanlar kaldıkları yerden sürüyor.", "The subscription window is open again; agents are picking up where they left off.") });
   }
 
+  private webHizmeti: WebHizmeti | null = null;
+  /** Yerleşik web araması, sayfa okuyucu, paket bilgisi ve GitHub araştırması (web/); ilk kullanımda kurulur */
+  get web(): WebHizmeti {
+    return (this.webHizmeti ??= new WebHizmeti({
+      ayarlar: () => this.yapilandirma.ayarlar.web,
+      dil: () => dil(),
+      ghBul: () => {
+        const gh = this.kurulum.ghYolu();
+        return gh ? { yol: gh.yol, ortam: this.kurulum.ghOrtami() } : null;
+      },
+    }));
+  }
+
   get claudeYolu(): string | null {
     return this.claudeYoluBulucu();
   }
@@ -767,6 +783,8 @@ export class Sirket {
     }
     if (istek.talimatEki !== undefined) alanlar.talimatEki = istek.talimatEki;
     if (istek.karakter !== undefined) alanlar.karakter = istek.karakter;
+    // Yetenekler bir sonraki oturumun araç listesine ve talimatına girer; kapanan yeteneğin aracı hemen kapıda reddedilir
+    if (istek.yetenekler !== undefined) alanlar.yetenekler = yetenekleriDogrula(istek.yetenekler);
     const yeni = this.depo.ajanGuncelle(id, alanlar);
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
@@ -954,7 +972,7 @@ export class Sirket {
       claudeYolu: this.claudeYolu,
       talimat: () => this.talimatOlustur(this.ajan(id), cwd),
       araclar: () => arnorgAraclari(this, id),
-      yasakAraclar: () => (rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []),
+      yasakAraclar: () => [...(rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []), ...kapaliClaudeAraclari(this.ajan(id))],
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
       kapi: (arac, girdi, aracKimligi, altAjan) => this.kapi(id, arac, girdi, aracKimligi, altAjan),
       izinSor,
@@ -1304,7 +1322,15 @@ export class Sirket {
   async kapi(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string, altAjan?: string): Promise<HookJSONOutput> {
     const ajan = this.depo.ajan(ajanId);
     if (!ajan) return this.ret(iki("ArnOrg: ajan bulunamadı.", "ArnOrg: agent not found."));
-    if (arac.startsWith("mcp__arnorg__")) return {};
+    // Yetenekler: kapalı yeteneğin aracı (açık oturumda da) reddedilir; web araçları denetimden geçip kayda düşer
+    const webGirdisi = webDenetimGirdisi(arac, girdi);
+    if (!aracAcik(ajan, arac)) {
+      const neden = kapaliYetenekNedeni(arac);
+      this.denetimKaydet(ajan, arac, webGirdisi ?? girdi, "ret", iki("Yetenek kapalı", "Capability off"), neden, aracKimligi, altAjan);
+      return this.ret(neden);
+    }
+    if (arac.startsWith("mcp__arnorg__") && !webGirdisi) return {};
+    if (webGirdisi) girdi = webGirdisi;
     const proje = this.proje(ajan.projeId);
     const cwd = ajan.calismaAlani ?? proje.yol;
 

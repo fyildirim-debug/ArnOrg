@@ -40,6 +40,9 @@ import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import type { TerminalYoneticisi } from "./terminal.js";
 import { ArnorgHatasi, bugun, bulunamadi, sadelestir } from "./yardimci.js";
+import { webAyarSemasi } from "./web/ayarlar.js";
+import { webUclariniKur } from "./web/uclar.js";
+import { yetenekListesiSemasi } from "./yetenekler.js";
 
 export interface SunucuSecenekleri {
   sirket: Sirket;
@@ -115,6 +118,7 @@ const semalar = {
     yoneticiId: z.string().nullable().optional(),
     talimatEki: z.string().max(8000).optional(),
     karakter: karakterSemasi.nullable().optional(),
+    yetenekler: yetenekListesiSemasi.optional(),
   }),
   baslat: z.object({ talimat: z.string().max(20_000).optional(), gorevId: z.string().optional() }),
   mesaj: z.object({ metin: z.string().min(1).max(20_000), oncelik: z.enum(["next", "now"]).optional() }),
@@ -160,6 +164,7 @@ const semalar = {
     projeKoku: z.string().max(1000).nullable().optional(),
     kurulumTamam: z.boolean().optional(),
     gunlukBrifing: z.object({ acik: z.boolean(), saat: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: () => iki("Saat SS:DD biçiminde olmalı.", "The time must be in HH:MM format.") }) }).optional(),
+    web: webAyarSemasi.optional(),
   }),
   politika: z.array(
     z.object({
@@ -283,6 +288,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/roller", async () => ROLLER);
   // Claude Code'un sunduğu modeller sürümlü adlarıyla; değişince "modeller.guncellendi" yayınlanır
   app.get("/api/modeller", async () => sirket.modelKatalogu.mevcut);
+  // Yetenek kataloğu, web motorlarının durumu, kurulun deneme araması ve okuması (web/uclar.ts)
+  webUclariniKur(app, sirket);
 
   // ---------------- kurulum: Claude Code, git, GitHub CLI ----------------
   app.get("/api/kurulum", async (i) => sirket.kurulum.durum(sorgu(i, "tazele") === "1"));

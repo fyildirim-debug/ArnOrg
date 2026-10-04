@@ -1,0 +1,71 @@
+{
+ "documents": [
+  {
+   "mdn_url": "/en-US/docs/Web/API/BackgroundFetchRegistration/abort",
+   "score": 96.23094,
+   "title": "BackgroundFetchRegistration: abort() method",
+   "locale": "en-us",
+   "slug": "web/api/backgroundfetchregistration/abort",
+   "popularity": 0.0,
+   "summary": "The abort() method of the BackgroundFetchRegistration interface aborts an active background fetch.",
+   "highlight": {
+    "body": [
+     "The <mark>abort</mark>() method of the Background<mark>Fetch</mark>Registration interface aborts an active background <mark>fetch</mark>.\njsabort()\nNone.",
+     "A Promise that resolves with true if the <mark>fetch</mark> is successfully aborted.",
+     "Use <mark>abort</mark>() to terminate a background <mark>fetch</mark> that is in progress.\njsbg<mark>Fetch.abort</mark>();"
+    ],
+    "title": [
+     "Background<mark>Fetch</mark>Registration: <mark>abort</mark>() method"
+    ]
+   }
+  },
+  {
+   "mdn_url": "/en-US/docs/Web/API/AbortController/abort",
+   "score": 59.080456,
+   "title": "AbortController: abort() method",
+   "locale": "en-us",
+   "slug": "web/api/abortcontroller/abort",
+   "popularity": 0.007385500325591491,
+   "summary": "The abort() method of the AbortController interface aborts an asynchronous operation before it has completed.\nThis is able to abort fetch requests, the consumption of any response bodies, or streams.",
+   "highlight": {
+    "body": [
+     "The <mark>abort</mark>() method of the <mark>Abort</mark>Controller interface aborts an asynchronous operation before it has completed.",
+     "This is able to <mark>abort</mark> <mark>fetch</mark> requests, the consumption of any response bodies, or streams.\njsabort()\n<mark>abort</mark>(reason)\nreason",
+     "<mark>Fetch</mark> API"
+    ],
+    "title": [
+     "<mark>Abort</mark>Controller: <mark>abort</mark>() method"
+    ]
+   }
+  },
+  {
+   "mdn_url": "/en-US/docs/Web/API/AbortSignal/abort_static",
+   "score": 56.67668,
+   "title": "AbortSignal: abort() static method",
+   "locale": "en-us",
+   "slug": "web/api/abortsignal/abort_static",
+   "popularity": 0.001975255046668114,
+   "summary": "The AbortSignal.abort() static method returns an AbortSignal that is already set as aborted (and which does not trigger an abort event).",
+   "highlight": {
+    "body": [
+     ";\nThis could, for example, be passed to a <mark>fetch</mark> method in order to run its <mark>abort</mark> logic (i.e., it may be that code is organized",
+     "such that the <mark>abort</mark> logic should be run even if the intended <mark>fetch</mark> operation has not been started).",
+     "Note:\nThe method is similar in purpose to Promise.reject.\njs<mark>Abort</mark>Signal.<mark>abort</mark>()\n<mark>Abort</mark>Signal.<mark>abort</mark>(reason)\nreason\nThe reason"
+    ],
+    "title": [
+     "<mark>Abort</mark>Signal: <mark>abort</mark>() static method"
+    ]
+   }
+  }
+ ],
+ "metadata": {
+  "took_ms": 18,
+  "size": 10,
+  "page": 1,
+  "total": {
+   "value": 1136,
+   "relation": "eq"
+  }
+ },
+ "suggestions": []
+}

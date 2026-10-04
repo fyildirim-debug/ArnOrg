@@ -10,15 +10,29 @@ export function aracSinifi(arac: string | undefined): AracSinifi {
   if (/^(Bash|BashOutput|KillShell|KillBash|PowerShell)$/.test(arac)) return "kabuk";
   if (/^(Read|Grep|Glob|LS|WebFetch|WebSearch)$/.test(arac)) return "oku";
   if (/^(Task|Agent)$/.test(arac)) return "alt";
+  // Web ve araştırma araçları okuma sınıfında (WebFetch ve WebSearch gibi)
+  if (/^mcp__arnorg__(web_ara|web_oku|paket_bilgisi|github_ara)$/.test(arac)) return "oku";
   if (arac.startsWith("mcp__")) return "mcp";
   return "diger";
 }
 
-/** mcp__arnorg__mesaj_gonder → mesaj_gonder */
+/** mcp__arnorg__mesaj_gonder → mesaj_gonder; web ve araştırma araçları okunur adlarıyla (Web araması, Sayfa okuma) */
 export function aracAdi(arac: string | undefined): string {
   if (!arac) return sozluk().bilesenler.arac.arac;
   const m = /^mcp__[^_]+(?:_[^_]+)*?__(.+)$/.exec(arac);
-  return m?.[1] ?? arac;
+  const kisa = m?.[1] ?? arac;
+  return (arac.startsWith("mcp__arnorg__") && sozluk().yetenek.araclar[kisa]) || kisa;
+}
+
+/** Adresin alan adı ve kısa yolu: https://www.ornek.com/a/b → ornek.com/a/b */
+function adresOzeti(adres: string): string {
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(adres) ? adres : `https://${adres}`);
+    const tam = `${u.hostname.replace(/^www\./, "")}${u.pathname.replace(/\/$/, "")}`;
+    return tam.length > 70 ? `${tam.slice(0, 69)}…` : tam;
+  } catch {
+    return adres;
+  }
 }
 
 function kayit(girdi: unknown): Record<string, unknown> {
@@ -87,6 +101,26 @@ export function girdiOzeti(arac: string | undefined, girdi: unknown, kok?: strin
     }
     case "mcp__arnorg__hafiza_ara":
       return { metin: `"${dize(g.sorgu) ?? ""}"` };
+    // Web ve araştırma araçları: sorgu ve kategori, okunan adres, not başlığı, paket, GitHub araması
+    case "mcp__arnorg__web_ara": {
+      const kategori = dize(g.kategori);
+      const kategoriAdi = kategori ? ((sozluk().yetenek.web.kategoriler as Record<string, string>)[kategori] ?? kategori) : null;
+      return { metin: [`"${dize(g.sorgu) ?? ""}"`, kategoriAdi, typeof g.sayfa === "number" && g.sayfa > 1 ? `#${g.sayfa}` : null].filter(Boolean).join(" · ") };
+    }
+    case "mcp__arnorg__web_oku": {
+      const bas = typeof g.baslangic === "number" && g.baslangic > 0 ? sozluk().yetenek.parca(g.baslangic) : null;
+      return { metin: [adresOzeti(dize(g.adres) ?? ""), bas].filter(Boolean).join(" · ") };
+    }
+    case "mcp__arnorg__arastirma_kaydet": {
+      const n = Array.isArray(g.kaynaklar) ? g.kaynaklar.length : 0;
+      return { metin: [dize(g.baslik), n ? sozluk().yetenek.kaynak(n) : null].filter(Boolean).join(" · ") };
+    }
+    case "mcp__arnorg__paket_bilgisi":
+      return { metin: `${dize(g.ekosistem) ?? "npm"} · ${dize(g.ad) ?? ""}` };
+    case "mcp__arnorg__github_ara": {
+      const tur = dize(g.tur) ?? "repo";
+      return { metin: `${sozluk().yetenek.githubTurleri[tur] ?? tur} · "${dize(g.sorgu) ?? ""}"` };
+    }
     case "mcp__arnorg__defter_yaz":
       return { metin: sozluk().bilesenler.arac.defterGuncellendi };
     case "mcp__arnorg__defter_oku": {

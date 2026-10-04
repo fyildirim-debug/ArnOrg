@@ -75,6 +75,9 @@ export interface Ayarlar {
    * saatte kapalıysa açılınca aynı gün içinde bir kez verilir; son brifingden bu yana hiçbir şey olmadıysa atlanır.
    */
   gunlukBrifing: GunlukBrifingAyari;
+  // ---- 0.0.5 · yetenek: yerleşik web araması ve sayfa okuyucu ----
+  /** Web araması ve sayfa okuyucu: isteğe bağlı dış SearXNG, r.jina.ai yedeği, kapatılan motorlar */
+  web: WebAyarlari;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +234,8 @@ export interface Ajan {
   /** Ofis karakteri: hazır kütüphaneden "k07" ya da üretilmiş "u-<kimlik>"; boşsa ada göre seçilir */
   karakter: string | null;
   olusturma: Zaman;
+  /** Açık yetenekler (YETENEKLER); eski çekirdekte yoktur, yoksa rolün varsayılanları geçerlidir */
+  yetenekler?: YetenekKimligi[];
 }
 
 export interface AjanIseAlIstegi {
@@ -248,6 +253,8 @@ export interface AjanGuncelleIstegi {
   yoneticiId?: string | null;
   talimatEki?: string;
   karakter?: string | null;
+  /** Açık yeteneklerin tam listesi; verilmeyen yetenek kapanır */
+  yetenekler?: YetenekKimligi[];
 }
 
 export interface AjanBaslatIstegi {
@@ -1574,4 +1581,191 @@ export interface ModelKatalogu {
   kaynak: "claude" | "onbellek" | "yedek";
   /** Listenin Claude Code'dan son okunduğu an; yedekte null */
   guncelleme: Zaman | null;
+}
+
+// ---------------------------------------------------------------------------
+// Yetenekler (0.0.5): çalışan başına açılıp kapanan araç kümeleri; yerleşik web araması ve sayfa okuyucu.
+// Uçlar: GET /api/yetenekler, GET /api/web/durum, POST /api/web/ara, POST /api/web/oku (docs/API.md, "Web ve araştırma")
+// ---------------------------------------------------------------------------
+
+export type YetenekKimligi = "web_arama" | "web_okuma" | "arastirma" | "paket_bilgisi" | "github_arastirma" | "claude_web";
+
+export interface Yetenek {
+  kimlik: YetenekKimligi;
+  ad: string;
+  aciklama: string;
+  /** İngilizce ad ve açıklama */
+  en: { ad: string; aciklama: string };
+  /** Yeteneğin açtığı araçlar, Claude Code'un gördüğü adlarla (mcp__arnorg__web_ara, WebSearch) */
+  araclar: string[];
+}
+
+export const YETENEKLER: Yetenek[] = [
+  {
+    kimlik: "web_arama",
+    ad: "Web araması",
+    aciklama: "Yerleşik meta arama: birçok arama motoru birlikte sorgulanır, sonuçlar birleştirilip sıralanır.",
+    en: { ad: "Web search", aciklama: "Built-in meta search: several search engines are queried together and the results are merged and ranked." },
+    araclar: ["mcp__arnorg__web_ara"],
+  },
+  {
+    kimlik: "web_okuma",
+    ad: "Sayfa okuma",
+    aciklama: "Web sayfasını, PDF'i ya da JSON'u temiz Markdown'a çevirip parça parça okur.",
+    en: { ad: "Page reading", aciklama: "Turns a web page, PDF or JSON into clean Markdown and reads it piece by piece." },
+    araclar: ["mcp__arnorg__web_oku"],
+  },
+  {
+    kimlik: "arastirma",
+    ad: "Araştırma notu",
+    aciklama: "Bulguları kaynaklarıyla notlar/arastirma altına yazar, kısa özetini proje hafızasına ekler.",
+    en: { ad: "Research notes", aciklama: "Writes findings with their sources under notlar/arastirma and adds a short summary to project memory." },
+    araclar: ["mcp__arnorg__arastirma_kaydet"],
+  },
+  {
+    kimlik: "paket_bilgisi",
+    ad: "Paket bilgisi",
+    aciklama: "npm, PyPI ve crates.io'dan son sürüm, lisans, indirme sayısı ve depo adresi.",
+    en: { ad: "Package info", aciklama: "Latest version, license, downloads and repository from npm, PyPI and crates.io." },
+    araclar: ["mcp__arnorg__paket_bilgisi"],
+  },
+  {
+    kimlik: "github_arastirma",
+    ad: "GitHub araştırması",
+    aciklama: "GitHub'da depo, issue ve kod araması; gh girişi varsa onun belirteciyle.",
+    en: { ad: "GitHub research", aciklama: "Searches GitHub repositories, issues and code; with the gh token when signed in." },
+    araclar: ["mcp__arnorg__github_ara"],
+  },
+  {
+    kimlik: "claude_web",
+    ad: "Claude Code web araçları",
+    aciklama: "Claude Code'un kendi WebSearch ve WebFetch araçları; yerleşik araçlar sonuç vermezse yedek.",
+    en: { ad: "Claude Code web tools", aciklama: "Claude Code's own WebSearch and WebFetch tools; a fallback when the built-in tools find nothing." },
+    araclar: ["WebSearch", "WebFetch"],
+  },
+];
+
+/** Yeteneğin seçilen dildeki adı ve açıklaması */
+export function yetenekMetni(y: Yetenek, dil: Dil): { ad: string; aciklama: string } {
+  return dil === "en" ? y.en : { ad: y.ad, aciklama: y.aciklama };
+}
+
+/** Her çalışanın varsayılan olarak sahip olduğu yetenekler */
+export const TEMEL_YETENEKLER: YetenekKimligi[] = ["web_arama", "web_okuma"];
+
+/** genel: web · kod: teknik kaynaklar ve web · haber: haberler · bilim: makaleler ve ansiklopedi */
+export type WebAramaKategorisi = "genel" | "kod" | "haber" | "bilim";
+export const WEB_ARAMA_KATEGORILERI: WebAramaKategorisi[] = ["genel", "kod", "haber", "bilim"];
+
+export interface WebAyarlari {
+  /** Dış SearXNG adresi (ör. https://searx.ornek.org); doluysa <adres>/search?format=json yerleşik motorlarla birlikte sorgulanır */
+  searxngAdresi: string | null;
+  /** Yerelde çok az metin çıkan (JS ile çizilen) sayfa r.jina.ai'ye gönderilir; yerel ağ adresleri hiç gönderilmez */
+  disOkuyucu: boolean;
+  /** Kurulun kapattığı motor kimlikleri */
+  kapaliMotorlar: string[];
+}
+
+export interface WebMotorDurumu {
+  kimlik: string;
+  ad: string;
+  /** genel: web arama motoru · teknik: API'li teknik kaynak · dis: kurulun SearXNG'si */
+  tur: "genel" | "teknik" | "dis";
+  kategoriler: WebAramaKategorisi[];
+  /** Kurul kapatmadı */
+  etkin: boolean;
+  /** Hata yüzünden geçici olarak sorgulanmıyor */
+  askida: boolean;
+  askiBitis: Zaman | null;
+  sonHata: string | null;
+  sonHataZamani: Zaman | null;
+  sonBasari: Zaman | null;
+  /** Bu çalıştırmadaki başarılı ve hatalı sorgu sayısı */
+  basari: number;
+  hata: number;
+}
+
+/** GET /api/web/durum */
+export interface WebDurumu {
+  motorlar: WebMotorDurumu[];
+  searxngAdresi: string | null;
+  disOkuyucu: boolean;
+  /** Önbellekteki arama ve sayfa sayısı */
+  onbellek: { arama: number; sayfa: number };
+}
+
+/** POST /api/web/ara gövdesi (kurulun deneme araması; ajanların web_ara aracıyla aynı) */
+export interface WebAramaIstegi {
+  sorgu: string;
+  kategori?: WebAramaKategorisi;
+  /** 1 tabanlı */
+  sayfa?: number;
+  /** Sonuç dili; verilmezse ArnOrg dili */
+  dil?: Dil;
+}
+
+export interface WebAramaSonucu {
+  baslik: string;
+  adres: string;
+  ozet: string;
+  /** Sonucu döndüren motorlar */
+  motorlar: string[];
+  /** Σ motor ağırlığı / sıra */
+  puan: number;
+  /** Yayın tarihi biliniyorsa (haber, makale) */
+  tarih: Zaman | null;
+}
+
+export interface WebAramaYaniti {
+  sorgu: string;
+  kategori: WebAramaKategorisi;
+  sayfa: number;
+  dil: Dil;
+  sonuclar: WebAramaSonucu[];
+  /** Sonuç döndüren motorlar */
+  yanitVerenler: string[];
+  /** Sorgulanıp hata veren motorlar */
+  hatalar: { motor: string; hata: string }[];
+  /** Askıda olduğu için sorgulanmayan motorlar */
+  askidakiler: string[];
+  sureMs: number;
+  onbellekten: boolean;
+}
+
+export type WebIcerikTuru = "html" | "pdf" | "json" | "metin" | "gorsel" | "diger";
+
+/** POST /api/web/oku gövdesi (ajanların web_oku aracıyla aynı) */
+export interface WebOkumaIstegi {
+  adres: string;
+  /** Okumanın başladığı karakter (0 tabanlı) */
+  baslangic?: number;
+  /** En çok karakter (varsayılan 12000) */
+  uzunluk?: number;
+  /** Sayfadaki önemli bağlantılar da dönsün */
+  baglantilar?: boolean;
+}
+
+export interface WebOkumaSonucu {
+  adres: string;
+  /** Yönlendirmeler ve özel durumlar (GitHub raw, npm) sonrası okunan adres */
+  sonAdres: string;
+  baslik: string | null;
+  site: string | null;
+  yazar: string | null;
+  tarih: string | null;
+  tur: WebIcerikTuru;
+  /** yerel: ArnOrg'un kendi çıkarımı · jina: r.jina.ai yedeği */
+  kaynak: "yerel" | "jina";
+  /** Bu parçanın Markdown'ı */
+  icerik: string;
+  baslangic: number;
+  /** Bütün belgenin karakter sayısı */
+  toplam: number;
+  devamVar: boolean;
+  /** Sonraki parçanın başlangıcı; yoksa null */
+  sonraki: number | null;
+  baglantilar: { metin: string; adres: string }[];
+  /** Kesilen gövde, okunamayan içerik gibi notlar */
+  uyarilar: string[];
+  onbellekten: boolean;
 }

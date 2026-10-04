@@ -1,0 +1,326 @@
+/* Yetenekler (ajan paneli) ve Ayarlar › Web ve araştırma. FY: kıl çizgili satırlar, tek vurgu mercan (anahtar),
+   durum renkleri yalnız noktada ve dikkat isteyen metinde; araç ve motor adları, sayılar mono. */
+
+/* ---------- ajan paneli: yetenekler ---------- */
+.yetenek-ust {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b-2);
+}
+.yetenek-sayac {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.yetenekler {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.yetenek {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--b-3);
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.yetenek > .anahtar-dugme {
+  margin-top: 0.125rem;
+}
+.yetenek-metin {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.yetenek-metin b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--paper);
+}
+.yetenek-metin small {
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.yetenek-metin code {
+  font-size: var(--t-2xs);
+  color: var(--muted-2);
+  overflow-wrap: anywhere;
+}
+.yetenek-kapali .yetenek-metin b {
+  color: var(--muted);
+}
+.yetenek-kapali .yetenek-metin small {
+  color: var(--muted-2);
+}
+.yetenek-varsayilan {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  font-size: var(--t-2xs);
+}
+/* Kayıt sürerken diğer anahtarlar beklemede: soluklaşmaz, yalnız imleç değişir */
+.yetenek .anahtar-dugme:disabled,
+.web-arastirma .anahtar-dugme:disabled {
+  cursor: progress;
+}
+
+/* ---------- Ayarlar: web ve araştırma ---------- */
+.web-ozet {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.web-aciklama {
+  max-width: 68ch;
+}
+.web-alt-baslik {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.web-motorlar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--b-4) var(--b-6);
+  align-items: start;
+}
+.web-motor-grup {
+  display: grid;
+  gap: var(--b-2);
+  min-width: 0;
+}
+.web-motor-liste {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.web-motor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--b-3);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.web-motor > .anahtar-dugme {
+  margin-top: 0.1875rem;
+}
+.web-motor-metin {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+.web-motor-ad {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b-2);
+  min-width: 0;
+}
+.web-motor-ad b {
+  flex: none;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--paper);
+}
+.web-motor-ad code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-2xs);
+  color: var(--muted-2);
+}
+.web-motor-durum {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+.web-motor-sonhata {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--t-2xs);
+  line-height: 1.45;
+  color: var(--muted-2);
+  overflow-wrap: anywhere;
+}
+.web-motor-aski .web-motor-durum {
+  color: var(--warn);
+}
+.web-motor-hata .web-motor-durum {
+  color: var(--sil);
+}
+.web-motor-kapali .web-motor-ad b {
+  color: var(--muted);
+}
+.web-nokta {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted-2);
+}
+.web-nokta-ok {
+  background: var(--ok);
+}
+.web-nokta-aski {
+  background: var(--warn);
+}
+.web-nokta-hata {
+  background: var(--sil);
+}
+.web-nokta-bekliyor {
+  background: none;
+  border: 1px solid var(--muted);
+}
+.web-nokta-kapali {
+  background: none;
+  border: 1px solid var(--muted-2);
+}
+
+.web-aski {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--b-3);
+}
+.web-aski .alan-ipucu {
+  flex: 1 1 22rem;
+  max-width: 68ch;
+}
+
+.web-dis,
+.web-deneme {
+  display: grid;
+  gap: var(--b-3);
+  padding-top: var(--b-4);
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.web-dis {
+  gap: var(--b-4);
+}
+.web-searxng-satir {
+  display: flex;
+  gap: var(--b-2);
+  align-items: center;
+  min-width: 0;
+}
+.web-searxng-satir .girdi {
+  flex: 1 1 auto;
+}
+.web-jina {
+  align-items: flex-start;
+  line-height: 1.5;
+}
+.web-jina .anahtar-dugme {
+  margin-top: 0.125rem;
+}
+
+.web-deneme-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--b-2);
+  align-items: center;
+}
+.web-deneme-sonuc {
+  display: grid;
+  gap: var(--b-2);
+  min-width: 0;
+}
+.web-deneme-sonuc:empty {
+  display: none;
+}
+.web-deneme-ozet {
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+}
+.web-motorlar-adi {
+  color: var(--muted);
+}
+.web-deneme-hatalar {
+  overflow-wrap: anywhere;
+}
+.web-sonuclar {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.web-sonuc {
+  display: grid;
+  gap: 0.1875rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.web-sonuc-baslik {
+  justify-self: start;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--paper);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.web-sonuc-baslik:hover {
+  color: var(--coral-hi);
+  text-decoration: underline;
+  text-decoration-color: var(--coral);
+}
+.web-sonuc-adres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--b-3);
+  min-width: 0;
+  font-size: var(--t-2xs);
+}
+.web-sonuc-adres code {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.web-sonuc-motorlar {
+  font-family: var(--font-mono);
+  color: var(--muted-2);
+}
+.web-sonuc p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-width: 76ch;
+  font-size: var(--t-2xs);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .web-motorlar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .web-deneme-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .web-deneme-form .bolumlu {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+  .web-searxng-satir {
+    flex-wrap: wrap;
+  }
+  .web-searxng-satir .girdi {
+    flex-basis: 100%;
+  }
+}

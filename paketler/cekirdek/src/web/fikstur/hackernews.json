@@ -1,0 +1,41 @@
+{
+ "hits": [
+  {
+   "author": "ecesena",
+   "created_at": "2020-02-24T18:13:14Z",
+   "created_at_i": 1582567994,
+   "num_comments": 0,
+   "objectID": "22406613",
+   "points": 2,
+   "story_id": 22406613,
+   "title": "Signature Validation Bypass Leading to RCE in Electron-Updater",
+   "url": "https://blog.doyensec.com/2020/02/24/electron-updater-update-signature-bypass.html"
+  },
+  {
+   "author": "Hannydevelop",
+   "created_at": "2024-01-02T13:45:00Z",
+   "created_at_i": 1704203100,
+   "num_comments": 2,
+   "objectID": "38841516",
+   "points": 1,
+   "story_id": 38841516,
+   "story_text": "Sometime last year, I spoke with my friends about No-code tools and how users should have complete control of their codes and products.<p>Today, we have built the first open-source No-code tool that gives users complete ownership.<p>Since Peppubuild is still in its first phase, we wrapped our initial Vue&#x2F;NodeJs application using Electron so that No-code developers do not need to install NodeJs and other dependencies. We have thoughtfully added Electron-updater for auto-updating when we make new releases.<p>The goal is to enable citizen and professional developers bootstrap an MVP as fast as possible. We are targeting ease of building full-stack applications. However, our first beta (v0.0.1) focuses on creating frontend applications with Vue.<p>Here&#x27;s a link to the Github repository; https:&#x2F;&#x2F;github.com&#x2F;hannydevelop&#x2F;Peppubuild<p>The repository for the desktop application:\nhttps:&#x2F;&#x2F;github.com&#x2F;hannydevelop&#x2F;peppubuild-desktop<p>A quick-start guide where I demonstrated steps on how to replicate ouredenlife login page:\nhttps:&#x2F;&#x2F;docs.peppubuild.com&#x2F;overview&#x2F;quick-start",
+   "title": "New approach for No-code tool usage"
+  },
+  {
+   "author": "mehdigtb",
+   "created_at": "2025-12-03T09:07:46Z",
+   "created_at_i": 1764752866,
+   "num_comments": 0,
+   "objectID": "46132119",
+   "points": 1,
+   "story_id": 46132119,
+   "story_text": "<p>Ask HN: how do you ship <i>private</i> Electron updates?</p>",
+   "title": "Show HN: YapYap – Post to X/LinkedIn without seeing the timeline (macOS)",
+   "url": null
+  }
+ ],
+ "nbHits": 3,
+ "page": 0,
+ "hitsPerPage": 3
+}

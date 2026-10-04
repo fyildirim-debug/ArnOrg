@@ -1,0 +1,8 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    { "full_name": "electron-userland/electron-builder", "html_url": "https://github.com/electron-userland/electron-builder", "description": "A complete solution to package and build a ready for distribution Electron app with auto update support out of the box", "stargazers_count": 14012, "language": "TypeScript", "pushed_at": "2026-10-02T10:20:30Z", "archived": false },
+    { "full_name": "electron/update.electronjs.org", "html_url": "https://github.com/electron/update.electronjs.org", "description": "A free auto-update service for open-source Electron apps", "stargazers_count": 790, "language": "JavaScript", "pushed_at": "2026-05-11T12:00:00Z", "archived": true }
+  ]
+}

@@ -2,9 +2,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Ayarlar, Dil } from "@arnorg/ortak";
+import type { Ayarlar, Dil, WebAyarlari } from "@arnorg/ortak";
 import { gunlukBrifingAyari, VARSAYILAN_GUNLUK_BRIFING } from "./brifing.js";
 import { rastgeleAnahtar } from "./yardimci.js";
+import { VARSAYILAN_WEB_AYARLARI, webAyarlari, webAyarlariniGuncelle } from "./web/ayarlar.js";
+import { MOTOR_KIMLIKLERI } from "./web/motor-kimlikleri.js";
 
 /** Sistem dili: Türkçe yerel ayarda "tr", diğerlerinde "en". ARNORG_DIL (tr/en) her şeyin önüne geçer */
 export function sistemDili(kaynak: NodeJS.ProcessEnv = process.env): Dil {
@@ -33,7 +35,11 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   projeKoku: null,
   kurulumTamam: false,
   gunlukBrifing: { ...VARSAYILAN_GUNLUK_BRIFING },
+  web: VARSAYILAN_WEB_AYARLARI,
 };
+
+/** Ayar değişikliği: web bloğunda yalnız değişen alanlar da verilebilir */
+export type AyarDegisikligi = Partial<Omit<Ayarlar, "web">> & { web?: Partial<WebAyarlari> };
 
 /** Yalnız bilinen ayarlar: eski sürümlerden kalan alanlar (ör. kaldırılan API girişi ve dolar bütçesi) okunmaz, açılışta dosyadan silinir */
 function ayikla(a: Ayarlar): Ayarlar {
@@ -53,6 +59,7 @@ export class Yapilandirma {
     this.ayarlarDosyasi = path.join(veriDizini, "ayarlar.json");
     const okunan = this.oku();
     this.mevcut = ayikla({ ...VARSAYILAN_AYARLAR, ...okunan });
+    this.mevcut.web = webAyarlari(this.mevcut.web);
     if (Object.keys(okunan).some((k) => !(k in VARSAYILAN_AYARLAR))) this.yaz();
   }
 
@@ -77,7 +84,7 @@ export class Yapilandirma {
     return { ...this.mevcut };
   }
 
-  guncelle(degisiklik: Partial<Ayarlar>): Ayarlar {
+  guncelle(degisiklik: AyarDegisikligi): Ayarlar {
     const temiz: Partial<Ayarlar> = {};
     if (degisiklik.dil === "tr" || degisiklik.dil === "en") temiz.dil = degisiklik.dil;
     if (degisiklik.claudeYolu !== undefined) temiz.claudeYolu = degisiklik.claudeYolu ? String(degisiklik.claudeYolu) : null;
@@ -101,6 +108,7 @@ export class Yapilandirma {
     if (degisiklik.projeKoku !== undefined) temiz.projeKoku = degisiklik.projeKoku?.trim() ? path.resolve(degisiklik.projeKoku.trim()) : null;
     if (typeof degisiklik.kurulumTamam === "boolean") temiz.kurulumTamam = degisiklik.kurulumTamam;
     if (degisiklik.gunlukBrifing && typeof degisiklik.gunlukBrifing === "object") temiz.gunlukBrifing = gunlukBrifingAyari(degisiklik.gunlukBrifing, this.mevcut.gunlukBrifing);
+    if (degisiklik.web && typeof degisiklik.web === "object") temiz.web = webAyarlariniGuncelle(this.mevcut.web, degisiklik.web, MOTOR_KIMLIKLERI);
     this.mevcut = { ...this.mevcut, ...temiz };
     fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
     return this.ayarlar;

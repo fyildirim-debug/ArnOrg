@@ -28,10 +28,12 @@ import type {
   SoruDurumu,
   ZekaGunlukKaydi,
   ZekaGunlukTuru,
+  YetenekKimligi,
 } from "@arnorg/ortak";
 import { VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
+import { rolYetenekleri } from "./yetenekler.js";
 
 /** Uzak depo adresinden GitHub "sahip/ad": https://github.com/a/b(.git), git@github.com:a/b(.git), ssh://git@github.com/a/b */
 export function githubDeposu(adres: string | null | undefined): string | null {
@@ -297,6 +299,15 @@ export class Depo {
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
     if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
     if (ajanSutunlari.includes("gunluk_butce")) this.db.exec("ALTER TABLE ajanlar DROP COLUMN gunluk_butce");
+    // 0.0.5: çalışan başına yetenekler (JSON); kaydı olmayan ajanlar rollerinin varsayılanlarını alır
+    if (!ajanSutunlari.includes("yetenekler")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN yetenekler TEXT");
+    const yeteneksiz = this.db.prepare("SELECT id, rol FROM ajanlar WHERE yetenekler IS NULL").all() as Satir[];
+    if (yeteneksiz.length) {
+      const yaz = this.db.prepare("UPDATE ajanlar SET yetenekler = ? WHERE id = ?");
+      this.db.transaction(() => {
+        for (const s of yeteneksiz) yaz.run(JSON.stringify(rolYetenekleri(String(s.rol))), s.id);
+      })();
+    }
     this.db.prepare("DELETE FROM onaylar WHERE tur = 'butce'").run();
     // Eski işe alım tekliflerinin verisindeki günlük bütçe alanı
     this.db
@@ -432,6 +443,7 @@ export class Depo {
       talimatEki: String(s.talimat_eki),
       karakter: (s.karakter as string | null) ?? null,
       olusturma: String(s.olusturma),
+      yetenekler: jsonOku<YetenekKimligi[] | null>(s.yetenekler as string | null, null) ?? rolYetenekleri(String(s.rol)),
     };
   }
 
@@ -440,12 +452,12 @@ export class Depo {
     this.db
       .prepare(
         `INSERT INTO ajanlar (id, proje_id, ad, rol, rol_adi, model, yonetici_id, durum, is_aciklamasi, gorev_id, oturum_id,
-          calisma_alani, dal, izin_modu, talimat_eki, karakter, olusturma)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          calisma_alani, dal, izin_modu, talimat_eki, karakter, olusturma, yetenekler)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, a.projeId, a.ad, a.rol, a.rolAdi, a.model, a.yoneticiId, a.durum, a.isAciklamasi, a.gorevId, a.oturumId,
-        a.calismaAlani, a.dal, a.izinModu, a.talimatEki, a.karakter ?? null, simdi(),
+        a.calismaAlani, a.dal, a.izinModu, a.talimatEki, a.karakter ?? null, simdi(), JSON.stringify(a.yetenekler ?? rolYetenekleri(a.rol)),
       );
     return this.ajan(id)!;
   }
@@ -482,6 +494,7 @@ export class Depo {
       izinModu: "izin_modu",
       talimatEki: "talimat_eki",
       karakter: "karakter",
+      yetenekler: "yetenekler",
     };
     const parcalar: string[] = [];
     const degerler: unknown[] = [];
@@ -489,7 +502,7 @@ export class Depo {
       const sutun = harita[k as keyof Ajan];
       if (!sutun || v === undefined) continue;
       parcalar.push(`${sutun} = ?`);
-      degerler.push(v);
+      degerler.push(k === "yetenekler" ? JSON.stringify(v) : v);
     }
     if (parcalar.length) this.db.prepare(`UPDATE ajanlar SET ${parcalar.join(", ")} WHERE id = ?`).run(...degerler, id);
     return this.ajan(id)!;

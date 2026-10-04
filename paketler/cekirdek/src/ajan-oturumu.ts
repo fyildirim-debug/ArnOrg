@@ -18,6 +18,7 @@ import { ajanOrtami, rootMu } from "./ortam.js";
 import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
 import { zincirdekiSonraki } from "./model-katalogu.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
+import { WEB_ARAC_ACIKLAMALARI } from "./web/etiketler.js";
 
 /** Duraklatılmış oturumda kuyruktaki tur beklenirken en çok bu kadar beklenir, sonra oturum kapanır */
 const KUYRUK_TURU_BEKLEME_MS = 10 * 60_000;
@@ -118,6 +119,8 @@ const ARAC_ACIKLAMA: Record<string, (g: Record<string, unknown>) => string> = {
   WebSearch: (g) => `${iki("Web araması", "Web search")}: ${kisalt(String(g.query ?? ""), 40)}`,
   Agent: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
   Task: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
+  // Web ve araştırma araçları: "Web araması: <sorgu>", "Okunuyor: <alan adı>"
+  ...WEB_ARAC_ACIKLAMALARI,
 };
 
 function dosyaAdi(y: unknown): string {

@@ -1,0 +1,11 @@
+{
+  "batchcomplete": "",
+  "continue": { "sroffset": 5, "continue": "-||" },
+  "query": {
+    "searchinfo": { "totalhits": 2140 },
+    "search": [
+      { "ns": 0, "title": "Electron (software framework)", "pageid": 50158722, "snippet": "<span class=\"searchmatch\">Electron</span> (formerly known as Atom Shell) is a free and open-source software framework developed and maintained by OpenJS Foundation", "timestamp": "2026-09-14T08:12:44Z" },
+      { "ns": 0, "title": "AC/DC", "pageid": 1220, "snippet": "AC/DC are an Australian rock band &amp; more", "timestamp": "2026-09-30T19:01:02Z" }
+    ]
+  }
+}

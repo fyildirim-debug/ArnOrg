@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>electron-updater ile özel depodan güncelleme | Örnek Blog</title>
+  <meta property="og:title" content="electron-updater ile özel depodan güncelleme">
+  <meta property="og:site_name" content="Örnek Blog">
+  <meta name="author" content="Deniz Yılmaz">
+  <meta property="article:published_time" content="2026-03-14T09:30:00Z">
+  <style>body { font-family: sans-serif; }</style>
+  <script>window.izleme = true;</script>
+</head>
+<body>
+  <header><nav><a href="/">Ana sayfa</a> · <a href="/etiketler">Etiketler</a> · <a href="/hakkinda">Hakkında</a></nav></header>
+  <main>
+    <article>
+      <h1>electron-updater ile özel depodan güncelleme</h1>
+      <p>Electron uygulamasını <strong>özel bir GitHub deposundan</strong> güncellemek mümkündür; ama belirteci uygulamanın içine gömmek önerilmez. Bu yazıda seçenekleri karşılaştırıyoruz ve her birinin güvenlik, bakım ve maliyet açısından nerede durduğunu anlatıyoruz.</p>
+      <p>electron-builder belgeleri, <a href="https://www.electron.build/auto-update">Auto Update</a> sayfasında GitHub sağlayıcısının <code>private: true</code> seçeneğini ve <code>GH_TOKEN</code> ortam değişkenini anlatır. Belirteç uygulamayla dağıtılırsa herkes depoya erişebilir; bu yüzden üretimde ara bir güncelleme sunucusu tercih edilir.</p>
+      <h2>Seçenekler</h2>
+      <table>
+        <thead><tr><th>Yöntem</th><th>Belirteç uygulamada mı</th><th>Not</th></tr></thead>
+        <tbody>
+          <tr><td>GitHub sağlayıcısı (private)</td><td>Evet</td><td>Yalnız iç kullanım</td></tr>
+          <tr><td>Genel (generic) sunucu</td><td>Hayır</td><td>Önerilen</td></tr>
+          <tr><td>S3</td><td>Hayır</td><td>İmzalı adresler</td></tr>
+        </tbody>
+      </table>
+      <h2>Örnek yapılandırma</h2>
+      <pre><code class="language-ts">import { autoUpdater } from "electron-updater";
+
+autoUpdater.setFeedURL({ provider: "generic", url: "https://guncelleme.ornek.com/" });
+await autoUpdater.checkForUpdatesAndNotify();</code></pre>
+      <p>Ayrıntılar için <a href="/yazilar/imzali-guncellemeler">imzalı güncellemeler</a> yazısına ve <a href="https://github.com/electron-userland/electron-builder/issues/2222">ilgili issue</a> tartışmasına bakın.</p>
+      <img src="/gorseller/akis.png" alt="Güncelleme akışı şeması">
+      <img src="data:image/png;base64,iVBORw0KGgo=" alt="">
+    </article>
+  </main>
+  <aside><h3>Benzer yazılar</h3><ul><li><a href="/yazilar/a">A</a></li></ul></aside>
+  <footer><p>© 2026 Örnek Blog · <a href="/gizlilik">Gizlilik</a></p></footer>
+</body>
+</html>

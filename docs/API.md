@@ -392,6 +392,36 @@ Ajan araçları ajanın kendi çalışma alanında çalışır:
 
 Görev verilirken dizin hazırsa görev başlığı ve açıklamasıyla arama yapılır. Bulunan en çok beş konum, görev mesajına "İlgili kod" olarak eklenir. Arama en çok ~1,5 sn sürer; dizin hazır değilse atlanır.
 
+## Web ve araştırma (0.0.5)
+
+Ajanların web araması ve sayfa okuyucusu çekirdeğin içinde çalışır; ayrı sunucu ya da API anahtarı gerekmez.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/yetenekler` | — | `Yetenek[]` (katalog: kimlik, ad, açıklama, açtığı araçlar) |
+| GET | `/api/yetenekler/roller` | — | `Record<rol, YetenekKimligi[]>` (rol varsayılanları) |
+| GET | `/api/web/durum` | — | `WebDurumu` (motor başına etkin, askıda, son hata, başarı ve hata sayısı; SearXNG adresi; önbellek) |
+| POST | `/api/web/ara` | `WebAramaIstegi` (`sorgu`, `kategori?`: `genel` \| `kod` \| `haber` \| `bilim`, `sayfa?`, `dil?`) | `WebAramaYaniti` |
+| POST | `/api/web/oku` | `WebOkumaIstegi` (`adres`, `baslangic?`, `uzunluk?`, `baglantilar?`) | `WebOkumaSonucu` |
+| POST | `/api/web/askilari-kaldir` | — | `WebDurumu` (askıdaki motorlar bir sonraki aramada yeniden denenir) |
+
+- **Ajanın yetenekleri:** `Ajan.yetenekler` (`YetenekKimligi[]`), `PATCH /api/ajanlar/:aid` gövdesinde `yetenekler` ile değişir (bilinmeyen kimlik 400). `web_arama` → `web_ara`, `web_okuma` → `web_oku`, `arastirma` → `arastirma_kaydet`, `paket_bilgisi` → `paket_bilgisi`, `github_arastirma` → `github_ara`, `claude_web` → Claude Code'un `WebSearch` ve `WebFetch` araçları. İşe alınan ajan rolünün varsayılanlarını alır (`web_arama` ve `web_okuma` herkeste); var olan ajanlara geçişte rol varsayılanları yazılır. Araç listesi ve talimat oturum açılırken kurulur: kapatılan yeteneğin aracı açık oturumda da denetim kapısında hemen reddedilir (`kural: "Yetenek kapalı"`), açılan yeteneğin araçları ajanın bir sonraki oturumunda gelir.
+- **Ayarlar:** `Ayarlar.web` = `{searxngAdresi, disOkuyucu, kapaliMotorlar}`, `PUT /api/ayarlar` ile kısmi verilebilir. `searxngAdresi` doluysa `<adres>/search?format=json` de sorgulanır (SearXNG'de json biçimi açık olmalı). `disOkuyucu` (varsayılan açık) r.jina.ai yedeğini açar. `kapaliMotorlar`: `bing`, `duckduckgo`, `brave`, `mojeek`, `wikipedia`, `bing_haber`, `stackoverflow`, `github`, `npm`, `mdn`, `hackernews`, `arxiv`, `searxng`.
+- **Arama:** kategorinin motorları paralel sorgulanır (motor başına 6 sn). Puan Σ ağırlık/sıra; aynı adres (izleme parametreleri, `www` ve sondaki `/` atılarak) birleşir ve hangi motorlardan geldiği yazılır. `kod` teknik kaynaklarla genel motorları, `haber` Bing Haberler ve Hacker News'i, `bilim` arXiv, Wikipedia ve genel motorları sorgular. Genel motorların sorguyla ilgisiz sonuçları ayıklanır. 429 alan motor 10 dakika, 403, CAPTCHA ya da bot doğrulaması dönen motor 1 saat sorgulanmaz; zaman aşımı ve ağ hatasında kısa geri çekilme olur. Bir motorun düşmesi aramayı bozmaz. Sonuçlar 10 dakika önbellekte kalır; aynı anda gelen aynı arama bir kez yapılır. GitHub, `gh` girişi varsa onun belirteciyle sorgulanır.
+- **Okuma:** yalnız `http` ve `https` (`file:`, `data:` reddedilir; localhost ve yerel ağ okunur). Yönlendirmeler izlenir; 15 sn ve 5 MB sınırı (PDF 20 MB). HTML Readability ile ayıklanıp Markdown'a çevrilir (tablo ve kod blokları korunur); PDF sayfa sayfa metin, JSON biçimlenmiş, düz metin ve Markdown olduğu gibi gelir, görselden yalnız bilgi döner. GitHub `blob` adresi ham dosyaya, depo kökü README'ye, npm paket sayfası kayıt defterindeki README'ye çevrilir. Uzun içerik `baslangic` ve `uzunluk` (varsayılan 12000) ile parça parça gelir (`toplam`, `devamVar`, `sonraki`). Yerelde 500 karakterden az metin çıkarsa ya da site 401, 403, 429 veya 503 dönerse ve `disOkuyucu` açıksa r.jina.ai denenir (`kaynak: "jina"`); yerel ağ adresleri hiç gönderilmez. Sayfalar 30 dakika önbellekte kalır.
+
+Ajan araçları (`mcp__arnorg__*`, her çağrı denetim kaydına düşer):
+
+| Araç | Ne yapar |
+|---|---|
+| `web_ara` | `{sorgu, kategori?, sayfa?, dil?}` meta arama |
+| `web_oku` | `{adres, baslangic?, uzunluk?, baglantilar?}` sayfayı, PDF'i ya da JSON'u Markdown olarak okur |
+| `arastirma_kaydet` | `{baslik, ozet, bulgular, kaynaklar: [{adres, baslik}]}` notu `notlar/arastirma/<tarih>-<slug>.md` olarak yazar, özetini proje hafızasına ekler ve yolu döner |
+| `paket_bilgisi` | `{ad, ekosistem: npm \| pypi \| crates}` son sürüm, lisans, indirme sayısı, depo |
+| `github_ara` | `{sorgu, tur: repo \| issue \| kod, sayfa?}` GitHub araması (kod araması `gh` girişi ister) |
+
+Rol `arastirmaci` (Araştırmacı, varsayılan model sonnet) bütün web yetenekleriyle başlar; kod yazmaz, kaynaklı araştırma notu yazar.
+
 ## Ana yasa ve ajan zekâsı
 
 | Yöntem | Yol | Gövde | Yanıt |
