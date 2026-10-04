@@ -1,6 +1,7 @@
 // Pano kartı
-import { GOREV_DURUM_ADLARI, type Gorev } from "@arnorg/ortak";
+import type { Gorev } from "@arnorg/ortak";
 import { memo } from "react";
+import { useSozluk } from "../../dil";
 import { useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { AjanAvatar } from "../Kisi";
@@ -15,6 +16,7 @@ export const GorevKarti = memo(function GorevKarti({
   ac: (id: string) => void;
   surukle: (id: string | null) => void;
 }) {
+  const s = useSozluk();
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === gorev.atananId));
   const gorevler = useVeri((d) => d.gorevler);
   const bagli = acikBagimliliklar(gorev, gorevler);
@@ -32,15 +34,15 @@ export const GorevKarti = memo(function GorevKarti({
       }}
       onDragEnd={() => surukle(null)}
     >
-      <button type="button" className="bilet-ac" onClick={() => ac(gorev.id)} aria-label={`${gorev.kod} ${gorev.baslik} ayrıntılarını aç`}>
+      <button type="button" className="bilet-ac" onClick={() => ac(gorev.id)} aria-label={s.pano.kart.ayrintiAc(gorev.kod, gorev.baslik)}>
         <span className="bilet-ust">
           <code>{gorev.kod}</code>
           {gorev.etiket ? <span>{gorev.etiket}</span> : null}
         </span>
         <b>{gorev.baslik}</b>
         {bagli.length ? (
-          <small className="bilet-not" title="Bu görev, bağımlılıkları bitmeden Çalışılıyor'a geçemez">
-            Bağlı: {bagli.map((b) => b.kod).join(", ")}
+          <small className="bilet-not" title={s.pano.kart.bagliIpucu}>
+            {s.pano.kart.bagli(bagli.map((b) => b.kod).join(", "))}
           </small>
         ) : null}
       </button>
@@ -51,7 +53,7 @@ export const GorevKarti = memo(function GorevKarti({
             <span className="tek-satir">{ajan.ad}</span>
           </>
         ) : (
-          <span className="soluk">Atanmadı</span>
+          <span className="soluk">{s.pano.atanmadi}</span>
         )}
         {sonraki ? (
           <button
@@ -59,10 +61,10 @@ export const GorevKarti = memo(function GorevKarti({
             className="ilerlet"
             disabled={suruyor !== null}
             onClick={() => void calistir("ilerlet", () => durumDegistir(gorev, sonraki))}
-            aria-label={`${gorev.kod} görevini ${GOREV_DURUM_ADLARI[sonraki]} durumuna taşı`}
+            aria-label={s.pano.kart.tasi(gorev.kod, s.genel.gorevDurumu[sonraki])}
           >
             {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-            {GOREV_DURUM_ADLARI[sonraki]} →
+            {s.genel.gorevDurumu[sonraki]} →
           </button>
         ) : null}
       </div>

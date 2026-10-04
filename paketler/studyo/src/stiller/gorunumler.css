@@ -640,113 +640,426 @@
 }
 
 /* ---------- onaylar ---------- */
+/* Defter düzeni: solda tür ve kalan süre, sağda karar. Kart ve gölge yok; hiyerarşi yazı, boşluk ve kıl çizgilerle.
+   Ekip'teki işe alım teklifleri de aynı öğeyi kullanır; dar kapta (container query) tek sütuna iner. */
+.onay-bolum:first-of-type > .ara-baslik {
+  margin-top: 0;
+}
+.onay-bolum + .onay-bolum {
+  margin-top: var(--b-10);
+}
+.onay-bolum-ust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--b-2) var(--b-4);
+  margin-bottom: var(--b-3);
+}
+.onay-bolum-ust .ara-baslik {
+  margin: 0;
+}
 .onay-liste {
   list-style: none;
   border-top: 1px solid var(--line);
   container-type: inline-size;
 }
 .onay {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--b-3) var(--b-6);
-  padding: var(--b-4) 0;
   border-bottom: 1px solid var(--line);
 }
-.onay-govde {
+
+/* bekleyen karar */
+.onay-bekliyor {
   display: grid;
-  gap: 0.375rem;
-  min-width: 0;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  grid-template-areas:
+    "tur baslik"
+    "sure kim"
+    ". icerik";
+  column-gap: var(--b-6);
+  row-gap: 0.375rem;
+  padding: var(--b-5) 0 var(--b-6);
 }
-.onay-ust {
+.onay-tur {
+  grid-area: tur;
+  align-self: baseline;
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.onay-baslik {
+  grid-area: baslik;
+  align-self: baseline;
+  min-width: 0;
+  font-size: var(--t-l);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--paper);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.onay-sure {
+  grid-area: sure;
+  align-self: baseline;
+  display: grid;
+  justify-items: start;
+  gap: 0.375rem;
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+}
+.onay-sure-yok {
+  color: var(--muted-2);
+}
+.onay-acil .onay-sure {
+  color: var(--coral);
+}
+.onay-sure-cubuk {
+  display: block;
+  width: 100%;
+  max-width: 6.5rem;
+  height: 2px;
+  background: var(--ink-4);
+  overflow: hidden;
+}
+.onay-sure-cubuk > span {
+  display: block;
+  height: 100%;
+  background: var(--warn);
+  transform-origin: left;
+  transition: transform 1s linear;
+}
+.onay-acil .onay-sure-cubuk > span {
+  background: var(--coral);
+}
+.onay-kim {
+  grid-area: kim;
+  align-self: baseline;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--b-2);
-}
-.onay-ust b {
-  color: var(--paper);
-  font-size: var(--t-m);
-  font-weight: 500;
-}
-.onay-kim {
-  color: var(--muted);
-  font-size: var(--t-2xs);
-  font-variant-numeric: tabular-nums;
-}
-.onay-govde > p {
-  color: var(--bone);
-  max-width: 68ch;
-  line-height: 1.6;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
   font-size: var(--t-xs);
+  color: var(--muted);
 }
-.onay-veri {
-  margin-top: 0.25rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.625rem 1.5rem;
+.onay-kim-etiket {
+  color: var(--muted-2);
 }
-.onay-veri .kv-satir {
+.onay-kisi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--paper);
+  font-size: inherit;
+  text-align: left;
+}
+button.onay-kisi {
+  cursor: pointer;
+}
+.onay-kisi b {
+  font-weight: 600;
+  transition: color var(--hiz) ease;
+}
+button.onay-kisi:hover b {
+  color: var(--coral-hi);
+}
+.onay-rol {
+  color: var(--muted);
+}
+.onay-icerik {
+  grid-area: icerik;
   display: grid;
+  /* Belirtilmemiş sütun içerik genişliğine göre büyür (auto-fill ayrıntı listesi taşırır); kaba sığsın */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-4);
+  min-width: 0;
+  margin-top: var(--b-3);
+}
+.onay-gerekce {
+  max-width: 68ch;
+  font-size: var(--t-s);
+  line-height: 1.65;
+  color: var(--bone);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* türe göre ayrıntı */
+.onay-ayrinti {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: var(--b-4) var(--b-6);
+  max-width: 54rem;
+  padding-top: var(--b-4);
+  border-top: 1px solid var(--line-soft);
+}
+.onay-alan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 0.125rem;
+  gap: 0.3125rem;
   min-width: 0;
 }
-.onay-veri .kv-satir:has(.komut),
-.onay-veri .kv-satir:has(.onay-json) {
+.onay-alan-genis {
   grid-column: 1 / -1;
 }
-.onay-json {
+.onay-alan dt {
   font-size: var(--t-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+.onay-alan dd {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--t-s);
+  line-height: 1.55;
+  color: var(--paper);
   overflow-wrap: anywhere;
 }
-.onay-not {
-  color: var(--muted) !important;
-  font-style: italic;
+.onay-alan dd code {
+  color: var(--bone);
 }
-.onay-sag {
+.onay-alan dd .onay-kimlik,
+.onay-alan dd .onay-json {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+.onay-alan .komut {
+  max-width: 68ch;
+  font-size: var(--t-s);
+  color: var(--bone);
+}
+.onay-metin {
+  white-space: pre-line;
+}
+.onay-ipucu {
+  display: block;
+  margin-top: 0.375rem;
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.onay-dal {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.625rem;
+}
+.onay-ok {
+  color: var(--muted);
+}
+.onay-fark {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.onay-eklenen {
+  color: var(--ok);
+}
+.onay-silinen {
+  color: var(--sil);
+}
+.onay-secenekler {
   display: grid;
-  justify-items: end;
-  min-width: 0;
+  gap: 0.25rem;
+  max-width: 68ch;
+  margin: 0;
+  padding-left: 1.5rem;
+}
+.onay-secenekler li::marker {
+  color: var(--muted);
+}
+.onay-karakter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* onaylanırsa ne olur ve karar */
+.onay-etki {
+  max-width: 68ch;
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--bone);
+}
+.onay-etki-ad {
+  margin-right: 0.375rem;
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--paper);
 }
 .onay-karar {
   display: grid;
-  gap: var(--b-2);
-  justify-items: end;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--b-3);
+}
+.onay-karar-dugmeler {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-3);
+}
+.onay-dugme {
+  height: 2.25rem;
+  min-width: 7.5rem;
+  padding: 0 var(--b-4);
+  font-size: var(--t-s);
+}
+.onay-not-ac {
+  margin-left: var(--b-1);
 }
 .onay-not-girdi {
-  width: 18rem;
+  width: 30rem;
   max-width: 100%;
 }
-.onay-sonuc {
+
+/* geçmiş: sakin, açılır satırlar */
+.onay-sonuclandi > details > summary {
   display: grid;
-  justify-items: end;
-  gap: 0.25rem;
+  grid-template-columns: 8.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hukum baslik isaret"
+    ". meta isaret"
+    ". not isaret";
+  column-gap: var(--b-6);
+  row-gap: 0.1875rem;
+  padding: var(--b-3) 0;
+  border-radius: var(--r-1);
 }
-.onay-sonuc small {
-  color: var(--muted-2);
+.onay-hukum {
+  grid-area: hukum;
+  align-self: baseline;
   font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-2);
 }
-.onay-bekliyor .onay-ust b::before {
-  content: "";
-  display: inline-block;
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border-radius: 50%;
-  background: var(--coral);
-  margin-right: 0.5rem;
-  vertical-align: 0.1em;
+.onay-onaylandi .onay-hukum {
+  color: var(--ok);
 }
-/* Dar kapsayıcıda (ör. Ekip sütunu) karar düğmeleri alta iner */
+.onay-reddedildi .onay-hukum {
+  color: var(--sil);
+}
+.onay-gecmis-baslik {
+  grid-area: baslik;
+  align-self: baseline;
+  min-width: 0;
+  font-size: var(--t-s);
+  color: var(--bone);
+  overflow-wrap: anywhere;
+  transition: color var(--hiz) ease;
+}
+.onay-sonuclandi > details > summary:hover .onay-gecmis-baslik,
+.onay-sonuclandi > details[open] > summary .onay-gecmis-baslik {
+  color: var(--paper);
+}
+.onay-gecmis-meta {
+  grid-area: meta;
+  min-width: 0;
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.onay-gecmis-not {
+  grid-area: not;
+  min-width: 0;
+  max-width: 68ch;
+  margin-top: 0.125rem;
+  font-size: var(--t-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.onay-isaret {
+  grid-area: isaret;
+  align-self: center;
+  color: var(--muted-2);
+  transition:
+    transform var(--hiz) var(--egri),
+    color var(--hiz) ease;
+}
+.onay-sonuclandi > details > summary:hover .onay-isaret {
+  color: var(--paper);
+}
+.onay-sonuclandi > details[open] > summary .onay-isaret {
+  transform: rotate(90deg);
+  color: var(--paper);
+}
+.onay-gecmis-ic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-3);
+  padding: var(--b-1) 0 var(--b-5) calc(8.5rem + var(--b-6));
+  animation: acilir-gir var(--hiz) var(--egri);
+}
+
+/* Dar kapta (Ekip sütunu, telefon): tek sütun; tür ve kalan süre başlığın altında, karar düğmeleri tam genişlik */
 @container (max-width: 40rem) {
-  .onay {
-    grid-template-columns: minmax(0, 1fr);
+  .onay-bekliyor {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "baslik baslik"
+      "tur sure"
+      "kim kim"
+      "icerik icerik";
+    column-gap: var(--b-3);
+    padding: var(--b-4) 0 var(--b-5);
   }
-  .onay-sag,
+  .onay-tur,
+  .onay-sure {
+    align-self: center;
+  }
+  .onay-sure {
+    justify-items: end;
+    text-align: right;
+  }
   .onay-karar,
-  .onay-sonuc {
-    justify-items: start;
+  .onay-karar-dugmeler {
+    width: 100%;
+  }
+  .onay-karar-dugmeler {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .onay-karar-dugmeler > :only-child,
+  .onay-not-ac {
+    grid-column: 1 / -1;
+  }
+  .onay-dugme {
+    width: 100%;
+    min-width: 0;
+    height: 2.5rem;
+  }
+  .onay-not-ac {
+    justify-self: start;
+    margin-left: 0;
+  }
+  .onay-sonuclandi > details > summary {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "baslik baslik isaret"
+      "hukum meta isaret"
+      "not not isaret";
+    column-gap: var(--b-3);
+  }
+  .onay-gecmis-ic {
+    padding-left: 0;
+  }
+  .onay-ayrinti {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    column-gap: var(--b-4);
   }
 }
 
@@ -1611,14 +1924,6 @@
   .kanal-ic {
     border-left: 0;
     padding-left: 0;
-  }
-  .onay {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .onay-sag,
-  .onay-karar,
-  .onay-sonuc {
-    justify-items: start;
   }
   .ayar-satir {
     grid-template-columns: minmax(0, 1fr);

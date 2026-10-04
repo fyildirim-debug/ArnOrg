@@ -1,9 +1,10 @@
 // Denetim: karar bekleyen araç çağrıları, denetim kaydı ve politika kuralları
-import { KARAR_ADLARI, type Karar } from "@arnorg/ortak";
+import type { Karar } from "@arnorg/ortak";
 import { useMemo, useState } from "react";
 import { BekleyenCagri } from "../bilesenler/denetim/BekleyenCagri";
 import { PolitikaDuzenleyici } from "../bilesenler/denetim/PolitikaDuzenleyici";
 import { Bos, Iskelet } from "../bilesenler/Durumlar";
+import { useSozluk } from "../dil";
 import { ajanaGit } from "../durum/arayuz";
 import { useVeri } from "../durum/veri";
 import { akilliZaman, saatSaniye } from "../yardimcilar/bicim";
@@ -12,6 +13,8 @@ const SAYFA = 150;
 const KARAR_SIRASI: (Karar | "tumu")[] = ["tumu", "izin", "ret", "sor", "degisti"];
 
 export function Denetim() {
+  const s = useSozluk();
+  const t = s.denetim;
   const onaylar = useVeri((d) => d.onaylar);
   const denetim = useVeri((d) => d.denetim);
   const ajanlar = useVeri((d) => d.ajanlar);
@@ -42,14 +45,14 @@ export function Denetim() {
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Denetim</h1>
-          <p>Her araç çağrısı ArnOrg'un kapısından geçer · politika .arnorg/proje.yaml</p>
+          <h1>{t.baslik}</h1>
+          <p>{t.altBaslik}</p>
         </div>
       </div>
 
       <section aria-labelledby="bekleyen-baslik">
         <h2 className="ara-baslik" id="bekleyen-baslik">
-          Karar bekleyen çağrılar <small>{bekleyenler.length ? `${bekleyenler.length} bekliyor` : "yok"}</small>
+          {t.bekleyenler} <small>{bekleyenler.length ? t.bekliyor(bekleyenler.length) : t.bekleyenYokKisa}</small>
         </h2>
         {bekleyenler.length ? (
           <div className="bekleyen-liste">
@@ -58,26 +61,24 @@ export function Denetim() {
             ))}
           </div>
         ) : (
-          <p className="bekleyen-yok">
-            Şu an kararınızı bekleyen çağrı yok. "Onaya sor" kuralına takılan çağrılar burada belirir; süre dolarsa çağrı reddedilir.
-          </p>
+          <p className="bekleyen-yok">{t.bekleyenYok}</p>
         )}
       </section>
 
       <section aria-labelledby="kayit-baslik">
         <h2 className="ara-baslik" id="kayit-baslik">
-          Son kararlar <small>{denetim.length} kayıt · PreToolUse kapısı</small>
+          {t.sonKararlar} <small>{`${s.genel.kayitSayisi(denetim.length)} · ${t.kapi}`}</small>
         </h2>
         <div className="suzgec">
-          <div className="bolumlu" role="group" aria-label="Karara göre süz">
+          <div className="bolumlu" role="group" aria-label={t.karaGore}>
             {KARAR_SIRASI.map((k) => (
               <button key={k} type="button" aria-pressed={karar === k} onClick={() => setKarar(k)}>
-                {k === "tumu" ? "Tümü" : KARAR_ADLARI[k]} <span className="soluk sayi">{sayilar[k] ?? 0}</span>
+                {k === "tumu" ? s.genel.tumu : s.genel.karar[k]} <span className="soluk sayi">{sayilar[k] ?? 0}</span>
               </button>
             ))}
           </div>
-          <select className="secim suzgec-secim" aria-label="Ajana göre süz" value={ajanId} onChange={(e) => setAjanId(e.target.value)}>
-            <option value="">Bütün ajanlar</option>
+          <select className="secim suzgec-secim" aria-label={t.ajanaGore} value={ajanId} onChange={(e) => setAjanId(e.target.value)}>
+            <option value="">{t.butunAjanlar}</option>
             {ajanlar.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.ad}
@@ -87,16 +88,16 @@ export function Denetim() {
           <input
             className="girdi suzgec-arama"
             type="search"
-            aria-label="Kayıtlarda ara"
-            placeholder="Ara: komut, yol, kural"
+            aria-label={t.araEtiket}
+            placeholder={t.araYer}
             value={arama}
             onChange={(e) => setArama(e.target.value)}
           />
         </div>
         {yukleme === "yukleniyor" && !denetim.length ? <Iskelet satir={6} /> : null}
         {yukleme !== "yukleniyor" && !suzulmus.length ? (
-          <Bos kucuk baslik={denetim.length ? "Eşleşen kayıt yok" : "Henüz kayıt yok"}>
-            {denetim.length ? "Süzgeçleri gevşetin." : "Ajanlar çalışmaya başlayınca her araç çağrısı ve verilen karar burada listelenir."}
+          <Bos kucuk baslik={denetim.length ? t.eslesenYok : t.henuzYok}>
+            {denetim.length ? t.eslesenYokMetin : t.henuzYokMetin}
           </Bos>
         ) : null}
         {suzulmus.length ? (
@@ -104,12 +105,12 @@ export function Denetim() {
             <table className="tablo denetim-tablo">
               <thead>
                 <tr>
-                  <th scope="col">Saat</th>
-                  <th scope="col">Ajan</th>
-                  <th scope="col">Araç</th>
-                  <th scope="col">Girdi</th>
-                  <th scope="col">Karar</th>
-                  <th scope="col">Kural</th>
+                  <th scope="col">{t.sutun.saat}</th>
+                  <th scope="col">{t.sutun.ajan}</th>
+                  <th scope="col">{t.sutun.arac}</th>
+                  <th scope="col">{t.sutun.girdi}</th>
+                  <th scope="col">{t.sutun.karar}</th>
+                  <th scope="col">{t.sutun.kural}</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,7 +129,7 @@ export function Denetim() {
                     </td>
                     <td className="td-girdi">{k.girdiOzeti}</td>
                     <td>
-                      <span className={`hukum hukum-${k.karar}`}>{KARAR_ADLARI[k.karar]}</span>
+                      <span className={`hukum hukum-${k.karar}`}>{s.genel.karar[k.karar]}</span>
                     </td>
                     <td className="td-kural">{[k.kural, k.neden].filter(Boolean).join(" · ") || "—"}</td>
                   </tr>
@@ -138,7 +139,7 @@ export function Denetim() {
             {suzulmus.length > goster ? (
               <div className="tablo-daha">
                 <button type="button" className="dugme dugme-kucuk" onClick={() => setGoster((g) => g + SAYFA)}>
-                  {Math.min(SAYFA, suzulmus.length - goster)} kayıt daha göster
+                  {t.dahaGoster(Math.min(SAYFA, suzulmus.length - goster))}
                 </button>
                 <small>
                   {goster} / {suzulmus.length}
@@ -151,7 +152,7 @@ export function Denetim() {
 
       <section aria-labelledby="politika-baslik">
         <h2 className="ara-baslik" id="politika-baslik">
-          Politika <small>izin · ret · onaya sor</small>
+          {t.politika} <small>{t.politikaAlt}</small>
         </h2>
         <PolitikaDuzenleyici />
       </section>

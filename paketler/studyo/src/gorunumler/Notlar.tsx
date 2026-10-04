@@ -6,6 +6,7 @@ import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { Markdown } from "../bilesenler/Markdown";
 import { OnaySor } from "../bilesenler/OnaySor";
 import { Simge } from "../bilesenler/Simge";
+import { sozluk, useSozluk } from "../dil";
 import { bildir, useArayuz } from "../durum/arayuz";
 import { useVeri } from "../durum/veri";
 import { akilliZaman, dosyaAdi } from "../yardimcilar/bicim";
@@ -44,6 +45,7 @@ function agacKur(notlar: NotDosyasi[]): Klasor {
 }
 
 export function Notlar() {
+  const s = useSozluk();
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const seciliYol = useArayuz((d) => d.notYolu);
   const [notlar, setNotlar] = useState<NotDosyasi[] | null>(null);
@@ -64,7 +66,7 @@ export function Notlar() {
         if (ilk && !s) useArayuz.setState({ notYolu: ilk.yol });
       }
     } catch (e) {
-      setHata(e instanceof Error ? e.message : "Notlar alınamadı.");
+      setHata(e instanceof Error ? e.message : sozluk().notlar.alinamadi);
     }
   }, [aktifProjeId]);
 
@@ -115,15 +117,15 @@ export function Notlar() {
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Notlar</h1>
+          <h1>{s.notlar.baslik}</h1>
           <p>
-            Proje belgeleri repo içinde yaşar: <code>.arnorg/notlar/</code> · vizyon, mimari, kararlar · her ajan okur, yazar, arar
+            {s.notlar.altBaslikOnce} <code>.arnorg/notlar/</code> {s.notlar.altBaslikSonra}
           </p>
         </div>
         <div className="baslik-eylem">
           <button type="button" className="dugme" onClick={() => setYeniAcik(true)}>
             <Simge ad="arti" />
-            Yeni not
+            {s.notlar.yeniNot}
           </button>
         </div>
       </div>
@@ -133,7 +135,7 @@ export function Notlar() {
 
       {notlar ? (
         <div className="not-yerlesim">
-          <nav className="not-agac" aria-label="Notlar">
+          <nav className="not-agac" aria-label={s.notlar.baslik}>
             {yeniAcik ? (
               <YeniNot
                 mevcut={notlar}
@@ -147,13 +149,13 @@ export function Notlar() {
               />
             ) : null}
             <p className="not-kok">.arnorg/notlar/</p>
-            {notlar.length ? <ul>{klasorCiz(agac, 0)}</ul> : <p className="ray-bos">Henüz not yok.</p>}
+            {notlar.length ? <ul>{klasorCiz(agac, 0)}</ul> : <p className="ray-bos">{s.notlar.henuzYok}</p>}
           </nav>
           <div className="not-icerik">
             {bekleyenYol ? (
               <OnaySor
                 uyari
-                evetMetni="Değişiklikleri at"
+                evetMetni={s.notlar.degisiklikleriAt}
                 evet={() => {
                   setKirli(false);
                   useArayuz.setState({ notYolu: bekleyenYol });
@@ -161,7 +163,7 @@ export function Notlar() {
                 }}
                 vazgec={() => setBekleyenYol(null)}
               >
-                Bu notta kaydedilmemiş değişiklikler var. Başka nota geçerseniz kaybolur.
+                {s.notlar.kaydedilmemisUyari}
               </OnaySor>
             ) : null}
             {seciliYol && notlar.some((n) => n.yol === seciliYol) ? (
@@ -172,9 +174,13 @@ export function Notlar() {
                 kaydedildi={(n) => setNotlar((o) => (o ?? []).map((x) => (x.yol === n.yol ? n : x)))}
               />
             ) : notlar.length ? (
-              <Bos kucuk baslik="Not seçin">Soldaki ağaçtan bir not açın.</Bos>
+              <Bos kucuk baslik={s.notlar.notSecin}>
+                {s.notlar.notSecinMetin}
+              </Bos>
             ) : (
-              <Bos kucuk baslik="Notlar boş">Vizyon ve mimari notları proje açılırken oluşur. Yeni not ile başlayın.</Bos>
+              <Bos kucuk baslik={s.notlar.bosBaslik}>
+                {s.notlar.bosMetin}
+              </Bos>
             )}
           </div>
         </div>
@@ -192,6 +198,7 @@ function NotGorunumu({
   kirliDegisti: (k: boolean) => void;
   kaydedildi: (n: NotDosyasi) => void;
 }) {
+  const s = useSozluk();
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [icerik, setIcerik] = useState<string | null>(null);
   const [taslak, setTaslak] = useState<string | null>(null);
@@ -210,7 +217,7 @@ function NotGorunumu({
         // Yeni oluşturulan boş not doğrudan düzenlemede açılır
         if (!n.icerik.trim()) setTaslak("");
       })
-      .catch((e: unknown) => setHata(e instanceof Error ? e.message : "Not alınamadı."));
+      .catch((e: unknown) => setHata(e instanceof Error ? e.message : sozluk().notlar.notAlinamadi));
   }, [aktifProjeId, yol]);
 
   useEffect(() => kirliDegisti(kirli), [kirli, kirliDegisti]);
@@ -223,7 +230,7 @@ function NotGorunumu({
       setTaslak(null);
       setGuncelleme(n.guncelleme);
       kaydedildi(n);
-      bildir("basari", `${dosyaAdi(yol)} kaydedildi.`);
+      bildir("basari", sozluk().notlar.kaydedildi(dosyaAdi(yol)));
     });
   }, [aktifProjeId, taslak, yol, calistir, kaydedildi]);
 
@@ -234,23 +241,23 @@ function NotGorunumu({
     <article className="not-makale">
       <header className="not-ust">
         <code className="not-yol">{yol}</code>
-        {guncelleme ? <small>kaydedildi {akilliZaman(guncelleme)}</small> : null}
+        {guncelleme ? <small>{s.notlar.kaydedildiZaman(akilliZaman(guncelleme))}</small> : null}
         <div className="dugme-satir itele">
           {duzenleniyor ? (
             <>
-              <span className="alan-ipucu">{kirli ? "Kaydedilmedi · Ctrl+S" : "Değişiklik yok"}</span>
+              <span className="alan-ipucu">{kirli ? s.notlar.kaydedilmedi : s.notlar.degisiklikYok}</span>
               <button type="button" className="dugme dugme-ana dugme-kucuk" onClick={kaydet} disabled={!kirli || suruyor !== null}>
                 {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="kaydet" boyut={12} />}
-                Kaydet
+                {s.genel.kaydet}
               </button>
               <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setTaslak(null)}>
-                {kirli ? "Vazgeç" : "Kapat"}
+                {kirli ? s.genel.vazgec : s.genel.kapat}
               </button>
             </>
           ) : (
             <button type="button" className="dugme dugme-kucuk" onClick={() => setTaslak(icerik)}>
               <Simge ad="duzenle" boyut={12} />
-              Düzenle
+              {s.genel.duzenle}
             </button>
           )}
         </div>
@@ -258,7 +265,7 @@ function NotGorunumu({
       {duzenleniyor ? (
         <div className="not-duzen">
           <label className="gizli" htmlFor="not-metin">
-            {yol} içeriği
+            {s.notlar.icerik(yol)}
           </label>
           <textarea
             id="not-metin"
@@ -274,20 +281,21 @@ function NotGorunumu({
             spellCheck={false}
             autoFocus
           />
-          <div className="not-onizleme" aria-label="Önizleme">
-            {taslak?.trim() ? <Markdown metin={taslak} /> : <p className="soluk">Önizleme burada görünür.</p>}
+          <div className="not-onizleme" aria-label={s.notlar.onizleme}>
+            {taslak?.trim() ? <Markdown metin={taslak} /> : <p className="soluk">{s.notlar.onizlemeBos}</p>}
           </div>
         </div>
       ) : icerik.trim() ? (
         <Markdown metin={icerik} />
       ) : (
-        <p className="soluk">Bu not boş.</p>
+        <p className="soluk">{s.notlar.notBos}</p>
       )}
     </article>
   );
 }
 
 function YeniNot({ mevcut, kapat, olustu }: { mevcut: NotDosyasi[]; kapat: () => void; olustu: (n: NotDosyasi) => void }) {
+  const s = useSozluk();
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [yol, setYol] = useState("kararlar/");
   const { suruyor, hata, setHata, calistir } = useIslem();
@@ -296,16 +304,16 @@ function YeniNot({ mevcut, kapat, olustu }: { mevcut: NotDosyasi[]; kapat: () =>
     e.preventDefault();
     let temiz = yol.trim().replace(/^\/+/, "");
     if (!temiz || temiz.endsWith("/")) {
-      setHata("Dosya adı yazın, ör. kararlar/ADR-006-onbellek.md");
+      setHata(s.notlar.dosyaAdiYazin);
       return;
     }
     if (temiz.split("/").includes("..")) {
-      setHata("Yol .. içeremez.");
+      setHata(s.notlar.yolHatasi);
       return;
     }
     if (!/\.md$/i.test(temiz)) temiz += ".md";
     if (mevcut.some((n) => n.yol === temiz)) {
-      setHata("Bu adda bir not zaten var.");
+      setHata(s.notlar.notVar);
       return;
     }
     if (!aktifProjeId) return;
@@ -323,7 +331,7 @@ function YeniNot({ mevcut, kapat, olustu }: { mevcut: NotDosyasi[]; kapat: () =>
   return (
     <form className="yeni-not" onSubmit={gonder}>
       <label htmlFor="yeni-not-yol" className="alan-ipucu">
-        Yeni notun yolu
+        {s.notlar.yeniYol}
       </label>
       <input
         id="yeni-not-yol"
@@ -337,10 +345,10 @@ function YeniNot({ mevcut, kapat, olustu }: { mevcut: NotDosyasi[]; kapat: () =>
       {hata ? <span className="alan-hata">{hata}</span> : null}
       <div className="dugme-satir">
         <button type="submit" className="dugme dugme-ana dugme-kucuk" disabled={suruyor !== null}>
-          Oluştur
+          {s.notlar.olustur}
         </button>
         <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={kapat}>
-          Vazgeç
+          {s.genel.vazgec}
         </button>
       </div>
     </form>

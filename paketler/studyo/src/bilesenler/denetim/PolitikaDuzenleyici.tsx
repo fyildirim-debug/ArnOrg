@@ -1,7 +1,8 @@
 // Politika kuralları: aç/kapa, karar, desenler, hedef; tüm liste PUT ile kaydedilir
-import { KARAR_ADLARI, type KuralHedefi, type PolitikaKurali } from "@arnorg/ortak";
+import type { KuralHedefi, PolitikaKurali } from "@arnorg/ortak";
 import { useEffect, useState } from "react";
 import { api } from "../../api/uclar";
+import { sozluk, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
 import { useVeri } from "../../durum/veri";
 import { desenHatasi } from "../../yardimcilar/arac";
@@ -9,18 +10,14 @@ import { useIslem } from "../../yardimcilar/kancalar";
 import { Bos, HataKutu, Iskelet } from "../Durumlar";
 import { Simge } from "../Simge";
 
-const HEDEF_ADLARI: Record<KuralHedefi, string> = {
-  komut: "Kabuk komutu",
-  yol: "Dosya yolu",
-  url: "Adres (URL)",
-  arac: "Araç adı",
-};
+/** Hedef sırası; adları sözlükte (s.denetim.kural.hedefler) */
+const HEDEFLER: KuralHedefi[] = ["komut", "yol", "url", "arac"];
 const KARARLAR: PolitikaKurali["karar"][] = ["izin", "ret", "sor"];
 
 function yeniKural(): PolitikaKurali {
   return {
     id: `kural-${Date.now().toString(36)}`,
-    ad: "Yeni kural",
+    ad: sozluk().denetim.kural.yeniKural,
     aciklama: "",
     karar: "sor",
     hedef: "komut",
@@ -31,6 +28,8 @@ function yeniKural(): PolitikaKurali {
 }
 
 export function PolitikaDuzenleyici() {
+  const s = useSozluk();
+  const t = s.denetim.kural;
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [kayitli, setKayitli] = useState<PolitikaKurali[] | null>(null);
   const [taslak, setTaslak] = useState<PolitikaKurali[]>([]);
@@ -47,7 +46,7 @@ export function PolitikaDuzenleyici() {
         setKayitli(k);
         setTaslak(k);
       })
-      .catch((e: unknown) => setYuklemeHata(e instanceof Error ? e.message : "Politika alınamadı."));
+      .catch((e: unknown) => setYuklemeHata(e instanceof Error ? e.message : sozluk().denetim.kural.alinamadi));
   };
   useEffect(yukle, [aktifProjeId]);
 
@@ -72,7 +71,7 @@ export function PolitikaDuzenleyici() {
         const k = await api.politikaKaydet(aktifProjeId, taslak);
         setKayitli(k);
         setTaslak(k);
-        bildir("basari", "Politika kaydedildi. Yeni çağrılar bu kurallarla denetlenir.");
+        bildir("basari", sozluk().denetim.kural.kaydedildi);
       },
       true,
     );
@@ -84,7 +83,9 @@ export function PolitikaDuzenleyici() {
   return (
     <div className="politika">
       {taslak.length === 0 ? (
-        <Bos kucuk baslik="Kural yok">Kural yoksa her araç çağrısına izin verilir. Yıkıcı komutlar için en az bir ret kuralı ekleyin.</Bos>
+        <Bos kucuk baslik={t.yokBaslik}>
+          {t.yokMetin}
+        </Bos>
       ) : (
         <ol className="kurallar">
           {taslak.map((k, i) => {
@@ -97,18 +98,18 @@ export function PolitikaDuzenleyici() {
                     role="switch"
                     className="anahtar-dugme"
                     aria-checked={k.etkin}
-                    aria-label={`${k.ad} kuralı ${k.etkin ? "etkin" : "kapalı"}`}
+                    aria-label={t.anahtar(k.ad, k.etkin)}
                     onClick={() => guncelle(k.id, { etkin: !k.etkin })}
                   />
                   <button type="button" className="kural-ad" onClick={() => setAcikId(acik ? null : k.id)} aria-expanded={acik}>
                     <b>{k.ad}</b>
                     <small className="tek-satir">
-                      {HEDEF_ADLARI[k.hedef]}
-                      {k.desenler.length ? ` · ${k.desenler.join(", ")}` : " · desen yok"}
+                      {t.hedefler[k.hedef]}
+                      {k.desenler.length ? ` · ${k.desenler.join(", ")}` : t.desenYok}
                     </small>
                   </button>
                   <label className="gizli" htmlFor={`karar-${k.id}`}>
-                    {k.ad} kararı
+                    {t.karari(k.ad)}
                   </label>
                   <select
                     id={`karar-${k.id}`}
@@ -118,7 +119,7 @@ export function PolitikaDuzenleyici() {
                   >
                     {KARARLAR.map((x) => (
                       <option key={x} value={x}>
-                        {KARAR_ADLARI[x]}
+                        {s.genel.karar[x]}
                       </option>
                     ))}
                   </select>
@@ -126,30 +127,30 @@ export function PolitikaDuzenleyici() {
                 {acik ? (
                   <div className="kural-duzen form-izgara">
                     <div className="alan">
-                      <label htmlFor={`kad-${k.id}`}>Ad</label>
+                      <label htmlFor={`kad-${k.id}`}>{t.ad}</label>
                       <input id={`kad-${k.id}`} className="girdi" value={k.ad} onChange={(e) => guncelle(k.id, { ad: e.target.value })} />
                     </div>
                     <div className="alan">
-                      <label htmlFor={`khedef-${k.id}`}>Hedef</label>
+                      <label htmlFor={`khedef-${k.id}`}>{t.hedef}</label>
                       <select
                         id={`khedef-${k.id}`}
                         className="secim"
                         value={k.hedef}
                         onChange={(e) => guncelle(k.id, { hedef: e.target.value as KuralHedefi })}
                       >
-                        {(Object.keys(HEDEF_ADLARI) as KuralHedefi[]).map((h) => (
+                        {HEDEFLER.map((h) => (
                           <option key={h} value={h}>
-                            {HEDEF_ADLARI[h]}
+                            {t.hedefler[h]}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className="alan tam">
-                      <label htmlFor={`kacik-${k.id}`}>Açıklama</label>
+                      <label htmlFor={`kacik-${k.id}`}>{t.aciklama}</label>
                       <input id={`kacik-${k.id}`} className="girdi" value={k.aciklama} onChange={(e) => guncelle(k.id, { aciklama: e.target.value })} />
                     </div>
                     <div className="alan tam">
-                      <label htmlFor={`kdesen-${k.id}`}>Desenler (her satıra bir düzenli ifade, büyük/küçük harf duyarsız)</label>
+                      <label htmlFor={`kdesen-${k.id}`}>{t.desenler}</label>
                       <textarea
                         id={`kdesen-${k.id}`}
                         className="metin-alani kod-alani"
@@ -168,7 +169,7 @@ export function PolitikaDuzenleyici() {
                         ))}
                     </div>
                     <div className="alan tam">
-                      <label htmlFor={`karac-${k.id}`}>Araçlar (virgülle; boşsa hedefe uyan tüm araçlar)</label>
+                      <label htmlFor={`karac-${k.id}`}>{t.araclar}</label>
                       <input
                         id={`karac-${k.id}`}
                         className="girdi"
@@ -187,10 +188,10 @@ export function PolitikaDuzenleyici() {
                     </div>
                     <div className="tam dugme-satir">
                       <button type="button" className="dugme dugme-kucuk dugme-sessiz" onClick={() => tasi(k.id, -1)} disabled={i === 0}>
-                        Yukarı al
+                        {t.yukari}
                       </button>
                       <button type="button" className="dugme dugme-kucuk dugme-sessiz" onClick={() => tasi(k.id, 1)} disabled={i === taslak.length - 1}>
-                        Aşağı al
+                        {t.asagi}
                       </button>
                       <button
                         type="button"
@@ -201,7 +202,7 @@ export function PolitikaDuzenleyici() {
                         }}
                       >
                         <Simge ad="cop" boyut={12} />
-                        Kuralı sil
+                        {t.sil}
                       </button>
                     </div>
                   </div>
@@ -222,23 +223,23 @@ export function PolitikaDuzenleyici() {
           }}
         >
           <Simge ad="arti" boyut={12} />
-          Kural ekle
+          {t.ekle}
         </button>
         {kirli ? (
           <div className="politika-kaydet" role="status">
-            <span className="alan-ipucu">Kaydedilmemiş değişiklikler</span>
+            <span className="alan-ipucu">{t.kaydedilmemis}</span>
             <button type="button" className="dugme dugme-ana dugme-kucuk" onClick={kaydet} disabled={suruyor !== null || desenHatalari.length > 0}>
               {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-              Politikayı kaydet
+              {t.kaydet}
             </button>
             <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setTaslak(kayitli)}>
-              Vazgeç
+              {s.genel.vazgec}
             </button>
           </div>
         ) : null}
       </div>
-      {hata ? <HataKutu baslik="Politika kaydedilemedi" metin={hata} /> : null}
-      <p className="alan-ipucu">Kurallar yukarıdan aşağı denenir; ilk eşleşen kural kararı verir. Politika repo içinde .arnorg/proje.yaml dosyasında durur.</p>
+      {hata ? <HataKutu baslik={t.kaydedilemedi} metin={hata} /> : null}
+      <p className="alan-ipucu">{t.ipucu}</p>
     </div>
   );
 }

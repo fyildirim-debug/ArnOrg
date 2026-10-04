@@ -1,14 +1,8 @@
 // Çalışma alanı dosya ağacı: klasör aç/kapa, M/A/D işaretleri
-import type { DosyaDegisikligi, DosyaDugumu } from "@arnorg/ortak";
+import type { DosyaDugumu } from "@arnorg/ortak";
 import { memo, useMemo } from "react";
+import { useSozluk } from "../dil";
 import { Simge } from "./Simge";
-
-const DEGISIKLIK_ADLARI: Record<DosyaDegisikligi, string> = {
-  M: "Değişti",
-  A: "Eklendi",
-  D: "Silindi",
-  "?": "İzlenmiyor",
-};
 
 /** Değişiklik içeren klasör yolları */
 function degisenKlasorler(kok: DosyaDugumu | null): Set<string> {
@@ -52,6 +46,7 @@ export const DosyaAgaci = memo(function DosyaAgaci({
   /** Son birkaç saniyede bir ajanın değiştirdiği dosyalar */
   canliYollar: Set<string>;
 }) {
+  const t = useSozluk().ajan.dosyaAgaci;
   const degisen = useMemo(() => degisenKlasorler(kok), [kok]);
 
   const ciz = (d: DosyaDugumu, derinlik: number): React.ReactNode => {
@@ -62,7 +57,7 @@ export const DosyaAgaci = memo(function DosyaAgaci({
           <button type="button" className="a-klasor" style={{ "--d": derinlik } as React.CSSProperties} onClick={() => klasorDegistir(d.yol)}>
             <Simge ad={acik ? "asagi" : "sag"} boyut={11} />
             <span className="tek-satir">{d.ad}</span>
-            {!acik && degisen.has(d.yol) ? <i className="a-nokta" aria-label="Değişiklik içeriyor" /> : null}
+            {!acik && degisen.has(d.yol) ? <i className="a-nokta" aria-label={t.degisiklikVar} /> : null}
           </button>
           {acik ? <ul role="group">{(d.cocuklar ?? []).slice().sort(sirala).map((c) => ciz(c, derinlik + 1))}</ul> : null}
         </li>
@@ -81,7 +76,7 @@ export const DosyaAgaci = memo(function DosyaAgaci({
         >
           <span className="tek-satir">{d.ad}</span>
           {d.degisiklik ? (
-            <span className={`a-durum a-durum-${d.degisiklik === "?" ? "yeni" : d.degisiklik}`} title={DEGISIKLIK_ADLARI[d.degisiklik]}>
+            <span className={`a-durum a-durum-${d.degisiklik === "?" ? "yeni" : d.degisiklik}`} title={t.degisiklik[d.degisiklik]}>
               {d.degisiklik === "?" ? "U" : d.degisiklik}
             </span>
           ) : null}
@@ -91,7 +86,7 @@ export const DosyaAgaci = memo(function DosyaAgaci({
   };
 
   return (
-    <ul className="e-agac-liste" role="tree" aria-label="Dosyalar">
+    <ul className="e-agac-liste" role="tree" aria-label={t.dosyalar}>
       {(kok.cocuklar ?? []).slice().sort(sirala).map((c) => ciz(c, 0))}
     </ul>
   );

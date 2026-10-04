@@ -1,6 +1,7 @@
 // Organizasyon şeması: yoneticiId'ye göre ağaç
-import { AJAN_DURUM_ADLARI, type Ajan } from "@arnorg/ortak";
+import type { Ajan } from "@arnorg/ortak";
 import { useMemo } from "react";
+import { useSozluk } from "../../dil";
 import { AjanAvatar, DurumNoktasi, modelAdi } from "../Kisi";
 
 interface Dugum {
@@ -33,6 +34,7 @@ function agacKur(ajanlar: Ajan[]): Dugum[] {
 }
 
 export function OrgSemasi({ ajanlar, secili, sec }: { ajanlar: Ajan[]; secili: string | null; sec: (id: string) => void }) {
+  const s = useSozluk();
   const agac = useMemo(() => agacKur(ajanlar), [ajanlar]);
   const dal = (d: Dugum) => (
     <li key={d.ajan.id}>
@@ -41,7 +43,7 @@ export function OrgSemasi({ ajanlar, secili, sec }: { ajanlar: Ajan[]; secili: s
         className="dugum"
         aria-pressed={secili === d.ajan.id}
         onClick={() => sec(d.ajan.id)}
-        title={`${d.ajan.ad} · ${d.ajan.rolAdi} · ${modelAdi(d.ajan.model)} · ${AJAN_DURUM_ADLARI[d.ajan.durum]}`}
+        title={`${d.ajan.ad} · ${d.ajan.rolAdi} · ${modelAdi(d.ajan.model)} · ${s.genel.ajanDurumu[d.ajan.durum]}`}
       >
         <span className="dugum-av">
           <AjanAvatar ajan={d.ajan} />

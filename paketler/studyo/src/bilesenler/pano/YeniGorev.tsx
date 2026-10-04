@@ -1,7 +1,8 @@
 // Yeni görev çekmecesi
-import { GOREV_DURUM_ADLARI, type GorevDurumu } from "@arnorg/ortak";
+import type { GorevDurumu } from "@arnorg/ortak";
 import { useState } from "react";
 import { api } from "../../api/uclar";
+import { sozluk, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
 import { gorevUygula, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
@@ -12,6 +13,8 @@ import { GorevAlanlari, taslakOlustur } from "./GorevAlanlari";
 const BASLANGIC: GorevDurumu[] = ["bekleyen", "planlandi"];
 
 export function YeniGorev({ kapat, olustu }: { kapat: () => void; olustu: (id: string) => void }) {
+  const s = useSozluk();
+  const t = s.pano.yeni;
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [taslak, setTaslak] = useState(() => taslakOlustur());
   const [durum, setDurum] = useState<GorevDurumu>("bekleyen");
@@ -34,7 +37,7 @@ export function YeniGorev({ kapat, olustu }: { kapat: () => void; olustu: (id: s
           durum,
         });
         gorevUygula(g);
-        bildir("basari", `${g.kod} oluşturuldu.`);
+        bildir("basari", sozluk().pano.yeni.olusturuldu(g.kod));
         olustu(g.id);
       },
       true,
@@ -43,16 +46,16 @@ export function YeniGorev({ kapat, olustu }: { kapat: () => void; olustu: (id: s
 
   return (
     <Cekmece
-      baslik="Yeni görev"
+      baslik={s.pano.yeniGorev}
       kapat={kapat}
       alt={
         <>
           <button type="button" className="dugme dugme-ana" onClick={olustur} disabled={suruyor !== null}>
             {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-            Görevi oluştur
+            {t.olustur}
           </button>
           <button type="button" className="dugme dugme-sessiz" onClick={kapat}>
-            Vazgeç
+            {s.genel.vazgec}
           </button>
         </>
       }
@@ -67,19 +70,19 @@ export function YeniGorev({ kapat, olustu }: { kapat: () => void; olustu: (id: s
         <GorevAlanlari taslak={taslak} degistir={(t) => setTaslak((o) => ({ ...o, ...t }))} denendi={denendi} />
         <div className="alan">
           <span className="alan-ad" id="yeni-gorev-durum">
-            Başlangıç durumu
+            {t.baslangicDurumu}
           </span>
           <div className="bolumlu" role="group" aria-labelledby="yeni-gorev-durum">
             {BASLANGIC.map((d) => (
               <button key={d} type="button" aria-pressed={durum === d} onClick={() => setDurum(d)}>
-                {GOREV_DURUM_ADLARI[d]}
+                {s.genel.gorevDurumu[d]}
               </button>
             ))}
           </div>
         </div>
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
-      {hata ? <HataKutu baslik="Görev oluşturulamadı" metin={hata} /> : null}
+      {hata ? <HataKutu baslik={t.olusturulamadi} metin={hata} /> : null}
     </Cekmece>
   );
 }

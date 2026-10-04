@@ -5,6 +5,7 @@ import { TranskriptSatir, useTranskript } from "../bilesenler/ajan/Transkript";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { AjanAvatar, AjanDurum, izinModuAdi, modelAdi } from "../bilesenler/Kisi";
 import { Simge } from "../bilesenler/Simge";
+import { useSozluk } from "../dil";
 import { git, useArayuz } from "../durum/arayuz";
 import { ajanAkisiniYukle, useVeri } from "../durum/veri";
 import { token } from "../yardimcilar/bicim";
@@ -13,6 +14,7 @@ const PENCERE = 500;
 const ALT_ESIGI = 64;
 
 export function AjanOturumu() {
+  const s = useSozluk();
   const ajanId = useArayuz((d) => d.ajanId);
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === ajanId));
   const projeYukleme = useVeri((d) => d.projeYukleme);
@@ -21,14 +23,14 @@ export function AjanOturumu() {
     if (projeYukleme === "yukleniyor") return <Iskelet satir={10} />;
     return (
       <Bos
-        baslik="Ajan bulunamadı"
+        baslik={s.ajan.bulunamadi}
         eylem={
           <button type="button" className="dugme" onClick={() => git("ekip")}>
-            Ekibe dön
+            {s.ajan.ekibeDon}
           </button>
         }
       >
-        Bu ajan işten çıkarılmış ya da başka bir projeye ait olabilir.
+        {s.ajan.bulunamadiMetin}
       </Bos>
     );
   }
@@ -36,6 +38,7 @@ export function AjanOturumu() {
 }
 
 function Oturum({ ajanId }: { ajanId: string }) {
+  const s = useSozluk();
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === ajanId))!;
   const ogeler = useVeri((d) => d.akislar[ajanId]);
   const yukleme = useVeri((d) => d.akisYukleme[ajanId]);
@@ -98,8 +101,8 @@ function Oturum({ ajanId }: { ajanId: string }) {
           type="button"
           className="dugme dugme-sessiz dugme-kucuk dugme-simge"
           onClick={() => git("ekip")}
-          aria-label="Ekibe dön"
-          title="Ekibe dön"
+          aria-label={s.ajan.ekibeDon}
+          title={s.ajan.ekibeDon}
         >
           <Simge ad="geri" />
         </button>
@@ -111,8 +114,8 @@ function Oturum({ ajanId }: { ajanId: string }) {
           </span>
         </div>
         <AjanDurum durum={ajan.durum} />
-        <span className="metre oturum-kullanim" title="Bugün ve toplam işlenen token">
-          <b>{token(ajan.bugunToken)}</b> token bugün · {token(ajan.toplamToken)} toplam
+        <span className="metre oturum-kullanim" title={s.ajan.tokenIpucu}>
+          <b>{token(ajan.bugunToken)}</b> {s.ajan.tokenBugun} · {token(ajan.toplamToken)} {s.ajan.tokenToplam}
         </span>
         <div className="oturum-eylem">
           <OturumDugmeleri ajan={ajan} kucuk />
@@ -121,22 +124,20 @@ function Oturum({ ajanId }: { ajanId: string }) {
       {ajan.isAciklamasi ? <p className="oturum-is">{ajan.isAciklamasi}</p> : null}
 
       <div className="oturum-govde">
-        <div className="transkript" ref={kapRef} onScroll={kaydirildi} role="log" aria-label={`${ajan.ad} oturum dökümü`}>
-          {yukleme === "yukleniyor" && !ogeler?.length ? <Iskelet satir={10} etiket="Oturum yükleniyor" /> : null}
-          {yukleme === "hata" ? <HataKutu metin="Oturum akışı alınamadı." yeniden={() => void ajanAkisiniYukle(ajanId, true)} /> : null}
+        <div className="transkript" ref={kapRef} onScroll={kaydirildi} role="log" aria-label={s.ajan.dokum(ajan.ad)}>
+          {yukleme === "yukleniyor" && !ogeler?.length ? <Iskelet satir={10} etiket={s.ajan.yukleniyor} /> : null}
+          {yukleme === "hata" ? <HataKutu metin={s.ajan.akisAlinamadi} yeniden={() => void ajanAkisiniYukle(ajanId, true)} /> : null}
           {yukleme === "hazir" && satirlar.length === 0 ? (
-            <Bos kucuk baslik="Oturumda henüz bir şey yok">
-              {ajan.durum === "kapali"
-                ? `Oturum kapalı. Başlatın ya da aşağıdan mesaj yazın; mesaj oturumu açar.`
-                : "Ajan çalıştıkça mesajları, düşünceleri ve araç çağrıları burada akar."}
+            <Bos kucuk baslik={s.ajan.bosBaslik}>
+              {ajan.durum === "kapali" ? s.ajan.bosKapali : s.ajan.bosAcik}
             </Bos>
           ) : null}
           {gizli > 0 ? (
             <div className="transkript-daha">
               <button type="button" className="dugme dugme-kucuk" onClick={dahaFazla}>
-                Daha eski {Math.min(gizli, PENCERE)} öğeyi göster
+                {s.ajan.dahaEski(Math.min(gizli, PENCERE))}
               </button>
-              <small>{gizli} öğe gizli</small>
+              <small>{s.ajan.gizli(gizli)}</small>
             </div>
           ) : null}
           {gorunen.map((s) => (
@@ -146,7 +147,7 @@ function Oturum({ ajanId }: { ajanId: string }) {
         {yeniSayisi > 0 ? (
           <button type="button" className="dugme dugme-kucuk en-yeni" onClick={enAlta}>
             <Simge ad="asagi" boyut={12} />
-            En yeniye in · {yeniSayisi} yeni
+            {s.ajan.enYeni(yeniSayisi)}
           </button>
         ) : null}
       </div>

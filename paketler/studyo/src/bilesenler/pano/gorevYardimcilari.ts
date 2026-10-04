@@ -1,6 +1,7 @@
 // Görev durum geçişleri ve bağımlılık yardımcıları
-import { GOREV_DURUM_ADLARI, GOREV_GECISLERI, type Gorev, type GorevDurumu } from "@arnorg/ortak";
+import { GOREV_GECISLERI, type Gorev, type GorevDurumu } from "@arnorg/ortak";
 import { api } from "../../api/uclar";
+import { sozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
 import { gorevUygula } from "../../durum/veri";
 
@@ -32,6 +33,6 @@ export function acikBagimliliklar(g: Gorev, tumu: Gorev[]): Gorev[] {
 export async function durumDegistir(g: Gorev, durum: GorevDurumu): Promise<Gorev> {
   const yeni = await api.gorevGuncelle(g.id, { durum });
   gorevUygula(yeni);
-  bildir("basari", `${g.kod} → ${GOREV_DURUM_ADLARI[durum]}`);
+  bildir("basari", `${g.kod} → ${sozluk().genel.gorevDurumu[durum]}`);
   return yeni;
 }

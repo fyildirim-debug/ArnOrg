@@ -2,9 +2,10 @@
 import type { Ajan, IzinModu } from "@arnorg/ortak";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
+import { sozluk, useSozluk } from "../../dil";
 import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
 import { ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
-import { belirtme, tarih, token } from "../../yardimcilar/bicim";
+import { tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { KarakterSecici } from "../KarakterSecici";
 import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, modelAdi } from "../Kisi";
@@ -20,6 +21,8 @@ const oncekiModlar = new Map<string, IzinModu>();
 
 /** mesaj: false ise "Mesaj gönder" bölümü gösterilmez (çağıran kendi mesaj kutusunu koyar) */
 export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolean }) {
+  const s = useSozluk();
+  const t = s.ekip.ayrinti;
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const yonetici = ajanlar.find((a) => a.id === ajan.yoneticiId);
@@ -36,7 +39,7 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
           </small>
         </div>
         <button type="button" className="dugme dugme-kucuk" onClick={() => ajanaGit(ajan.id)}>
-          Oturumu aç
+          {t.oturumuAc}
         </button>
       </div>
       <div className="ajan-ayrinti-durum">
@@ -47,17 +50,17 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
       <OturumDugmeleri ajan={ajan} kucuk />
 
       <dl className="kv">
-        <dt>Bugün</dt>
-        <dd className="sayi">{token(ajan.bugunToken)} token</dd>
-        <dt>Toplam</dt>
-        <dd className="sayi">{token(ajan.toplamToken)} token</dd>
-        <dt>İzin modu</dt>
+        <dt>{t.bugun}</dt>
+        <dd className="sayi">{t.token(token(ajan.bugunToken))}</dd>
+        <dt>{t.toplam}</dt>
+        <dd className="sayi">{t.token(token(ajan.toplamToken))}</dd>
+        <dt>{t.izinModu}</dt>
         <dd>{izinModuAdi(ajan.izinModu)}</dd>
-        <dt>Yönetici</dt>
-        <dd>{yonetici ? `${yonetici.ad} · ${yonetici.rolAdi}` : "Yönetim kurulu"}</dd>
+        <dt>{t.yonetici}</dt>
+        <dd>{yonetici ? `${yonetici.ad} · ${yonetici.rolAdi}` : s.genel.kurul}</dd>
         {gorev ? (
           <>
-            <dt>Görev</dt>
+            <dt>{t.gorev}</dt>
             <dd>
               <button type="button" className="gorev-kodu" onClick={() => git("pano", { gorevId: gorev.id })}>
                 {gorev.kod}
@@ -66,17 +69,17 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
             </dd>
           </>
         ) : null}
-        <dt>Dal</dt>
-        <dd>{ajan.dal ? <code>{ajan.dal}</code> : <span className="soluk">Henüz yok</span>}</dd>
-        <dt>Çalışma alanı</dt>
-        <dd>{ajan.calismaAlani ? <code>{ajan.calismaAlani}</code> : <span className="soluk">Henüz yok</span>}</dd>
-        <dt>İşe alındı</dt>
+        <dt>{t.dal}</dt>
+        <dd>{ajan.dal ? <code>{ajan.dal}</code> : <span className="soluk">{s.genel.henuzYok}</span>}</dd>
+        <dt>{t.calismaAlani}</dt>
+        <dd>{ajan.calismaAlani ? <code>{ajan.calismaAlani}</code> : <span className="soluk">{s.genel.henuzYok}</span>}</dd>
+        <dt>{t.iseAlindi}</dt>
         <dd>{tarih(ajan.olusturma)}</dd>
       </dl>
 
       {mesaj ? (
-        <section className="ajan-bolum" aria-label="Mesaj gönder">
-          <h3>Mesaj gönder</h3>
+        <section className="ajan-bolum" aria-label={t.mesajGonder}>
+          <h3>{t.mesajGonder}</h3>
           <MesajFormu ajan={ajan} />
         </section>
       ) : null}
@@ -88,6 +91,8 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
 }
 
 function AjanAyarlari({ ajan }: { ajan: Ajan }) {
+  const s = useSozluk();
+  const t = s.ekip.ayrinti;
   const ajanlar = useVeri((d) => d.ajanlar);
   const { suruyor, calistir } = useIslem();
   const [yoneticiId, setYoneticiId] = useState(ajan.yoneticiId ?? "");
@@ -106,7 +111,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const modelDegistir = (model: string) =>
     calistir("model", async () => {
       ajanUygula(await api.ajanModel(ajan.id, model));
-      bildir("basari", `${ajan.ad} artık ${modelAdi(model)} ile çalışıyor.`);
+      bildir("basari", sozluk().ekip.ayrinti.modelDegisti(ajan.ad, modelAdi(model)));
     });
 
   const modDegistir = (mod: IzinModu) =>
@@ -125,16 +130,16 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           talimatEki: talimat,
         }),
       );
-      bildir("basari", "Ajan ayarları kaydedildi.");
+      bildir("basari", sozluk().ekip.ayrinti.ayarlarKaydedildi);
     });
   };
 
   return (
-    <section className="ajan-bolum" aria-label="Ayarlar">
-      <h3>Ayarlar</h3>
+    <section className="ajan-bolum" aria-label={t.ayarlar}>
+      <h3>{t.ayarlar}</h3>
       <div className="ayar-satir">
         <div className="alan">
-          <label htmlFor={`model-${ajan.id}`}>Model</label>
+          <label htmlFor={`model-${ajan.id}`}>{t.model}</label>
           <select
             id={`model-${ajan.id}`}
             className="secim"
@@ -150,11 +155,11 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
                 {modelAdi(m)}
               </option>
             ))}
-            <option value="ozel">Özel model kimliği…</option>
+            <option value="ozel">{t.ozelModelSecenegi}</option>
           </select>
         </div>
         <div className="alan">
-          <label htmlFor={`mod-${ajan.id}`}>İzin modu</label>
+          <label htmlFor={`mod-${ajan.id}`}>{t.izinModu}</label>
           <select
             id={`mod-${ajan.id}`}
             className="secim"
@@ -174,7 +179,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
         <div className="ayar-satir ayar-satir-tek">
           <input
             className="girdi"
-            aria-label="Özel model kimliği"
+            aria-label={t.ozelModel}
             value={ozelModel}
             onChange={(e) => setOzelModel(e.target.value)}
             placeholder="claude-…"
@@ -186,7 +191,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
             disabled={!ozelModel.trim() || ozelModel.trim() === ajan.model || suruyor !== null}
             onClick={() => void modelDegistir(ozelModel.trim())}
           >
-            Uygula
+            {t.uygula}
           </button>
         </div>
       ) : null}
@@ -196,10 +201,10 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           className="dugme dugme-kucuk"
           disabled={suruyor !== null}
           onClick={() => void modDegistir(planda ? (oncekiModlar.get(ajan.id) ?? "default") : "plan")}
-          title={planda ? "Önceki izin moduna döner" : "Ajan yalnız plan yazar, dosya değiştirmez"}
+          title={planda ? t.plandanCikIpucu : t.planaAlIpucu}
         >
           <Simge ad="plan" boyut={12} />
-          {planda ? "Plan modundan çık" : "Plan moduna al"}
+          {planda ? t.plandanCik : t.planaAl}
         </button>
       </div>
 
@@ -208,9 +213,9 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
       <form className="ajan-ayar-form" onSubmit={kaydet}>
         <div className="ayar-satir">
           <div className="alan">
-            <label htmlFor={`yonetici-${ajan.id}`}>Yönetici</label>
+            <label htmlFor={`yonetici-${ajan.id}`}>{t.yonetici}</label>
             <select id={`yonetici-${ajan.id}`} className="secim" value={yoneticiId} onChange={(e) => setYoneticiId(e.target.value)}>
-              <option value="">Yönetim kurulu</option>
+              <option value="">{s.genel.kurul}</option>
               {ajanlar
                 .filter((a) => a.id !== ajan.id)
                 .map((a) => (
@@ -222,20 +227,20 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           </div>
         </div>
         <div className="alan">
-          <label htmlFor={`talimat-${ajan.id}`}>Ek talimat</label>
+          <label htmlFor={`talimat-${ajan.id}`}>{t.ekTalimat}</label>
           <textarea
             id={`talimat-${ajan.id}`}
             className="metin-alani"
             rows={3}
             value={talimat}
             onChange={(e) => setTalimat(e.target.value)}
-            placeholder="Rol talimatına eklenir. Örn. Testleri her zaman vitest ile yaz."
+            placeholder={t.ekTalimatOrnek}
           />
         </div>
         <div className="dugme-satir">
           <button type="submit" className="dugme dugme-kucuk" disabled={!degisti || suruyor !== null}>
             {suruyor === "kaydet" ? <span className="doner" aria-hidden="true" /> : null}
-            Değişiklikleri kaydet
+            {t.degisiklikleriKaydet}
           </button>
         </div>
       </form>
@@ -245,6 +250,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
 
 /** Ofis karakteri: seçim hemen görünür, kısa bir beklemeden sonra kaydedilir (oklarla gezerken her adımda istek gitmez) */
 function KarakterAyari({ ajan }: { ajan: Ajan }) {
+  const s = useSozluk();
   const [yerel, setYerel] = useState<string | null>(ajan.karakter);
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const bekleyen = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -270,7 +276,7 @@ function KarakterAyari({ ajan }: { ajan: Ajan }) {
   return (
     <div className="alan">
       <span className="alan-ad" id={`karakter-${ajan.id}`}>
-        Ofis karakteri {kaydediliyor ? <span className="doner" aria-hidden="true" /> : null}
+        {s.ekip.ayrinti.ofisKarakteri} {kaydediliyor ? <span className="doner" aria-hidden="true" /> : null}
       </span>
       <KarakterSecici deger={yerel} degisti={degisti} rol={ajan.rol} ajan={ajan} etiketId={`karakter-${ajan.id}`} />
     </div>
@@ -278,6 +284,8 @@ function KarakterAyari({ ajan }: { ajan: Ajan }) {
 }
 
 function IstenCikar({ ajan }: { ajan: Ajan }) {
+  const s = useSozluk();
+  const t = s.ekip.ayrinti;
   const [soruyor, setSoruyor] = useState(false);
   const { suruyor, calistir } = useIslem();
   useEffect(() => setSoruyor(false), [ajan.id]);
@@ -286,18 +294,18 @@ function IstenCikar({ ajan }: { ajan: Ajan }) {
     calistir("cikar", async () => {
       await api.istenCikar(ajan.id);
       ajanKaldir(ajan.id);
-      bildir("bilgi", `${ajan.ad} işten çıkarıldı. Kimlik dosyası ve çalışma alanı repoda kaldı.`);
+      bildir("bilgi", sozluk().ekip.ayrinti.istenCikarildi(ajan.ad));
     });
 
   return (
-    <section className="ajan-bolum ajan-bolum-tehlike" aria-label="İşten çıkar">
+    <section className="ajan-bolum ajan-bolum-tehlike" aria-label={t.istenCikar}>
       {soruyor ? (
-        <OnaySor evet={cikar} vazgec={() => setSoruyor(false)} evetMetni={`Evet, ${belirtme(ajan.ad)} çıkar`} suruyor={suruyor === "cikar"}>
-          {ajan.ad} işten çıkarılırsa oturumu kapanır. Kimlik dosyası (.arnorg/ekip/) ve çalışma alanı yerinde kalır; atanmış görevleri boşa düşer.
+        <OnaySor evet={cikar} vazgec={() => setSoruyor(false)} evetMetni={t.istenCikarEvet(ajan.ad)} suruyor={suruyor === "cikar"}>
+          {t.istenCikarUyari(ajan.ad)}
         </OnaySor>
       ) : (
         <button type="button" className="dugme dugme-tehlike dugme-kucuk" onClick={() => setSoruyor(true)}>
-          İşten çıkar
+          {t.istenCikar}
         </button>
       )}
     </section>

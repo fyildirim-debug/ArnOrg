@@ -1,6 +1,6 @@
 // Görev formu alanları: oluşturma ve düzenleme ortak kullanır
 import type { Gorev } from "@arnorg/ortak";
-import { GOREV_DURUM_ADLARI } from "@arnorg/ortak";
+import { useSozluk } from "../../dil";
 import { useVeri } from "../../durum/veri";
 import { Simge } from "../Simge";
 
@@ -35,6 +35,8 @@ export function GorevAlanlari({
   gorevId?: string;
   denendi: boolean;
 }) {
+  const s = useSozluk();
+  const t = s.pano.alanlar;
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const etiketler = Array.from(new Set(gorevler.map((g) => g.etiket).filter(Boolean))).sort((a, b) => a.localeCompare(b, "tr"));
@@ -45,7 +47,7 @@ export function GorevAlanlari({
   return (
     <div className="form-izgara">
       <div className="alan tam">
-        <label htmlFor={`g-baslik-${on}`}>Başlık</label>
+        <label htmlFor={`g-baslik-${on}`}>{t.baslik}</label>
         <input
           id={`g-baslik-${on}`}
           className="girdi"
@@ -54,12 +56,12 @@ export function GorevAlanlari({
           aria-invalid={baslikHata ? true : undefined}
           data-ilk-odak
         />
-        {baslikHata ? <span className="alan-hata">Başlık gerekli.</span> : null}
+        {baslikHata ? <span className="alan-hata">{t.baslikGerekli}</span> : null}
       </div>
       <div className="alan">
-        <label htmlFor={`g-atanan-${on}`}>Atanan</label>
+        <label htmlFor={`g-atanan-${on}`}>{t.atanan}</label>
         <select id={`g-atanan-${on}`} className="secim" value={taslak.atananId} onChange={(e) => degistir({ atananId: e.target.value })}>
-          <option value="">Atanmadı</option>
+          <option value="">{s.pano.atanmadi}</option>
           {ajanlar.map((a) => (
             <option key={a.id} value={a.id}>
               {a.ad} · {a.rolAdi}
@@ -68,14 +70,14 @@ export function GorevAlanlari({
         </select>
       </div>
       <div className="alan">
-        <label htmlFor={`g-etiket-${on}`}>Etiket</label>
+        <label htmlFor={`g-etiket-${on}`}>{t.etiket}</label>
         <input
           id={`g-etiket-${on}`}
           className="girdi"
           list={`g-etiketler-${on}`}
           value={taslak.etiket}
           onChange={(e) => degistir({ etiket: e.target.value })}
-          placeholder="backend"
+          placeholder={t.etiketOrnek}
         />
         <datalist id={`g-etiketler-${on}`}>
           {etiketler.map((e) => (
@@ -84,7 +86,7 @@ export function GorevAlanlari({
         </datalist>
       </div>
       <div className="alan tam">
-        <label htmlFor={`g-aciklama-${on}`}>Açıklama</label>
+        <label htmlFor={`g-aciklama-${on}`}>{t.aciklama}</label>
         <textarea
           id={`g-aciklama-${on}`}
           className="metin-alani"
@@ -94,18 +96,18 @@ export function GorevAlanlari({
         />
       </div>
       <div className="alan tam">
-        <label htmlFor={`g-kabul-${on}`}>Kabul ölçütü</label>
+        <label htmlFor={`g-kabul-${on}`}>{t.kabulOlcutu}</label>
         <textarea
           id={`g-kabul-${on}`}
           className="metin-alani"
           rows={3}
           value={taslak.kabulOlcutu}
           onChange={(e) => degistir({ kabulOlcutu: e.target.value })}
-          placeholder="İş ne zaman bitmiş sayılır? Ölçülebilir yazın."
+          placeholder={t.kabulOrnek}
         />
       </div>
       <div className="alan tam">
-        <span className="alan-ad">Bağımlılıklar</span>
+        <span className="alan-ad">{t.bagimliliklar}</span>
         {taslak.bagimliliklar.length ? (
           <ul className="bagimlilik-liste">
             {taslak.bagimliliklar.map((id) => {
@@ -113,12 +115,12 @@ export function GorevAlanlari({
               return (
                 <li key={id}>
                   <code>{g?.kod ?? id}</code>
-                  <span className="tek-satir">{g?.baslik ?? "Bilinmeyen görev"}</span>
-                  {g ? <span className={`gd gd-${g.durum}`}>{GOREV_DURUM_ADLARI[g.durum]}</span> : null}
+                  <span className="tek-satir">{g?.baslik ?? t.bilinmeyenGorev}</span>
+                  {g ? <span className={`gd gd-${g.durum}`}>{s.genel.gorevDurumu[g.durum]}</span> : null}
                   <button
                     type="button"
                     className="dugme dugme-sessiz dugme-kucuk dugme-simge"
-                    aria-label={`${g?.kod ?? id} bağımlılığını kaldır`}
+                    aria-label={t.bagimlilikKaldir(g?.kod ?? id)}
                     onClick={() => degistir({ bagimliliklar: taslak.bagimliliklar.filter((x) => x !== id) })}
                   >
                     <Simge ad="kapat" boyut={11} />
@@ -128,18 +130,18 @@ export function GorevAlanlari({
             })}
           </ul>
         ) : (
-          <span className="alan-ipucu">Bağımlılık yok. Bağımlılığı bitmemiş görev Çalışılıyor'a geçemez.</span>
+          <span className="alan-ipucu">{t.bagimlilikYok}</span>
         )}
         {adaylar.length ? (
           <select
             className="secim"
-            aria-label="Bağımlılık ekle"
+            aria-label={t.bagimlilikEkle}
             value=""
             onChange={(e) => {
               if (e.target.value) degistir({ bagimliliklar: [...taslak.bagimliliklar, e.target.value] });
             }}
           >
-            <option value="">Bağımlılık ekle…</option>
+            <option value="">{t.bagimlilikEkleSecenek}</option>
             {adaylar.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.kod} · {g.baslik}

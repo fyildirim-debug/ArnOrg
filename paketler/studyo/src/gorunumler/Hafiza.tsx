@@ -1,6 +1,6 @@
 // Hafıza: projenin kalıcı hafızası, ajan defterleri ve ajanlar arası soru-yanıtlar.
 // Kayıtlar yalnız bu projeye aittir; ajanlar her oturumda okur, çalışırken doğru anda hatırlar.
-import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru } from "@arnorg/ortak";
+import type { Ajan, AjanSorusu, HafizaBenzerCifti, HafizaKaydi, HafizaTuru } from "@arnorg/ortak";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api/uclar";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
@@ -9,27 +9,34 @@ import { Markdown } from "../bilesenler/Markdown";
 import { OnaySor } from "../bilesenler/OnaySor";
 import { Simge } from "../bilesenler/Simge";
 import { ZenginBlok } from "../bilesenler/ZenginMetin";
+import { sozluk, useSozluk, type Sozluk } from "../dil";
+import { en } from "../dil/en";
+import { tr } from "../dil/tr";
 import { bildir, git } from "../durum/arayuz";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, hafizayiYukle, useHafiza } from "../durum/hafiza";
 import { useVeri } from "../durum/veri";
-import { akilliZaman, goreli } from "../yardimcilar/bicim";
+import { akilliZaman, goreli, yuzde } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
 /** Ekranda gösterim sırası: kurulun sözü önce gelir */
 const TURLER: HafizaTuru[] = ["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"];
 
-const TUR_ACIKLAMALARI: Record<HafizaTuru, string> = {
-  tercih: "Kurulun isteği, üslup, yasak. Her ajan her oturumda uyar.",
-  karar: "Alınan karar ve gerekçesi.",
-  ogrenilen: "Yaşanmış hata ve çözümü; aynı hata tekrarlanmasın.",
-  olgu: "Projeye dair doğru bilgi: sürüm, yapı, komut.",
-  uzmanlik: "Kim neyi biliyor; sorular ona yönlendirilir.",
-  ozet: "Biten iş, devir notu.",
-};
+/** Kurulun yazdığı kayıtta kaynak adı (sunucu hangi dilde yazdıysa); arayüzde s.genel.kurul gösterilir */
+const KURUL_ADLARI = new Set([tr.genel.kurul, en.genel.kurul]);
+
+function kurulKaydi(k: HafizaKaydi): boolean {
+  return !k.kaynakAjanId && KURUL_ADLARI.has(k.kaynakAd);
+}
+
+function kaynakAdi(k: HafizaKaydi, s: Sozluk): string {
+  return kurulKaydi(k) ? s.genel.kurul : k.kaynakAd;
+}
 
 type Sekme = "kayitlar" | "defterler" | "sorular";
 
 export function Hafiza() {
+  const s = useSozluk();
+  const t = s.hafiza;
   const pid = useVeri((d) => d.aktifProjeId);
   const kayitlar = useHafiza((d) => d.kayitlar);
   const sorular = useHafiza((d) => d.sorular);
@@ -55,9 +62,9 @@ export function Hafiza() {
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Hafıza</h1>
+          <h1>{t.baslik}</h1>
           <p>
-            Yalnız bu projeye ait · <code>.arnorg/hafiza/</code> · ajanlar her oturumda okur, çalışırken hatırlar
+            {t.altBaslikOnce} <code>.arnorg/hafiza/</code> {t.altBaslikSonra}
           </p>
         </div>
         <div className="baslik-eylem">
@@ -70,42 +77,42 @@ export function Hafiza() {
             }}
           >
             <Simge ad="arti" />
-            Kayıt ekle
+            {t.kayitEkle}
           </button>
         </div>
       </div>
 
-      <dl className="hafiza-ozet" aria-label="Hafıza özeti">
-        {TURLER.map((t) => (
-          <div key={t} data-tur={t} title={TUR_ACIKLAMALARI[t]}>
-            <dt>{HAFIZA_TURU_ADLARI[t]}</dt>
-            <dd className="sayi">{turSayilari[t] ?? 0}</dd>
+      <dl className="hafiza-ozet" aria-label={t.ozetEtiketi}>
+        {TURLER.map((tur) => (
+          <div key={tur} data-tur={tur} title={t.turAciklamalari[tur]}>
+            <dt>{s.genel.hafizaTuru[tur]}</dt>
+            <dd className="sayi">{turSayilari[tur] ?? 0}</dd>
           </div>
         ))}
-        <div className="hafiza-ozet-soru" title="Ajanların birbirine sorduğu sorular">
-          <dt>Soru · yanıt</dt>
+        <div className="hafiza-ozet-soru" title={t.soruIpucu}>
+          <dt>{t.soruYanit}</dt>
           <dd className="sayi">
             {yanitlanan}
-            {bekleyenSoru ? <small>{bekleyenSoru} yanıt bekliyor</small> : null}
+            {bekleyenSoru ? <small>{t.yanitBekliyor(bekleyenSoru)}</small> : null}
           </dd>
         </div>
       </dl>
 
-      <div className="bolumlu hafiza-sekmeler" role="group" aria-label="Hafıza bölümü">
+      <div className="bolumlu hafiza-sekmeler" role="group" aria-label={t.bolum}>
         <button type="button" aria-pressed={sekme === "kayitlar"} onClick={() => setSekme("kayitlar")}>
-          Kayıtlar <span className="soluk sayi">{gecerli.length}</span>
+          {t.sekmeKayitlar} <span className="soluk sayi">{gecerli.length}</span>
         </button>
         <button type="button" aria-pressed={sekme === "defterler"} onClick={() => setSekme("defterler")}>
-          Defterler
+          {t.sekmeDefterler}
         </button>
         <button type="button" aria-pressed={sekme === "sorular"} onClick={() => setSekme("sorular")}>
-          Sorular <span className="soluk sayi">{sorular.length}</span>
+          {t.sekmeSorular} <span className="soluk sayi">{sorular.length}</span>
           {bekleyenSoru ? <span className="rozet hafiza-rozet">{bekleyenSoru}</span> : null}
         </button>
       </div>
 
       {hata ? <HataKutu metin={hata} yeniden={() => pid && void hafizayiYukle(pid)} /> : null}
-      {yukleme === "yukleniyor" && !kayitlar.length && !hata ? <Iskelet satir={6} etiket="Hafıza yükleniyor" /> : null}
+      {yukleme === "yukleniyor" && !kayitlar.length && !hata ? <Iskelet satir={6} etiket={t.yukleniyor} /> : null}
 
       {yukleme === "hazir" || kayitlar.length ? (
         sekme === "kayitlar" ? (
@@ -125,6 +132,8 @@ export function Hafiza() {
 // ---------------------------------------------------------------------------
 
 function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (a: boolean) => void }) {
+  const s = useSozluk();
+  const t = s.hafiza.kayitlar;
   const pid = useVeri((d) => d.aktifProjeId);
   const kayitlar = useHafiza((d) => d.kayitlar);
   const [tur, setTur] = useState<HafizaTuru | "tumu">("tumu");
@@ -163,7 +172,7 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
   const eskiSayisi = kayitlar.filter((k) => k.yerineGecen).length;
 
   return (
-    <section aria-label="Hafıza kayıtları">
+    <section aria-label={t.etiket}>
       {yeniAcik ? <KayitFormu kapat={() => setYeniAcik(false)} /> : null}
       <Tekrarlar />
 
@@ -173,31 +182,31 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
           <input
             className="girdi"
             type="search"
-            aria-label="Hafızada ara"
-            placeholder="Ara: karar, hata, dosya, kişi"
+            aria-label={t.araEtiket}
+            placeholder={t.araYer}
             value={arama}
             onChange={(e) => setArama(e.target.value)}
           />
         </div>
-        <div className="bolumlu" role="group" aria-label="Türe göre süz">
+        <div className="bolumlu" role="group" aria-label={t.tureGore}>
           <button type="button" aria-pressed={tur === "tumu"} onClick={() => setTur("tumu")}>
-            Tümü
+            {s.genel.tumu}
           </button>
-          {TURLER.map((t) => (
-            <button key={t} type="button" aria-pressed={tur === t} onClick={() => setTur(t)} title={TUR_ACIKLAMALARI[t]}>
-              {HAFIZA_TURU_ADLARI[t]}
+          {TURLER.map((x) => (
+            <button key={x} type="button" aria-pressed={tur === x} onClick={() => setTur(x)} title={s.hafiza.turAciklamalari[x]}>
+              {s.genel.hafizaTuru[x]}
             </button>
           ))}
         </div>
         {eskiSayisi ? (
           <label className="secenek">
             <input type="checkbox" checked={eskiler} onChange={(e) => setEskiler(e.target.checked)} />
-            Eskiyenleri göster <small>{eskiSayisi}</small>
+            {t.eskiyenler} <small>{eskiSayisi}</small>
           </label>
         ) : null}
         {bulunan ? (
           <span className="alan-ipucu" role="status">
-            {araniyor ? "Aranıyor…" : `${gorunen.length} sonuç`}
+            {araniyor ? t.araniyor : t.sonuc(gorunen.length)}
           </span>
         ) : null}
       </div>
@@ -209,18 +218,19 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
           ))}
         </ol>
       ) : kayitlar.length ? (
-        <Bos kucuk baslik="Eşleşen kayıt yok">Aramayı ya da tür süzgecini gevşetin.</Bos>
+        <Bos kucuk baslik={t.eslesenYok}>
+          {t.eslesenYokMetin}
+        </Bos>
       ) : (
         <Bos
-          baslik="Hafıza boş"
+          baslik={t.bosBaslik}
           eylem={
             <button type="button" className="dugme dugme-ana dugme-kucuk" onClick={() => setYeniAcik(true)}>
-              İlk tercihi yaz
+              {t.ilkTercih}
             </button>
           }
         >
-          Ajanlar karar aldıkça, hata çözdükçe ve iş bitirdikçe buraya yazar. Ekibin her zaman uymasını istediğiniz bir kuralı kurul tercihi olarak
-          ekleyin; her ajan her oturumda okur.
+          {t.bosMetin}
         </Bos>
       )}
     </section>
@@ -232,6 +242,8 @@ function Kayitlar({ yeniAcik, setYeniAcik }: { yeniAcik: boolean; setYeniAcik: (
 // ---------------------------------------------------------------------------
 
 function Tekrarlar() {
+  const s = useSozluk();
+  const t = s.hafiza.tekrar;
   const pid = useVeri((d) => d.aktifProjeId);
   const ajanlar = useVeri((d) => d.ajanlar);
   const kayitlar = useHafiza((d) => d.kayitlar);
@@ -263,7 +275,7 @@ function Tekrarlar() {
       hafizaKaydiUygula(k);
       hafizaKaydiUygula({ ...eskiyen, yerineGecen: tutulan.id });
       cikar(c);
-      bildir("basari", `"${tutulan.baslik}" kaldı; öteki eskidi ve artık hatırlatılmaz.`);
+      bildir("basari", sozluk().hafiza.tekrar.tutuldu(tutulan.baslik));
     });
 
   const ceoyaVer = () =>
@@ -273,10 +285,8 @@ function Tekrarlar() {
         .slice(0, 10)
         .map((c) => `- ${c.a.id.slice(0, 8)} "${c.a.baslik}" ↔ ${c.b.id.slice(0, 8)} "${c.b.baslik}"`)
         .join("\n");
-      await api.ajanaMesaj(ceo.id, {
-        metin: `Hafızada birbirini tekrar eden kayıtlar var. Her çifte bak: aynı bilgiyse hafiza_birlestir ile ikisini birleştiren tek kayda indir; farklıysa olduğu gibi bırak. Bitince kısa bir özet yaz.\n${liste}`,
-      });
-      bildir("basari", `${ceo.ad} hafızayı düzenleyecek.`);
+      await api.ajanaMesaj(ceo.id, { metin: sozluk().hafiza.tekrar.ceoMesaji(liste) });
+      bildir("basari", sozluk().hafiza.tekrar.ceoDuzenleyecek(ceo.ad));
       setAcik(false);
     });
 
@@ -285,16 +295,16 @@ function Tekrarlar() {
       <div className="tekrar-ust">
         <span className="tekrar-isaret" aria-hidden="true" />
         <p>
-          <b>{ciftler.length} kayıt çifti birbirini tekrar ediyor.</b> Aynı bilgi iki kez yazılınca ajanların bağlamı şişer; birini tutun.
+          <b>{t.ciftSayisi(ciftler.length)}</b> {t.aciklama}
         </p>
         <div className="dugme-satir">
           {ceo ? (
             <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={ceoyaVer} disabled={suruyor !== null}>
-              {ceo.ad} düzenlesin
+              {t.ceoDuzenlesin(ceo.ad)}
             </button>
           ) : null}
           <button type="button" className="dugme dugme-kucuk" aria-expanded={acik} onClick={() => setAcik(!acik)}>
-            {acik ? "Kapat" : "Gözden geçir"}
+            {acik ? s.genel.kapat : t.gozdenGecir}
           </button>
         </div>
       </div>
@@ -302,22 +312,22 @@ function Tekrarlar() {
         <ul className="tekrar-liste">
           {ciftler.map((c) => (
             <li key={anahtar(c)} className="tekrar-cift">
-              <span className="tekrar-oran" title="Sözcük benzerliği">
-                %{Math.round(c.benzerlik * 100)}
+              <span className="tekrar-oran" title={t.benzerlik}>
+                {yuzde(c.benzerlik * 100)}
               </span>
               {[c.a, c.b].map((k, i) => {
                 const oteki = i === 0 ? c.b : c.a;
                 return (
                   <div key={k.id} className="tekrar-kayit">
                     <span className="hk-tur">
-                      {HAFIZA_TURU_ADLARI[k.tur]} · {k.kaynakAd} · {goreli(k.guncelleme)}
+                      {s.genel.hafizaTuru[k.tur]} · {kaynakAdi(k, s)} · {goreli(k.guncelleme)}
                     </span>
                     <b>{k.baslik}</b>
                     <div className="tekrar-metin">
                       <ZenginBlok metin={k.metin} />
                     </div>
                     <button type="button" className="dugme dugme-kucuk" disabled={suruyor !== null} onClick={() => tut(c, k, oteki)}>
-                      Bunu tut
+                      {t.bunuTut}
                     </button>
                   </div>
                 );
@@ -334,7 +344,7 @@ function Tekrarlar() {
                   })
                 }
               >
-                İkisi de kalsın
+                {t.ikisiDe}
               </button>
             </li>
           ))}
@@ -345,8 +355,9 @@ function Tekrarlar() {
 }
 
 function OnemGostergesi({ onem }: { onem: number }) {
+  const t = useSozluk().hafiza.kayit;
   return (
-    <span className="onem" role="img" aria-label={`Önem ${onem}/5`} title={`Önem ${onem}/5${onem >= 5 ? " · her oturumda hatırlanır" : ""}`}>
+    <span className="onem" role="img" aria-label={t.onem(onem)} title={`${t.onem(onem)}${onem >= 5 ? t.herOturumda : ""}`}>
       {[1, 2, 3, 4, 5].map((i) => (
         <i key={i} data-dolu={i <= onem || undefined} />
       ))}
@@ -355,6 +366,8 @@ function OnemGostergesi({ onem }: { onem: number }) {
 }
 
 function KayitSatiri({ kayit }: { kayit: HafizaKaydi }) {
+  const s = useSozluk();
+  const t = s.hafiza.kayit;
   const ajanlar = useVeri((d) => d.ajanlar);
   const gorevler = useVeri((d) => d.gorevler);
   const kayitlar = useHafiza((d) => d.kayitlar);
@@ -376,20 +389,20 @@ function KayitSatiri({ kayit }: { kayit: HafizaKaydi }) {
   return (
     <li className={`hafiza-kayit${kayit.yerineGecen ? " hafiza-eski" : ""}`} data-tur={kayit.tur} id={`hafiza-${kayit.id}`}>
       <div className="hk-yan">
-        <span className="hk-tur">{HAFIZA_TURU_ADLARI[kayit.tur]}</span>
+        <span className="hk-tur">{s.genel.hafizaTuru[kayit.tur]}</span>
         <OnemGostergesi onem={kayit.onem} />
       </div>
       <div className="hk-govde">
         <h3 className="hk-baslik">
           {kayit.baslik}
-          {kayit.yerineGecen ? <span className="etiket">Eskidi</span> : null}
+          {kayit.yerineGecen ? <span className="etiket">{t.eskidi}</span> : null}
         </h3>
         <div className="hk-metin">
           <ZenginBlok metin={kayit.metin} />
         </div>
         {yenisi ? (
           <p className="hk-yerine">
-            Yerine geçen:{" "}
+            {t.yerineGecen}{" "}
             <button
               type="button"
               className="metin-dugme"
@@ -401,10 +414,10 @@ function KayitSatiri({ kayit }: { kayit: HafizaKaydi }) {
         ) : null}
         <div className="hk-alt">
           <span className="hk-kaynak">
-            {ajan ? <AjanAvatar ajan={ajan} boyut="xs" /> : <Avatar ad={kayit.kaynakAd} siz={kayit.kaynakAd === "Yönetim kurulu"} boyut="xs" />}
-            {kayit.kaynakAd}
+            {ajan ? <AjanAvatar ajan={ajan} boyut="xs" /> : <Avatar ad={kayit.kaynakAd} siz={kurulKaydi(kayit)} boyut="xs" />}
+            {kaynakAdi(kayit, s)}
           </span>
-          <time dateTime={kayit.guncelleme} title={`Yazıldı ${akilliZaman(kayit.olusturma)} · güncellendi ${akilliZaman(kayit.guncelleme)}`}>
+          <time dateTime={kayit.guncelleme} title={t.zamanIpucu(akilliZaman(kayit.olusturma), akilliZaman(kayit.guncelleme))}>
             {goreli(kayit.guncelleme)}
           </time>
           {gorev ? (
@@ -420,28 +433,27 @@ function KayitSatiri({ kayit }: { kayit: HafizaKaydi }) {
         </div>
         {silSor ? (
           <OnaySor
-            evetMetni="Sil"
+            evetMetni={s.genel.sil}
             suruyor={suruyor !== null}
             evet={() =>
               void calistir("sil", async () => {
                 await api.hafizaSil(kayit.id);
                 hafizaKaydiKaldir(kayit.projeId, kayit.id);
                 setSilSor(false);
-                bildir("basari", "Kayıt silindi.");
+                bildir("basari", sozluk().hafiza.kayit.silindi);
               })
             }
             vazgec={() => setSilSor(false)}
           >
-            Bu kayıt hafızadan ve <code>.arnorg/hafiza/</code> yansısından silinir; ajanlar bir daha hatırlamaz. Bilgi değiştiyse silmek yerine
-            düzenleyin.
+            {t.silUyariOnce} <code>.arnorg/hafiza/</code> {t.silUyariSonra}
           </OnaySor>
         ) : null}
       </div>
       <div className="hk-eylem">
-        <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" aria-label={`${kayit.baslik} kaydını düzenle`} title="Düzenle" onClick={() => setDuzenle(true)}>
+        <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" aria-label={t.duzenleEtiketi(kayit.baslik)} title={s.genel.duzenle} onClick={() => setDuzenle(true)}>
           <Simge ad="duzenle" boyut={12} />
         </button>
-        <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" aria-label={`${kayit.baslik} kaydını sil`} title="Sil" onClick={() => setSilSor(true)}>
+        <button type="button" className="dugme dugme-sessiz dugme-kucuk dugme-simge" aria-label={t.silEtiketi(kayit.baslik)} title={s.genel.sil} onClick={() => setSilSor(true)}>
           <Simge ad="kapat" boyut={12} />
         </button>
       </div>
@@ -450,6 +462,8 @@ function KayitSatiri({ kayit }: { kayit: HafizaKaydi }) {
 }
 
 function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }) {
+  const s = useSozluk();
+  const t = s.hafiza.form;
   const pid = useVeri((d) => d.aktifProjeId);
   const [tur, setTur] = useState<HafizaTuru>(kayit?.tur ?? "tercih");
   const [baslik, setBaslik] = useState(kayit?.baslik ?? "");
@@ -469,8 +483,8 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
   const gonder = (e: FormEvent) => {
     e.preventDefault();
     if (!pid) return;
-    if (!baslik.trim()) return setHata("Kısa bir başlık yazın.");
-    if (!metin.trim()) return setHata("Ne, neden, nasıl: bir iki cümle yazın.");
+    if (!baslik.trim()) return setHata(t.baslikHata);
+    if (!metin.trim()) return setHata(t.metinHata);
     const liste = etiketler
       .split(",")
       .map((x) => x.trim().replace(/^#/, ""))
@@ -483,7 +497,7 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
           ? await api.hafizaGuncelle(kayit.id, { tur, baslik: baslik.trim(), metin: metin.trim(), etiketler: liste, onem })
           : await api.hafizaYaz(pid, { tur, baslik: baslik.trim(), metin: metin.trim(), etiketler: liste, onem });
         hafizaKaydiUygula(k);
-        bildir("basari", kayit ? "Kayıt güncellendi." : "Hafızaya yazıldı; ajanlar bir sonraki turlarında görür.");
+        bildir("basari", kayit ? sozluk().hafiza.form.guncellendi : sozluk().hafiza.form.yazildi);
         kapat();
       },
       true,
@@ -491,31 +505,31 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
   };
 
   return (
-    <form className="hafiza-form" onSubmit={gonder} aria-label={kayit ? "Kaydı düzenle" : "Yeni hafıza kaydı"}>
+    <form className="hafiza-form" onSubmit={gonder} aria-label={kayit ? t.duzenleEtiketi : t.yeniEtiketi}>
       <div className="hf-ust">
-        <div className="bolumlu" role="group" aria-label="Kayıt türü">
-          {TURLER.map((t) => (
-            <button key={t} type="button" aria-pressed={tur === t} onClick={() => turSec(t)}>
-              {HAFIZA_TURU_ADLARI[t]}
+        <div className="bolumlu" role="group" aria-label={t.tur}>
+          {TURLER.map((x) => (
+            <button key={x} type="button" aria-pressed={tur === x} onClick={() => turSec(x)}>
+              {s.genel.hafizaTuru[x]}
             </button>
           ))}
         </div>
-        <span className="alan-ipucu">{TUR_ACIKLAMALARI[tur]}</span>
+        <span className="alan-ipucu">{s.hafiza.turAciklamalari[tur]}</span>
       </div>
       <div className="alan">
-        <label htmlFor={`hf-baslik-${kimlik}`}>Başlık</label>
+        <label htmlFor={`hf-baslik-${kimlik}`}>{t.baslik}</label>
         <input
           id={`hf-baslik-${kimlik}`}
           className="girdi"
           value={baslik}
           maxLength={160}
           onChange={(e) => setBaslik(e.target.value)}
-          placeholder={tur === "tercih" ? "ör. Commit mesajları Türkçe" : tur === "ogrenilen" ? "ör. better-sqlite3 derleme hatası" : "Kısa, aranabilir başlık"}
+          placeholder={tur === "tercih" ? t.baslikOrnekTercih : tur === "ogrenilen" ? t.baslikOrnekOgrenilen : t.baslikOrnek}
           autoFocus
         />
       </div>
       <div className="alan">
-        <label htmlFor={`hf-metin-${kimlik}`}>Metin</label>
+        <label htmlFor={`hf-metin-${kimlik}`}>{t.metin}</label>
         <textarea
           id={`hf-metin-${kimlik}`}
           className="metin-alani"
@@ -526,24 +540,24 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
           onKeyDown={(e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter") gonder(e);
           }}
-          placeholder={tur === "ogrenilen" ? "Belirti, neden, çözüm." : "Ne, neden, nasıl. Ajanlar bunu her oturumda okur."}
+          placeholder={tur === "ogrenilen" ? t.metinOrnekOgrenilen : t.metinOrnek}
         />
       </div>
       <div className="hf-alt">
         <div className="alan hf-etiket">
-          <label htmlFor={`hf-etiket-${kimlik}`}>Etiketler</label>
+          <label htmlFor={`hf-etiket-${kimlik}`}>{t.etiketler}</label>
           <input
             id={`hf-etiket-${kimlik}`}
             className="girdi"
             value={etiketler}
             onChange={(e) => setEtiketler(e.target.value)}
-            placeholder="virgülle: api, src/sunucu.ts"
+            placeholder={t.etiketlerOrnek}
             spellCheck={false}
           />
         </div>
         <div className="alan">
           <span className="alan-ad" id={`hf-onem-${kimlik}`}>
-            Önem
+            {t.onem}
           </span>
           <div className="bolumlu" role="group" aria-labelledby={`hf-onem-${kimlik}`}>
             {[1, 2, 3, 4, 5].map((i) => (
@@ -555,7 +569,7 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
                   setOnem(i);
                   setOnemDegisti(true);
                 }}
-                title={i === 5 ? "Her oturumda hatırlanır" : i === 1 ? "Ayrıntı" : undefined}
+                title={i === 5 ? t.onemEnYuksek : i === 1 ? t.onemEnDusuk : undefined}
               >
                 {i}
               </button>
@@ -567,10 +581,10 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
       <div className="dugme-satir">
         <button type="submit" className="dugme dugme-ana dugme-kucuk" disabled={suruyor !== null}>
           {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="kaydet" boyut={12} />}
-          {kayit ? "Kaydet" : "Hafızaya yaz"}
+          {kayit ? s.genel.kaydet : t.hafizayaYaz}
         </button>
         <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={kapat}>
-          Vazgeç
+          {s.genel.vazgec}
         </button>
         <span className="alan-ipucu itele">Ctrl+Enter</span>
       </div>
@@ -583,16 +597,23 @@ function KayitFormu({ kayit, kapat }: { kayit?: HafizaKaydi; kapat: () => void }
 // ---------------------------------------------------------------------------
 
 function Defterler() {
+  const s = useSozluk();
+  const t = s.hafiza.defter;
   const ajanlar = useVeri((d) => d.ajanlar);
   const [secili, setSecili] = useState<string | null>(null);
   const ajan = ajanlar.find((a) => a.id === secili) ?? ajanlar[0];
 
-  if (!ajanlar.length) return <Bos kucuk baslik="Ekip yok">İlk çalışan işe alınınca defteri burada görünür.</Bos>;
+  if (!ajanlar.length)
+    return (
+      <Bos kucuk baslik={t.ekipYok}>
+        {t.ekipYokMetin}
+      </Bos>
+    );
 
   return (
     <div className="defter-yerlesim">
-      <nav className="defter-liste" aria-label="Çalışanlar">
-        <p className="alan-ipucu">Her çalışan turunun sonunda defterine ne yaptığını, ne kaldığını ve kime ne söz verdiğini yazar.</p>
+      <nav className="defter-liste" aria-label={t.calisanlar}>
+        <p className="alan-ipucu">{t.ipucu}</p>
         <ul>
           {ajanlar.map((a) => (
             <li key={a.id}>
@@ -613,6 +634,8 @@ function Defterler() {
 }
 
 function Defter({ ajan }: { ajan: Ajan }) {
+  const s = useSozluk();
+  const t = s.hafiza.defter;
   const [veri, setVeri] = useState<{ icerik: string; guncelleme: string | null } | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [taslak, setTaslak] = useState<string | null>(null);
@@ -623,7 +646,7 @@ function Defter({ ajan }: { ajan: Ajan }) {
     api
       .defter(ajan.id)
       .then(setVeri)
-      .catch((e: unknown) => setHata(e instanceof Error ? e.message : "Defter alınamadı."));
+      .catch((e: unknown) => setHata(e instanceof Error ? e.message : sozluk().hafiza.defter.alinamadi));
   };
   useEffect(yukle, [ajan.id]);
 
@@ -633,33 +656,33 @@ function Defter({ ajan }: { ajan: Ajan }) {
       await api.defterYaz(ajan.id, taslak);
       setVeri({ icerik: taslak.trim(), guncelleme: new Date().toISOString() });
       setTaslak(null);
-      bildir("basari", `${ajan.ad} defteri kaydedildi.`);
+      bildir("basari", sozluk().hafiza.defter.kaydedildi(ajan.ad));
     });
   };
 
   return (
     <article className="defter">
       <header className="not-ust">
-        <h2 className="defter-baslik">{ajan.ad} · defter</h2>
-        {veri?.guncelleme ? <small>güncellendi {goreli(veri.guncelleme)}</small> : null}
+        <h2 className="defter-baslik">{t.baslik(ajan.ad)}</h2>
+        {veri?.guncelleme ? <small>{t.guncellendi(goreli(veri.guncelleme))}</small> : null}
         <div className="dugme-satir itele">
           {taslak !== null ? (
             <>
               <button type="button" className="dugme dugme-ana dugme-kucuk" onClick={kaydet} disabled={suruyor !== null || taslak.length > 6000}>
-                Kaydet
+                {s.genel.kaydet}
               </button>
               <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setTaslak(null)}>
-                Vazgeç
+                {s.genel.vazgec}
               </button>
             </>
           ) : (
             <>
               <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={yukle}>
-                Yenile
+                {s.genel.yenile}
               </button>
               <button type="button" className="dugme dugme-kucuk" onClick={() => setTaslak(veri?.icerik ?? "")} disabled={!veri}>
                 <Simge ad="duzenle" boyut={12} />
-                Düzenle
+                {s.genel.duzenle}
               </button>
             </>
           )}
@@ -670,18 +693,20 @@ function Defter({ ajan }: { ajan: Ajan }) {
       {taslak !== null ? (
         <div className="alan">
           <label className="gizli" htmlFor="defter-metin">
-            {ajan.ad} defteri
+            {t.etiket(ajan.ad)}
           </label>
           <textarea id="defter-metin" className="metin-alani defter-metin" value={taslak} onChange={(e) => setTaslak(e.target.value)} spellCheck={false} autoFocus />
           <span className={taslak.length > 6000 ? "alan-hata" : "alan-ipucu"}>
-            {taslak.length} / 6000 · ajan bir sonraki oturumunda bu hâliyle okur
+            {t.sayac(taslak.length)}
           </span>
         </div>
       ) : veri ? (
         veri.icerik.trim() ? (
           <Markdown metin={veri.icerik} />
         ) : (
-          <Bos kucuk baslik="Defter boş">{ajan.ad} ilk turunun sonunda açık işlerini ve verdiği sözleri buraya yazar.</Bos>
+          <Bos kucuk baslik={t.bosBaslik}>
+            {t.bosMetin(ajan.ad)}
+          </Bos>
         )
       ) : null}
     </article>
@@ -693,22 +718,18 @@ function Defter({ ajan }: { ajan: Ajan }) {
 // ---------------------------------------------------------------------------
 
 type SoruSuzgeci = "tumu" | AjanSorusu["durum"];
-const SORU_SUZGECLERI: { k: SoruSuzgeci; ad: string }[] = [
-  { k: "tumu", ad: "Tümü" },
-  { k: "bekliyor", ad: "Bekleyen" },
-  { k: "yanitlandi", ad: "Yanıtlanan" },
-  { k: "zaman_asimi", ad: "Yanıtsız" },
-];
-const SORU_DURUM_ADLARI: Record<AjanSorusu["durum"], string> = { bekliyor: "Bekliyor", yanitlandi: "Yanıtlandı", zaman_asimi: "Yanıtsız" };
+const SORU_SUZGECLERI: SoruSuzgeci[] = ["tumu", "bekliyor", "yanitlandi", "zaman_asimi"];
 
-function sureMetni(baslangic: string, bitis: string): string {
+function sureMetni(baslangic: string, bitis: string, t: Sozluk["hafiza"]["soru"]): string {
   const sn = Math.max(0, Math.round((Date.parse(bitis) - Date.parse(baslangic)) / 1000));
-  if (sn < 60) return `${sn} sn`;
-  if (sn < 3600) return `${Math.round(sn / 60)} dk`;
-  return `${Math.round(sn / 3600)} sa`;
+  if (sn < 60) return t.saniye(sn);
+  if (sn < 3600) return t.dakika(Math.round(sn / 60));
+  return t.saat(Math.round(sn / 3600));
 }
 
 function Sorular() {
+  const s = useSozluk();
+  const t = s.hafiza.soru;
   const sorular = useHafiza((d) => d.sorular);
   const ajanlar = useVeri((d) => d.ajanlar);
   const [suzgec, setSuzgec] = useState<SoruSuzgeci>("tumu");
@@ -716,59 +737,59 @@ function Sorular() {
 
   if (!sorular.length)
     return (
-      <Bos kucuk baslik="Henüz soru yok">
-        Bir çalışan bilmediği bir şeyi ekip arkadaşına ajana_sor ile sorduğunda soru ve yanıt burada görünür. Kime soracağını bilmeyenin sorusunu ArnOrg
-        hafızaya ve geçmiş işlere bakıp uzmana yönlendirir; aynı soru yeniden sorulursa önceki yanıt hemen verilir.
+      <Bos kucuk baslik={t.yokBaslik}>
+        {t.yokMetin}
       </Bos>
     );
 
   return (
-    <section aria-label="Ajanlar arası sorular">
+    <section aria-label={t.etiket}>
       <div className="suzgec">
-        <div className="bolumlu" role="group" aria-label="Duruma göre süz">
-          {SORU_SUZGECLERI.map((s) => (
-            <button key={s.k} type="button" aria-pressed={suzgec === s.k} onClick={() => setSuzgec(s.k)}>
-              {s.ad} <span className="soluk sayi">{s.k === "tumu" ? sorular.length : sorular.filter((x) => x.durum === s.k).length}</span>
+        <div className="bolumlu" role="group" aria-label={t.durumaGore}>
+          {SORU_SUZGECLERI.map((k) => (
+            <button key={k} type="button" aria-pressed={suzgec === k} onClick={() => setSuzgec(k)}>
+              {k === "tumu" ? s.genel.tumu : t.suzgec[k]}{" "}
+              <span className="soluk sayi">{k === "tumu" ? sorular.length : sorular.filter((x) => x.durum === k).length}</span>
             </button>
           ))}
         </div>
       </div>
       <ol className="soru-liste">
-        {gorunen.map((s) => {
-          const soran = ajanlar.find((a) => a.id === s.soranId);
-          const sorulan = ajanlar.find((a) => a.id === s.soruluId);
+        {gorunen.map((soru) => {
+          const soran = ajanlar.find((a) => a.id === soru.soranId);
+          const sorulan = ajanlar.find((a) => a.id === soru.soruluId);
           return (
-            <li key={s.id} className="soru-kayit" data-durum={s.durum}>
+            <li key={soru.id} className="soru-kayit" data-durum={soru.durum}>
               <header className="sk-ust">
                 <span className="sk-kisi">
-                  {soran ? <AjanAvatar ajan={soran} boyut="xs" /> : <Avatar ad={s.soranAd} boyut="xs" />}
-                  <b>{s.soranAd}</b>
+                  {soran ? <AjanAvatar ajan={soran} boyut="xs" /> : <Avatar ad={soru.soranAd} boyut="xs" />}
+                  <b>{soru.soranAd}</b>
                 </span>
                 <Simge ad="sag" boyut={12} />
                 <span className="sk-kisi">
-                  {sorulan ? <AjanAvatar ajan={sorulan} boyut="xs" /> : <Avatar ad={s.soruluAd} boyut="xs" />}
-                  <b>{s.soruluAd}</b>
+                  {sorulan ? <AjanAvatar ajan={sorulan} boyut="xs" /> : <Avatar ad={soru.soruluAd} boyut="xs" />}
+                  <b>{soru.soruluAd}</b>
                 </span>
-                <span className={`hukum hukum-${s.durum}`}>{SORU_DURUM_ADLARI[s.durum]}</span>
-                <time className="itele" dateTime={s.olusturma}>
-                  {akilliZaman(s.olusturma)}
+                <span className={`hukum hukum-${soru.durum}`}>{t.durum[soru.durum]}</span>
+                <time className="itele" dateTime={soru.olusturma}>
+                  {akilliZaman(soru.olusturma)}
                 </time>
               </header>
               <div className="sk-soru">
-                <ZenginBlok metin={s.soru} />
+                <ZenginBlok metin={soru.soru} />
               </div>
-              {s.yanit ? (
+              {soru.yanit ? (
                 <div className="sk-yanit">
-                  <ZenginBlok metin={s.yanit} />
-                  {s.yanitlanma ? <small>{sureMetni(s.olusturma, s.yanitlanma)} içinde yanıtladı</small> : null}
+                  <ZenginBlok metin={soru.yanit} />
+                  {soru.yanitlanma ? <small>{t.yanitladi(sureMetni(soru.olusturma, soru.yanitlanma, t))}</small> : null}
                 </div>
-              ) : s.durum === "bekliyor" ? (
+              ) : soru.durum === "bekliyor" ? (
                 <p className="sk-bekliyor">
                   <span className="nokta nokta-calisiyor" aria-hidden="true" />
-                  {s.soruluAd} yanıtlıyor; {s.soranAd} bekliyor
+                  {t.yanitliyor(soru.soruluAd, soru.soranAd)}
                 </p>
               ) : (
-                <p className="sk-bekliyor soluk">Süre içinde yanıt gelmedi; {s.soranAd} güvenli yolla devam etti.</p>
+                <p className="sk-bekliyor soluk">{t.yanitsiz(soru.soranAd)}</p>
               )}
             </li>
           );

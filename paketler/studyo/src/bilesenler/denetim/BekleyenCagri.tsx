@@ -2,6 +2,7 @@
 import type { Onay } from "@arnorg/ortak";
 import { useState } from "react";
 import { api } from "../../api/uclar";
+import { sozluk, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
 import { onayUygula, useVeri } from "../../durum/veri";
 import { aracAdi, girdiOzeti } from "../../yardimcilar/arac";
@@ -24,6 +25,8 @@ export function aracOnayVerisi(o: Onay): { arac?: string; girdi?: unknown; kural
 }
 
 export function BekleyenCagri({ onay }: { onay: Onay }) {
+  const s = useSozluk();
+  const t = s.denetim.cagri;
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === onay.ajanId));
   const simdi = useSimdi(1000);
   const [not, setNot] = useState("");
@@ -42,11 +45,12 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
   const karar = (k: "onayla" | "reddet") =>
     calistir(k, async () => {
       onayUygula(await api.onayKarari(onay.id, { karar: k, not: not.trim() || undefined }));
-      bildir(k === "onayla" ? "basari" : "bilgi", `${ajan?.ad ?? "Ajan"} · ${aracAdi(v.arac)}: ${k === "onayla" ? "izin verildi" : "reddedildi"}.`);
+      const c = sozluk().denetim.cagri;
+      bildir(k === "onayla" ? "basari" : "bilgi", c.karar(ajan?.ad ?? c.ajan, aracAdi(v.arac), k === "onayla"));
     });
 
   return (
-    <article className={`bekleyen${acil ? " bekleyen-acil" : ""}`} aria-label={`${ajan?.ad ?? "Ajan"} için karar bekleyen çağrı`}>
+    <article className={`bekleyen${acil ? " bekleyen-acil" : ""}`} aria-label={t.etiket(ajan?.ad ?? t.ajan)}>
       {oran !== null ? (
         <span className="bekleyen-sure" aria-hidden="true">
           <span style={{ transform: `scaleX(${oran})` }} />
@@ -55,11 +59,11 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
       <div className="bekleyen-ust">
         <span className="durum durum-karar_bekliyor">
           <i aria-hidden="true" />
-          Karar bekliyor
+          {s.genel.ajanDurumu.karar_bekliyor}
         </span>
         {kalan !== null ? (
           <span className={`bekleyen-kalan sayi${acil ? " vurgu" : ""}`} role="timer" aria-live="off">
-            {doldu ? "Süre doldu · reddedilecek" : `${kalanSure(kalan)} kaldı`}
+            {doldu ? t.doldu : t.kaldi(kalanSure(kalan))}
           </span>
         ) : null}
         <small className="soluk">{akilliZaman(onay.olusturma)}</small>
@@ -69,11 +73,11 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
         <AjanAvatar ajan={ajan} />
         <div className="bekleyen-ic">
           <b>
-            {ajan?.ad ?? "Bilinmeyen ajan"} · {aracAdi(v.arac) || onay.baslik}
+            {ajan?.ad ?? t.bilinmeyenAjan} · {aracAdi(v.arac) || onay.baslik}
           </b>
           <pre className="komut">{komut}</pre>
           <small>
-            {v.kural ? `Kural: ${v.kural}` : onay.baslik}
+            {v.kural ? t.kural(v.kural) : onay.baslik}
             {onay.ayrinti && onay.ayrinti !== komut ? ` · ${onay.ayrinti}` : ""}
           </small>
         </div>
@@ -81,8 +85,8 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
       <div className="bekleyen-karar">
         <input
           className="girdi"
-          aria-label="Karar notu (isteğe bağlı)"
-          placeholder="Not (isteğe bağlı) · örn. Dalını it, PR aç"
+          aria-label={t.notEtiketi}
+          placeholder={t.notYer}
           value={not}
           onChange={(e) => setNot(e.target.value)}
           disabled={doldu}
@@ -90,11 +94,11 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
         <div className="dugme-satir">
           <button type="button" className="dugme dugme-ana" onClick={() => void karar("onayla")} disabled={suruyor !== null || doldu}>
             {suruyor === "onayla" ? <span className="doner" aria-hidden="true" /> : null}
-            İzin ver
+            {t.izinVer}
           </button>
           <button type="button" className="dugme" onClick={() => void karar("reddet")} disabled={suruyor !== null || doldu}>
             {suruyor === "reddet" ? <span className="doner" aria-hidden="true" /> : null}
-            Reddet
+            {t.reddet}
           </button>
         </div>
       </div>

@@ -1,4 +1,125 @@
 // Hafıza (İngilizce)
 import type { hafiza as tr } from "../tr/hafiza";
 
-export const hafiza: typeof tr = {};
+const cogul = (n: number, tekil: string, cok: string) => `${n} ${n === 1 ? tekil : cok}`;
+
+export const hafiza: typeof tr = {
+  baslik: "Memory",
+  altBaslikOnce: "This project only ·",
+  altBaslikSonra: "· agents read it every session and recall it while they work",
+  kayitEkle: "Add entry",
+  turAciklamalari: {
+    tercih: "What the board wants: style, rules, things to avoid. Every agent follows it in every session.",
+    karar: "A decision and the reasoning behind it.",
+    ogrenilen: "A mistake that happened and how it was fixed, so it doesn't happen again.",
+    olgu: "Facts about the project: versions, structure, commands.",
+    uzmanlik: "Who knows what; questions get routed to them.",
+    ozet: "Finished work, handover notes.",
+  },
+  ozetEtiketi: "Memory summary",
+  soruIpucu: "Questions agents ask each other",
+  soruYanit: "Q & A",
+  yanitBekliyor: (n: number) => `${n} awaiting an answer`,
+  bolum: "Memory section",
+  sekmeKayitlar: "Entries",
+  sekmeDefterler: "Journals",
+  sekmeSorular: "Questions",
+  yukleniyor: "Loading memory",
+
+  kayitlar: {
+    etiket: "Memory entries",
+    araEtiket: "Search memory",
+    araYer: "Search: decision, error, file, person",
+    tureGore: "Filter by type",
+    eskiyenler: "Show superseded",
+    araniyor: "Searching…",
+    sonuc: (n: number) => cogul(n, "result", "results"),
+    eslesenYok: "No matching entries",
+    eslesenYokMetin: "Loosen the search or the type filter.",
+    bosBaslik: "Memory is empty",
+    ilkTercih: "Write the first preference",
+    bosMetin:
+      "Agents write here as they make decisions, fix bugs and finish work. Add a rule you want the team to always follow as a board preference; every agent reads it in every session.",
+  },
+
+  tekrar: {
+    ciftSayisi: (n: number) => (n === 1 ? "1 pair of entries repeats itself." : `${n} pairs of entries repeat each other.`),
+    aciklama: "When the same thing is written twice, the agents' context bloats; keep one.",
+    ceoDuzenlesin: (ad: string) => `Let ${ad} tidy up`,
+    gozdenGecir: "Review",
+    benzerlik: "Word similarity",
+    bunuTut: "Keep this",
+    ikisiDe: "Keep both",
+    tutuldu: (baslik: string) => `Kept "${baslik}"; the other one is superseded and won't be recalled anymore.`,
+    ceoDuzenleyecek: (ad: string) => `${ad} will tidy up the memory.`,
+    ceoMesaji: (liste: string) =>
+      `Memory has entries that repeat each other. Check each pair: if they say the same thing, merge them into a single entry with hafiza_birlestir; if they differ, leave them as they are. Write a short summary when you're done.\n${liste}`,
+  },
+
+  kayit: {
+    onem: (n: number) => `Importance ${n}/5`,
+    herOturumda: " · recalled in every session",
+    eskidi: "Superseded",
+    yerineGecen: "Superseded by:",
+    zamanIpucu: (yazildi: string, guncellendi: string) => `Written ${yazildi} · updated ${guncellendi}`,
+    silindi: "Entry deleted.",
+    silUyariOnce: "This entry is removed from memory and from its",
+    silUyariSonra: "mirror; agents won't recall it again. If the information changed, edit it instead of deleting it.",
+    duzenleEtiketi: (baslik: string) => `Edit entry ${baslik}`,
+    silEtiketi: (baslik: string) => `Delete entry ${baslik}`,
+  },
+
+  form: {
+    baslikHata: "Write a short title.",
+    metinHata: "What, why, how: write a sentence or two.",
+    guncellendi: "Entry updated.",
+    yazildi: "Saved to memory; agents will see it on their next turn.",
+    duzenleEtiketi: "Edit entry",
+    yeniEtiketi: "New memory entry",
+    tur: "Entry type",
+    baslik: "Title",
+    baslikOrnekTercih: "e.g. Commit messages in English",
+    baslikOrnekOgrenilen: "e.g. better-sqlite3 build error",
+    baslikOrnek: "Short, searchable title",
+    metin: "Text",
+    metinOrnekOgrenilen: "Symptom, cause, fix.",
+    metinOrnek: "What, why, how. Agents read this in every session.",
+    etiketler: "Tags",
+    etiketlerOrnek: "comma-separated: api, src/server.ts",
+    onem: "Importance",
+    onemEnYuksek: "Recalled in every session",
+    onemEnDusuk: "Detail",
+    hafizayaYaz: "Save to memory",
+  },
+
+  defter: {
+    ekipYok: "No team yet",
+    ekipYokMetin: "Once you hire your first employee, their journal shows up here.",
+    calisanlar: "Employees",
+    ipucu: "At the end of each turn, every employee writes in their journal what they did, what's left and what they promised to whom.",
+    alinamadi: "Couldn't load the journal.",
+    kaydedildi: (ad: string) => `${ad}'s journal saved.`,
+    baslik: (ad: string) => `${ad} · journal`,
+    guncellendi: (zaman: string) => `updated ${zaman}`,
+    etiket: (ad: string) => `${ad}'s journal`,
+    sayac: (n: number) => `${n} / 6000 · the agent reads it as is in their next session`,
+    bosBaslik: "The journal is empty",
+    bosMetin: (ad: string) => `${ad} writes their open work and promises here at the end of their first turn.`,
+  },
+
+  soru: {
+    suzgec: { bekliyor: "Waiting", yanitlandi: "Answered", zaman_asimi: "Unanswered" },
+    durum: { bekliyor: "Waiting", yanitlandi: "Answered", zaman_asimi: "Unanswered" },
+    saniye: (n: number) => `${n}s`,
+    dakika: (n: number) => `${n} min`,
+    saat: (n: number) => `${n} h`,
+    yokBaslik: "No questions yet",
+    yokMetin:
+      "When an employee asks a teammate something with ajana_sor, the question and the answer show up here. If they don't know whom to ask, ArnOrg looks at memory and past work and routes the question to the expert; if the same question comes up again, the earlier answer is given right away.",
+    etiket: "Questions between agents",
+    durumaGore: "Filter by status",
+    yanitladi: (sure: string) => `answered in ${sure}`,
+    yanitliyor: (sorulan: string, soran: string) => `${sorulan} is answering; ${soran} is waiting`,
+    yanitsiz: (soran: string) => `No answer in time; ${soran} carried on the safe way.`,
+  },
+};

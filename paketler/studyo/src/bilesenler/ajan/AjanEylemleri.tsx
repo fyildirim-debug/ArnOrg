@@ -2,9 +2,9 @@
 import type { Ajan, MesajOnceligi } from "@arnorg/ortak";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
+import { sozluk, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
 import { ajanUygula, useVeri } from "../../durum/veri";
-import { belirtme, ilgi, yonelme } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Simge } from "../Simge";
 
@@ -14,6 +14,8 @@ export function kesilebilirMi(a: Ajan) {
 
 /** Başlat / Kes / Durdur düğmeleri; başlatırken isteğe bağlı ilk talimat sorulur */
 export function OturumDugmeleri({ ajan, kucuk }: { ajan: Ajan; kucuk?: boolean }) {
+  const s = useSozluk();
+  const t = s.ekip.eylem;
   const { suruyor, calistir } = useIslem();
   const [baslatAcik, setBaslatAcik] = useState(false);
   const boyut = kucuk ? " dugme-kucuk" : "";
@@ -21,12 +23,12 @@ export function OturumDugmeleri({ ajan, kucuk }: { ajan: Ajan; kucuk?: boolean }
   const kes = () =>
     calistir("kes", async () => {
       await api.ajanKes(ajan.id);
-      bildir("bilgi", `${ilgi(ajan.ad)} turu kesildi.`);
+      bildir("bilgi", sozluk().ekip.eylem.turKesildi(ajan.ad));
     });
   const durdur = () =>
     calistir("durdur", async () => {
       ajanUygula(await api.ajanDurdur(ajan.id));
-      bildir("bilgi", `${ilgi(ajan.ad)} oturumu kapatıldı.`);
+      bildir("bilgi", sozluk().ekip.eylem.oturumKapatildi(ajan.ad));
     });
 
   return (
@@ -35,31 +37,19 @@ export function OturumDugmeleri({ ajan, kucuk }: { ajan: Ajan; kucuk?: boolean }
         {ajan.durum !== "calisiyor" && ajan.durum !== "karar_bekliyor" ? (
           <button type="button" className={`dugme dugme-ana${boyut}`} onClick={() => setBaslatAcik(!baslatAcik)} aria-expanded={baslatAcik}>
             <Simge ad="oynat" boyut={12} />
-            {ajan.durum === "kapali" ? "Başlat" : "Devam ettir"}
+            {ajan.durum === "kapali" ? t.baslat : t.devamEttir}
           </button>
         ) : null}
         {kesilebilirMi(ajan) ? (
-          <button
-            type="button"
-            className={`dugme${boyut}`}
-            onClick={kes}
-            disabled={suruyor !== null}
-            title="Çalışan turu durdurur; oturum açık kalır"
-          >
+          <button type="button" className={`dugme${boyut}`} onClick={kes} disabled={suruyor !== null} title={t.kesIpucu}>
             {suruyor === "kes" ? <span className="doner" aria-hidden="true" /> : <Simge ad="kes" boyut={12} />}
-            Kes
+            {t.kes}
           </button>
         ) : null}
         {ajan.durum !== "kapali" ? (
-          <button
-            type="button"
-            className={`dugme${boyut}`}
-            onClick={durdur}
-            disabled={suruyor !== null}
-            title="Oturumu kapatır; oturum kimliği saklanır"
-          >
+          <button type="button" className={`dugme${boyut}`} onClick={durdur} disabled={suruyor !== null} title={t.durdurIpucu}>
             {suruyor === "durdur" ? <span className="doner" aria-hidden="true" /> : <Simge ad="dur" boyut={12} />}
-            Durdur
+            {t.durdur}
           </button>
         ) : null}
       </div>
@@ -69,6 +59,8 @@ export function OturumDugmeleri({ ajan, kucuk }: { ajan: Ajan; kucuk?: boolean }
 }
 
 function BaslatFormu({ ajan, kapat }: { ajan: Ajan; kapat: () => void }) {
+  const s = useSozluk();
+  const t = s.ekip.eylem;
   const gorevler = useVeri((d) => d.gorevler);
   const [talimat, setTalimat] = useState("");
   const [gorevId, setGorevId] = useState(ajan.gorevId ?? "");
@@ -80,7 +72,7 @@ function BaslatFormu({ ajan, kapat }: { ajan: Ajan; kapat: () => void }) {
     void calistir("baslat", async () => {
       const a = await api.ajanBaslat(ajan.id, { talimat: talimat.trim() || undefined, gorevId: gorevId || undefined });
       ajanUygula(a);
-      bildir("basari", `${ajan.ad} başladı.`);
+      bildir("basari", sozluk().ekip.eylem.basladi(ajan.ad));
       kapat();
     });
   };
@@ -88,22 +80,22 @@ function BaslatFormu({ ajan, kapat }: { ajan: Ajan; kapat: () => void }) {
   return (
     <form className="ic-form" onSubmit={gonder}>
       <div className="alan">
-        <label htmlFor={`baslat-${ajan.id}`}>İlk talimat (isteğe bağlı)</label>
+        <label htmlFor={`baslat-${ajan.id}`}>{t.ilkTalimat}</label>
         <textarea
           id={`baslat-${ajan.id}`}
           className="metin-alani"
           rows={2}
           value={talimat}
           onChange={(e) => setTalimat(e.target.value)}
-          placeholder="Boş bırakılırsa atanmış görevden üretilir"
+          placeholder={t.ilkTalimatIpucu}
           autoFocus
         />
       </div>
       {atanmis.length ? (
         <div className="alan">
-          <label htmlFor={`baslat-gorev-${ajan.id}`}>Görev</label>
+          <label htmlFor={`baslat-gorev-${ajan.id}`}>{t.gorev}</label>
           <select id={`baslat-gorev-${ajan.id}`} className="secim" value={gorevId} onChange={(e) => setGorevId(e.target.value)}>
-            <option value="">Seçilmedi</option>
+            <option value="">{t.secilmedi}</option>
             {atanmis.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.kod} · {g.baslik}
@@ -115,10 +107,10 @@ function BaslatFormu({ ajan, kapat }: { ajan: Ajan; kapat: () => void }) {
       <div className="dugme-satir">
         <button type="submit" className="dugme dugme-ana dugme-kucuk" disabled={suruyor !== null}>
           {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-          {belirtme(ajan.ad)} başlat
+          {t.ajaniBaslat(ajan.ad)}
         </button>
         <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={kapat}>
-          Vazgeç
+          {s.genel.vazgec}
         </button>
       </div>
     </form>
@@ -127,6 +119,8 @@ function BaslatFormu({ ajan, kapat }: { ajan: Ajan; kapat: () => void }) {
 
 /** Ajana mesaj: next (araç turları arasında katılır) ya da now (turu keser) */
 export function MesajFormu({ ajan, satirlar = 2, odakla }: { ajan: Ajan; satirlar?: number; odakla?: boolean }) {
+  const s = useSozluk();
+  const t = s.ekip.eylem;
   const [metin, setMetin] = useState("");
   const [hemen, setHemen] = useState(false);
   const { suruyor, calistir } = useIslem();
@@ -140,14 +134,15 @@ export function MesajFormu({ ajan, satirlar = 2, odakla }: { ajan: Ajan; satirla
       await api.ajanaMesaj(ajan.id, { metin: temiz, oncelik });
       setMetin("");
       setHemen(false);
-      bildir("basari", hemen ? `${ilgi(ajan.ad)} turu kesildi; mesaj iletildi.` : `Mesaj ${yonelme(ajan.ad)} iletildi.`);
+      const m = sozluk().ekip.eylem;
+      bildir("basari", hemen ? m.turKesildiMesajIletildi(ajan.ad) : m.mesajIletildi(ajan.ad));
     });
   };
 
   return (
     <form className="mesaj-formu" onSubmit={gonder}>
       <label className="gizli" htmlFor={`mesaj-${ajan.id}`}>
-        {yonelme(ajan.ad)} mesaj
+        {t.mesajEtiketi(ajan.ad)}
       </label>
       <textarea
         id={`mesaj-${ajan.id}`}
@@ -162,17 +157,17 @@ export function MesajFormu({ ajan, satirlar = 2, odakla }: { ajan: Ajan; satirla
             gonder();
           }
         }}
-        placeholder={`${yonelme(ajan.ad)} yazın${ajan.durum === "kapali" ? " · oturum kapalıysa açılır" : ""}`}
+        placeholder={t.mesajYer(ajan.ad, ajan.durum === "kapali")}
       />
       <div className="mesaj-formu-alt">
-        <label className="secenek" title="Çalışan turu keser ve mesajı hemen işletir">
+        <label className="secenek" title={t.hemenIpucu}>
           <input type="checkbox" checked={hemen} onChange={(e) => setHemen(e.target.checked)} />
-          Hemen <small>(turu keser)</small>
+          {t.hemen} <small>{t.hemenAciklama}</small>
         </label>
-        <span className="alan-ipucu mesaj-ipucu">Enter gönderir · Shift+Enter yeni satır</span>
+        <span className="alan-ipucu mesaj-ipucu">{t.enterIpucu}</span>
         <button type="submit" className="dugme dugme-ana dugme-kucuk" disabled={!metin.trim() || suruyor !== null}>
           {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="gonder" boyut={12} />}
-          Gönder
+          {s.genel.gonder}
         </button>
       </div>
     </form>

@@ -1,5 +1,5 @@
 // Pano: durum sütunları, sürükle-bırak geçişler, süzgeçler, görev çekmecesi
-import { GOREV_DURUM_ADLARI, GOREV_DURUMLARI, type Gorev, type GorevDurumu } from "@arnorg/ortak";
+import { GOREV_DURUMLARI, type Gorev, type GorevDurumu } from "@arnorg/ortak";
 import { useMemo, useState } from "react";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { GorevCekmecesi } from "../bilesenler/pano/GorevCekmecesi";
@@ -7,10 +7,12 @@ import { GorevKarti } from "../bilesenler/pano/GorevKarti";
 import { durumDegistir, gecisVarMi } from "../bilesenler/pano/gorevYardimcilari";
 import { YeniGorev } from "../bilesenler/pano/YeniGorev";
 import { Simge } from "../bilesenler/Simge";
+import { useSozluk } from "../dil";
 import { hataBildir, useArayuz } from "../durum/arayuz";
 import { projeVerisiniYukle, useVeri } from "../durum/veri";
 
 export function Pano() {
+  const s = useSozluk();
   const gorevler = useVeri((d) => d.gorevler);
   const ajanlar = useVeri((d) => d.ajanlar);
   const yukleme = useVeri((d) => d.projeYukleme);
@@ -60,13 +62,13 @@ export function Pano() {
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Pano</h1>
-          <p>Hedef → epik → görev · bağımlılığı bitmeyen görev başlayamaz</p>
+          <h1>{s.pano.baslik}</h1>
+          <p>{s.pano.altBaslik}</p>
         </div>
         <div className="baslik-eylem">
           <button type="button" className="dugme dugme-ana" onClick={() => setYeniAcik(true)}>
             <Simge ad="arti" />
-            Yeni görev
+            {s.pano.yeniGorev}
           </button>
         </div>
       </div>
@@ -77,15 +79,15 @@ export function Pano() {
           <input
             className="girdi"
             type="search"
-            aria-label="Görevlerde ara"
-            placeholder="Ara: kod, başlık, etiket"
+            aria-label={s.pano.araEtiket}
+            placeholder={s.pano.araYer}
             value={arama}
             onChange={(e) => setArama(e.target.value)}
           />
         </div>
-        <select className="secim suzgec-secim" aria-label="Atanana göre süz" value={atanan} onChange={(e) => setAtanan(e.target.value)}>
-          <option value="">Herkes</option>
-          <option value="_yok">Atanmamış</option>
+        <select className="secim suzgec-secim" aria-label={s.pano.atananaGore} value={atanan} onChange={(e) => setAtanan(e.target.value)}>
+          <option value="">{s.pano.herkes}</option>
+          <option value="_yok">{s.pano.atanmamis}</option>
           {ajanlar.map((a) => (
             <option key={a.id} value={a.id}>
               {a.ad}
@@ -94,24 +96,24 @@ export function Pano() {
         </select>
         <label className="secenek">
           <input type="checkbox" checked={iptalGoster} onChange={(e) => setIptalGoster(e.target.checked)} />
-          İptalleri göster <small>({gorevler.filter((g) => g.durum === "iptal").length})</small>
+          {s.pano.iptalleriGoster} <small>({gorevler.filter((g) => g.durum === "iptal").length})</small>
         </label>
       </div>
 
       {yukleme === "yukleniyor" && !gorevler.length ? <Iskelet satir={8} /> : null}
       {yukleme === "hata" && !gorevler.length ? (
-        <HataKutu metin={projeHatasi ?? "Görevler alınamadı."} yeniden={() => void projeVerisiniYukle()} />
+        <HataKutu metin={projeHatasi ?? s.pano.alinamadi} yeniden={() => void projeVerisiniYukle()} />
       ) : null}
       {yukleme === "hazir" && !gorevler.length ? (
         <Bos
-          baslik="Pano boş"
+          baslik={s.pano.bosBaslik}
           eylem={
             <button type="button" className="dugme dugme-ana" onClick={() => setYeniAcik(true)}>
-              İlk görevi oluştur
+              {s.pano.ilkGorev}
             </button>
           }
         >
-          CEO brief'i görevlere böldüğünde kartlar burada belirir. Siz de doğrudan görev açabilirsiniz.
+          {s.pano.bosMetin}
         </Bos>
       ) : null}
 
@@ -124,7 +126,7 @@ export function Pano() {
                 <section
                   key={d}
                   className={`kolon${suruklenenGorev ? (uygun ? " kolon-uygun" : " kolon-kapali") : ""}${hedef === d && uygun ? " kolon-hedef" : ""}`}
-                  aria-label={`${GOREV_DURUM_ADLARI[d]}: ${kolonlar[d].length} görev`}
+                  aria-label={`${s.genel.gorevDurumu[d]}: ${s.genel.gorevSayisi(kolonlar[d].length)}`}
                   onDragOver={(e) => {
                     if (!uygun) return;
                     e.preventDefault();
@@ -141,14 +143,14 @@ export function Pano() {
                 >
                   <h2 className="kolon-baslik">
                     <span className={`gd-nokta gd-${d}`} aria-hidden="true" />
-                    {GOREV_DURUM_ADLARI[d]}
+                    {s.genel.gorevDurumu[d]}
                     <small>{kolonlar[d].length}</small>
                   </h2>
                   <ul className="bilet-liste">
                     {kolonlar[d].map((g) => (
                       <GorevKarti key={g.id} gorev={g} ac={ac} surukle={setSuruklenen} />
                     ))}
-                    {kolonlar[d].length === 0 ? <li className="kolon-bos">{arama || atanan ? "Eşleşen yok" : "Boş"}</li> : null}
+                    {kolonlar[d].length === 0 ? <li className="kolon-bos">{arama || atanan ? s.pano.eslesenYok : s.pano.kolonBos}</li> : null}
                   </ul>
                 </section>
               );
