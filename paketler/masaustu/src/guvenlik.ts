@@ -2,13 +2,14 @@
 // - Pencere yalnız çekirdeğin kökünde (http://127.0.0.1:<port>) gezinebilir; başka http(s) adresleri
 //   sistem tarayıcısında açılır, diğer her şey engellenir.
 // - Yeni pencere açılmaz (window.open, target=_blank): http(s) ise sistem tarayıcısına gider.
-// - <webview> eklenemez.
+// - <webview> eklenemez (uygulama içi tarayıcı da webview değil, ana süreçteki WebContentsView'dır).
 // - İzinler (pano, bildirim, tam ekran) yalnız çekirdek kökünden gelen isteklere verilir.
+// - Uygulama içi tarayıcının içeriği (kendi oturumu) bu kurallar yerine tarayici-guvenlik.ts'tekilere uyar.
 
 import { app, session, shell } from "electron";
-import { ayniKokMu, disaridaAcilabilirMi } from "./denetimler.js";
-
-const IZINLI_IZINLER = new Set(["clipboard-read", "clipboard-sanitized-write", "fullscreen", "notifications"]);
+import { anaPencereIzniMi, ayniKokMu, disaridaAcilabilirMi } from "./denetimler.js";
+import { tarayiciIcerigiMi, tarayiciIceriginiKoru } from "./tarayici-guvenlik.js";
+import { webviewEklemeKarari } from "./tarayici-denetimleri.js";
 
 export function disaridaAc(url: string): boolean {
   if (!disaridaAcilabilirMi(url)) return false;
@@ -32,7 +33,13 @@ export function guvenligiKur(cekirdekKoku: () => string | null): void {
   };
 
   app.on("web-contents-created", (_olay, icerik) => {
-    icerik.on("will-attach-webview", (olay) => olay.preventDefault());
+    icerik.on("will-attach-webview", (olay) => {
+      if (webviewEklemeKarari() === "ret") olay.preventDefault();
+    });
+    if (tarayiciIcerigiMi(icerik)) {
+      tarayiciIceriginiKoru(icerik);
+      return;
+    }
     icerik.setWindowOpenHandler(({ url }) => {
       disaridaAc(url);
       return { action: "deny" };
@@ -50,7 +57,7 @@ export function guvenligiKur(cekirdekKoku: () => string | null): void {
 
   const oturum = session.defaultSession;
   oturum.setPermissionRequestHandler((_icerik, izin, geriCagri, ayrinti) => {
-    geriCagri(IZINLI_IZINLER.has(izin) && kokten(ayrinti.requestingUrl));
+    geriCagri(anaPencereIzniMi(izin, ayrinti.requestingUrl, cekirdekKoku()));
   });
-  oturum.setPermissionCheckHandler((_icerik, izin, istekKoku) => IZINLI_IZINLER.has(izin) && kokten(istekKoku));
+  oturum.setPermissionCheckHandler((_icerik, izin, istekKoku) => anaPencereIzniMi(izin, istekKoku, cekirdekKoku()));
 }

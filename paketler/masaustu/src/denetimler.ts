@@ -20,6 +20,14 @@ export function ayniKokMu(adres: string, kok: string): boolean {
   }
 }
 
+/** Ana pencerenin (Stüdyo) isteyebileceği izinler */
+export const ANA_PENCERE_IZINLERI: ReadonlySet<string> = new Set(["clipboard-read", "clipboard-sanitized-write", "fullscreen", "notifications"]);
+
+/** Ana oturumda izin: yalnız listedeki izinler ve yalnız çekirdek kökünden gelen istekler (kök henüz yoksa hiçbiri) */
+export function anaPencereIzniMi(izin: string, istekAdresi: string, kok: string | null): boolean {
+  return ANA_PENCERE_IZINLERI.has(izin) && kok !== null && ayniKokMu(istekAdresi, kok);
+}
+
 export interface Dikdortgen {
   x: number;
   y: number;

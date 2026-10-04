@@ -1,10 +1,23 @@
 // Ana pencerenin ön yükleme betiği (sandbox'lı, CJS olarak derlenir).
 // Stüdyo'ya yalnız küçük bir köprü açılır: window.arnorg = { platform, surum, disaridaAc(url), klasorSec(),
-// dikkatCek(), oneGetir(), guncelleme: { durum(), dinle(f), kur() } }.
+// dikkatCek(), oneGetir(), guncelleme: { durum(), dinle(f), kur() }, tarayici: { git, geri, ileri, yenile, durdur,
+// yerlestir, secici, secimiBirak, kare, durum, dinle } }.
 // Node ya da Electron API'lerinin kendisi (ipcRenderer, olay nesneleri) sayfaya hiç verilmez.
 
 import { contextBridge, ipcRenderer } from "electron";
-import { DIKKAT_KANALI, DISARIDA_AC_KANALI, GUNCELLEME_KANALLARI, KLASOR_SEC_KANALI, type DikkatIstegi, type GuncellemeDurumu } from "./kopru.js";
+import {
+  DIKKAT_KANALI,
+  DISARIDA_AC_KANALI,
+  GUNCELLEME_KANALLARI,
+  KLASOR_SEC_KANALI,
+  TARAYICI_KANALLARI,
+  type DikkatIstegi,
+  type GuncellemeDurumu,
+  type TarayiciDurumu,
+  type TarayiciKomutu,
+  type TarayiciOlayi,
+  type TarayiciSiniri,
+} from "./kopru.js";
 
 declare const __ARNORG_SURUMU__: string;
 
@@ -36,4 +49,35 @@ contextBridge.exposeInMainWorld("arnorg", {
     /** İndirilen güncellemeyi kurar ve uygulamayı yeniden başlatır; indirilmiş sürüm yoksa false */
     kur: (): Promise<boolean> => ipcRenderer.invoke(GUNCELLEME_KANALLARI.kur),
   },
+  /** Uygulama içi tarayıcı (ana süreçteki WebContentsView): gezinme, yer, öğe seçici, kare, durum ve olaylar */
+  tarayici: {
+    git: (adres: string): Promise<boolean> => tarayiciKomutu({ tur: "git", adres: String(adres) }).then((s) => s === true),
+    geri: (): void => void tarayiciKomutu({ tur: "geri" }),
+    ileri: (): void => void tarayiciKomutu({ tur: "ileri" }),
+    yenile: (): void => void tarayiciKomutu({ tur: "yenile" }),
+    durdur: (): void => void tarayiciKomutu({ tur: "durdur" }),
+    /** Görünümün yeri (CSS piksel); null gizler */
+    yerlestir: (sinir: TarayiciSiniri | null): void =>
+      void tarayiciKomutu({
+        tur: "yerlestir",
+        sinir: sinir ? { x: Number(sinir.x), y: Number(sinir.y), genislik: Number(sinir.genislik), yukseklik: Number(sinir.yukseklik) } : null,
+      }),
+    secici: (acik: boolean, ipucu?: string): void => void tarayiciKomutu({ tur: "secici", acik: acik === true, ipucu: typeof ipucu === "string" ? ipucu : "" }),
+    secimiBirak: (): void => void tarayiciKomutu({ tur: "secimiBirak" }),
+    kare: (): Promise<string | null> => tarayiciKomutu({ tur: "kare" }).then((s) => (typeof s === "string" ? s : null)),
+    durum: (): Promise<TarayiciDurumu | null> => tarayiciKomutu({ tur: "durum" }) as Promise<TarayiciDurumu | null>,
+    /** Olay gelince dinleyici yalnız olayla çağrılır; dönen işlev dinlemeyi bırakır */
+    dinle: (dinleyici: (olay: TarayiciOlayi) => void): (() => void) => {
+      const aktar = (_olay: unknown, olay: TarayiciOlayi) => dinleyici(olay);
+      ipcRenderer.on(TARAYICI_KANALLARI.olay, aktar);
+      return () => {
+        ipcRenderer.removeListener(TARAYICI_KANALLARI.olay, aktar);
+      };
+    },
+  },
 });
+
+/** Tarayıcı komutu; ana süreç reddederse (yanlış pencere, bozuk komut) null döner, hata fırlatmaz */
+function tarayiciKomutu(komut: TarayiciKomutu): Promise<unknown> {
+  return ipcRenderer.invoke(TARAYICI_KANALLARI.komut, komut).catch(() => null);
+}

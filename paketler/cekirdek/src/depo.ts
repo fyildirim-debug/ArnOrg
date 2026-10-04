@@ -32,6 +32,7 @@ import type {
 } from "@arnorg/ortak";
 import { VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
 import { iki } from "./dil.js";
+import { duzeltmeGocu } from "./duzeltmeler.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 import { rolYetenekleri } from "./yetenekler.js";
 
@@ -319,6 +320,8 @@ export class Depo {
     if (!denetimSutunlari.includes("alt_ajan")) this.db.exec("ALTER TABLE denetim ADD COLUMN alt_ajan TEXT");
     // 0.0.4: saklama süresi dolan kayıtlar (bütün projeler) zamana göre arşivlenir
     this.db.exec("CREATE INDEX IF NOT EXISTS denetim_zaman ON denetim(zaman)");
+    // 0.0.5: uygulama içi tarayıcının düzeltme notları (tablo ve SQL: duzeltmeler.ts)
+    duzeltmeGocu(this.db);
   }
 
   kapat(): void {

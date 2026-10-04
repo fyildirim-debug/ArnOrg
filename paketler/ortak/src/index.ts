@@ -1148,6 +1148,9 @@ export type SunucuOlayi =
   | { tur: "kurul.bildirimi"; projeId: string; bildirim: KurulBildirimi }
   | { tur: "kurulum.islem"; islem: KurulumIslemi }
   | { tur: "kurulum.durum"; durum: KurulumDurumu }
+  /** Tarayıcıdaki düzeltme notu eklendi ya da değişti (not metni, gönderim) / silindi */
+  | { tur: "duzeltme.guncellendi"; projeId: string; duzeltme: Duzeltme }
+  | { tur: "duzeltme.silindi"; projeId: string; id: string }
   /** Ajan bir kanaldaki mesaja yanıt hazırlıyor (yazıyor göstergesi); yaziyor=false ile biter */
   | { tur: "kanal.yaziyor"; projeId: string; kanal: string; ajanId: string; ad: string; yaziyor: boolean }
   /** Kurulun kanalı kuruldu ya da değişti (açıklama, üyeler, konuşma durumu) */
@@ -1190,6 +1193,8 @@ export interface MasaustuKoprusu {
   oneGetir?(): void;
   /** Otomatik güncelleme (masaüstü 0.0.4); eski masaüstü sürümlerinde yoktur */
   guncelleme?: MasaustuGuncellemesi;
+  /** Uygulama içi tarayıcı (masaüstü 0.0.5); tarayıcıda ve eski masaüstü sürümlerinde yoktur */
+  tarayici?: MasaustuTarayicisi;
 }
 
 /** Masaüstü uygulamasının otomatik güncelleme durumu */
@@ -1216,6 +1221,144 @@ export interface MasaustuGuncellemesi {
 /** API hata gövdesi */
 export interface ApiHatasi {
   hata: string;
+}
+
+// ---------------------------------------------------------------------------
+// Uygulama içi tarayıcı ve düzeltme notları
+// Uçlar: /api/projeler/:pid/duzeltmeler, /api/duzeltmeler/:id (docs/API.md, "Düzeltme notları")
+// ---------------------------------------------------------------------------
+
+/** acik: birikiyor; gonderildi: "Hepsini yaptır" ile CEO'ya gitti */
+export type DuzeltmeDurumu = "acik" | "gonderildi";
+
+/** Seçilen öğenin sınır kutusu (CSS piksel): x, y görünüme (viewport), sayfaX, sayfaY sayfanın başına göre */
+export interface DuzeltmeKutusu {
+  x: number;
+  y: number;
+  genislik: number;
+  yukseklik: number;
+  sayfaX: number;
+  sayfaY: number;
+}
+
+/** Seçilen öğenin hesaplanmış stilleri (arka plan: saydamsa ilk saydam olmayan üst öğeninki) */
+export interface DuzeltmeStilleri {
+  yaziTipi: string;
+  boyut: string;
+  renk: string;
+  arkaPlan: string;
+}
+
+/** Seçim anındaki görünüm (viewport) boyutu, CSS piksel */
+export interface DuzeltmeGorunumu {
+  genislik: number;
+  yukseklik: number;
+}
+
+/** Kurulun tarayıcıda bıraktığı "burası olmamış" notu */
+export interface Duzeltme {
+  id: string;
+  projeId: string;
+  adres: string;
+  sayfaBasligi: string;
+  /** Benzersiz CSS seçici; elle eklenen notta null */
+  secici: string | null;
+  ogeMetni: string | null;
+  /** Kısaltılmış outerHTML (en çok 2000 karakter) */
+  ogeHtml: string | null;
+  stiller: DuzeltmeStilleri | null;
+  kutu: DuzeltmeKutusu | null;
+  gorunum: DuzeltmeGorunumu | null;
+  not: string;
+  /** Öğenin ekran görüntüsü (PNG, mutlak yol: <proje>/.arnorg/duzeltmeler/<id>.png); yoksa null */
+  gorsel: string | null;
+  durum: DuzeltmeDurumu;
+  zaman: Zaman;
+  gonderimZamani: Zaman | null;
+}
+
+/** POST /api/projeler/:pid/duzeltmeler gövdesi. gorsel: base64 PNG (data:image/png;base64, öneki olabilir), en çok 4 MB */
+export interface DuzeltmeEkleIstegi {
+  adres: string;
+  sayfaBasligi?: string;
+  secici?: string | null;
+  ogeMetni?: string | null;
+  ogeHtml?: string | null;
+  stiller?: DuzeltmeStilleri | null;
+  kutu?: DuzeltmeKutusu | null;
+  gorunum?: DuzeltmeGorunumu | null;
+  not: string;
+  gorsel?: string | null;
+}
+
+/** POST /api/projeler/:pid/duzeltmeler/gonder yanıtı: #yonetim'e yazılan kurul mesajı ve gönderilen notlar */
+export interface DuzeltmeGonderimi {
+  mesaj: Mesaj;
+  gonderilen: Duzeltme[];
+}
+
+/** Masaüstü tarayıcısının (ana süreçteki WebContentsView) anlık durumu */
+export interface TarayiciDurumu {
+  /** Görünümdeki adres; boşsa henüz sayfa açılmadı */
+  adres: string;
+  baslik: string;
+  yukleniyor: boolean;
+  geriGidebilir: boolean;
+  ileriGidebilir: boolean;
+  /** Öğe seçici açık mı */
+  secici: boolean;
+  /** Son yükleme hatası (ör. bağlantı reddedildi); yoksa null */
+  hata: string | null;
+}
+
+/** Sayfada seçilen öğe: masaüstünün ön yükleme betiği toplar, ana süreç ekran görüntüsünü ekler */
+export interface TarayiciSecimi {
+  adres: string;
+  sayfaBasligi: string;
+  secici: string;
+  ogeMetni: string;
+  ogeHtml: string;
+  stiller: DuzeltmeStilleri;
+  kutu: DuzeltmeKutusu;
+  gorunum: DuzeltmeGorunumu;
+  /** Öğe ve çevresi: data:image/png;base64,… ; alınamadıysa null */
+  gorsel: string | null;
+}
+
+/** Tarayıcıdan Stüdyo'ya olaylar; kısayol: sayfa odaktayken Ctrl/Cmd+L (adres) ve Ctrl/Cmd+Shift+C (öğe seç) */
+export type TarayiciOlayi =
+  | { tur: "durum"; durum: TarayiciDurumu }
+  | { tur: "secim"; secim: TarayiciSecimi }
+  | { tur: "kisayol"; kisayol: "adres" | "secici" };
+
+/** Görünümün Stüdyo penceresindeki yeri (CSS piksel) */
+export interface TarayiciSiniri {
+  x: number;
+  y: number;
+  genislik: number;
+  yukseklik: number;
+}
+
+/** Masaüstü köprüsünün tarayıcı bölümü (window.arnorg.tarayici) */
+export interface MasaustuTarayicisi {
+  /** http/https adresine (ya da about:blank) gider; geçersiz adreste false */
+  git(adres: string): Promise<boolean>;
+  geri(): void;
+  ileri(): void;
+  yenile(): void;
+  durdur(): void;
+  /** Görünümü verilen yere koyar; null gizler (sayfa arka planda açık kalır) */
+  yerlestir(sinir: TarayiciSiniri | null): void;
+  /** Öğe seçiciyi açar ya da kapatır; ipucu sayfanın üstünde gösterilen kısa yönerge */
+  secici(acik: boolean, ipucu?: string): void;
+  /** Seçilen öğenin çerçevesini sayfadan kaldırır */
+  secimiBirak(): void;
+  /** Görünümün o anki karesi (JPEG data adresi): Stüdyo katmanı görünümü örterken yerine konur */
+  kare(): Promise<string | null>;
+  /** Anlık durum; ana süreç yanıt vermezse null */
+  durum(): Promise<TarayiciDurumu | null>;
+  /** Durum, seçim ve kısayol olayları; dönen işlev dinlemeyi bırakır */
+  dinle(dinleyici: (olay: TarayiciOlayi) => void): () => void;
 }
 
 // ---- Kod düzenleyici (VS Code tezgâhı) ----

@@ -29,6 +29,7 @@ import { Ofis } from "./gorunumler/Ofis";
 import { Onaylar } from "./gorunumler/Onaylar";
 import { Pano } from "./gorunumler/Pano";
 import { Projeler } from "./gorunumler/Projeler";
+import { Tarayici } from "./gorunumler/Tarayici";
 import { Zeka } from "./gorunumler/Zeka";
 import { useMedya } from "./yardimcilar/kancalar";
 
@@ -48,11 +49,11 @@ export function App() {
 }
 
 /** Rayın gösterilmediği ekranlar */
-const RAYSIZ: Gorunum[] = ["kod", "projeler", "ayarlar", "ofis"];
+const RAYSIZ: Gorunum[] = ["kod", "projeler", "ayarlar", "ofis", "tarayici"];
 /** Kendi kaydırma alanını yöneten, ana alanı tam yükseklikte kullanan ekranlar */
-const TAM_YUKSEKLIK: Gorunum[] = ["kod", "ajan", "kanallar", "ofis"];
+const TAM_YUKSEKLIK: Gorunum[] = ["kod", "ajan", "kanallar", "ofis", "tarayici"];
 /** Kenar boşluğu olmadan bütün ana alanı kullanan ekranlar */
-const KENARSIZ: Gorunum[] = ["ofis"];
+const KENARSIZ: Gorunum[] = ["ofis", "tarayici"];
 
 function Studyo() {
   // Dil değişince bütün ağaç yeni sözlük ve biçimlerle yeniden çizilir
@@ -197,6 +198,8 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
           <KodZekasi />
         </Suspense>
       );
+    case "tarayici":
+      return <Tarayici />;
     case "denetim":
       return <Denetim />;
     case "onaylar":

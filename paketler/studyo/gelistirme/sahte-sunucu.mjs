@@ -21,6 +21,7 @@ import { kur as surum004Tavan } from "./surum-004-tavan.mjs";
 import { kur as surum005Kanallar } from "./surum-005-kanallar.mjs";
 import { kur as surum005Brifing } from "./surum-005-brifing.mjs";
 import { kur as surum005Yetenek } from "./surum-005-yetenek.mjs";
+import { kur as surum005Tarayici } from "./surum-005-tarayici.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2146,6 +2147,8 @@ surum005Kanallar({ rota, rotalar, db, yay, mesajEkle, ajanBul, projeGerekli, Hat
 surum005Brifing({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, Hata, simdi, yeniKimlik });
 // 0.0.5: ajan yetenekleri ve yerleşik web araştırması (surum-005-yetenek.mjs)
 surum005Yetenek({ rota, rotalar, db, yay, ajanBul, Hata, roller: V.roller });
+// 0.0.5: uygulama içi tarayıcının düzeltme notları ve "Hepsini yaptır" (surum-005-tarayici.mjs)
+surum005Tarayici({ rota, db, yay, Hata, simdi, yeniKimlik, proje, projeGerekli, projeAjanlari, mesajEkle, akisEkle, projeYay });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

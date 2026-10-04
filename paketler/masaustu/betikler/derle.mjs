@@ -5,6 +5,7 @@
 //   dist/cekirdek-giris.js   utilityProcess içinde çalışan çekirdek girişi (ESM)
 //   dist/onyukleme.cjs       ana pencerenin ön yükleme betiği (CJS: sandbox'lı ön yükleme ESM olamaz)
 //   dist/durum-onyukleme.cjs açılış/hata penceresinin ön yükleme betiği (CJS)
+//   dist/tarayici-onyukleme.cjs uygulama içi tarayıcının sayfaya yüklenen betiği: öğe seçici (CJS)
 //   dist/durum.js            açılış/hata sayfasının betiği (tarayıcı, IIFE)
 //   dist/durum.html          açılış/hata sayfası
 //
@@ -45,7 +46,11 @@ const yapilandirmalar = [
   },
   {
     ...ortak,
-    entryPoints: { onyukleme: join(KOK, "src/onyukleme.ts"), "durum-onyukleme": join(KOK, "src/durum-onyukleme.ts") },
+    entryPoints: {
+      onyukleme: join(KOK, "src/onyukleme.ts"),
+      "durum-onyukleme": join(KOK, "src/durum-onyukleme.ts"),
+      "tarayici-onyukleme": join(KOK, "src/arayuz/tarayici-onyukleme.ts"),
+    },
     outdir: DIST,
     outExtension: { ".js": ".cjs" },
     platform: "node",

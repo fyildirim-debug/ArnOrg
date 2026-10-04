@@ -28,6 +28,7 @@ import type { DenetimImleci } from "./depo.js";
 import { dil, iki } from "./dil.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
+import { duzeltmeUclariniKur } from "./duzeltme-uclari.js";
 import { fsUclariniKur } from "./fs-api.js";
 import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
@@ -477,6 +478,9 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: p.id, alan: "ana", yol: `.arnorg/notlar/${n.yol}`, ajanId: null });
     return n;
   });
+
+  // ---------------- tarayıcı: düzeltme notları (duzeltme-uclari.ts) ----------------
+  duzeltmeUclariniKur(app, sirket);
 
   // ---------------- proje hafızası ----------------
   app.get("/api/projeler/:pid/hafiza", async (i) => {

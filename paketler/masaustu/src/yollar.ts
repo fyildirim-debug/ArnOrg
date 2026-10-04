@@ -35,6 +35,8 @@ export interface Yollar {
   durumSayfasi: string;
   onyukleme: string;
   durumOnyukleme: string;
+  /** Uygulama içi tarayıcının sayfaya yüklenen ön yükleme betiği (öğe seçici) */
+  tarayiciOnyukleme: string;
 }
 
 export function yollariBul(): Yollar {
@@ -61,5 +63,6 @@ export function yollariBul(): Yollar {
     durumSayfasi: join(dist, "durum.html"),
     onyukleme: join(dist, "onyukleme.cjs"),
     durumOnyukleme: join(dist, "durum-onyukleme.cjs"),
+    tarayiciOnyukleme: join(dist, "tarayici-onyukleme.cjs"),
   };
 }

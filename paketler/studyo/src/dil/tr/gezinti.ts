@@ -11,6 +11,7 @@ export const gezinti = {
     hafiza: "Hafıza",
     kod: "Kod",
     "kod-zekasi": "Kod zekâsı",
+    tarayici: "Tarayıcı",
     zeka: "Zekâ",
     denetim: "Denetim",
     onaylar: "Onaylar",

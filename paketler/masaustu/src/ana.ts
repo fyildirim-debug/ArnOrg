@@ -11,6 +11,7 @@
 //   ARNORG_KULLANICI_DIZINI=<dizin>     userData dizinini değiştirir (taşınabilir kullanım, denemeler)
 //   ARNORG_DENEME_EKRAN_GORUNTUSU=<png> ana pencere (ya da hata sayfası) yüklenince ekran görüntüsü
 //                                       alınır ve uygulama kapanır; çekirdek durduysa çıkış kodu 1 olur
+//   ARNORG_CEKIRDEK_PORT=<port>         çekirdek rastgele port yerine bu portta açılır (denemeler)
 
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, shell } from "electron";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -32,6 +33,7 @@ import {
 } from "./kopru.js";
 import { menuyuKur } from "./menu.js";
 import { pencereDurumunuOku, pencereDurumunuYaz } from "./pencere-durumu.js";
+import { Tarayici } from "./tarayici.js";
 import { yollariBul } from "./yollar.js";
 
 declare const __ARNORG_SURUMU__: string;
@@ -107,7 +109,7 @@ function basla(): void {
   const cekirdek = new CekirdekSureci({
     girisYolu: yollar.cekirdekGiris,
     cekirdekYolu: yollar.cekirdek,
-    secenekler: { port: 0, host: "127.0.0.1", veriDizini: yollar.veri, studyoDizini },
+    secenekler: { port: Number(process.env.ARNORG_CEKIRDEK_PORT) || 0, host: "127.0.0.1", veriDizini: yollar.veri, studyoDizini },
     kayit,
     hazir: (b) => anaPencereyiAc(b),
     durdu: (aciklama) => hatayiGoster(aciklama),
@@ -235,6 +237,8 @@ function basla(): void {
       },
     });
     anaPencere = pencere;
+    // Uygulama içi tarayıcının görünümü bu pencereye eklenir
+    tarayici.pencereyeBagla(pencere);
 
     pencere.once("ready-to-show", () => {
       if (pd.buyutulmus) pencere.maximize();
@@ -343,8 +347,11 @@ function basla(): void {
     }
   });
   /** İstek çekirdek kökünden yüklenmiş ana pencereden mi */
-  const anaPenceredenMi = (olay: Electron.IpcMainInvokeEvent): boolean =>
+  const anaPenceredenMi = (olay: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean =>
     !!anaPencere && olay.sender === anaPencere.webContents && !!cekirdekKoku && ayniKokMu(olay.senderFrame?.url ?? "", cekirdekKoku);
+  // Uygulama içi tarayıcı: komutlar yalnız ana pencereden, seçim yalnız görünümün sayfasından (tarayici.ts)
+  const tarayici = new Tarayici({ onyukleme: yollar.tarayiciOnyukleme, kayit, anaPenceredenMi });
+  tarayici.kur();
   // Güncelleme: anlık durum ve indirilen sürümü kurup yeniden başlatma (yalnız ana pencere)
   ipcMain.handle(GUNCELLEME_KANALLARI.al, (olay) => (anaPenceredenMi(olay) ? guncelleme.durum : null));
   ipcMain.handle(GUNCELLEME_KANALLARI.kur, (olay) => anaPenceredenMi(olay) && guncelleme.kur());

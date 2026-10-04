@@ -5,6 +5,7 @@ import { sozluk } from "../dil";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
+import { duzeltmeKaldir, duzeltmeUygula } from "./duzeltmeler";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import { kodDurumuUygula } from "./kodZekasi";
 import { modelKataloguUygula } from "./modeller";
@@ -254,6 +255,14 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "kurulum.durum":
       kurulumDurumuUygula(olay.durum);
+      return;
+
+    case "duzeltme.guncellendi":
+      duzeltmeUygula(olay.duzeltme);
+      return;
+
+    case "duzeltme.silindi":
+      duzeltmeKaldir(olay.projeId, olay.id);
       return;
 
     case "kanal.yaziyor":

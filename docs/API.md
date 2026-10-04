@@ -150,6 +150,24 @@ Kurul mesajında `@Ad` ile anılan ajan uyanır ve mesajı alır. `#genel` kanal
 
 Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 
+## Düzeltme notları (uygulama içi tarayıcı)
+
+Kurul Tarayıcı ekranında projenin sayfasını açar, bir öğeyi seçip "burası olmamış" notu bırakır; notlar birikir, **Hepsini yaptır** hepsini CEO'ya iş olarak gönderir. Masaüstünde not öğe seçilerek (seçici, metin, stiller, kutu ve ekran görüntüsüyle), tarayıcıdan açılan Stüdyo'da elle (adres ve not) eklenir.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/duzeltmeler?durum=acik\|gonderildi` | — | `Duzeltme[]` (eklenme sırasıyla) |
+| POST | `/api/projeler/:pid/duzeltmeler` | `DuzeltmeEkleIstegi` | `Duzeltme` |
+| PATCH | `/api/duzeltmeler/:id` | `{not}` | `Duzeltme`; gönderilmiş not değişmez (409) |
+| DELETE | `/api/duzeltmeler/:id` | — | `{tamam: true}` |
+| GET | `/api/duzeltmeler/:id/gorsel` | — | `image/png`; görüntüsüz notta 404 |
+| POST | `/api/projeler/:pid/duzeltmeler/gonder` | — | `DuzeltmeGonderimi`: `{mesaj, gonderilen}` |
+
+- **Ekleme:** `adres` http/https olmalı, `not` boş olamaz (en çok 4000 karakter), `ogeHtml` en çok 2000 karakter. `gorsel` base64 PNG'dir (`data:image/png;base64,` öneki olabilir); en çok 4 MB, aşan 413, PNG olmayan 400 döner. Bu ucun gövde sınırı 6 MB'tır. Görüntü projenin ArnOrg klasörüne yazılır: `<proje>/.arnorg/duzeltmeler/<id>.png`; `Duzeltme.gorsel` bu mutlak yoldur, ajanlar Read ile açar. Klasörün kendi `.gitignore`'u vardır: görüntüler `.arnorg` commit'lerine ve uzak depoya girmez.
+- **Silme:** açık notun görüntüsü de silinir; gönderilmiş notun görüntüsü kalır (CEO'nun açtığı görevler o yolu anar).
+- **Hepsini yaptır:** açık notların tamamı tek bir kurul mesajı olarak `#yonetim`'e yazılır (kanal mesajıyla aynı yol: CEO uyanır, mesaj Karargâh'taki CEO sohbetinde görünür) ve notlar `gonderildi` olur (`gonderimZamani`). Açık not yoksa 400, aynı projede gönderim sürerken 409. Mesaj ayardaki dilde ve yapılıdır: üstte iş tarifi ("Tarayıcıda N düzeltme notu bıraktım. Her biri için görev aç (kabul ölçütüyle), uygun çalışana ata ve başlat."), altında her not bir satır: `1) <adres> · öğe: <seçici> · "<öğe metni>" · görünüm: <genişlik>×<yükseklik> · not: … · ekran görüntüsü: <mutlak yol>` (olmayan alan yazılmaz).
+- **Olaylar:** `duzeltme.guncellendi` (`{projeId, duzeltme}`: ekleme, not düzeltme, gönderim) ve `duzeltme.silindi` (`{projeId, id}`). Proje listeden çıkarılınca notları da silinir.
+
 ## Denetim ve onaylar
 
 | Yöntem | Yol | Gövde | Yanıt |

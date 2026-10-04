@@ -26,6 +26,7 @@ import { kalite } from "./kalite";
 import { brifing } from "./brifing";
 import { modeller } from "./modeller";
 import { yetenek } from "./yetenek";
+import { tarayici } from "./tarayici";
 
 export const en: Sozluk = {
   genel,
@@ -54,4 +55,5 @@ export const en: Sozluk = {
   brifing,
   modeller,
   yetenek,
+  tarayici,
 };

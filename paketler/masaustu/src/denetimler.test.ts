@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SatirTamponu,
+  anaPencereIzniMi,
   ansiTemizle,
   ayniKokMu,
   disaridaAcilabilirMi,
@@ -32,6 +33,20 @@ describe("ayniKokMu", () => {
     expect(ayniKokMu("https://127.0.0.1:47820/", kok)).toBe(false);
     expect(ayniKokMu("http://127.0.0.1:47820.kotu.com/", kok)).toBe(false);
     expect(ayniKokMu("bozuk", kok)).toBe(false);
+  });
+});
+
+describe("anaPencereIzniMi", () => {
+  const kok = "http://127.0.0.1:47820";
+  it("yalnız listedeki izinleri ve yalnız çekirdek kökünden verir", () => {
+    expect(anaPencereIzniMi("notifications", "http://127.0.0.1:47820/", kok)).toBe(true);
+    expect(anaPencereIzniMi("clipboard-sanitized-write", "http://127.0.0.1:47820/#x", kok)).toBe(true);
+    expect(anaPencereIzniMi("media", "http://127.0.0.1:47820/", kok)).toBe(false);
+    expect(anaPencereIzniMi("geolocation", "http://127.0.0.1:47820/", kok)).toBe(false);
+    expect(anaPencereIzniMi("notifications", "http://localhost:5173/", kok)).toBe(false);
+  });
+  it("çekirdek kökü henüz yokken hiçbir izin vermez", () => {
+    expect(anaPencereIzniMi("notifications", "http://127.0.0.1:47820/", null)).toBe(false);
   });
 });
 

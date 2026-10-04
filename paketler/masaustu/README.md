@@ -17,7 +17,14 @@ Electron ana süreci (dist/ana.js)
 - **Çekirdek süreci:** Electron'un `utilityProcess`'i (Node ortamı, Electron ile aynı ikili). Çıktısı `logs/cekirdek.log` dosyasına yazılır. 60 sn içinde hazır olmazsa ya da beklenmedik biçimde durursa kaydın son satırları ve **Yeniden başlat** düğmesiyle hata sayfası açılır.
 - **Kapanış:** çekirdeğe `kapat` mesajı gider (`sunucu.kapat()`), 5 sn içinde çıkmazsa süreç sonlandırılır.
 - **Güvenlik:** `contextIsolation`, `sandbox`, `webSecurity` açık, `nodeIntegration` kapalı. Pencere yalnız çekirdeğin kökünde gezinebilir; başka http(s) adresleri sistem tarayıcısında açılır, diğer her şey engellenir. Yeni pencere, `<webview>` ve izinler (pano, bildirim, tam ekran dışında) kapalı; yazım denetimi sözlük indirmesin diye kapalı.
-- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url), klasorSec(), dikkatCek(), oneGetir(), guncelleme: { durum(), dinle(f), kur() } }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar; `klasorSec` sistemin klasör seçicisini açar (proje açarken yol yazılmaz); `dikkatCek` pencere arkadayken görev çubuğunda yanıp söner (önemli an bildirimi), `oneGetir` pencereyi öne alır (masaüstü bildirimine tıklanınca); `guncelleme` otomatik güncellemenin durumunu verir, değişince haber verir ve indirilen sürümü kurup uygulamayı yeniden başlatır. Hepsi yalnız çekirdek kökünden yüklenmiş ana pencereden çağrılabilir.
+- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url), klasorSec(), dikkatCek(), oneGetir(), guncelleme: { durum(), dinle(f), kur() }, tarayici: { git, geri, ileri, yenile, durdur, yerlestir, secici, secimiBirak, kare, durum, dinle } }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar; `klasorSec` sistemin klasör seçicisini açar (proje açarken yol yazılmaz); `dikkatCek` pencere arkadayken görev çubuğunda yanıp söner (önemli an bildirimi), `oneGetir` pencereyi öne alır (masaüstü bildirimine tıklanınca); `guncelleme` otomatik güncellemenin durumunu verir, değişince haber verir ve indirilen sürümü kurup uygulamayı yeniden başlatır. `tarayici` uygulama içi tarayıcıyı yönetir (aşağıda). Hepsi yalnız çekirdek kökünden yüklenmiş ana pencereden çağrılabilir.
+- **Uygulama içi tarayıcı** (`src/tarayici.ts`, `src/tarayici-guvenlik.ts`, kararlar `src/tarayici-denetimleri.ts`): Stüdyo'nun Tarayıcı ekranındaki sayfa, ana pencereye eklenen ve ana süreçte yönetilen bir `WebContentsView`'dır; `<webview>` kullanılmaz (ana pencerede `webviewTag` kapalı kalır, `will-attach-webview` her içerikte reddedilir). Yerini Stüdyo verir (`yerlestir`); Stüdyo'nun bir katmanı (pencere, menü, çekmece) görünümün üstüne gelecekse görünüm gizlenir, yerine son karesi (`kare`) konur. Güvenlik modeli:
+  - Ayrı ve kalıcı oturum bölümü `persist:arnorg-tarayici`: çerezler ve depolama ana uygulamanınkinden ayrıdır. Kullanıcı aracısında Electron ve uygulama adı görünmez.
+  - `sandbox`, `contextIsolation` açık, `nodeIntegration` (alt çerçeveler ve işçiler dahil) kapalı, `webviewTag` kapalı. Yalnız `dist/tarayici-onyukleme.cjs` yüklenir; sayfanın dünyasına hiçbir şey açmaz (`contextBridge` yok), yalnız öğe seçiciyi kurar ve seçimi ana sürece iletir.
+  - Ana çerçeve yalnız `http`, `https` ve `about:blank`'e gider; iframe'ler `file:`, `chrome:`, `devtools:` gibi yerel ve iç protokollere gidemez. `window.open` ve `target=_blank` http(s) ise aynı görünümde açılır, değilse reddedilir; yeni pencere açılmaz.
+  - İzin istekleri ve denetimleri (kamera, mikrofon, konum, bildirim, pano, tam ekran, MIDI, USB/HID/seri aygıt, ekran paylaşımı, yerel ağ) reddedilir. İndirme kaydetme penceresiyle kullanıcıya sorulur; vazgeçilirse iptal edilir.
+  - Stüdyo'dan gelen komutlar doğrulanır ve yalnız ana pencereden kabul edilir; sayfadan gelen seçim yalnız görünümün ana çerçevesinden kabul edilir, metinleri sınırlanır. Öğe görüntüsü öğenin kutusu ve 16 px payla `capturePage` ile alınır (en uzun kenar 1600 px, en çok 3 MB PNG).
+  - Kısayollar sayfa odaktayken de çalışır (`before-input-event`): Ctrl/Cmd+L adres çubuğu, Ctrl/Cmd+Shift+C öğe seç; Esc seçiciden çıkar.
 - **Güncelleme:** paketlenmiş uygulama açılışta ve açık kaldıkça 6 saatte bir GitHub sürümlerini denetler, yeni sürümü arka planda indirir (`src/guncelleme.ts`). Sistem bildirimi gönderilmez; Stüdyo indirilen sürüm için üst çubuğun altında "yeniden başlatınca kurulur" şeridi gösterir. **Yeniden başlat** hemen kurar (`quitAndInstall`); kurulmazsa güncelleme uygulama kapanırken kurulur.
 - **Pencere:** konum ve boyut `pencere-durumu.json` dosyasında hatırlanır; menü Türkçedir (Dosya, Düzen, Görünüm, Pencere, Yardım), Windows ve Linux'ta Alt ile görünür.
 
@@ -61,12 +68,13 @@ ARNORG_SAHTE_CEKIRDEK=1 npm run masaustu
 | `ARNORG_SAHTE_GECIKME=<sn>` | sahte çekirdek geç başlar (açılış penceresini görmek için) |
 | `ARNORG_KULLANICI_DIZINI=<dizin>` | kullanıcı verisi dizinini değiştirir |
 | `ARNORG_DENEME_EKRAN_GORUNTUSU=<png>` | ana pencere (ya da hata sayfası) yüklenince ekran görüntüsü alınır ve uygulama kapanır; çekirdek durduysa çıkış kodu 1 |
+| `ARNORG_CEKIRDEK_PORT=<port>` | çekirdek rastgele port yerine bu portta açılır (denemeler) |
 | `ARNORG_GUNCELLEME=kapali` | otomatik güncelleme denetimini kapatır |
 | `ARNORG_SAHTE_GUNCELLEME=<sürüm>` | yalnız paketsiz uygulamada: güncelleme indirmesi taklit edilir, Stüdyo'da güncelleme şeridi çıkar; **Yeniden başlat** bir şey kurmadan uygulamayı yeniden açar |
 
 Root olarak çalışılan konteynerlerde ve GitHub koşucularında Chromium sandbox'ı kurulamaz; `--no-sandbox` verin (`npx electron paketler/masaustu --no-sandbox`). Ekransız makinede: `xvfb-run -a ...`.
 
-Birim testleri kökteki `npm test` ile çalışır (`src/denetimler.test.ts`). Tip denetimi: `npm run typecheck -w @arnorg/masaustu`.
+Birim testleri kökteki `npm test` ile çalışır (`src/denetimler.test.ts`, tarayıcının kuralları `src/tarayici-denetimleri.test.ts`, öğe seçici `src/arayuz/secim.test.ts`). Tip denetimi: `npm run typecheck -w @arnorg/masaustu`.
 
 ## Veri ve kayıtlar
 

@@ -76,6 +76,7 @@ import type {
   Saglik,
   TerminalAcIstegi,
 } from "@arnorg/ortak";
+import type { Duzeltme, DuzeltmeDurumu, DuzeltmeEkleIstegi, DuzeltmeGonderimi } from "@arnorg/ortak";
 import { indir, istek, sorgu } from "./istek";
 
 type Tamam = { tamam: true };
@@ -138,6 +139,15 @@ export const api = {
   notlar: (pid: string) => istek<NotDosyasi[]>(`${proje(pid)}/notlar`),
   not: (pid: string, yol: string) => istek<NotIcerigi>(`${proje(pid)}/not${sorgu({ yol })}`),
   notKaydet: (pid: string, n: NotIcerigi) => istek<NotDosyasi>(`${proje(pid)}/not`, { method: "PUT", govde: n }),
+
+  // Tarayıcı: düzeltme notları ("Hepsini yaptır" açık notları tek kurul mesajıyla #yonetim'e yazar)
+  duzeltmeler: (pid: string, durum?: DuzeltmeDurumu) => istek<Duzeltme[]>(`${proje(pid)}/duzeltmeler${sorgu({ durum })}`),
+  duzeltmeEkle: (pid: string, i: DuzeltmeEkleIstegi) => istek<Duzeltme>(`${proje(pid)}/duzeltmeler`, { method: "POST", govde: i }),
+  duzeltmeGuncelle: (id: string, not: string) => istek<Duzeltme>(`/api/duzeltmeler/${k(id)}`, { method: "PATCH", govde: { not } }),
+  duzeltmeSil: (id: string) => istek<Tamam>(`/api/duzeltmeler/${k(id)}`, { method: "DELETE" }),
+  duzeltmeleriGonder: (pid: string) => istek<DuzeltmeGonderimi>(`${proje(pid)}/duzeltmeler/gonder`, { method: "POST" }),
+  /** Öğenin ekran görüntüsü (PNG); anahtar başlıkla gider, görüntü nesne adresiyle gösterilir */
+  duzeltmeGorseli: (id: string, sinyal?: AbortSignal) => indir(`/api/duzeltmeler/${k(id)}/gorsel`, sinyal),
 
   // Proje hafızası, defterler, ajanlar arası sorular
   hafiza: (pid: string, p: { q?: string; tur?: HafizaTuru; eskiler?: boolean } = {}, sinyal?: AbortSignal) =>
