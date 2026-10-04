@@ -61,11 +61,20 @@ export const ekip: typeof tr = {
     ekTalimatOrnek: "Added to the role's instructions. E.g. Always write tests with vitest.",
     degisiklikleriKaydet: "Save changes",
     ofisKarakteri: "Office character",
+    sekmeler: "Agent detail sections",
+    sekmeGenel: "Overview",
+    sekmeZeka: "Intelligence",
     istenCikar: "Let go",
     istenCikarEvet: (ad: string) => `Yes, let ${ad} go`,
     istenCikarUyari: (ad: string) =>
-      `If ${ad} is let go, their session closes. The identity file (.arnorg/ekip/) and the workspace stay where they are; their assigned tasks become unassigned.`,
-    istenCikarildi: (ad: string) => `${ad} was let go. Their identity file and workspace stay in the repo.`,
+      `If ${ad} is let go, their session closes and they leave the team. The identity file (.arnorg/ekip/) and the workspace stay in the repo.`,
+    devralanSoru: "Who should take over their work and knowledge?",
+    devralanAciklama: (ad: string) => `Their open tasks, personal memory, journal and open promises go to ${ad}.`,
+    yoneticisi: "their manager",
+    devralanYok: "No one else on the team can take over; their open tasks become unassigned.",
+    istenCikarildi: (ad: string, devralan: string | null) =>
+      devralan ? `${ad} was let go; their work and knowledge went to ${devralan}.` : `${ad} was let go.`,
+    ceoCikarilamaz: "The CEO can't be let go; they run the team.",
   },
 
   eylem: {

@@ -1,17 +1,19 @@
-// Ekip ekranındaki ajan ayrıntı paneli: kimlik, oturum eylemleri, ayarlar, işten çıkarma
-import type { Ajan, IzinModu } from "@arnorg/ortak";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+// Ekip ekranındaki (ve Ofis çekmecesindeki) ajan ayrıntı paneli: kimlik ve iki bölüm.
+// Genel: oturum eylemleri, bilgiler, mesaj, ayarlar, devralanlı işten çıkarma. Zekâ: ajanın kendi kalıcı zekâsı.
+import type { Ajan, Gorev, IzinModu } from "@arnorg/ortak";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { sozluk, useSozluk } from "../../dil";
 import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
-import { ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
+import { ajanKaldir, ajanUygula, ceoBul, useVeri } from "../../durum/veri";
+import { ajanSekmesiSec, useZekaArayuz } from "../../durum/zeka";
 import { tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { KarakterSecici } from "../KarakterSecici";
 import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, modelAdi } from "../Kisi";
-import { OnaySor } from "../OnaySor";
 import { Simge } from "../Simge";
 import { MesajFormu, OturumDugmeleri } from "./AjanEylemleri";
+import { AjanZekasiBolumu } from "./AjanZekasi";
 
 const MODELLER = ["opus", "sonnet", "haiku"];
 const IZIN_MODLARI = MODLAR as readonly IzinModu[];
@@ -27,6 +29,8 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
   const gorevler = useVeri((d) => d.gorevler);
   const yonetici = ajanlar.find((a) => a.id === ajan.yoneticiId);
   const gorev = gorevler.find((g) => g.id === ajan.gorevId);
+  // Seçili bölüm başka ajan seçilince de korunur (zekâları karşılaştırırken)
+  const sekme = useZekaArayuz((d) => d.ajanSekmesi);
 
   return (
     <div className="ajan-ayrinti">
@@ -47,6 +51,36 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
         {ajan.isAciklamasi ? <p>{ajan.isAciklamasi}</p> : null}
       </div>
 
+      <div className="bolumlu ajan-sekmeler" role="group" aria-label={t.sekmeler}>
+        <button type="button" aria-pressed={sekme === "genel"} onClick={() => ajanSekmesiSec("genel")}>
+          {t.sekmeGenel}
+        </button>
+        <button type="button" aria-pressed={sekme === "zeka"} onClick={() => ajanSekmesiSec("zeka")}>
+          <Simge ad="zeka" boyut={12} />
+          {t.sekmeZeka}
+        </button>
+      </div>
+
+      {sekme === "zeka" ? <AjanZekasiBolumu ajan={ajan} /> : <AjanGenel ajan={ajan} mesaj={mesaj} yonetici={yonetici} gorev={gorev} />}
+    </div>
+  );
+}
+
+function AjanGenel({
+  ajan,
+  mesaj,
+  yonetici,
+  gorev,
+}: {
+  ajan: Ajan;
+  mesaj: boolean;
+  yonetici: Ajan | undefined;
+  gorev: Gorev | undefined;
+}) {
+  const s = useSozluk();
+  const t = s.ekip.ayrinti;
+  return (
+    <>
       <OturumDugmeleri ajan={ajan} kucuk />
 
       <dl className="kv">
@@ -86,7 +120,7 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
 
       <AjanAyarlari ajan={ajan} />
       <IstenCikar ajan={ajan} />
-    </div>
+    </>
   );
 }
 
@@ -283,26 +317,90 @@ function KarakterAyari({ ajan }: { ajan: Ajan }) {
   );
 }
 
+/**
+ * İşten çıkarma: kurul açık işlerin ve bildiklerin (kişisel hafıza, defter, açık sözler) kime devredileceğini seçer.
+ * Varsayılan yöneticisi; yoksa CEO. CEO çıkarılamaz (çekirdek de reddeder).
+ */
 function IstenCikar({ ajan }: { ajan: Ajan }) {
   const s = useSozluk();
   const t = s.ekip.ayrinti;
+  const ajanlar = useVeri((d) => d.ajanlar);
+  const adaylar = ajanlar.filter((a) => a.id !== ajan.id);
+  const varsayilan =
+    (ajan.yoneticiId && adaylar.some((a) => a.id === ajan.yoneticiId) ? ajan.yoneticiId : null) ?? ceoBul(adaylar)?.id ?? adaylar[0]?.id ?? "";
   const [soruyor, setSoruyor] = useState(false);
+  const [devralanId, setDevralanId] = useState(varsayilan);
   const { suruyor, calistir } = useIslem();
-  useEffect(() => setSoruyor(false), [ajan.id]);
+  const vazgecRef = useRef<HTMLButtonElement>(null);
+  const kimlik = useId();
+  const devralan = adaylar.find((a) => a.id === devralanId);
+
+  useEffect(() => {
+    setSoruyor(false);
+    setDevralanId(varsayilan);
+  }, [ajan.id, varsayilan]);
+
+  // Yanlışlıkla onaylanmasın: odak Vazgeç'te başlar
+  useEffect(() => {
+    if (soruyor) vazgecRef.current?.focus();
+  }, [soruyor]);
+
+  if (ajan.rol === "ceo") {
+    return (
+      <section className="ajan-bolum ajan-bolum-tehlike" aria-label={t.istenCikar}>
+        <p className="alan-ipucu">{t.ceoCikarilamaz}</p>
+      </section>
+    );
+  }
 
   const cikar = () =>
     calistir("cikar", async () => {
-      await api.istenCikar(ajan.id);
+      await api.istenCikarDevrederek(ajan.id, devralan?.id);
       ajanKaldir(ajan.id);
-      bildir("bilgi", sozluk().ekip.ayrinti.istenCikarildi(ajan.ad));
+      bildir("bilgi", sozluk().ekip.ayrinti.istenCikarildi(ajan.ad, devralan?.ad ?? null));
     });
 
   return (
     <section className="ajan-bolum ajan-bolum-tehlike" aria-label={t.istenCikar}>
       {soruyor ? (
-        <OnaySor evet={cikar} vazgec={() => setSoruyor(false)} evetMetni={t.istenCikarEvet(ajan.ad)} suruyor={suruyor === "cikar"}>
-          {t.istenCikarUyari(ajan.ad)}
-        </OnaySor>
+        <div
+          className="onay-sor isten-cikar"
+          role="alertdialog"
+          aria-labelledby={`${kimlik}-uyari`}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setSoruyor(false);
+            }
+          }}
+        >
+          <p id={`${kimlik}-uyari`}>{t.istenCikarUyari(ajan.ad)}</p>
+          {adaylar.length ? (
+            <div className="alan">
+              <label htmlFor={`${kimlik}-devralan`}>{t.devralanSoru}</label>
+              <select id={`${kimlik}-devralan`} className="secim" value={devralanId} onChange={(e) => setDevralanId(e.target.value)}>
+                {adaylar.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.ad} · {a.rolAdi}
+                    {a.id === ajan.yoneticiId ? ` (${t.yoneticisi})` : ""}
+                  </option>
+                ))}
+              </select>
+              {devralan ? <span className="alan-ipucu isten-cikar-ipucu">{t.devralanAciklama(devralan.ad)}</span> : null}
+            </div>
+          ) : (
+            <p className="alan-ipucu">{t.devralanYok}</p>
+          )}
+          <div className="dugme-satir">
+            <button type="button" className="dugme dugme-kucuk dugme-tehlike" onClick={() => void cikar()} disabled={suruyor !== null}>
+              {suruyor ? <span className="doner" aria-hidden="true" /> : null}
+              {t.istenCikarEvet(ajan.ad)}
+            </button>
+            <button type="button" className="dugme dugme-kucuk dugme-sessiz" onClick={() => setSoruyor(false)} ref={vazgecRef}>
+              {s.genel.vazgec}
+            </button>
+          </div>
+        </div>
       ) : (
         <button type="button" className="dugme dugme-tehlike dugme-kucuk" onClick={() => setSoruyor(true)}>
           {t.istenCikar}

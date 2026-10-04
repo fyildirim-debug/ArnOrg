@@ -63,11 +63,21 @@ export const ekip = {
     ekTalimatOrnek: "Rol talimatına eklenir. Örn. Testleri her zaman vitest ile yaz.",
     degisiklikleriKaydet: "Değişiklikleri kaydet",
     ofisKarakteri: "Ofis karakteri",
+    /** Ayrıntı bölümleri: genel bilgiler ve ajanın kendi zekâsı */
+    sekmeler: "Ajan ayrıntısı bölümleri",
+    sekmeGenel: "Genel",
+    sekmeZeka: "Zekâ",
     istenCikar: "İşten çıkar",
     istenCikarEvet: (ad: string) => `Evet, ${belirtme(ad)} çıkar`,
     istenCikarUyari: (ad: string) =>
-      `${ad} işten çıkarılırsa oturumu kapanır. Kimlik dosyası (.arnorg/ekip/) ve çalışma alanı yerinde kalır; atanmış görevleri boşa düşer.`,
-    istenCikarildi: (ad: string) => `${ad} işten çıkarıldı. Kimlik dosyası ve çalışma alanı repoda kaldı.`,
+      `${ad} işten çıkarılırsa oturumu kapanır ve ekipten ayrılır. Kimlik dosyası (.arnorg/ekip/) ve çalışma alanı repoda kalır.`,
+    devralanSoru: "İşleri ve bildikleri kime devredilsin?",
+    devralanAciklama: (ad: string) => `Açık işleri, kişisel hafızası, defteri ve açık sözleri ${yonelme(ad)} geçer.`,
+    yoneticisi: "yöneticisi",
+    devralanYok: "Ekipte devralacak başka çalışan yok; açık işleri boşa düşer.",
+    istenCikarildi: (ad: string, devralan: string | null) =>
+      devralan ? `${ad} işten çıkarıldı; işleri ve bildikleri ${yonelme(devralan)} devredildi.` : `${ad} işten çıkarıldı.`,
+    ceoCikarilamaz: "CEO işten çıkarılamaz; ekibi o yönetir.",
   },
 
   /** Oturum eylemleri ve mesaj formu (Ekip paneli ve oturum ekranı) */
