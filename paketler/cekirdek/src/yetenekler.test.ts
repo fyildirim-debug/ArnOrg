@@ -71,7 +71,7 @@ beforeAll(async () => {
 afterAll(() => {
   sirket.kapat();
   depo.kapat();
-  fs.rmSync(gecici, { recursive: true, force: true });
+  fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 describe("rol varsayılanları", () => {

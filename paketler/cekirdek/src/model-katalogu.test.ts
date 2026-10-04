@@ -247,7 +247,7 @@ describe("Şirket: işe alımda rol modeli", () => {
   afterAll(() => {
     for (const s of acik) s.kapat();
     depo.kapat();
-    fs.rmSync(gecici, { recursive: true, force: true });
+    fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it("CEO Fable'la işe alınır; hesabın kataloğunda Fable yoksa Opus'la; var olan ajanın modeli değişmez", () => {

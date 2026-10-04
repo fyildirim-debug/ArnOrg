@@ -55,7 +55,7 @@ afterAll(async () => {
   await bekle();
   sirket.kapat();
   depo.kapat();
-  fs.rmSync(gecici, { recursive: true, force: true });
+  fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 const kur = (govde: Record<string, unknown>) => app.inject({ method: "POST", url: `/api/projeler/${pid}/kanallar`, headers: h, payload: govde });
@@ -84,7 +84,7 @@ describe("depo göçü", () => {
         if (d.db.open) d.kapat();
       }
     } finally {
-      fs.rmSync(dizin, { recursive: true, force: true });
+      fs.rmSync(dizin, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     }
   });
 });

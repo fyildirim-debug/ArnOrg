@@ -508,7 +508,7 @@ describe("Şirket ve API: brifing, günlük brifing ayarı, model kataloğu", ()
     await app.close();
     sirket.kapat();
     depo.kapat();
-    fs.rmSync(gecici, { recursive: true, force: true });
+    fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it("POST /brifing CEO'yu kurul kaynağıyla uyandırır, #yonetim'de yazıyor gösterir; ikinci istek hazırlanıyor döner", async () => {

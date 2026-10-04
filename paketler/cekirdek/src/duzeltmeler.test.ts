@@ -62,7 +62,8 @@ afterAll(async () => {
   await app.close();
   sirket.kapat();
   depo.kapat();
-  fs.rmSync(gecici, { recursive: true, force: true });
+  // Windows yeni açılan git deposunun dosyalarını kısa süre kilitli tutabilir (EBUSY); silme yeniden denenir
+  fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
 describe("görsel denetimi", () => {
