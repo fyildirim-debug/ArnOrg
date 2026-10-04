@@ -70,6 +70,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--t-s);
   gap: var(--b-2) var(--b-4);
   min-height: var(--ust-yukseklik);
   padding: 0.375rem 0.75rem 0.375rem 0.875rem;

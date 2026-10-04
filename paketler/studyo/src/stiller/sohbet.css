@@ -499,7 +499,8 @@
   -webkit-line-clamp: 3;
   overflow: hidden;
   color: var(--bone);
-  font-size: var(--t-xs);
+  font-family: var(--font-govde);
+  font-size: var(--t-s);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }

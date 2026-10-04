@@ -10,8 +10,9 @@
   /* metin */
   --paper: #f2f0ec;
   --bone: #ede7dc;
-  --muted: #a19c94;
-  --muted-2: #77726b;
+  /* soluk metin: mürekkep zeminde küçük yazıda da en az 4,5:1 karşıtlık */
+  --muted: #b0aaa1;
+  --muted-2: #8d877f;
 
   /* çizgiler */
   --line-soft: rgba(242, 240, 236, 0.06);
@@ -39,15 +40,19 @@
   --kod-tur: oklch(0.82 0.07 230);
   --kod-etiket: oklch(0.8 0.1 60);
 
-  /* yazı */
+  /* yazı: başlıklar Anton; okunan metin IBM Plex Sans; etiket, denetim, kod ve sayılar IBM Plex Mono */
   --font-display: "Anton", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
+  --font-govde: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
-  --t-2xs: 0.6875rem;
-  --t-xs: 0.75rem;
-  --t-s: 0.8125rem;
-  --t-m: 0.9375rem;
-  --t-l: 1.25rem;
+  --t-2xs: 0.75rem;
+  --t-xs: 0.8125rem;
+  --t-s: 0.875rem;
+  --t-m: 1rem;
+  --t-l: 1.3125rem;
   --t-baslik: 1.875rem;
+  /* okunan metin: mesajlar, açıklamalar, notlar, raporlar */
+  --t-govde: 0.9375rem;
+  --satir-govde: 1.62;
 
   /* boşluk ölçeği (4 px tabanlı) */
   --b-1: 0.25rem;
