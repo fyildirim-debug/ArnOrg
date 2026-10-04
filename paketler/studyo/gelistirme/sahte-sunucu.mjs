@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { ceviri, kanalGorunenAdi } from "./dil.mjs";
 import { dilBul } from "./dosyalar.mjs";
 import * as KZ from "./kod-zekasi-verisi.mjs";
+import { kur as surum002 } from "./surum-002.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -71,6 +72,11 @@ function projeOzeti(p) {
   const gorevSayilari = { bekleyen: 0, planlandi: 0, calisiliyor: 0, inceleme: 0, tamam: 0, iptal: 0 };
   for (const g of db.gorevler) if (g.projeId === p.id) gorevSayilari[g.durum] += 1;
   return {
+    uzakAdres: null,
+    github: null,
+    otomatikGonder: true,
+    hazirlik: "tamam",
+    otomatikOnay: { etkin: false, turler: [] },
     ...p,
     ajanSayisi: ajanlar.length,
     aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
@@ -362,12 +368,22 @@ function wsKabul(istek, soket) {
 
 const istemciler = new Set();
 
+/** Yayınlanan her olayı gören dinleyiciler (0.0.2 uçları: otomatik onay, kurula açılır pencere) */
+const yayDinleyicileri = [];
+
 function yay(olay, projeId = null) {
   const metin = JSON.stringify(olay);
   for (const i of istemciler) {
     const herkese = olay.tur === "proje.guncellendi" || olay.tur === "bildirim" || olay.tur === "hesap.guncellendi";
     if (herkese || (projeId && i.projeId === projeId)) i.ws.gonder(metin);
   }
+  for (const d of yayDinleyicileri) d(olay);
+}
+
+/** Projeye bağlı olmayan olaylar (kurulum, global zekâ) bütün istemcilere */
+function herkeseYay(olay) {
+  const metin = JSON.stringify(olay);
+  for (const i of istemciler) i.ws.gonder(metin);
 }
 
 const projeYay = (pid) => yay({ tur: "proje.guncellendi", proje: projeOzeti(proje(pid)) });
@@ -924,24 +940,19 @@ rota("GET", "/api/hesap", () => hesapCevabi());
 rota("GET", "/api/roller", () => V.roller);
 
 rota("GET", "/api/projeler", () => db.projeler.map(projeOzeti));
+let projeEkleyici = null;
+let yonetimIsleyici = null;
+const onaySonucuDinleyicileri = [];
 rota("POST", "/api/projeler", ({ govde }) => {
-  if (!govde?.ad || !govde?.yol) throw new Hata(400, ceviri("Ad ve yol gerekli.", "Name and path are required."));
-  if (!govde.yol.startsWith("/")) throw new Hata(400, ceviri("Yol mutlak olmalı.", "The path must be absolute."));
-  if (db.projeler.some((p) => p.yol === govde.yol)) throw new Hata(400, ceviri("Bu klasör zaten bir proje olarak bağlı.", "This folder is already linked as a project."));
-  const id = govde.ad.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşöçı]+/g, "-").replace(/^-|-$/g, "") || yeniKimlik("p");
-  const p = { id, ad: govde.ad, yol: govde.yol, aciklama: govde.aciklama ?? "", varsayilanDal: "main", olusturma: simdi() };
-  db.projeler.push(p);
-  db.ajanlar.push({ id: yeniKimlik("ceo"), projeId: id, ad: "Ada", rol: "ceo", rolAdi: "CEO", model: "opus", yoneticiId: null, durum: "kapali", isAciklamasi: ceviri("Brief bekliyor", "Waiting for a brief"), gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", bugunToken: 0, toplamToken: 0, talimatEki: "", karakter: null, olusturma: simdi() });
-  db.kanallar[id] = [{ ad: "genel", aciklama: "" }, { ad: MUHENDISLIK, aciklama: "" }, { ad: "toplanti", aciklama: "" }];
-  db.notlar[id] = {
-    "vizyon.md": ceviri(`# Vizyon\n\n${govde.aciklama ?? ""}\n`, `# Vision\n\n${govde.aciklama ?? ""}\n`),
-    "mimari.md": ceviri("# Mimari\n\n", "# Architecture\n\n"),
-  };
-  db.notZamanlari[id] = { "vizyon.md": simdi(), "mimari.md": simdi() };
-  db.politika[id] = kopya(V.politika);
-  const ozet = projeOzeti(p);
-  yay({ tur: "proje.guncellendi", proje: ozet });
-  return ozet;
+  if (!govde?.ad?.trim()) throw new Hata(400, ceviri("Proje adı gerekli.", "Project name is required."));
+  if (!govde.olustur && !govde.yol?.trim()) throw new Hata(400, ceviri("Var olan repoyu bağlamak için klasörünü seçin.", "Choose the folder of the existing repository."));
+  const klasor = govde.ad.trim().toLocaleLowerCase("tr-TR").replace(/[çğıöşü]/g, (h) => ({ ç: "c", ğ: "g", ı: "i", ö: "o", ş: "s", ü: "u" })[h]).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const yol = govde.yol?.trim() || `/home/furkan/ArnOrg/${klasor || "proje"}`;
+  if (!yol.startsWith("/")) throw new Hata(400, ceviri("Yol mutlak olmalı.", "The path must be absolute."));
+  if (db.projeler.some((p) => p.yol === yol)) throw new Hata(409, ceviri("Bu repo zaten bir ArnOrg projesi.", "This repository is already an ArnOrg project."));
+  const uzak = govde.github ? `${govde.github.sahip || "furkan-y"}/${klasor || "proje"}` : null;
+  const p = projeEkleyici(govde.ad.trim(), yol, govde.aciklama ?? "", govde.dal?.trim() || "main", uzak);
+  return projeOzeti(p);
 });
 rota("GET", "/api/projeler/:pid", ({ p }) => projeOzeti(projeGerekli(p.pid)));
 rota("DELETE", "/api/projeler/:pid", ({ p }) => {
@@ -1160,13 +1171,19 @@ rota("POST", "/api/projeler/:pid/kanallar/:kanal/mesajlar", ({ p, govde }) => {
   const kanal = decodeURIComponent(p.kanal);
   if (!govde?.metin?.trim()) throw new Hata(400, ceviri("Mesaj boş olamaz.", "The message can't be empty."));
   const m = mesajEkle(p.pid, kanal, "kurul", govde.metin.trim());
+  if (kanal === "yonetim" && !m.anilanlar.length) {
+    yonetimIsleyici?.(p.pid, m.metin);
+    return m;
+  }
   const hedefler = m.anilanlar.length ? m.anilanlar : kanal === "genel" ? projeAjanlari(p.pid).filter((a) => a.rol === "ceo").map((a) => a.id) : [];
   for (const aid of hedefler) {
     const a = ajanBul(aid);
     if (!a) continue;
     oturumAc(a);
     akisEkle(aid, { tur: "kullanici", metin: ceviri(`Kurul (#${kanal}): ${m.metin}`, `Board (#${kanalGorunenAdi(kanal)}): ${m.metin}`) });
+    yay({ tur: "kanal.yaziyor", projeId: p.pid, kanal, ajanId: aid, ad: a.ad, yaziyor: true }, p.pid);
     setTimeout(() => {
+      yay({ tur: "kanal.yaziyor", projeId: p.pid, kanal, ajanId: aid, ad: a.ad, yaziyor: false }, p.pid);
       const yanit =
         a.rol === "ceo"
           ? ceviri(
@@ -1457,6 +1474,7 @@ rota("POST", "/api/onaylar/:oid", ({ p, govde }) => {
   }
   yay({ tur: "onay.sonuc", onay: o }, o.projeId);
   projeYay(o.projeId);
+  for (const d of onaySonucuDinleyicileri) d(o);
   return o;
 });
 
@@ -2056,6 +2074,33 @@ function statikGonder(url, yanit) {
   yanit.writeHead(200, { ...YALITIM, "Content-Type": TURLER[path.extname(dosya)] ?? "application/octet-stream", "Cache-Control": dosya.endsWith("index.html") ? "no-cache" : "max-age=31536000, immutable" });
   fs.createReadStream(dosya).pipe(yanit);
 }
+
+// 0.0.2: kurulum, GitHub, dizinler, proje ayarları, hazırlık, ana yasa, zekâ, sözler, beceriler (surum-002.mjs)
+for (const pid of Object.keys(db.kanallar)) if (!db.kanallar[pid].some((k) => k.ad === "yonetim")) db.kanallar[pid].splice(1, 0, { ad: "yonetim", aciklama: "" });
+surum002({
+  rota,
+  db,
+  yay,
+  herkeseYay,
+  yayDinle: (d) => yayDinleyicileri.push(d),
+  proje,
+  projeAjanlari,
+  ajanBul,
+  mesajEkle,
+  akisEkle,
+  Hata,
+  simdi,
+  sonra,
+  yeniKimlik,
+  projeOzeti,
+  projeGerekli,
+  ajanGerekli,
+  projeYay,
+  MUHENDISLIK,
+  projeEkleyici: (f) => (projeEkleyici = f),
+  yonetimMesaji: (f) => (yonetimIsleyici = f),
+  onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f),
+});
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);
