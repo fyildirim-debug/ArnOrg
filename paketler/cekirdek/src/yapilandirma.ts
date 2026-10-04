@@ -1,10 +1,18 @@
 // Uygulama ayarları ve erişim anahtarı (veri dizininde)
 import fs from "node:fs";
 import path from "node:path";
-import type { Ayarlar } from "@arnorg/ortak";
+import type { Ayarlar, Dil } from "@arnorg/ortak";
 import { rastgeleAnahtar } from "./yardimci.js";
 
+/** Sistem dili: Türkçe yerel ayarda "tr", diğerlerinde "en" */
+export function sistemDili(kaynak: NodeJS.ProcessEnv = process.env): Dil {
+  const adaylar = [kaynak.LC_ALL, kaynak.LC_MESSAGES, kaynak.LANG, kaynak.LANGUAGE, Intl.DateTimeFormat().resolvedOptions().locale];
+  const ilk = adaylar.find((d) => d && d !== "C" && d !== "POSIX" && !d.startsWith("C."));
+  return ilk?.toLowerCase().startsWith("tr") ? "tr" : "en";
+}
+
 export const VARSAYILAN_AYARLAR: Ayarlar = {
+  dil: sistemDili(),
   claudeYolu: null,
   varsayilanIzinModu: "bypassPermissions",
   onaySuresiSn: 900,
@@ -58,6 +66,7 @@ export class Yapilandirma {
 
   guncelle(degisiklik: Partial<Ayarlar>): Ayarlar {
     const temiz: Partial<Ayarlar> = {};
+    if (degisiklik.dil === "tr" || degisiklik.dil === "en") temiz.dil = degisiklik.dil;
     if (degisiklik.claudeYolu !== undefined) temiz.claudeYolu = degisiklik.claudeYolu ? String(degisiklik.claudeYolu) : null;
     if (degisiklik.varsayilanIzinModu) temiz.varsayilanIzinModu = degisiklik.varsayilanIzinModu;
     if (typeof degisiklik.onaySuresiSn === "number") temiz.onaySuresiSn = Math.min(Math.max(30, degisiklik.onaySuresiSn), 86_400);

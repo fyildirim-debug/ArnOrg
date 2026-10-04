@@ -108,6 +108,7 @@ const semalar = {
   dosyaYaz: z.object({ alan: z.string(), yol: z.string().min(1), icerik: z.string() }),
   terminal: z.object({ alan: z.string(), sutun: z.number().int().optional(), satir: z.number().int().optional() }),
   ayarlar: z.object({
+    dil: z.enum(["tr", "en"]).optional(),
     claudeYolu: z.string().nullable().optional(),
     varsayilanIzinModu: izinModu.optional(),
     onaySuresiSn: z.number().optional(),
@@ -217,6 +218,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const yol = sirket.claudeYolu;
     return {
       surum: ARNORG_SURUMU,
+      dil: sirket.yapilandirma.ayarlar.dil,
       platform: `${process.platform}-${process.arch}`,
       claudeBulundu: Boolean(yol),
       claudeYolu: yol,

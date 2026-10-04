@@ -13,6 +13,7 @@ import type {
   Rol,
   Saglik,
 } from "@arnorg/ortak";
+import { diliAyarla } from "../dil";
 import { create } from "zustand";
 import type { WsDurumu } from "../api/canli";
 import { hataMetni } from "../api/istek";
@@ -138,7 +139,10 @@ const onayZamaniSirala = (a: Onay, b: Onay) => b.olusturma.localeCompare(a.olust
 
 export async function sagligiYukle() {
   try {
-    ayarla({ saglik: await api.saglik() });
+    const saglik = await api.saglik();
+    ayarla({ saglik });
+    // Dil çekirdek ayarıdır (ajanlar da o dilde konuşur); arayüz ona uyar
+    if (saglik.dil) diliAyarla(saglik.dil);
   } catch {
     // Sağlık bilgisi isteğe bağlı; Ayarlar ekranı kendi hatasını gösterir
   }

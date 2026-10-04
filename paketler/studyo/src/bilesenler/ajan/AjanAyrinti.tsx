@@ -7,13 +7,13 @@ import { ajanKaldir, ajanUygula, useVeri } from "../../durum/veri";
 import { belirtme, tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { KarakterSecici } from "../KarakterSecici";
-import { AjanAvatar, AjanDurum, IZIN_MODU_ADLARI, izinModuAdi, modelAdi } from "../Kisi";
+import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, modelAdi } from "../Kisi";
 import { OnaySor } from "../OnaySor";
 import { Simge } from "../Simge";
 import { MesajFormu, OturumDugmeleri } from "./AjanEylemleri";
 
 const MODELLER = ["opus", "sonnet", "haiku"];
-const IZIN_MODLARI = Object.keys(IZIN_MODU_ADLARI) as IzinModu[];
+const IZIN_MODLARI = MODLAR as readonly IzinModu[];
 
 // Plan modundan çıkınca dönülecek mod; oturum boyunca bellekte tutulur
 const oncekiModlar = new Map<string, IzinModu>();
@@ -164,7 +164,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           >
             {IZIN_MODLARI.map((m) => (
               <option key={m} value={m}>
-                {IZIN_MODU_ADLARI[m]}
+                {izinModuAdi(m)}
               </option>
             ))}
           </select>

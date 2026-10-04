@@ -1,4 +1,5 @@
 // Avatar, ajan kişi etiketi ve durum göstergesi
+import { sozluk } from "../dil";
 import { AJAN_DURUM_ADLARI, KURUL, type Ajan, type AjanDurumu } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
 import { ilkHarf } from "../yardimcilar/bicim";
@@ -95,15 +96,9 @@ export function modelAdi(model: string): string {
   return MODEL_ADLARI[model] ?? model;
 }
 
-export const IZIN_MODU_ADLARI: Record<string, string> = {
-  default: "Varsayılan",
-  acceptEdits: "Düzenlemeleri kabul et",
-  bypassPermissions: "Tam yetki (denetim kapısıyla)",
-  plan: "Plan modu",
-  dontAsk: "Sormadan",
-  auto: "Otomatik",
-};
+/** Seçilebilir izin modları; adları sözlükte (s.genel.izinModu) */
+export const IZIN_MODLARI = ["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"] as const;
 
 export function izinModuAdi(mod: string): string {
-  return IZIN_MODU_ADLARI[mod] ?? mod;
+  return sozluk().genel.izinModu[mod] ?? mod;
 }

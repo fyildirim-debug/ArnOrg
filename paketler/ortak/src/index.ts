@@ -11,6 +11,11 @@ export const ARNORG_SURUMU = "0.0.1";
 /** ISO 8601 zaman damgası */
 export type Zaman = string;
 
+/** Arayüz ve ajan dili: arayüz metinleri, ajan talimatları ve ArnOrg'un kanal mesajları bu dilde olur */
+export type Dil = "tr" | "en";
+export const DILLER: Dil[] = ["tr", "en"];
+export const DIL_ADLARI: Record<Dil, string> = { tr: "Türkçe", en: "English" };
+
 export type IzinModu = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk" | "auto";
 
 /** Claude model takma adı ya da tam model kimliği */
@@ -18,6 +23,8 @@ export type ModelAdi = "opus" | "sonnet" | "haiku" | (string & {});
 
 export interface Saglik {
   surum: string;
+  /** Ayarlardaki dil; Stüdyo açılışta buna uyar */
+  dil: Dil;
   platform: string;
   claudeBulundu: boolean;
   claudeYolu: string | null;
@@ -27,6 +34,8 @@ export interface Saglik {
 }
 
 export interface Ayarlar {
+  /** Arayüz ve ajan dili; ilk açılışta sistem dilinden seçilir */
+  dil: Dil;
   /** Kurulu Claude Code yolu; boşsa önce PATH, sonra SDK ile gelen ikili denenir */
   claudeYolu: string | null;
   /** Ajanların varsayılan izin modu */
@@ -92,6 +101,13 @@ export interface Rol {
   talimat: string;
   /** CEO rolü plan yazar, işe alım teklif eder; kod yazmaz */
   yonetici: boolean;
+  /** İngilizce ad, açıklama ve talimat (dil "en" iken kullanılır) */
+  en?: { ad: string; aciklama: string; talimat: string };
+}
+
+/** Rolün seçilen dildeki adı, açıklaması ve talimatı */
+export function rolMetni(rol: Rol, dil: Dil): { ad: string; aciklama: string; talimat: string } {
+  return dil === "en" && rol.en ? rol.en : { ad: rol.ad, aciklama: rol.aciklama, talimat: rol.talimat };
 }
 
 export type AjanDurumu =
@@ -785,6 +801,15 @@ export type KodSembolTuru =
   | "baslik"
   | "secici"
   | "tablo";
+
+/** Durum ve tür adlarının İngilizcesi; Türkçeleri yukarıdaki *_ADLARI sabitleridir */
+export const AD_HARITALARI_EN = {
+  ajanDurumu: { kapali: "Off", bosta: "Idle", calisiyor: "Working", karar_bekliyor: "Awaiting decision", duraklatildi: "Paused", hata: "Error" } as Record<AjanDurumu, string>,
+  gorevDurumu: { bekleyen: "Backlog", planlandi: "Planned", calisiliyor: "In progress", inceleme: "In review", tamam: "Done", iptal: "Cancelled" } as Record<GorevDurumu, string>,
+  karar: { izin: "Allowed", ret: "Denied", sor: "Ask for approval", degisti: "Input changed" } as Record<Karar, string>,
+  onayTuru: { arac: "Tool call", ise_alim: "Hiring", birlestirme: "Merge to main", genel: "Decision" } as Record<OnayTuru, string>,
+  hafizaTuru: { olgu: "Fact", karar: "Decision", tercih: "Board preference", ogrenilen: "Lesson", uzmanlik: "Expertise", ozet: "Summary" } as Record<HafizaTuru, string>,
+};
 
 export const KOD_SEMBOL_TURU_ADLARI: Record<KodSembolTuru, string> = {
   fonksiyon: "fonksiyon",

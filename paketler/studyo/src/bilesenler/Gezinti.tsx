@@ -1,5 +1,6 @@
 // Sol menü: ekranlar, bekleyen karar rozetleri, projeler ve ayarlar
 import { useEffect, useRef } from "react";
+import { useSozluk, type Sozluk } from "../dil";
 import { git, PROJESIZ_GORUNUMLER, useArayuz, type Gorunum } from "../durum/arayuz";
 import { useHafiza } from "../durum/hafiza";
 import { useVeri } from "../durum/veri";
@@ -7,30 +8,36 @@ import { Simge, type SimgeAdi } from "./Simge";
 
 interface Oge {
   gorunum: Gorunum;
-  ad: string;
+  /** Menü adı sözlükte s.gezinti.menu[gorunum] */
   simge: SimgeAdi;
 }
 
 const ANA: Oge[] = [
-  { gorunum: "karargah", ad: "Karargâh", simge: "karargah" },
-  { gorunum: "ofis", ad: "Ofis", simge: "ofis" },
-  { gorunum: "ekip", ad: "Ekip", simge: "ekip" },
-  { gorunum: "pano", ad: "Pano", simge: "pano" },
-  { gorunum: "kanallar", ad: "Kanallar", simge: "kanallar" },
-  { gorunum: "notlar", ad: "Notlar", simge: "notlar" },
-  { gorunum: "hafiza", ad: "Hafıza", simge: "hafiza" },
-  { gorunum: "kod", ad: "Kod", simge: "kod" },
-  { gorunum: "kod-zekasi", ad: "Kod zekâsı", simge: "kodZekasi" },
-  { gorunum: "denetim", ad: "Denetim", simge: "denetim" },
-  { gorunum: "onaylar", ad: "Onaylar", simge: "onaylar" },
+  { gorunum: "karargah", simge: "karargah" },
+  { gorunum: "ofis", simge: "ofis" },
+  { gorunum: "ekip", simge: "ekip" },
+  { gorunum: "pano", simge: "pano" },
+  { gorunum: "kanallar", simge: "kanallar" },
+  { gorunum: "notlar", simge: "notlar" },
+  { gorunum: "hafiza", simge: "hafiza" },
+  { gorunum: "kod", simge: "kod" },
+  { gorunum: "kod-zekasi", simge: "kodZekasi" },
+  { gorunum: "denetim", simge: "denetim" },
+  { gorunum: "onaylar", simge: "onaylar" },
 ];
 
 const ALT: Oge[] = [
-  { gorunum: "projeler", ad: "Projeler", simge: "projeler" },
-  { gorunum: "ayarlar", ad: "Ayarlar", simge: "ayarlar" },
+  { gorunum: "projeler", simge: "projeler" },
+  { gorunum: "ayarlar", simge: "ayarlar" },
 ];
 
+/** Menüdeki ekran adı */
+export function gorunumAdi(s: Sozluk, g: Gorunum): string {
+  return s.gezinti.menu[g as keyof Sozluk["gezinti"]["menu"]] ?? g;
+}
+
 export function Gezinti() {
+  const s = useSozluk();
   const gorunum = useArayuz((d) => d.gorunum);
   const projeVar = useVeri((d) => d.aktifProjeId !== null);
   const onaylar = useVeri((d) => d.onaylar);
@@ -54,25 +61,25 @@ export function Gezinti() {
   const rozet = (g: Gorunum) => {
     if (g === "denetim" && bekleyenArac)
       return (
-        <span className="rozet rozet-uyari" aria-label={`${bekleyenArac} araç çağrısı kararınızı bekliyor`}>
+        <span className="rozet rozet-uyari" aria-label={s.gezinti.rozetArac(bekleyenArac)}>
           {bekleyenArac}
         </span>
       );
     if (g === "onaylar" && bekleyenDiger)
       return (
-        <span className="rozet" aria-label={`${bekleyenDiger} onay bekliyor`}>
+        <span className="rozet" aria-label={s.gezinti.rozetOnay(bekleyenDiger)}>
           {bekleyenDiger}
         </span>
       );
     if (g === "hafiza" && bekleyenSoru)
       return (
-        <span className="rozet rozet-sessiz" aria-label={`${bekleyenSoru} soru yanıt bekliyor`}>
+        <span className="rozet rozet-sessiz" aria-label={s.gezinti.rozetSoru(bekleyenSoru)}>
           {bekleyenSoru}
         </span>
       );
     if (g === "kanallar" && okunmamisToplam)
       return (
-        <span className="rozet rozet-sessiz" aria-label={`${okunmamisToplam} okunmamış mesaj`}>
+        <span className="rozet rozet-sessiz" aria-label={s.gezinti.rozetOkunmamis(okunmamisToplam)}>
           {okunmamisToplam > 99 ? "99+" : okunmamisToplam}
         </span>
       );
@@ -89,18 +96,18 @@ export function Gezinti() {
         className="nav-dugme"
         aria-current={etkin ? "page" : undefined}
         disabled={kapali}
-        title={kapali ? "Önce bir proje açın" : undefined}
+        title={kapali ? s.gezinti.onceProjeAc : undefined}
         onClick={() => git(o.gorunum)}
       >
         <Simge ad={o.simge} />
-        <span>{o.ad}</span>
+        <span>{gorunumAdi(s, o.gorunum)}</span>
         {kapali ? null : rozet(o.gorunum)}
       </button>
     );
   };
 
   return (
-    <nav className="gezinti" aria-label="Stüdyo menüsü" ref={navRef}>
+    <nav className="gezinti" aria-label={s.gezinti.menuEtiketi} ref={navRef}>
       {ANA.map(dugme)}
       <div className="gezinti-alt">{ALT.map(dugme)}</div>
     </nav>

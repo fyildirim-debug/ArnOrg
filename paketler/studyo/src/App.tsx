@@ -1,6 +1,7 @@
 // Uygulama kabuğu ve ekran yönlendirmesi
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { anahtar, anahtarDinle } from "./api/anahtar";
+import { useDil } from "./dil";
 import { Bildirimler } from "./bilesenler/Bildirimler";
 import { CanliRay } from "./bilesenler/CanliRay";
 import { Iskelet } from "./bilesenler/Durumlar";
@@ -48,6 +49,8 @@ const TAM_YUKSEKLIK: Gorunum[] = ["kod", "ajan", "kanallar", "ofis"];
 const KENARSIZ: Gorunum[] = ["ofis"];
 
 function Studyo() {
+  // Dil değişince bütün ağaç yeni sözlük ve biçimlerle yeniden çizilir
+  useDil();
   const gorunum = useArayuz((d) => d.gorunum);
   const rayAcik = useArayuz((d) => d.rayAcik);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);

@@ -31,7 +31,8 @@ const kopya = (x) => structuredClone(x);
 // ---------------------------------------------------------------------------
 
 const db = {
-  ayarlar: { claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, disEditor: "codium", tikanmaDakika: 20, besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95, kodZekasiModeli: "kaliteli", kodZekasiOtomatik: true },
+  // Dil: ARNORG_DIL=en ile İngilizce başlar; Ayarlar'dan değişir
+  ayarlar: { dil: process.env.ARNORG_DIL === "en" ? "en" : "tr", claudeYolu: null, varsayilanIzinModu: "bypassPermissions", onaySuresiSn: 600, disEditor: "codium", tikanmaDakika: 20, besSaatlikSinirYuzde: 90, haftalikSinirYuzde: 95, kodZekasiModeli: "kaliteli", kodZekasiOtomatik: true },
   projeler: kopya(V.projeler),
   ajanlar: kopya(V.ajanlar),
   gorevler: kopya(V.gorevler),
@@ -783,6 +784,7 @@ const rota = (yontem, desen, isleyici) => rotalar.push({ yontem, desen: new RegE
 
 rota("GET", "/api/saglik", () => ({
   surum: SURUM,
+  dil: db.ayarlar.dil,
   platform: `${process.platform}-${process.arch}`,
   claudeBulundu: true,
   claudeYolu: "/home/furkan/.local/bin/claude",

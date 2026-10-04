@@ -30,6 +30,26 @@ export interface KarakterTanimi {
   sozler: string[];
   /** Ofiste nasıl hareket eder (tekerlekli sandalye kullanan karakter adım sallanması yapmaz) */
   hareket?: "yuruyen" | "tekerlekli";
+  /** İngilizce metinler (dil "en" iken kullanılır) */
+  en?: KarakterCevirisi;
+}
+
+/** Karakterin dile bağlı metinleri */
+export interface KarakterCevirisi {
+  ad: string;
+  lakap: string;
+  ozet: string;
+  mizac: [string, string, string];
+  konusma: string;
+  calisma: string;
+  dikkat: string;
+  sozler: string[];
+}
+
+/** Karakterin seçilen dildeki metinleri; çevirisi yoksa Türkçesi */
+export function karakterMetni(k: KarakterTanimi, dil: "tr" | "en"): KarakterCevirisi {
+  if (dil === "en" && k.en) return k.en;
+  return { ad: k.ad, lakap: k.lakap, ozet: k.ozet, mizac: k.mizac, konusma: k.konusma, calisma: k.calisma, dikkat: k.dikkat, sozler: k.sozler };
 }
 
 export const KARAKTERLER: KarakterTanimi[] = [

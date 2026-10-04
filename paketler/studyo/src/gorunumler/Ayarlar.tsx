@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { api } from "../api/uclar";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
-import { IZIN_MODU_ADLARI } from "../bilesenler/Kisi";
+import { IZIN_MODLARI, izinModuAdi } from "../bilesenler/Kisi";
 import { bildir } from "../durum/arayuz";
 import { hesabiYukle, useVeri } from "../durum/veri";
 import { akilliZaman, yuzde } from "../yardimcilar/bicim";
@@ -162,7 +162,7 @@ export function Ayarlar() {
                   value={taslak.varsayilanIzinModu}
                   onChange={(e) => degistir({ varsayilanIzinModu: e.target.value as IzinModu })}
                 >
-                  {Object.entries(IZIN_MODU_ADLARI).map(([k, ad]) => (
+                  {IZIN_MODLARI.map((k) => [k, izinModuAdi(k)] as const).map(([k, ad]) => (
                     <option key={k} value={k}>
                       {ad}
                     </option>
