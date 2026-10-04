@@ -1,5 +1,6 @@
 // Düzeltme notları (uygulama içi tarayıcı): ekleme ve görsel, sınırlar, not düzeltme, silme, proje silme ve
 // "Hepsini yaptır" ile #yonetim'e giden kurul mesajı. Claude Code oturumu açılmaz; istekler inject ile gider.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -27,6 +28,8 @@ let sirket: Sirket;
 let app: FastifyInstance;
 let pid: string;
 let projeYolu: string;
+/** Silinmek üzere açılan ikinci proje: en başta açılır ki git'in commit sonrası arka plan işi testler bitmeden sona ersin */
+let geciciPid: string;
 const olaylar = new OlayYolu();
 const gelenler: SunucuOlayi[] = [];
 
@@ -55,6 +58,7 @@ beforeAll(async () => {
   const p = await sirket.projeOlustur({ ad: "Vitrin", yol: path.join(gecici, "vitrin"), olustur: true });
   pid = p.id;
   projeYolu = p.yol;
+  geciciPid = (await sirket.projeOlustur({ ad: "Geçici", yol: path.join(gecici, "gecici"), olustur: true })).id;
   app = await sunucuKur({ sirket, terminaller: new TerminalYoneticisi(), erisimAnahtari: ANAHTAR, studyoDizini: null, izinliHostlar: [HOST] });
 });
 
@@ -62,9 +66,26 @@ afterAll(async () => {
   await app.close();
   sirket.kapat();
   depo.kapat();
-  // Windows yeni açılan git deposunun dosyalarını kısa süre kilitli tutabilir (EBUSY); silme yeniden denenir
-  fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-});
+  // Windows yeni açılan git deposunun klasörünü kısa süre kilitli tutabilir (EBUSY); silme yeniden denenir. Yine de
+  // silinemezse klasörü tutan süreçler kayda yazılır ve hata yükselir (sızan bir tanıtıcı gizlenmesin)
+  try {
+    fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+  } catch (h) {
+    if (process.platform === "win32") {
+      try {
+        const surecler = execFileSync(
+          "powershell",
+          ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'git|arnorg' } | Select-Object ProcessId,ParentProcessId,CommandLine | Format-List | Out-String -Width 400"],
+          { encoding: "utf8", windowsHide: true },
+        );
+        console.error(`Klasörü tutabilecek süreçler:\n${surecler}`);
+      } catch {
+        // tanı alınamadı
+      }
+    }
+    throw h;
+  }
+}, 30_000);
 
 describe("görsel denetimi", () => {
   it("data: önekli ve öneksiz PNG'yi çözer", () => {
@@ -198,11 +219,10 @@ describe("düzeltme notları API", () => {
   });
 
   it("proje silinince notları da silinir", async () => {
-    const p = await sirket.projeOlustur({ ad: "Geçici", yol: path.join(gecici, "gecici"), olustur: true });
-    await istek("POST", `/api/projeler/${p.id}/duzeltmeler`, { adres: "http://localhost:3000/", not: "Silinecek" });
-    const say = () => (depo.db.prepare("SELECT count(*) n FROM duzeltmeler WHERE proje_id = ?").get(p.id) as { n: number }).n;
+    await istek("POST", `/api/projeler/${geciciPid}/duzeltmeler`, { adres: "http://localhost:3000/", not: "Silinecek" });
+    const say = () => (depo.db.prepare("SELECT count(*) n FROM duzeltmeler WHERE proje_id = ?").get(geciciPid) as { n: number }).n;
     expect(say()).toBe(1);
-    sirket.projeSil(p.id);
+    sirket.projeSil(geciciPid);
     expect(say()).toBe(0);
   });
 });
