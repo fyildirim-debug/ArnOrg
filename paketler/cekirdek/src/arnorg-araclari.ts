@@ -77,6 +77,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
   };
 
   const inceleyebilir = () => yonetici() || ["inceleme", "test", "guvenlik"].includes(rolBul(ben().rol)?.kimlik ?? "");
+  /** Kalite kapısının test komutu (araç açıklamasında anılır) */
+  const testKomutu = sirket.depo.proje(sirket.depo.ajan(ajanId)?.projeId ?? "")?.testKomutu ?? null;
 
   const araclar = [
     tool(
@@ -674,8 +676,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "birlestirme_iste",
       iki(
-        "Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.",
-        "Asks the board to approve merging an employee's branch into the main branch. As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.",
+        `Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.${testKomutu ? ` Onaylanınca kalite kapısında ${testKomutu} koşar, geçmezse birleşmez; önce aynı komutu kendi çalışma alanında koş.` : ""}`,
+        `Asks the board to approve merging an employee's branch into the main branch. As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.${testKomutu ? ` Once approved, the quality gate runs ${testKomutu} and the branch is not merged if it fails; run the same command in your working directory first.` : ""}`,
       ),
       {
         ozet: z.string().min(10).describe(iki("Neler değişti, testler", "What changed, tests")),
@@ -711,6 +713,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             return hata(iki("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.", "Only the code reviewer and managers can request a merge for someone else's branch."));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "birlestirme" && (o.veri as { dal?: string })?.dal === sahip.dal);
           if (bekleyen) return metin(iki(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`, `A merge request for ${sahip.dal} is already waiting for the board.`));
+          if (sirket.birlestirmeKuyrugu.suruyorMu(ben().projeId, sahip.dal))
+            return metin(iki(`${sahip.dal} onaylandı ve kalite kapısında (kuyrukta ya da testte); sonuç sana bildirilecek.`, `${sahip.dal} was approved and is at the quality gate (queued or testing); you will be told the result.`));
           const onay = sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${proje().varsayilanDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId });
           return metin(
             iki(

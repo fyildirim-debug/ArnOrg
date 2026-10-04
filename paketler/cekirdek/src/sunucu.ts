@@ -34,6 +34,7 @@ import { olayProjesi } from "./olaylar.js";
 import { claudeSurumu, temizOrtam } from "./ortam.js";
 import { raporOlustur } from "./gozetmen.js";
 import { HAFIZA_TURLERI } from "./hafiza.js";
+import { kaliteOnerisi } from "./kalite-kapisi.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
@@ -88,6 +89,9 @@ const semalar = {
     otomatikGonder: z.boolean().optional(),
     hazirlik: z.enum(["bekliyor", "suruyor", "tamam", "atlandi"]).optional(),
     otomatikOnay: z.object({ etkin: z.boolean(), turler: z.array(z.enum(["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"])) }).optional(),
+    testKomutu: z.string().max(2000).nullable().optional(),
+    hazirlikKomutu: z.string().max(2000).nullable().optional(),
+    testZamanAsimiDk: z.number().int().min(1).max(240).optional(),
   }),
   klonla: z.object({
     depo: z.string().min(3).max(220),
@@ -312,6 +316,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/dallar", async (i) => sirket.projeDallari(param(i, "pid")));
   app.post("/api/projeler/:pid/esitle", async (i) => sirket.esitle(param(i, "pid"), z.object({ gonder: z.boolean().optional() }).parse(i.body ?? {}).gonder ?? false));
   app.post("/api/projeler/:pid/github", async (i) => sirket.githubDeposuAc(param(i, "pid"), govde(semalar.githubDeposu, i)));
+  // Kalite kapısı için tek tıklık öneri (proje kökündeki package.json'da gerçek test betiği varsa npm test)
+  app.get("/api/projeler/:pid/kalite-onerisi", async (i) => kaliteOnerisi(sirket.proje(param(i, "pid")).yol));
   app.post("/api/projeler/:pid/hazirlik", async (i) => {
     const pid = param(i, "pid");
     const islem = z.object({ islem: z.enum(["baslat", "atla"]) }).parse(i.body ?? {}).islem;
@@ -594,6 +600,9 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const g = govde(semalar.onay, i);
     return sirket.onayKarari(param(i, "oid"), g.karar, g.not);
   });
+  // Kalite kapısında kalan birleştirme: testsiz birleştir ya da kapıdan yeniden geçir; dalın hedefe göre farkı
+  app.post("/api/onaylar/:oid/birlestir", async (i) => sirket.birlestirmeKuyrugu.yeniden(param(i, "oid"), z.object({ testsiz: z.boolean() }).parse(i.body ?? {}).testsiz));
+  app.get("/api/onaylar/:oid/fark", async (i) => sirket.birlestirmeKuyrugu.fark(param(i, "oid")));
 
   // ---------------- kod ----------------
   const duzenleyen = (tam: string): string | null => {

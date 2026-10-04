@@ -1,5 +1,5 @@
-// Proje ayarları: çalışma dalı (yerel ve uzak dallar), uzak depo (GitHub bağlantısı, eşitleme, GitHub'da depo açma)
-// ve onaylı birleştirmeden sonra uzak depoya gönderim. Projeler ekranında satırın altında açılır.
+// Proje ayarları: çalışma dalı (yerel ve uzak dallar), uzak depo (GitHub bağlantısı, eşitleme, GitHub'da depo açma),
+// onaylı birleştirmeden sonra uzak depoya gönderim ve kalite kapısı. Projeler ekranında satırın altında açılır.
 import type { EsitlemeSonucu, ProjeDallari, ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useState } from "react";
 import { hataMetni } from "../api/istek";
@@ -12,6 +12,7 @@ import { akilliZaman } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 import { DalSecici, type DalSecenegi } from "./DalSecici";
 import { DisBaglanti } from "./DisBaglanti";
+import { KaliteAyari } from "./KaliteKapisi";
 import { dalAdiGecerliMi } from "./kurulumYardimcilari";
 import { GorunurlukSecimi, SahipSecimi } from "./ProjeAcici";
 import { Simge } from "./Simge";
@@ -221,6 +222,8 @@ export function ProjeAyarlari({ proje, id }: { proje: ProjeOzeti; id?: string })
           <p className="alan-ipucu">{uzakAdi ? t.otomatikGonderIpucu : t.otomatikGonderUzakYok}</p>
         </div>
       </section>
+
+      <KaliteAyari proje={proje} k={k} />
       {hata && suruyor === null ? (
         <p className="alan-hata proje-ayar-hata" role="alert">
           {hata}

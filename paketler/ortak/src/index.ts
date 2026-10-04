@@ -87,6 +87,12 @@ export interface Proje {
   hazirlik: HazirlikDurumu;
   /** Açıkken seçili türdeki onaylar kendiliğinden verilir (kayıt yine tutulur) */
   otomatikOnay: OtomatikOnay;
+  /** Kalite kapısı: onaylı birleştirme ana dala girmeden önce kalite çalışma alanında koşan komut; null ise yalnız birleşebilirlik denetlenir */
+  testKomutu: string | null;
+  /** Testten önce koşan hazırlık komutu (ör. npm ci); null ise yok */
+  hazirlikKomutu: string | null;
+  /** Hazırlık ve testin toplam süre sınırı (dakika) */
+  testZamanAsimiDk: number;
 }
 
 export interface OtomatikOnay {
@@ -127,6 +133,11 @@ export interface ProjeGuncelleIstegi {
   otomatikGonder?: boolean;
   hazirlik?: HazirlikDurumu;
   otomatikOnay?: OtomatikOnay;
+  /** Kalite kapısı komutları; boş metin ya da null kaldırır */
+  testKomutu?: string | null;
+  hazirlikKomutu?: string | null;
+  /** 1–240 dakika */
+  testZamanAsimiDk?: number;
 }
 
 /** GitHub'daki depoyu klonlayıp proje olarak açar (POST /api/github/klonla) */
@@ -498,6 +509,63 @@ export interface Onay {
 export interface OnayKararIstegi {
   karar: "onayla" | "reddet";
   not?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Kalite kapısı: onaylanan birleştirmeler proje başına sırayla test edilir, geçen ana dala girer
+// ---------------------------------------------------------------------------
+
+/** kuyrukta → hazirlik → test → birlesti; ya da cakisma, test_basarisiz, zaman_asimi, hata */
+export type BirlestirmeDurumu = "kuyrukta" | "hazirlik" | "test" | "birlesti" | "cakisma" | "test_basarisiz" | "zaman_asimi" | "hata";
+
+/** İşi bitmiş (artık kuyrukta ya da çalışmıyor) durumlar */
+export const BIRLESTIRME_SON_DURUMLARI: BirlestirmeDurumu[] = ["birlesti", "cakisma", "test_basarisiz", "zaman_asimi", "hata"];
+
+/** Kurulun testsiz birleştirebileceği ya da kalite kapısından yeniden geçirebileceği sonuçlar */
+export const YENIDEN_BIRLESTIRILEBILIR: BirlestirmeDurumu[] = ["test_basarisiz", "zaman_asimi", "hata"];
+
+/** Onaylanan birleştirmenin kalite kapısı kaydı: onayın veri.kalite alanında durur, her adımda onay.sonuc ile yeniden yayınlanır */
+export interface BirlestirmeKalitesi {
+  durum: BirlestirmeDurumu;
+  /** Kuyruktayken sırası (çalışan iş 1. sıradadır); değilse null */
+  sira: number | null;
+  /** Kuyruğa girdiği andaki dal commit'i: test edilen ve birleştirilen tam olarak budur */
+  dalCommit: string | null;
+  /** Son denemede test edilen hedef dal commit'i */
+  hedefCommit: string | null;
+  /** Projede test komutu yoktu: yalnız birleşebilirlik denetlendi */
+  testYok: boolean;
+  /** Kurul testsiz birleştirmeyi seçti */
+  testsiz: boolean;
+  /** Koşan ya da son koşan komut */
+  komut: string | null;
+  /** Hedef dal ilerleyince iş yeniden test edilir; kaçıncı deneme */
+  deneme: number;
+  kuyrugaGiris: Zaman;
+  baslangic: Zaman | null;
+  /** Şu anki adımın (hazırlık, test) başladığı an */
+  adimBaslangic: Zaman | null;
+  bitis: Zaman | null;
+  /** İşin süresi (ms): kalite alanı, hazırlık, test ve birleştirme */
+  sureMs: number | null;
+  /** Komut çıktısının son kısmı (en çok 300 satır, 64 KB) */
+  cikti: string;
+  /** Kısa açıklama: çıkış kodu, çakışan dosyalar, hata nedeni */
+  mesaj: string | null;
+}
+
+/** POST /api/onaylar/:oid/birlestir: kalite kapısında kalan birleştirme için kurulun kararı */
+export interface BirlestirmeYenidenIstegi {
+  /** true: test koşmadan birleştir; false: kalite kapısından yeniden geçir */
+  testsiz: boolean;
+}
+
+/** GET /api/projeler/:pid/kalite-onerisi: proje kökündeki package.json'a göre tek tıkla doldurulabilir komutlar */
+export interface KaliteOnerisi {
+  /** Gerçek bir "test" betiği varsa "npm test" */
+  testKomutu: string | null;
+  /** package-lock.json varsa "npm ci", yoksa "npm install" (yalnız test önerisi varken) */
+  hazirlikKomutu: string | null;
 }
 
 // ---------------------------------------------------------------------------

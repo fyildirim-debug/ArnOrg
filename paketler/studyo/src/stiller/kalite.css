@@ -1,0 +1,329 @@
+/* Kalite kapısı: onaylanmış birleştirmenin durum satırı ve test çıktısı, dalın farkı (çekmece), proje ayarındaki
+   komutlar. Kart ve gölge yok; durum rengi tek değişkenden gelir, süren iş tek vurguyla (mercan) görünür. */
+
+/* ---------- onay geçmişinde durum satırı ---------- */
+/* Özet satırının başlık sütunundan başlar (tür sütunu 8.5rem); dar kapta sola yaslanır */
+.kalite {
+  --kalite-renk: var(--muted);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-2);
+  margin-top: calc(var(--b-1) * -1);
+  padding: 0 0 var(--b-4) calc(8.5rem + var(--b-6));
+}
+.kalite[data-durum="hazirlik"],
+.kalite[data-durum="test"] {
+  --kalite-renk: var(--coral);
+}
+.kalite[data-durum="birlesti"] {
+  --kalite-renk: var(--ok);
+}
+.kalite[data-durum="cakisma"],
+.kalite[data-durum="test_basarisiz"],
+.kalite[data-durum="hata"] {
+  --kalite-renk: var(--sil);
+}
+.kalite[data-durum="zaman_asimi"] {
+  --kalite-renk: var(--warn);
+}
+.kalite-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-4);
+}
+.kalite-durum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+  min-width: 0;
+  font-size: var(--t-xs);
+  line-height: 1.5;
+}
+.kalite-isaret {
+  display: inline-flex;
+  color: var(--kalite-renk);
+}
+.kalite-isaret .doner {
+  width: 0.6875rem;
+  height: 0.6875rem;
+}
+.kalite-ad {
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kalite-renk);
+}
+.kalite-ayrinti {
+  min-width: 0;
+  color: var(--bone);
+  overflow-wrap: anywhere;
+}
+.kalite-gecen {
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.kalite-eylemler {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-3);
+  margin-left: auto;
+}
+.kalite-cikti-ac {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--t-xs);
+}
+.kalite-cikti-ac svg {
+  transition: transform var(--hiz) var(--egri);
+}
+.kalite-cikti-ac[aria-expanded="true"] {
+  color: var(--paper);
+}
+.kalite-cikti-ac[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.kalite-mesaj {
+  max-width: 68ch;
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+.kalite-not {
+  max-width: 68ch;
+  margin-top: calc(var(--b-1) * -1);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.kalite .onay-sor {
+  max-width: 40rem;
+}
+.kalite-cikti {
+  max-height: 20rem;
+  margin: 0;
+  padding: var(--b-3);
+  overflow: auto;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  color: var(--bone);
+  font-size: var(--t-2xs);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: acilir-gir var(--hiz) var(--egri);
+}
+.kalite-cikti-canli {
+  border-color: var(--coral-cizgi);
+}
+.kalite-cikti:focus-visible,
+.fark-kod:focus-visible {
+  outline: 1px solid var(--coral);
+  outline-offset: 1px;
+}
+.onay-dal .metin-dugme {
+  margin-left: var(--b-2);
+  font-size: var(--t-xs);
+}
+
+/* Dar kapta önce ne olduğu (durum, açıklama), sonra yapılabilecekler */
+@container (max-width: 40rem) {
+  .kalite {
+    padding-left: 0;
+  }
+  .kalite-satir {
+    display: contents;
+  }
+  .kalite-eylemler {
+    order: 1;
+    margin-left: 0;
+  }
+  .kalite > .onay-sor {
+    order: 2;
+  }
+  .kalite-cikti {
+    order: 3;
+  }
+}
+
+/* ---------- fark çekmecesi ---------- */
+.cekmece:has(.fark) {
+  width: min(60rem, 100vw);
+}
+.fark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-6);
+}
+.fark-toplam {
+  margin-bottom: var(--b-2);
+  color: var(--bone);
+  font-size: var(--t-xs);
+}
+.fark-dosyalar ul {
+  display: grid;
+  list-style: none;
+  border-top: 1px solid var(--line-soft);
+}
+.fark-dosyalar li {
+  border-bottom: 1px solid var(--line-soft);
+}
+.fark-dosya-bag {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--b-3);
+  padding: 0.4375rem 0;
+  color: var(--bone);
+  font-size: var(--t-xs);
+  text-decoration: none;
+}
+.fark-dosya-bag:hover .fark-yol,
+.fark-dosya-bag:focus-visible .fark-yol {
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: var(--coral);
+  text-underline-offset: 0.2em;
+}
+.fark-tur {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.125rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.fark-tur[data-tur="A"] {
+  border-color: oklch(0.8 0.12 155 / 0.4);
+  color: var(--ok);
+}
+.fark-tur[data-tur="D"] {
+  border-color: oklch(0.74 0.15 22 / 0.45);
+  color: var(--sil);
+}
+.fark-yol {
+  overflow-wrap: anywhere;
+}
+.fark-dosya {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--b-2);
+  scroll-margin-top: var(--b-4);
+}
+.fark-dosya-ad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem var(--b-3);
+  font-size: var(--t-xs);
+  font-weight: 500;
+}
+.fark-dosya-ad code {
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+.fark-dosya-ust {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  font-weight: 400;
+}
+/* Satırlar en uzun satır kadar geniş; ekleme ve silme zemini kaydırınca da satırın sonuna kadar uzanır */
+.fark-kod {
+  display: grid;
+  grid-template-columns: minmax(100%, max-content);
+  overflow-x: auto;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  font-size: var(--t-2xs);
+  line-height: 1.7;
+}
+.fark-satir {
+  display: grid;
+  grid-template-columns: 3.25rem 1.25rem max-content;
+}
+.fark-no {
+  padding-right: 0.5rem;
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  user-select: none;
+}
+.fark-isaret {
+  color: var(--muted-2);
+  text-align: center;
+  user-select: none;
+}
+.fark-metin {
+  padding-right: var(--b-4);
+  color: var(--bone);
+  white-space: pre;
+}
+.fark-ekle {
+  background: var(--ekle-zemin);
+}
+.fark-ekle .fark-isaret {
+  color: var(--ok);
+}
+.fark-sil {
+  background: var(--sil-zemin);
+}
+.fark-sil .fark-isaret {
+  color: var(--sil);
+}
+.fark-sil .fark-metin {
+  color: var(--muted);
+}
+.fark-parca {
+  margin: 0.125rem 0;
+  background: var(--ink-3);
+}
+.fark-parca .fark-metin {
+  color: var(--muted);
+}
+.fark-bilgi .fark-metin {
+  color: var(--muted-2);
+}
+
+/* ---------- proje ayarı ---------- */
+.kalite-ayar {
+  max-width: 36rem;
+  gap: var(--b-3);
+}
+.kalite-ayar-oneri {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.kalite-ayar-oneri code {
+  color: var(--paper);
+}
+.kalite-ayar-oneri .metin-dugme {
+  font-size: var(--t-2xs);
+}
+.kalite-ayar-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--b-3) var(--b-4);
+}
+.kalite-ayar-sure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--t-xs);
+}
+.kalite-ayar-sure .girdi {
+  width: 5rem;
+}

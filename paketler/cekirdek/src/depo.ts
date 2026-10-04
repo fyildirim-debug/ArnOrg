@@ -277,6 +277,10 @@ export class Depo {
     if (!projeSutunlari.includes("otomatik_gonder")) this.db.exec("ALTER TABLE projeler ADD COLUMN otomatik_gonder INTEGER NOT NULL DEFAULT 1");
     if (!projeSutunlari.includes("hazirlik")) this.db.exec("ALTER TABLE projeler ADD COLUMN hazirlik TEXT NOT NULL DEFAULT 'tamam'");
     if (!projeSutunlari.includes("otomatik_onay")) this.db.exec(`ALTER TABLE projeler ADD COLUMN otomatik_onay TEXT NOT NULL DEFAULT '{"etkin":false,"turler":[]}'`);
+    // 0.0.4: kalite kapısı (birleştirmeden önce koşan test ve hazırlık komutu, süre sınırı)
+    if (!projeSutunlari.includes("test_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_komutu TEXT");
+    if (!projeSutunlari.includes("hazirlik_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN hazirlik_komutu TEXT");
+    if (!projeSutunlari.includes("test_zaman_asimi_dk")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_zaman_asimi_dk REAL NOT NULL DEFAULT 20");
     // Kurul ile CEO'nun bire bir kanalı her projede bulunur
     this.db.prepare("INSERT OR IGNORE INTO kanallar (proje_id, ad, aciklama) SELECT id, 'yonetim', 'Yönetim kurulu ile CEO''nun bire bir sohbeti' FROM projeler").run();
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
@@ -318,7 +322,10 @@ export class Depo {
     return this.proje(id)!;
   }
 
-  projeGuncelle(id: string, alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay">>): Proje {
+  projeGuncelle(
+    id: string,
+    alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay" | "testKomutu" | "hazirlikKomutu" | "testZamanAsimiDk">>,
+  ): Proje {
     const sutunlar: Record<string, string> = {
       ad: "ad",
       aciklama: "aciklama",
@@ -327,6 +334,9 @@ export class Depo {
       otomatikGonder: "otomatik_gonder",
       hazirlik: "hazirlik",
       otomatikOnay: "otomatik_onay",
+      testKomutu: "test_komutu",
+      hazirlikKomutu: "hazirlik_komutu",
+      testZamanAsimiDk: "test_zaman_asimi_dk",
     };
     const atamalar: string[] = [];
     const degerler: unknown[] = [];
@@ -356,6 +366,9 @@ export class Depo {
       hazirlik: (String(s.hazirlik ?? "tamam") as Proje["hazirlik"]),
       // Hiç ayarlanmamış projede kutu işaretlenince varsayılan türler geçerli olsun
       otomatikOnay: jsonOku<OtomatikOnay>(s.otomatik_onay as string | null, { etkin: false, turler: [...VARSAYILAN_OTOMATIK_ONAY_TURLERI] }),
+      testKomutu: (s.test_komutu as string | null) ?? null,
+      hazirlikKomutu: (s.hazirlik_komutu as string | null) ?? null,
+      testZamanAsimiDk: Number(s.test_zaman_asimi_dk ?? 20) || 20,
     };
   }
 
@@ -718,6 +731,12 @@ export class Depo {
   onaySonuclandir(id: string, durum: OnayDurumu, not: string | null): Onay {
     this.db.prepare("UPDATE onaylar SET durum = ?, sonuclanma = ?, not_metni = ? WHERE id = ? AND durum = 'bekliyor'").run(durum, simdi(), not, id);
     return this.onay(id)!;
+  }
+
+  /** Sonuçlanmış onayın verisini değiştirir (birleştirmenin kalite kapısı kaydı) */
+  onayVerisiYaz(id: string, veri: unknown): Onay | null {
+    this.db.prepare("UPDATE onaylar SET veri = ? WHERE id = ?").run(JSON.stringify(veri ?? null), id);
+    return this.onay(id);
   }
 
   /** Uygulama kapanırken bekleyen araç onayları anlamını yitirir; not o anki dilde yazılır */

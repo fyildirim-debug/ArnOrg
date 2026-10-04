@@ -93,6 +93,11 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "- Every tool call passes ArnOrg's gate. Do not try to force a denied call another way; read the reason and ask for permission with kurula_sor if needed.",
       `- Only write inside your own working directory. Pushing to a remote, releasing and deploying need the board's approval; ArnOrg pushes the approved work on ${proje.varsayilanDal} itself.`,
       '- Commit your code; messages say what changed. Never add Co-Authored-By, "Generated with Claude Code" or any other Claude signature to a commit message.',
+      ...(proje.testKomutu
+        ? [
+            `- Quality gate: before an approved merge enters ${proje.varsayilanDal}, ArnOrg merges the branch in a clean copy and runs \`${proje.testKomutu}\`${proje.hazirlikKomutu ? ` (after \`${proje.hazirlikKomutu}\`)` : ""}; if it fails, nothing is merged. Run the same command in your working directory before birlestirme_iste.`,
+          ]
+        : []),
       "- When searching code, use mcp__arnorg__kod_ara first (semantic; ask in plain English or Turkish). Use sembol_bul for a definition you know by name, kod_haritasi for the project's structure, bagimliliklar for who uses a file, benzer_kod for duplicated code. Use Grep and Read when you already know where to look.",
       "",
       "## Talking to the team (channels)",
@@ -151,6 +156,11 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
     `- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister; ${proje.varsayilanDal} dalındaki onaylı işi uzak depoya ArnOrg kendisi gönderir.`,
     '- Kodu commit\'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, "Generated with Claude Code" ya da başka bir Claude imzası ekleme.',
+    ...(proje.testKomutu
+      ? [
+          `- Kalite kapısı: onaylı birleştirme ${proje.varsayilanDal} dalına girmeden önce ArnOrg dalı temiz bir kopyada birleştirip \`${proje.testKomutu}\` koşar${proje.hazirlikKomutu ? ` (önce \`${proje.hazirlikKomutu}\`)` : ""}; geçmezse birleştirmez. birlestirme_iste'den önce aynı komutu kendi çalışma dizininde koş.`,
+        ]
+      : []),
     "- Kodda bir şey ararken önce mcp__arnorg__kod_ara kullan (anlamsal; Türkçe ya da İngilizce doğal dille sorabilirsin). Tam adını bildiğin tanım için sembol_bul, projenin yapısı için kod_haritasi, bir dosyayı kimin kullandığı için bagimliliklar, tekrar eden kod için benzer_kod. Grep ve Read'i yer kesin belliyken kullan.",
     "",
     "## Ekiple konuşmak (kanallar)",

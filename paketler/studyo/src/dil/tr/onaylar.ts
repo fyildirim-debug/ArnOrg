@@ -61,7 +61,6 @@ export const onaylar = {
     /** yonetici null: doğrudan kurula bağlanır */
     iseAlim: (ad: string, rol: string, yonetici: string | null) =>
       `${ad}, ${rol} olarak ekibe katılır ve ${yonetici ? yonelme(yonetici) : "doğrudan kurula"} bağlanır; çalışma alanı hazırlanır.`,
-    birlestirme: (dal: string, hedef: string) => `${dal} dalı ${hedef} dalına birleştirilir; incelemedeki görevler Tamam'a geçer.`,
     genel: (ajan: string) => `${ajan} kararınızı alır ve buna göre ilerler; notunuz yanıt olarak iletilir.`,
     arac: (ajan: string, arac: string) => `${ajan} bu ${arac} çağrısını çalıştırır.`,
     anayasa: (madde: number) => `Ana yasa ${madde} maddeyle yürürlüğe girer; CEO dahil herkes uyar, makine kuralları denetim kapısında uygulanır.`,

@@ -55,7 +55,6 @@ export const onaylar: typeof tr = {
   etki: {
     iseAlim: (ad: string, rol: string, yonetici: string | null) =>
       `${ad} joins the team as ${rol} and reports to ${yonetici ?? "the board directly"}; a workspace is set up for them.`,
-    birlestirme: (dal: string, hedef: string) => `${dal} is merged into ${hedef}; tasks in review move to Done.`,
     genel: (ajan: string) => `${ajan} gets your decision and goes ahead accordingly; your note is passed on as the answer.`,
     arac: (ajan: string, arac: string) => `${ajan} runs this ${arac} call.`,
     anayasa: (madde: number) => `The constitution takes effect with ${madde} ${madde === 1 ? "article" : "articles"}; everyone, the CEO included, follows it and machine rules are enforced at the gate.`,

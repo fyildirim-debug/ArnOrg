@@ -86,6 +86,7 @@ export interface ToplantiSonucu {
 /** ajana_sor sonucu: yakın zamanda yanıtlanmış aynı soru ya da ArnOrg'un seçtiği uzman bilgisiyle */
 export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
 import { arnorgAraclari } from "./arnorg-araclari.js";
+import { BirlestirmeKuyrugu, birlestirmeVerisi, kaliteAyarlari, kaliteDuyurusu, sureMetni } from "./birlestirme-kuyrugu.js";
 import type { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
 import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
@@ -94,7 +95,7 @@ import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./polit
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
-import { ArnorgHatasi, belirtme, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, sadelestir, simdi, yonelme } from "./yardimci.js";
+import { ArnorgHatasi, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, sadelestir, simdi, yonelme } from "./yardimci.js";
 
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
@@ -178,6 +179,8 @@ export class Sirket {
   /** Yazıyor göstergesi: ajan → kanal ve bitiş zamanlayıcısı */
   private readonly yaziyorlar = new Map<string, { projeId: string; kanal: string; zamanlayici: NodeJS.Timeout }>();
   private esitlemeZamanlayici: NodeJS.Timeout | null = null;
+  /** Onaylanan birleştirmelerin proje başına sırası ve kalite kapısı (test geçerse ana repoda birleştirme) */
+  readonly birlestirmeKuyrugu: BirlestirmeKuyrugu;
 
   constructor(
     readonly depo: Depo,
@@ -217,6 +220,15 @@ export class Sirket {
     this.kuresel = new KureselZeka(depo, olaylar, yapilandirma.veriDizini, damitici);
     // Global zekâ gözlemleri: kurul tercihleri ve dersler kurala dönüşür
     olaylar.dinle((o) => this.zekaGozlemi(o));
+    this.birlestirmeKuyrugu = new BirlestirmeKuyrugu({
+      depo,
+      olaylar,
+      kaliteKoku: path.join(yapilandirma.veriDizini, "kalite"),
+      arnorgCommitle: (pid) => this.arnorgCommitle(pid),
+      birlesti: (onay) => this.birlesmeSonrasi(onay),
+      sistemMesaji: (ajanId, metin) => this.sistemMesaji(ajanId, metin),
+      duyur: (pid, metin) => this.duyur(pid, metin),
+    });
   }
 
   /** Gözlemi arka planda damıtıp global zekâya işler; hata iş akışını etkilemez */
@@ -482,6 +494,8 @@ export class Sirket {
     if (istek.aciklama !== undefined) alanlar.aciklama = istek.aciklama.trim().slice(0, 2000);
     if (istek.otomatikGonder !== undefined) alanlar.otomatikGonder = istek.otomatikGonder;
     if (istek.hazirlik !== undefined) alanlar.hazirlik = istek.hazirlik;
+    // Kalite kapısı: test ve hazırlık komutu, süre sınırı (birlestirme-kuyrugu.ts)
+    Object.assign(alanlar, kaliteAyarlari(istek));
     let bekleyenleriOnayla = false;
     if (istek.otomatikOnay !== undefined) {
       const turler = [...new Set(istek.otomatikOnay.turler.filter((t) => ONAY_TURLERI.includes(t)))];
@@ -500,7 +514,8 @@ export class Sirket {
       alanlar.varsayilanDal = dal;
       this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`Çalışma dalı ${dal} oldu. Yeni işler bu daldan açılır, onaylı birleştirmeler bu dala girer.`, `The working branch is now ${dal}. New work branches off it and approved merges go into it.`));
     }
-    this.depo.projeGuncelle(id, alanlar);
+    const kalite = kaliteDuyurusu(p, this.depo.projeGuncelle(id, alanlar));
+    if (kalite) this.duyur(id, kalite);
     // Otomatik onay açıkken bekleyen uygun onaylar da verilir
     if (bekleyenleriOnayla && alanlar.otomatikOnay) {
       for (const o of this.depo.onaylar(id, "bekliyor")) {
@@ -555,6 +570,8 @@ export class Sirket {
   projeSil(id: string): void {
     for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
     this.kodZekasi.projeKaldir(id);
+    const p = this.depo.proje(id);
+    if (p) this.birlestirmeKuyrugu.projeKaldir(p);
     this.depo.projeSil(id);
     this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı.", "The project was removed from ArnOrg's list; its files were not touched.") });
   }
@@ -1428,43 +1445,43 @@ export class Sirket {
       if (isteyen) await this.sistemMesaji(isteyen.id, iki(`${veri.dal} birleştirmesi reddedildi.${not ? ` Not: ${not}` : ""}`, `The merge of ${veri.dal} was rejected.${not ? ` Note: ${not}` : ""}`));
       return;
     }
-    const proje = this.proje(onay.projeId);
-    const mevcut = await gitIslemleri.mevcutDal(proje.yol);
-    if (mevcut !== proje.varsayilanDal) throw new ArnorgHatasi(iki(`Ana repo ${proje.varsayilanDal} dalında değil (${mevcut}). Birleştirme yapılmadı.`, `The main repo is not on ${proje.varsayilanDal} (${mevcut}). Nothing was merged.`), 409);
-    // ArnOrg'un kendi kayıtları (.arnorg) birleştirmeyi engellemesin
-    await this.arnorgCommitle(proje.id).catch(() => false);
-    const kirli = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
-    if (kirli) throw new ArnorgHatasi(iki("Ana repoda commit'lenmemiş değişiklik var; birleştirme yapılmadı.", "The main repo has uncommitted changes; nothing was merged."), 409);
-    const sonuc = await gitIslemleri.birlestir(proje.yol, veri.dal, iki(`ArnOrg: ${veri.dal} birleştirildi\n\n${veri.ozet}`, `ArnOrg: merged ${veri.dal}\n\n${veri.ozet}`));
-    if (sonuc.basarili) {
-      for (const g of this.depo.gorevler(proje.id)) {
-        if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
-      }
-      this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`${veri.dal} ${proje.varsayilanDal} dalına birleştirildi. ${kisalt(veri.ozet, 200)}`, `${veri.dal} was merged into ${proje.varsayilanDal}. ${kisalt(veri.ozet, 200)}`));
-      // Uzak depo varsa ve otomatik gönderim açıksa çalışma dalı gönderilir
-      if (proje.uzakAdres && proje.otomatikGonder) {
-        void this.github
-          .gonder(proje)
-          .then((g) => {
-            if (g.durum === "gonderildi") this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, g.mesaj);
-            else this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: g.mesaj, projeId: proje.id });
-          })
-          .catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: proje.id }));
-      }
-      this.hafiza.yaz(
-        proje.id,
-        { tur: "ozet", baslik: `${veri.dal} → ${proje.varsayilanDal}`, metin: kisalt(veri.ozet, 800), etiketler: ["birlestirme"], onem: 2 },
-        { ajan: sahip, ad: "ArnOrg" },
-      );
-    } else if (sahip) {
-      await this.sistemMesaji(
-        sahip.id,
-        iki(
-          `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${belirtme(proje.varsayilanDal)} al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
-          `Branch ${veri.dal} conflicts with ${proje.varsayilanDal} and could not be merged. Bring ${proje.varsayilanDal} into your branch (git merge ${proje.varsayilanDal}), resolve the conflicts, run the tests, commit and call birlestirme_iste again.`,
-        ),
-      );
+    // Kalite kapısı: iş projenin birleştirme kuyruğuna girer; sırası gelince kalite çalışma alanında test edilir,
+    // geçerse ana repoda birleştirilir, geçmezse dal sahibine düzeltmesi söylenir (birlestirme-kuyrugu.ts)
+    this.birlestirmeKuyrugu.ekle(onay);
+  }
+
+  /** Kalite kapısını geçen iş ana repoda birleşti: görevler tamam, duyuru, uzak depoya gönderim, hafıza */
+  private async birlesmeSonrasi(onay: Onay): Promise<void> {
+    const veri = birlestirmeVerisi(onay.veri);
+    const proje = this.depo.proje(onay.projeId);
+    if (!veri || !proje) return;
+    const sahip = this.depo.ajan(veri.ajanId);
+    for (const g of this.depo.gorevler(proje.id)) {
+      if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
     }
+    const k = veri.kalite;
+    const kapi = k?.testsiz
+      ? iki(" Kurul testsiz birleştirdi.", " The board merged it without tests.")
+      : k && !k.testYok && k.komut
+        ? iki(` Testler geçti (${k.komut}${k.sureMs ? `, ${sureMetni(k.sureMs)}` : ""}).`, ` Tests passed (${k.komut}${k.sureMs ? `, ${sureMetni(k.sureMs)}` : ""}).`)
+        : "";
+    this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`${veri.dal} ${proje.varsayilanDal} dalına birleştirildi.${kapi} ${kisalt(veri.ozet, 200)}`, `${veri.dal} was merged into ${proje.varsayilanDal}.${kapi} ${kisalt(veri.ozet, 200)}`));
+    // Uzak depo varsa ve otomatik gönderim açıksa çalışma dalı gönderilir
+    if (proje.uzakAdres && proje.otomatikGonder) {
+      void this.github
+        .gonder(proje)
+        .then((g) => {
+          if (g.durum === "gonderildi") this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, g.mesaj);
+          else this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: g.mesaj, projeId: proje.id });
+        })
+        .catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: proje.id }));
+    }
+    this.hafiza.yaz(
+      proje.id,
+      { tur: "ozet", baslik: `${veri.dal} → ${proje.varsayilanDal}`, metin: kisalt(veri.ozet, 800), etiketler: ["birlestirme"], onem: 2 },
+      { ajan: sahip, ad: "ArnOrg" },
+    );
+    this.projeYayinla(proje.id);
   }
 
   // ===================================================================
@@ -2162,6 +2179,7 @@ export class Sirket {
   // ===================================================================
 
   kapat(): void {
+    this.birlestirmeKuyrugu.kapat();
     this.hesap.durdur();
     this.kurulum.kapat();
     this.kuresel.durdur();

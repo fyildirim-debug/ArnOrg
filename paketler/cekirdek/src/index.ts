@@ -63,6 +63,8 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   sirket.kuresel.baslat();
   // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
   sirket.kodZekasi.baslat();
+  // Kalite kapısında yarım kalan birleştirmeler (kuyrukta, hazırlık, test) sırasıyla sürer
+  sirket.birlestirmeKuyrugu.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {
     const d = sirket.duzenlemeler.get(tam);
     return d && Date.now() - d.zaman < 15_000 ? d.ajanId : null;

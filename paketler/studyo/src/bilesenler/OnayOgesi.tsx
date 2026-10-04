@@ -2,7 +2,8 @@
 // türe göre ayrıntı, onaylanırsa ne olacağı ve karar düğmeleri. Sonuçlananda: sakin, açılır bir geçmiş satırı.
 // Ekip ekranı işe alım tekliflerini de bununla gösterir; dar kapta (container query) tek sütuna iner.
 // Ana yasa önerisinde maddeler ve makine kuralları, işten çıkarmada kim ve devralan, teslimde özet, test adımları,
-// çalıştır komutu, adres ve "Test et" aynı defter düzeninde çizilir.
+// çalıştır komutu, adres ve "Test et" aynı defter düzeninde çizilir. Onaylanmış birleştirmenin altında kalite kapısı
+// satırı (KaliteKapisi.tsx) durur; dalın farkı her zaman açılabilir.
 import { rolMetni, type Ajan, type AnayasaMaddesi, type Dil, type Gorev, type Onay, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { useId, useState, type ReactNode } from "react";
@@ -15,6 +16,7 @@ import type { Varliklar } from "../ofis/varliklar";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { akilliZaman, goreli, kalanSure, sayi } from "../yardimcilar/bicim";
 import { useIslem, useSimdi } from "../yardimcilar/kancalar";
+import { FarkAc, KaliteDurumu, kaliteKaydi } from "./KaliteKapisi";
 import { KarakterPortresi, useKarakterKatalogu } from "./KarakterSecici";
 import { AjanAvatar, modelAdi } from "./Kisi";
 import { anayasaVerisi, ilkParagraf, istenCikarmaVerisi, TESLIM_ALANLARI, teslimVerisi } from "./onayVerisi";
@@ -64,6 +66,8 @@ interface Baglam {
   roller: Rol[];
   /** Projenin varsayılan dalı: birleştirmenin hedefi veride yoksa */
   anaDal: string | null;
+  /** Kalite kapısının test komutu: birleştirme onaylanırsa ne olacağını söyler */
+  testKomutu: string | null;
 }
 
 function useBaglam(): Baglam {
@@ -73,7 +77,8 @@ function useBaglam(): Baglam {
   const gorevler = useVeri((d) => d.gorevler);
   const roller = useVeri((d) => d.roller);
   const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
-  return { s, dil, ajanlar, gorevler, roller, anaDal };
+  const testKomutu = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.testKomutu ?? null);
+  return { s, dil, ajanlar, gorevler, roller, anaDal, testKomutu };
 }
 
 function ajanEtiketi(a: Ajan): string {
@@ -227,6 +232,8 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
                 <code>{dal}</code>
                 <span className="onay-ok">→</span>
                 <code>{hedef}</code>
+                {/* Kalite kapısı satırı olan onayda fark oradan açılır */}
+                {onay.durum === "onaylandi" && kaliteKaydi(onay) ? null : <FarkAc onay={onay} metin />}
               </span>
             ),
             genis: true,
@@ -269,7 +276,9 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
       // Sunucu özeti hem ayrıntıya hem veriye yazar; aynıysa bir kez gösterilir
       if (dize(v.ozet)?.trim() === gerekce?.trim()) kullanilan.add("ozet");
       kullanilan.add("isteyenId");
-      etki = t.etki.birlestirme(dal ?? onay.baslik, hedef);
+      // Kalite kapısının kaydı kartın altındaki durum satırında gösterilir
+      kullanilan.add("kalite");
+      etki = b.testKomutu ? s.kalite.etkiTestli(dal ?? onay.baslik, hedef, b.testKomutu) : s.kalite.etkiTestsiz(dal ?? onay.baslik, hedef);
       break;
     }
 
@@ -685,6 +694,8 @@ function SonuclananOnay({ onay }: { onay: Onay }) {
   const zaman = onay.sonuclanma ?? onay.olusturma;
   const kisi = ajan?.ad ?? (onay.ajanId ? t.bilinmeyenAjan : s.genel.arnorg);
   const vurgulu = useSohbet((d) => d.vurguluOnayId === onay.id);
+  // Onaylanmış birleştirme kalite kapısından geçer: sırası, testi ve sonucu satırın altında
+  const kalite = onay.durum === "onaylandi" ? kaliteKaydi(onay) : null;
 
   return (
     <li id={`onay-${onay.id}`} className={`onay onay-sonuclandi onay-${onay.durum}${vurgulu ? " onay-vurgulu" : ""}`} data-tur={onay.tur}>
@@ -700,6 +711,7 @@ function SonuclananOnay({ onay }: { onay: Onay }) {
         </summary>
         {acik ? <SonucAyrintisi onay={onay} ajan={ajan} /> : null}
       </details>
+      {kalite ? <KaliteDurumu onay={onay} kalite={kalite} /> : null}
     </li>
   );
 }

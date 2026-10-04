@@ -13,6 +13,7 @@ import type {
   GithubDeposu,
   GithubHesabi,
   GithubKurulumu,
+  KaliteOnerisi,
   KlonlaIstegi,
   KuralDurumu,
   KureselKural,
@@ -147,6 +148,10 @@ export const api = {
     istek<PolitikaKurali[]>(`${proje(pid)}/politika`, { method: "PUT", govde: kurallar }),
   onaylar: (pid: string, durum?: OnayDurumu) => istek<Onay[]>(`${proje(pid)}/onaylar${sorgu({ durum })}`),
   onayKarari: (oid: string, i: OnayKararIstegi) => istek<Onay>(`/api/onaylar/${k(oid)}`, { method: "POST", govde: i }),
+  // Kalite kapısı: kalan birleştirmeyi testsiz birleştir ya da yeniden dene; dalın hedefe göre farkı; komut önerisi
+  birlestirmeYeniden: (oid: string, testsiz: boolean) => istek<Onay>(`/api/onaylar/${k(oid)}/birlestir`, { method: "POST", govde: { testsiz } }),
+  onayFarki: (oid: string) => istek<FarkSonucu>(`/api/onaylar/${k(oid)}/fark`),
+  kaliteOnerisi: (pid: string) => istek<KaliteOnerisi>(`${proje(pid)}/kalite-onerisi`),
 
   // Kod
   calismaAlanlari: (pid: string) => istek<CalismaAlani[]>(`${proje(pid)}/calisma-alanlari`),

@@ -152,6 +152,28 @@ Yollar `.arnorg/notlar/` köküne göredir; `..` içeren yol 400 döner.
 
 `DenetimKaydi.altAjan` (0.0.4): çağrıyı ajanın Agent (Task) aracıyla açtığı bir alt ajan yaptıysa Claude Code'un verdiği alt ajan kimliği (`PreToolUse` kancasında `agent_id`, izin sorusunda `agentID`); ana ajanın kendi çağrısında ve 0.0.4 öncesi kayıtlarda `null`. Stüdyo bu kayıtları ajan adının yanında "alt ajan" etiketiyle gösterir.
 
+## Kalite kapısı ve birleştirme kuyruğu
+
+Onaylanan birleştirme (kurulun ya da otomatik onayın verdiği) hemen ana dala girmez, projenin birleştirme kuyruğuna girer. Kuyruk proje başına sıralıdır (FIFO); aynı anda tek birleştirme işlenir. Kodu `paketler/cekirdek/src/birlestirme-kuyrugu.ts` ve `kalite-kapisi.ts`.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/kalite-onerisi` | — | `KaliteOnerisi`: proje kökündeki `package.json`'da gerçek bir `test` betiği varsa `npm test`, hazırlık için `npm ci` (kilit dosyası yoksa `npm install`); npm init'in "no test specified" betiği sayılmaz. Stüdyo tek tıkla doldurur, kendiliğinden yazmaz |
+| POST | `/api/onaylar/:oid/birlestir` | `{testsiz: boolean}` | `Onay`: yalnız son sonuç `test_basarisiz`, `zaman_asimi` ya da `hata` iken; `testsiz: true` testsiz birleştirir, `false` kapıdan yeniden geçirir. Başka durumda 409 |
+| GET | `/api/onaylar/:oid/fark` | — | `FarkSonucu`: dalın hedefe göre farkı (kuyruğa giren commit'in ortak atadan bu yana değişiklikleri; birleştikten sonra birleşmeden önceki hedefe göre) |
+
+**Proje alanları** (`Proje`; `PATCH /api/projeler/:pid` ile değişir): `testKomutu` (null ise yalnız birleşebilirlik denetlenir), `hazirlikKomutu` (testten önce koşar, ör. `npm ci`), `testZamanAsimiDk` (1–240, varsayılan 20; hazırlık ve testin toplamı). Komut tek satırdır, boş metin kaldırır. Komut değişince #genel'e duyurulur; ajan talimatı ve `birlestirme_iste` açıklaması test komutunu anar.
+
+**Akış:**
+
+1. Proje başına kalıcı bir kalite çalışma alanı (git worktree, `<veri>/kalite/<proje kimliği>`) hedef dalın (`varsayilanDal`) son commit'ine ayrık (detached) getirilir, `git reset --hard` ve `git clean -fd` ile temizlenir; yoksayılan dosyalar (node_modules) korunur.
+2. Dal, kuyruğa girdiği andaki commit'iyle `git merge --no-ff --no-commit` ile denenir. Çakışmada geri alınır, sonuç `cakisma` olur ve dal sahibine çakışma mesajı gider.
+3. Hazırlık ve test komutu kabukla, ajanlarınkiyle aynı temiz ortamla (API anahtarları geçmez; `CI=true`, renksiz), kalite alanında, `testZamanAsimiDk` sınırıyla koşar. Zaman aşımında süreç ağacı öldürülür (Windows'ta `taskkill /T /F`, Linux ve macOS'ta süreç grubu). Çıktının son 300 satırı (en çok 64 KB) saklanır.
+4. Geçerse birleştirme ana repoda bugünkü denetimlerle yapılır (ana repo hedef dalda ve temiz olmalı). Test sürerken hedef dal ArnOrg kayıtları (`.arnorg/`) dışında ilerlediyse iş yeniden test edilir (en çok 3 deneme).
+5. Test başarısız olur ya da zaman aşımına uğrarsa birleştirilmez: dal sahibine (yoksa isteyene) çıktının sonuyla "düzelt ve yeniden birlestirme_iste" mesajı gider, #genel'e yazılır, kurula `bildirim` (uyarı) gelir. Kurul kartta "Yine de birleştir" (ikinci adımda onaylatılır) ya da "Yeniden dene" seçebilir.
+
+**Durum** onayın `veri.kalite` alanında (`BirlestirmeKalitesi`) tutulur: `durum` (`kuyrukta` → `hazirlik` → `test` → `birlesti`; ya da `cakisma`, `test_basarisiz`, `zaman_asimi`, `hata`), kuyruktayken `sira` (işlenen iş 1. sıradadır), `dalCommit`, `hedefCommit`, `komut`, `deneme`, `baslangic`, `adimBaslangic`, `bitis`, `sureMs`, `cikti`, `mesaj`, `testYok`, `testsiz`. Her adımda, test sürerken en sık 2 saniyede bir çıktıyla, aynı onay `onay.sonuc` olayıyla yeniden yayınlanır. Uygulama yeniden açılınca `kuyrukta`, `hazirlik` ya da `test` durumunda kalan işler sırasıyla yeniden kuyruğa girer. Gözetmen, kalite kapısında işi süren dalın sahibini dürtmez.
+
 ## Kod
 
 | Yöntem | Yol | Gövde | Yanıt |

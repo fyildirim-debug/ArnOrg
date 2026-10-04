@@ -21,6 +21,7 @@ import { ofis } from "./ofis";
 import { kurulum } from "./kurulum";
 import { zeka } from "./zeka";
 import { sohbet } from "./sohbet";
+import { kalite } from "./kalite";
 
 export const tr = {
   genel,
@@ -45,6 +46,7 @@ export const tr = {
   kurulum,
   zeka,
   sohbet,
+  kalite,
 };
 
 export type Sozluk = typeof tr;

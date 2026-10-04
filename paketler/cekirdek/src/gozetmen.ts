@@ -168,10 +168,14 @@ export class Gozetmen {
       const gorulen = new Set<string>();
       for (const proje of this.sirket.depo.projeler()) {
         const ajanlar = this.sirket.depo.ajanlar(proje.id);
-        const bekleyenBirlestirmeler = this.sirket.depo
-          .onaylar(proje.id, "bekliyor")
-          .filter((o) => o.tur === "birlestirme")
-          .map((o) => (o.veri as { ajanId?: string } | null)?.ajanId);
+        const bekleyenBirlestirmeler = [
+          ...this.sirket.depo
+            .onaylar(proje.id, "bekliyor")
+            .filter((o) => o.tur === "birlestirme")
+            .map((o) => (o.veri as { ajanId?: string } | null)?.ajanId),
+          // Onaylanıp kalite kapısında (kuyrukta ya da testte) bekleyen birleştirmeler de
+          ...this.sirket.birlestirmeKuyrugu.surenSahipler(proje.id),
+        ];
         for (const g of this.sirket.depo.gorevler(proje.id)) {
           if (g.durum !== "calisiliyor" && g.durum !== "inceleme") continue;
           // Birleştirme kurul onayındaysa sıra kurulda; ajan dürtülmez
