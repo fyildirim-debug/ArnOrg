@@ -1469,3 +1469,59 @@
     font-size: 1.75rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Her ekranda Claude Code uyarı şeridi (üst çubuğun altında) ve giriş çekmecesi
+   --------------------------------------------------------------------------- */
+
+.claude-serit {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--coral-cizgi);
+  background: var(--coral-zemin);
+  font-family: var(--font-mono);
+  font-size: var(--t-s);
+  color: var(--paper);
+}
+
+.claude-serit p {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+
+.claude-serit-isaret {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--coral);
+}
+
+.claude-serit-eylem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: none;
+}
+
+.claude-cekmece-aciklama {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: var(--t-s);
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .claude-serit {
+    flex-wrap: wrap;
+  }
+  .claude-serit p {
+    flex-basis: calc(100% - 1.25rem);
+  }
+  .claude-serit-eylem {
+    margin-left: 1.25rem;
+  }
+}

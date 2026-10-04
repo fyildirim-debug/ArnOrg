@@ -70,6 +70,7 @@ export const sohbet: typeof tr = {
     denetimdeAc: "Decide in Audit",
     testEt: "Test it",
     yanitYaz: "Reply to the CEO",
+    claudeGiris: "Sign in to Claude Code",
     kapat: "Dismiss",
     hepsiniKapat: "Dismiss all",
     daha: (n: number) => `+${n} more`,

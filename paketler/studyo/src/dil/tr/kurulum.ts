@@ -38,7 +38,9 @@ export const kurulum = {
     kaynak: { paket: "ArnOrg'la gelen kopya", sistem: "Sistemdeki claude komutu", ayar: "Ayarlardaki yol" },
     kopyaYok: "Bulunamadı",
     surum: (s: string) => `sürüm ${s}`,
-    kopyaYokUyari: "Claude Code bulunamadı. Terminal için kurabilir ya da Ayarlar'da yolunu belirtebilirsiniz.",
+    kopyaYokAciklama:
+      "Claude Code bu bilgisayarda bulunamadı. ArnOrg, Anthropic'in resmî kurulum betiğiyle kullanıcı dizininize kurar; yönetici izni gerekmez, internet bağlantısı gerekir. Başka bir yerde kuruluysa yolunu Ayarlar'da belirtebilirsiniz.",
+    kur: "Claude Code'u kur",
     giris: "Giriş",
     girisYapildi: "Giriş yapıldı",
     girisYok: "Giriş yapılmadı",
@@ -51,6 +53,7 @@ export const kurulum = {
     apiUyari:
       "Bu giriş API anahtarıyla ya da Console hesabıyla yapılmış. ArnOrg yalnız Claude aboneliğiyle çalışır; Pro, Max ya da Team hesabınızla yeniden giriş yapın.",
     yenidenGiris: "Abonelikle yeniden giriş yapın",
+    yenidenGirisYap: "Yeniden giriş yap",
     terminal: "Terminal komutu",
     terminalVar: "claude komutu kurulu",
     terminalYok: "Kurulu değil · isteğe bağlı",
@@ -59,6 +62,7 @@ export const kurulum = {
     terminalKur: "Terminal için de kur",
     girisTamam: "Claude girişi tamam.",
     kurulumTamam: "claude komutu kuruldu.",
+    kopyaKuruldu: "Claude Code kuruldu; şimdi giriş yapabilirsiniz.",
     tazele: "Durumu yenile",
   },
   github: {
@@ -276,5 +280,19 @@ export const kurulum = {
     secilecek: "Seçilecek",
     sec: "Bu klasörü seç",
     klavye: "Oklarla gezinin, Enter ile açın, Backspace ile üst klasöre çıkın.",
+  },
+  /** Her ekrandaki Claude Code uyarı şeridi ve giriş asistanı çekmecesi */
+  uyari: {
+    etiket: "Claude Code uyarısı",
+    kuruluDegil: "Claude Code bulunamadı; ajanlar çalışamıyor.",
+    giris: "Claude Code'a giriş yapılmamış; ajanlar giriş yapılana kadar çalışamaz.",
+    abonelik: "Claude Code abonelik dışı bir girişle çalışıyor; ArnOrg yalnız Claude aboneliğiyle (Pro, Max ya da Team) çalışır.",
+    kur: "Kur",
+    girisYap: "Giriş yap",
+    abonelikleGir: "Abonelikle giriş yap",
+    sonra: "Sonra",
+    cekmeceBaslik: "Claude Code",
+    cekmeceAciklama: "Ajanlarınız bu bilgisayardaki Claude Code girişiyle çalışır. Giriş yapınca duran ajanlar kaldıkları yerden sürer.",
+    hazir: "Claude Code hazır; duran ajanlar kaldıkları yerden sürüyor.",
   },
 };

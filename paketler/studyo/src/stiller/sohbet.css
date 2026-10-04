@@ -565,7 +565,8 @@
 /* ---------- Önemli an pencereleri ---------- */
 .kurul-bildirimleri {
   position: fixed;
-  top: calc(var(--ust-yukseklik) + 0.75rem);
+  /* Claude Code uyarı şeridi açıksa onun altından */
+  top: calc(var(--ust-yukseklik) + var(--serit-yukseklik, 0px) + 0.75rem);
   right: 1rem;
   /* Çekmecenin perdesinin (60) altında: modal açıkken onun ardında kalır */
   z-index: 55;
@@ -579,7 +580,7 @@
   gap: 0.5rem;
 }
 .kb-genis .kb-yigin {
-  max-height: calc(100dvh - var(--ust-yukseklik) - 5rem);
+  max-height: calc(100dvh - var(--ust-yukseklik) - var(--serit-yukseklik, 0px) - 5rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;

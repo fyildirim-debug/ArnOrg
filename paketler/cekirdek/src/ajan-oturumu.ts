@@ -15,7 +15,11 @@ import {
 import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
+import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
+
+/** Kimlik sorunuyla duran ajanın durum açıklaması (dil o anki ayardan) */
+const KIMLIK_BEKLENIYOR = () => iki("Claude Code girişi bekleniyor", "Waiting for Claude Code sign-in");
 
 /** Oturumun sürekli artan işlenen token toplamı (Claude Code sonuç mesajındaki modelUsage) */
 export interface Toplam {
@@ -68,6 +72,8 @@ export interface OturumBaglami {
   oturumToplami: { oku(oturumId: string): Toplam | null; yaz(oturumId: string, t: Toplam): void };
   /** Claude Code'un kullandığı kimlik bilgisinin kaynağı (init mesajı) */
   girisKaynagi(kaynak: string): void;
+  /** Claude Code girişi düştü ya da abonelik sorunu: kurula giriş asistanı gösterilir */
+  kimlikSorunu(sorun: KimlikSorunu, ayrinti: string): void;
   bitti(hata: string | null): void;
 }
 
@@ -112,6 +118,8 @@ export class AjanOturumu {
   private stderrSon: string[] = [];
   private sonDurum: AjanDurumu = "kapali";
   private kapatiliyor = false;
+  /** Claude Code girişi düştüğü için kapatıldı: oturum duraklar, giriş yapılınca Şirket sürdürür */
+  private kimlikBekliyor = false;
   private devamDenemesi = true;
   private initGoruldu = false;
 
@@ -252,6 +260,7 @@ export class AjanOturumu {
     this.oturumNo = null;
     this.stderrSon = [];
     this.kapatiliyor = false;
+    this.kimlikBekliyor = false;
     this.sorgu = this.sorguOlustur(ajan, ajan.oturumId);
     this.durumYaz("calisiyor", iki("Oturum açılıyor", "Opening session"));
     void this.dongu(this.sorgu);
@@ -329,8 +338,21 @@ export class AjanOturumu {
       }
       const ozet = kisalt(`${hata}${stderr ? ` · ${stderr}` : ""}`, 400);
       this.akisYaz({ tur: "sistem", metin: iki(`Oturum hatayla kapandı: ${ozet}`, `The session closed with an error: ${ozet}`), hata: true });
+      const sorun = kimlikSorunuMetinden(`${hata} ${stderr}`);
+      if (sorun) {
+        // Hata değil, kurulun girişi bekleniyor: kurul açılır pencereyle uyarılır, giriş yapılınca oturum sürer
+        this.durumYaz("duraklatildi", KIMLIK_BEKLENIYOR());
+        this.b.kimlikSorunu(sorun, ozet);
+        this.b.bitti(null);
+        return;
+      }
       this.durumYaz("hata", kisalt(hata, 120));
       this.b.bitti(ozet);
+      return;
+    }
+    if (this.kimlikBekliyor) {
+      this.durumYaz("duraklatildi", KIMLIK_BEKLENIYOR());
+      this.b.bitti(null);
       return;
     }
     this.durumYaz("kapali", "");
@@ -374,6 +396,15 @@ export class AjanOturumu {
       }
       case "assistant": {
         const ust = m.parent_tool_use_id;
+        // Giriş düştüyse ya da abonelik sorunluysa SDK bunu hata alanıyla bildirir. Süreç eski kimliği tuttuğundan
+        // oturum kapatılır (konuşma kimliği saklanır); giriş yapılınca yeni süreç kaldığı yerden sürer.
+        const sorun = kimlikSorunuHatadan(m.error);
+        if (sorun && !this.kimlikBekliyor) {
+          const ayrinti = m.message.content.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim();
+          this.kimlikBekliyor = true;
+          this.b.kimlikSorunu(sorun, kisalt(ayrinti || String(m.error), 300));
+          queueMicrotask(() => this.kapat());
+        }
         for (const parca of m.message.content) {
           if (parca.type === "text" && parca.text.trim()) {
             this.akisYaz({ tur: "asistan", metin: parca.text, ustAracKimligi: ust });

@@ -4,6 +4,7 @@ import { anahtar, anahtarDinle } from "./api/anahtar";
 import { useDil, useSozluk } from "./dil";
 import { Bildirimler } from "./bilesenler/Bildirimler";
 import { KurulBildirimleri } from "./bilesenler/KurulBildirimleri";
+import { ClaudeAsistaniCekmecesi, ClaudeUyariSeridi } from "./bilesenler/ClaudeAsistani";
 import { CanliRay } from "./bilesenler/CanliRay";
 import { Iskelet } from "./bilesenler/Durumlar";
 import { Gezinti } from "./bilesenler/Gezinti";
@@ -128,6 +129,7 @@ function Studyo() {
   return (
     <div className="kabuk">
       <UstCubuk rayDugmesi={rayDugmesi} />
+      <ClaudeUyariSeridi />
       <div className="govde">
         <Gezinti />
         <main className={`ana${tam ? " ana-tam" : ""}`} ref={anaRef} id="ana-icerik">
@@ -157,6 +159,7 @@ function Studyo() {
         {rayGorunur ? <CanliRay kapat={() => (genis ? rayiDegistir(false) : setRayKatman(false))} /> : null}
       </div>
       <KurulBildirimleri />
+      <ClaudeAsistaniCekmecesi />
       <Bildirimler />
     </div>
   );

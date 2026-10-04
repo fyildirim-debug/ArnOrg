@@ -2127,6 +2127,7 @@ surum002({
   projeEkleyici: (f) => (projeEkleyici = f),
   yonetimMesaji: (f) => (yonetimIsleyici = f),
   onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f),
+  istemciSayisi: () => istemciler.size,
 });
 
 const sunucu = http.createServer(async (istek, yanit) => {

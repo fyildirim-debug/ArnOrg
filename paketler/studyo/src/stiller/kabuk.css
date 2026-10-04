@@ -1,10 +1,20 @@
 /* Uygulama kabuğu: üst çubuk, sol menü, ana alan, canlı akış rayı, bildirimler, çekmece */
 .kabuk {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* üst çubuk, Claude Code uyarı şeridi (yoksa sıfır yükseklik), gövde */
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   min-width: 0;
+}
+.kabuk > .ust {
+  grid-row: 1;
+}
+.kabuk > .claude-serit {
+  grid-row: 2;
+}
+.kabuk > .govde {
+  grid-row: 3;
 }
 
 /* ---------- üst çubuk ---------- */
@@ -579,7 +589,7 @@
 @media (max-width: 1180px) {
   .ray {
     position: fixed;
-    top: var(--ust-yukseklik);
+    top: calc(var(--ust-yukseklik) + var(--serit-yukseklik, 0px));
     right: 0;
     bottom: 0;
     z-index: 30;

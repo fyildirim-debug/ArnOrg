@@ -1,6 +1,7 @@
 // Kurulum yardımcıları: klasör adı çekirdekle aynı, yollar iki platformda, ilerleme çıktıdan okunur
 import { describe, expect, it } from "vitest";
-import { dalAdiGecerliMi, ilerlemeOku, klasorAdiYap, mutlakMi, sonSatir, yolAdi, yolBirlestir, yolParcalari } from "./kurulumYardimcilari";
+import type { ClaudeKurulumu } from "@arnorg/ortak";
+import { claudeEksigi, dalAdiGecerliMi, ilerlemeOku, klasorAdiYap, mutlakMi, sonSatir, yolAdi, yolBirlestir, yolParcalari } from "./kurulumYardimcilari";
 
 describe("klasör adı", () => {
   it("çekirdeğin kuralına uyar", () => {
@@ -73,5 +74,18 @@ describe("işlem ilerlemesi", () => {
   it("son satırı verir", () => {
     expect(sonSatir("bir\n\niki\n  \n")).toBe("iki");
     expect(sonSatir("")).toBe("");
+  });
+});
+
+describe("Claude Code eksiği (her ekrandaki şerit)", () => {
+  const hazir: ClaudeKurulumu = { kaynak: "paket", yol: "/x/claude", surum: "2.1.287", sistemde: false, girisYapildi: true, abonelik: true, girisYontemi: "claude.ai", saglayici: "firstParty", eposta: "a@b.c", hata: null };
+  it("hazırken eksik yok; durum gelmeden şerit çıkmaz", () => {
+    expect(claudeEksigi(hazir)).toBeNull();
+    expect(claudeEksigi(undefined)).toBeNull();
+  });
+  it("kopya yok, giriş yok, abonelik dışı giriş", () => {
+    expect(claudeEksigi({ ...hazir, yol: null, kaynak: null })).toBe("kurulu_degil");
+    expect(claudeEksigi({ ...hazir, girisYapildi: false, abonelik: false })).toBe("giris");
+    expect(claudeEksigi({ ...hazir, girisYontemi: "api_key", abonelik: false })).toBe("abonelik");
   });
 });

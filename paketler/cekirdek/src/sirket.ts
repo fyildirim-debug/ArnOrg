@@ -51,6 +51,7 @@ import { anayasaKisa, anayasaOku, anayasaPolitikasi, anayasaYaz, BOS_ANAYASA } f
 import { dil, dilKaynagi, iki } from "./dil.js";
 import { claudeDamitici } from "./damitici.js";
 import { KureselZeka, type Gozlem } from "./kuresel-zeka.js";
+import type { KimlikSorunu } from "./kimlik-hatasi.js";
 import { hatirlatmaMetni, talimatOlustur } from "./talimat.js";
 import { AjanZekasiYoneticisi } from "./zeka.js";
 import { GithubIslemleri, klasorAdiYap } from "./github.js";
@@ -163,6 +164,11 @@ export class Sirket {
   readonly zeka: AjanZekasiYoneticisi;
   /** Projelerden bağımsız, kendi kendine öğrenen standart kurallar */
   readonly kuresel: KureselZeka;
+  /** Kimlik sorunu yüzünden duran ajanlar; Claude Code girişi hazır olunca sürdürülür */
+  private readonly kimlikBekleyenler = new Set<string>();
+  private sonKimlikBildirimi = 0;
+  /** Ajanlar girişi beklerken durum arada bir okunur: terminalden yapılan giriş Stüdyo açık olmasa da yakalanır */
+  private kimlikYoklayici: NodeJS.Timeout | null = null;
   /** Proje → ana yasa (dosyadan okunur, yazınca güncellenir) */
   private readonly anayasalar = new Map<string, Anayasa>();
   /** Ajan → talimatına giren ana yasa sürümü (değişince sonraki turda hatırlatılır) */
@@ -199,7 +205,11 @@ export class Sirket {
     this.karakterleriTamamla();
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
-    this.kurulum = new Kurulum(yapilandirma, olaylar, { claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined) });
+    this.kurulum = new Kurulum(yapilandirma, olaylar, {
+      claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined),
+      // Giriş yeniden hazır (ArnOrg'dan ya da terminalden): kimlik sorunuyla duran ajanlar kaldıkları yerden sürer
+      claudeHazir: () => this.kimlikSonrasiSurdur(),
+    });
     this.github = new GithubIslemleri(this.kurulum, yapilandirma);
     this.zeka = new AjanZekasiYoneticisi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     // Gözlemler küçük modelle projeden bağımsız kurala damıtılır; testlerde ve oturumsuz kipte model çağrılmaz
@@ -814,6 +824,7 @@ export class Sirket {
         yaz: (oturumId, t) => this.depo.degerYaz(`oturum-toplam:${oturumId}`, JSON.stringify(t)),
       },
       girisKaynagi: (k) => this.hesap.girisKaynagi(k),
+      kimlikSorunu: (sorun, ayrinti) => this.kimlikSorunuBildir(id, ajan.projeId, sorun, ayrinti),
       bitti: (hata) => {
         this.hatirlatici.oturumKapandi(id);
         if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? iki("Ajan", "Agent")}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
@@ -1798,8 +1809,80 @@ export class Sirket {
     return mesaj;
   }
 
+  /**
+   * Claude Code girişi düştü ya da abonelik sorunu var: kurulum ve hesap durumu tazelenip yayınlanır (Stüdyo her
+   * ekranda giriş şeridini gösterir), ajan giriş yapılınca sürdürülmek üzere bekletilir ve kurula en çok 10 dakikada
+   * bir "Giriş yap" eylemli pencere gider.
+   */
+  private kimlikSorunuBildir(ajanId: string, projeId: string, sorun: KimlikSorunu, ayrinti: string): void {
+    this.kimlikBekleyenler.add(ajanId);
+    void this.kimlikDurumunuOku();
+    void this.hesap.tazele().catch(() => undefined);
+    if (!this.kimlikYoklayici) {
+      this.kimlikYoklayici = setInterval(() => void this.kimlikDurumunuOku(), 60_000);
+      this.kimlikYoklayici.unref();
+    }
+    if (Date.now() - this.sonKimlikBildirimi < 10 * 60_000) return;
+    this.sonKimlikBildirimi = Date.now();
+    const giris = sorun === "giris";
+    this.kurulaBildir(
+      null,
+      projeId,
+      "uyari",
+      giris ? iki("Claude Code girişi gerekiyor", "Claude Code needs you to sign in") : iki("Claude aboneliğinde bir sorun var", "There's a problem with the Claude subscription"),
+      giris
+        ? iki(
+            "Ajanlar Claude Code'a giriş yapılmadığı ya da girişin süresi dolduğu için çalışamıyor. Giriş yapınca kaldıkları yerden sürerler.",
+            "Agents can't work because Claude Code isn't signed in or the sign-in has expired. Once you sign in they pick up where they left off.",
+          )
+        : iki(`Claude Code abonelikle ilgili bir hata bildirdi: ${ayrinti}`, `Claude Code reported a subscription problem: ${ayrinti}`),
+      null,
+      "claude_giris",
+    );
+  }
+
+  /**
+   * Bekleyen varken Claude Code durumu okunup yayınlanır; girişsizden hazıra geçiş Kurulum'da yakalanır ve ajanlar
+   * sürer. Durum girişli göründüğü hâlde ajan kimlik hatası aldıysa (sunucuda geçersizleşen giriş) yoklama bir işe
+   * yaramaz ve durur; o zaman yeniden giriş beklenir.
+   */
+  private async kimlikDurumunuOku(): Promise<void> {
+    try {
+      const d = await this.kurulum.durumuYayinla();
+      if (d.claude.girisYapildi && d.claude.abonelik) this.kimlikYoklamasiniDurdur();
+    } catch {
+      // Bir sonraki yoklamada yeniden denenir
+    }
+  }
+
+  private kimlikYoklamasiniDurdur(): void {
+    if (this.kimlikYoklayici) clearInterval(this.kimlikYoklayici);
+    this.kimlikYoklayici = null;
+  }
+
+  /** Claude Code girişi yeniden hazır: kimlik sorunuyla duran ajanlar kaldıkları yerden sürer */
+  private kimlikSonrasiSurdur(): void {
+    const idler = [...this.kimlikBekleyenler];
+    this.kimlikBekleyenler.clear();
+    this.kimlikYoklamasiniDurdur();
+    this.sonKimlikBildirimi = 0;
+    for (const id of idler) {
+      // Bu arada başka bir yoldan yeniden başlatıldıysa dokunulmaz
+      if (!this.depo.ajan(id) || this.oturumlar.get(id)?.acik) continue;
+      void this.uyandir(
+        id,
+        iki(
+          "Claude Code girişi yenilendi; yarım kalan işine kaldığın yerden devam et. Gerekirse defterine ve kanallardaki son mesajlara bak.",
+          "Claude Code is signed in again; pick up the work that was cut off where you left it. Check your journal and the latest channel messages if needed.",
+        ),
+        null,
+      );
+    }
+    if (idler.length) this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Claude Code girişi tamam; duran ajanlar kaldıkları yerden sürüyor.", "Claude Code is signed in; paused agents are picking up where they left off.") });
+  }
+
   /** CEO (ya da bir yönetici) kurula önemli bir şey bildirir: her ekranda açılır pencere; #yonetim'e de yazılır */
-  kurulaBildir(ajan: Ajan | null, projeId: string, tur: KurulBildirimi["tur"], baslik: string, metin: string, onayId: string | null = null): KurulBildirimi {
+  kurulaBildir(ajan: Ajan | null, projeId: string, tur: KurulBildirimi["tur"], baslik: string, metin: string, onayId: string | null = null, eylem?: KurulBildirimi["eylem"]): KurulBildirimi {
     const bildirim: KurulBildirimi = {
       id: kimlik(),
       projeId,
@@ -1810,6 +1893,7 @@ export class Sirket {
       metin: kisalt(metin.trim(), 4000),
       zaman: simdi(),
       onayId,
+      ...(eylem ? { eylem } : {}),
     };
     this.olaylar.yayinla({ tur: "kurul.bildirimi", projeId, bildirim });
     if (ajan && !onayId) this.kanalMesaji(projeId, "yonetim", { id: ajan.id, ad: ajan.ad }, `${bildirim.baslik}\n\n${bildirim.metin}`);
@@ -2038,6 +2122,7 @@ export class Sirket {
     this.kuresel.durdur();
     for (const y of this.yaziyorlar.values()) clearTimeout(y.zamanlayici);
     if (this.esitlemeZamanlayici) clearInterval(this.esitlemeZamanlayici);
+    this.kimlikYoklamasiniDurdur();
     this.hafiza.kapat();
     void this.kodZekasi.kapat();
     for (const z of this.arnorgCommitZamanlayicilari.values()) clearTimeout(z);

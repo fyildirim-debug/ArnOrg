@@ -76,6 +76,7 @@ export const sohbet = {
     denetimdeAc: "Denetim'de karar ver",
     testEt: "Test et",
     yanitYaz: "CEO'ya yanıt yaz",
+    claudeGiris: "Claude Code'a giriş yap",
     kapat: "Bildirimi kapat",
     hepsiniKapat: "Hepsini kapat",
     daha: (n: number) => `+${n} bildirim daha`,

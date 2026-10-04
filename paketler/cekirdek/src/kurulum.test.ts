@@ -7,7 +7,7 @@ import type { KurulumIslemi, SunucuOlayi } from "@arnorg/ortak";
 import { githubDeposu } from "./depo.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { depoAdiYap, depoCevir, klasorAdiYap } from "./github.js";
-import { ansiAyikla, claudeGirisiniYorumla, ghCihazKodu, ghKullanicisi, ghPaketAdi, Kurulum } from "./kurulum.js";
+import { ansiAyikla, claudeGirisiniYorumla, ghCihazKodu, ghKullanicisi, ghPaketAdi, Kurulum, resmiKurulumKomutu } from "./kurulum.js";
 import { OlayYolu } from "./olaylar.js";
 import { Yapilandirma } from "./yapilandirma.js";
 
@@ -46,6 +46,12 @@ describe("ayrıştırıcılar", () => {
     expect(ghCihazKodu("! One-time code (WXYZ-9876) copied to clipboard").kod).toBe("WXYZ-9876");
     expect(ghKullanicisi("  ✓ Logged in to github.com account furkan-y (keyring)")).toBe("furkan-y");
     expect(ghKullanicisi("✓ Logged in to github.com as eski-bicim (oauth_token)")).toBe("eski-bicim");
+  });
+
+  it("Claude Code kopyası yoksa resmî kurulum betiği", () => {
+    expect(resmiKurulumKomutu("linux")).toEqual(["bash", ["-c", "curl -fsSL https://claude.ai/install.sh | bash"]]);
+    expect(resmiKurulumKomutu("darwin")[1].join(" ")).toContain("install.sh");
+    expect(resmiKurulumKomutu("win32")).toEqual(["powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"]]);
   });
 
   it("GitHub depo adresleri ve adları", () => {
@@ -100,6 +106,8 @@ describe.skipIf(windows)("sahte claude ve gh ile giriş akışları", () => {
   const olaylar = new OlayYolu();
   const gelenler: SunucuOlayi[] = [];
   let girisDegisti = 0;
+  let claudeYolu = "";
+  let ghYolu = "";
 
   beforeAll(() => {
     const bin = path.join(gecici, "bin");
@@ -154,6 +162,8 @@ esac
     process.env.ARNORG_SAHTE_DURUM = path.join(gecici, "claude-durum.json");
     process.env.ARNORG_SAHTE_GH = path.join(gecici, "gh-durum");
     const yap = new Yapilandirma(path.join(gecici, "veri"));
+    claudeYolu = claude;
+    ghYolu = gh;
     kurulum = new Kurulum(yap, olaylar, { claudeYoluZorla: claude, ghYoluZorla: gh, claudeGirisiDegisti: () => girisDegisti++ });
     olaylar.dinle((o) => gelenler.push(o));
   });
@@ -193,6 +203,23 @@ esac
     await bekle(kurulum, b.id, (i) => i.girdiBekliyor);
     expect(kurulum.iptal(b.id).durum).toBe("iptal");
     expect(() => kurulum.girdi(b.id, "x")).toThrow();
+  });
+
+  it("Claude: girişsizden hazıra geçiş (terminalden giriş dahil) bir kez bildirilir", async () => {
+    fs.rmSync(process.env.ARNORG_SAHTE_DURUM!, { force: true });
+    let hazir = 0;
+    const k = new Kurulum(new Yapilandirma(path.join(gecici, "veri-hazir")), new OlayYolu(), { claudeYoluZorla: claudeYolu, ghYoluZorla: ghYolu, claudeHazir: () => hazir++ });
+    await k.durum(true);
+    expect(hazir).toBe(0);
+    // Kullanıcı terminalden giriş yapmış gibi: durum dosyası abonelikli girişi söyler
+    fs.writeFileSync(process.env.ARNORG_SAHTE_DURUM!, '{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}');
+    await k.durum(true);
+    expect(hazir).toBe(1);
+    await k.durum(true);
+    expect(hazir).toBe(1);
+    // Sonraki testler girişsiz durumla başlar
+    fs.rmSync(process.env.ARNORG_SAHTE_DURUM!, { force: true });
+    k.kapat();
   });
 
   it("GitHub: cihaz kodu ve adres gösterilir, giriş biter, kullanıcı okunur", async () => {

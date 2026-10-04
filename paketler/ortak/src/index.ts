@@ -819,6 +819,8 @@ export interface KurulBildirimi {
   zaman: Zaman;
   /** Bildirime bağlı onay (onaylanacaksa) */
   onayId: string | null;
+  /** Pencerede sunulacak özel eylem: "claude_giris" Claude Code giriş asistanını açar */
+  eylem?: "claude_giris";
 }
 
 // ---------------------------------------------------------------------------

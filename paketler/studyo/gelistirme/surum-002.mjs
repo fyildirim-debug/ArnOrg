@@ -61,6 +61,34 @@ export function kur(c) {
   const islemler = new Map();
   const durumYay = () => herkeseYay({ tur: "kurulum.durum", durum: kurulum });
 
+  // Girişsiz ya da kopyasız Claude Code (her ekrandaki şerit ve giriş asistanı için): ARNORG_CLAUDE=girissiz | yok
+  const CLAUDE_KIPI = process.env.ARNORG_CLAUDE;
+  if (CLAUDE_KIPI === "girissiz" || CLAUDE_KIPI === "yok") Object.assign(kurulum.claude, { girisYapildi: false, abonelik: false, girisYontemi: null, eposta: null });
+  if (CLAUDE_KIPI === "yok") Object.assign(kurulum.claude, { kaynak: null, yol: null, surum: null });
+  if (CLAUDE_KIPI === "girissiz") {
+    // Bir ajan oturumu kimlik hatasıyla düşmüş gibi: kurula "Giriş yap" eylemli pencere; ilk istemci bağlandıktan 4 sn sonra
+    const ilkIstemci = setInterval(() => {
+      if (!c.istemciSayisi()) return;
+      clearInterval(ilkIstemci);
+      setTimeout(girisBildir, 4000);
+    }, 500);
+  }
+  function girisBildir() {
+    if (kurulum.claude.girisYapildi) return;
+    kurulBildirimi(
+      "siparis-paneli",
+      null,
+      "uyari",
+      ceviri("Claude Code girişi gerekiyor", "Claude Code needs you to sign in"),
+      ceviri(
+        "Ajanlar Claude Code'a giriş yapılmadığı ya da girişin süresi dolduğu için çalışamıyor. Giriş yapınca kaldıkları yerden sürerler.",
+        "Agents can't work because Claude Code isn't signed in or the sign-in has expired. Once you sign in they pick up where they left off.",
+      ),
+      null,
+      "claude_giris",
+    );
+  }
+
   function islemAc(tur, alanlar = {}) {
     const i = { id: yeniKimlik("is"), tur, durum: "calisiyor", cikti: "", adres: null, kod: null, girdiBekliyor: false, hata: null, baslangic: simdi(), bitis: null, sonuc: null, ...alanlar };
     islemler.set(i.id, i);
@@ -140,7 +168,7 @@ export function kur(c) {
         await bekle(700);
         satir(i, s);
       }
-      Object.assign(kurulum.claude, { kaynak: "sistem", yol: `${EV}/.local/bin/claude`, sistemde: true });
+      Object.assign(kurulum.claude, { kaynak: "sistem", yol: `${EV}/.local/bin/claude`, surum: kurulum.claude.surum ?? "2.1.287", sistemde: true });
       bitir(i, "tamam");
       durumYay();
     })();
@@ -509,8 +537,8 @@ export function kur(c) {
   // Kurula açılır bildirimler ve onaylar
   // -------------------------------------------------------------------------
 
-  function kurulBildirimi(pid, ajan, tur, baslik, metin, onayId = null) {
-    yay({ tur: "kurul.bildirimi", projeId: pid, bildirim: { id: yeniKimlik("kb"), projeId: pid, ajanId: ajan?.id ?? null, ajanAd: ajan?.ad ?? "ArnOrg", tur, baslik, metin, zaman: simdi(), onayId } }, pid);
+  function kurulBildirimi(pid, ajan, tur, baslik, metin, onayId = null, eylem = null) {
+    yay({ tur: "kurul.bildirimi", projeId: pid, bildirim: { id: yeniKimlik("kb"), projeId: pid, ajanId: ajan?.id ?? null, ajanAd: ajan?.ad ?? "ArnOrg", tur, baslik, metin, zaman: simdi(), onayId, ...(eylem ? { eylem } : {}) } }, pid);
   }
 
   function onayAc(pid, ajanId, tur, baslik, ayrinti, veri) {

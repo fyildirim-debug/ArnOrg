@@ -35,7 +35,9 @@ export const kurulum: typeof tr = {
     kaynak: { paket: "Bundled with ArnOrg", sistem: "System claude command", ayar: "Path from Settings" },
     kopyaYok: "Not found",
     surum: (s: string) => `version ${s}`,
-    kopyaYokUyari: "Claude Code wasn't found. Install it for the terminal or set its path in Settings.",
+    kopyaYokAciklama:
+      "Claude Code wasn't found on this computer. ArnOrg installs it into your user folder with Anthropic's official install script; no admin rights needed, but an internet connection is. If it's installed somewhere else, set its path in Settings.",
+    kur: "Install Claude Code",
     giris: "Sign-in",
     girisYapildi: "Signed in",
     girisYok: "Not signed in",
@@ -48,6 +50,7 @@ export const kurulum: typeof tr = {
     apiUyari:
       "This sign-in uses an API key or a Console account. ArnOrg works only with a Claude subscription; sign in again with your Pro, Max or Team account.",
     yenidenGiris: "Sign in again with a subscription",
+    yenidenGirisYap: "Sign in again",
     terminal: "Terminal command",
     terminalVar: "claude command installed",
     terminalYok: "Not installed · optional",
@@ -56,6 +59,7 @@ export const kurulum: typeof tr = {
     terminalKur: "Also install for the terminal",
     girisTamam: "Signed in to Claude.",
     kurulumTamam: "The claude command is installed.",
+    kopyaKuruldu: "Claude Code is installed; you can sign in now.",
     tazele: "Refresh status",
   },
   github: {
@@ -273,5 +277,18 @@ export const kurulum: typeof tr = {
     secilecek: "Selected",
     sec: "Choose this folder",
     klavye: "Use the arrow keys to move, Enter to open, Backspace to go up.",
+  },
+  uyari: {
+    etiket: "Claude Code warning",
+    kuruluDegil: "Claude Code wasn't found; agents can't work.",
+    giris: "Claude Code isn't signed in; agents can't work until you sign in.",
+    abonelik: "Claude Code is signed in without a subscription; ArnOrg only works with a Claude subscription (Pro, Max or Team).",
+    kur: "Install",
+    girisYap: "Sign in",
+    abonelikleGir: "Sign in with a subscription",
+    sonra: "Later",
+    cekmeceBaslik: "Claude Code",
+    cekmeceAciklama: "Your agents use the Claude Code sign-in on this computer. Once you sign in, stopped agents pick up where they left off.",
+    hazir: "Claude Code is ready; stopped agents are picking up where they left off.",
   },
 };

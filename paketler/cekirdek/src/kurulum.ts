@@ -173,6 +173,8 @@ interface Islem {
 export interface KurulumSecenekleri {
   /** Claude girişi değişince (hesap ve kullanım yeniden okunur) */
   claudeGirisiDegisti?: () => void;
+  /** Claude Code girişsizken (ya da abonelik dışıyken) yeniden hazır oldu: ArnOrg'dan ya da terminalden giriş yapıldı */
+  claudeHazir?: () => void;
   /** Testlerde komut yolları */
   ghYoluZorla?: string | null;
   gitYoluZorla?: string | null;
@@ -183,6 +185,8 @@ export class Kurulum {
   private islemler = new Map<string, Islem>();
   private onbellek: { zaman: number; durum: KurulumDurumu } | null = null;
   private suren: Promise<KurulumDurumu> | null = null;
+  /** Son okunan durumda Claude Code abonelikle girişli miydi (girişten hazıra geçişi yakalamak için) */
+  private sonClaudeHazir: boolean | null = null;
 
   constructor(
     private readonly yapilandirma: Yapilandirma,
@@ -207,6 +211,9 @@ export class Kurulum {
         gitKurulabilir: process.platform === "win32" || process.platform === "darwin",
       };
       this.onbellek = { zaman: Date.now(), durum };
+      const hazir = claude.girisYapildi && claude.abonelik;
+      if (this.sonClaudeHazir === false && hazir) this.secenek.claudeHazir?.();
+      this.sonClaudeHazir = hazir;
       return durum;
     })().finally(() => {
       this.suren = null;
@@ -558,6 +565,8 @@ export class Kurulum {
         const giris = await this.claudeGirisi(ikili.yol);
         if (giris.girisYapildi && giris.abonelik) {
           this.bitir(i, "tamam");
+          // Durum önceden de girişli görünüyor olabilir (sunucuda geçersizleşen giriş): yeni giriş her durumda bildirilir
+          this.secenek.claudeHazir?.();
         } else if (giris.girisYapildi) {
           this.bitir(i, "hata", iki("Giriş yapıldı ama abonelikle değil. Claude hesabınızla (Pro, Max ya da Team) yeniden giriş yapın.", "Signed in, but not with a subscription. Sign in again with your Claude account (Pro, Max or Team)."));
         } else {
@@ -575,8 +584,9 @@ export class Kurulum {
     const suren = this.suregelen("claude_kur");
     if (suren) return suren;
     const ikili = this.claudeIkilisi() ?? (gomuluClaudeYolu() ? { yol: gomuluClaudeYolu()!, kaynak: "paket" as const } : null);
-    if (!ikili) throw new ArnorgHatasi(iki("Kurulum için Claude Code kopyası bulunamadı.", "No Claude Code copy was found to run the installer."), 404);
-    return this.surecIslemi("claude_kur", ikili.yol, ["install"], {
+    // Elde bir kopya varsa onun "claude install"u (çevrimdışı da çalışır); yoksa Anthropic'in resmî kurulum betiği
+    const [komut, argumanlar] = ikili ? [ikili.yol, ["install"]] : resmiKurulumKomutu();
+    return this.surecIslemi("claude_kur", komut, argumanlar, {
       pty: true,
       env: temizOrtam({ TERM: "xterm-256color" }),
       bitince: async (kod, _temiz, i) => {
@@ -861,4 +871,10 @@ function ikiliBul(kok: string, ad: string, derinlik = 4): string | null {
     if (bulunan) return bulunan;
   }
   return null;
+}
+
+/** Anthropic'in resmî Claude Code kurulum betiği (kullanıcı dizinine kurar, yönetici izni gerekmez) */
+export function resmiKurulumKomutu(platform: NodeJS.Platform = process.platform): [string, string[]] {
+  if (platform === "win32") return ["powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"]];
+  return ["bash", ["-c", "curl -fsSL https://claude.ai/install.sh | bash"]];
 }

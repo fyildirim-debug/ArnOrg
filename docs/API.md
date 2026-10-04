@@ -29,6 +29,12 @@
 
 İlk açılış sihirbazı ve Ayarlar bu uçları kullanır. Uzun süren işler (giriş, indirme, kurulum) arka planda bir **kurulum işlemi** olarak yürür; durumu `kurulum.islem` olayıyla gelir, bitince `kurulum.durum` yeni `KurulumDurumu`'nu taşır.
 
+**Her ekranda Claude Code asistanı (0.0.3).** `KurulumDurumu.claude` eksikse (kurulu değil, giriş yok ya da abonelik dışı giriş) Stüdyo her ekranda üst çubuğun altında bir uyarı şeridi gösterir; düğmesi sihirbazdaki Claude Code adımını çekmecede açar. Bir ajan oturumu giriş ya da abonelik hatası alınca (SDK'nın asistan mesajındaki `authentication_failed`, `oauth_org_not_allowed`, `verification_required`, `account_on_hold`, `billing_error` hata alanı ya da çöken sürecin hata metni):
+
+- oturum kapanır, konuşma kimliği saklanır; ajan `duraklatildi` durumuna "Claude Code girişi bekleniyor" açıklamasıyla geçer;
+- `kurulum.durum` tazelenip yayınlanır; kurula en çok 10 dakikada bir `eylem: "claude_giris"` taşıyan `kurul.bildirimi` gider;
+- ajanlar beklerken çekirdek durumu dakikada bir okur. Girişsizden hazıra geçişte (ArnOrg'dan ya da terminalden giriş) ve ArnOrg'dan yapılan her başarılı girişte bekleyen ajanlar aynı konuşmayı sürdürerek kaldıkları yerden devam eder.
+
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
 | GET | `/api/kurulum?tazele=1` | — | `KurulumDurumu`: Claude Code (kurulu mu, sürüm, giriş, abonelik), git (sürüm, kimlik), GitHub CLI (sürüm, giriş yapan hesap, git yardımcısı), platform. `tazele=1` önbelleği atlar |
@@ -37,7 +43,7 @@
 | POST | `/api/kurulum/islemler/:id/girdi` | `{metin}` | `KurulumIslemi` (girdi bekleyen işleme; Claude girişinde tarayıcıdaki kod) |
 | DELETE | `/api/kurulum/islemler/:id` | — | `KurulumIslemi` (iptal) |
 | POST | `/api/kurulum/claude/giris` | — | `KurulumIslemi`: `claude auth login --claudeai` bir sözde uçbirimde açılır; giriş adresi `adres` alanında gelir, kod istenirse `girdiBekliyor` olur |
-| POST | `/api/kurulum/claude/kur` | — | `KurulumIslemi`: paketle gelen Claude Code ile `claude install` (kullanıcı dizinine, yönetici izni gerekmez) |
+| POST | `/api/kurulum/claude/kur` | — | `KurulumIslemi`: elde bir Claude Code kopyası varsa onunla `claude install`; hiç yoksa Anthropic'in resmî kurulum betiği (`curl -fsSL https://claude.ai/install.sh \| bash`, Windows'ta `irm https://claude.ai/install.ps1 \| iex`). İkisi de kullanıcı dizinine kurar, yönetici izni gerekmez |
 | POST | `/api/kurulum/gh/kur` | — | `KurulumIslemi`: GitHub CLI'ın son sürümü GitHub'dan indirilip ArnOrg'un araç dizinine açılır |
 | POST | `/api/kurulum/gh/giris` | — | `KurulumIslemi`: `gh auth login --web`; tek kullanımlık kod `kod`, adres `adres` alanında. Bitince git kimlik yardımcısı ayarlanır |
 | POST | `/api/kurulum/gh/git-yardimcisi` | — | `KurulumIslemi` (`gh auth setup-git`) |
@@ -340,7 +346,7 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 - **Otomatik onay:** projede `otomatikOnay.etkin` açıkken türü `otomatikOnay.turler` içinde olan onaylar bekletilmeden verilir ve "Otomatik onay" notuyla kaydedilir; açıldığı anda bekleyen uygun onaylar da verilir. Varsayılan türler: `arac`, `ise_alim`, `birlestirme`, `anayasa`, `isten_cikarma` (`genel` ve `teslim` kurulun kendisine kalır).
 - **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
 - **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
-- **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir.
+- **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar.
 - **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken; yazıyor göstergesi).
 
 ## Rapor ve tıkanma koruması

@@ -1,6 +1,6 @@
 // Claude Code kurulumu: hangi kopya, sürüm, giriş, abonelik ve terminal komutu; giriş ve kurulum canlı işlemle.
 // İlk kurulum sihirbazı ve Ayarlar ortak kullanır.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
 import { bildir, hataBildir } from "../durum/arayuz";
@@ -19,6 +19,8 @@ export function ClaudeKurulumu() {
   const yukleme = useKurulum((d) => d.yukleme);
   const hata = useKurulum((d) => d.hata);
   const tazeleme = useIslem();
+  // Kurulum başlarken elde kopya var mıydı: yoksa resmî betik Claude Code'un kendisini kurar
+  const kopyaVardi = useRef(true);
 
   const giris = useKurulumIslemi("claude_giris", (i) => {
     if (i.durum === "tamam") {
@@ -29,7 +31,7 @@ export function ClaudeKurulumu() {
     void kurulumuYukle(true);
   });
   const kur = useKurulumIslemi("claude_kur", (i) => {
-    if (i.durum === "tamam") bildir("basari", sozluk().kurulum.claude.kurulumTamam);
+    if (i.durum === "tamam") bildir("basari", kopyaVardi.current ? sozluk().kurulum.claude.kurulumTamam : sozluk().kurulum.claude.kopyaKuruldu);
     void kurulumuYukle(true);
   });
 
@@ -47,7 +49,12 @@ export function ClaudeKurulumu() {
 
   const c = durum.claude;
   const girisBaslat = () => void giris.baslat(() => api.claudeGiris()).catch(hataBildir);
-  const kurBaslat = () => void kur.baslat(() => api.claudeKur()).catch(hataBildir);
+  const kurBaslat = () => {
+    kopyaVardi.current = !!c.kaynak;
+    void kur.baslat(() => api.claudeKur()).catch(hataBildir);
+  };
+  const kurPaneli = kur.islem ? <IslemPaneli islem={kur.islem} yenidenDene={kurBaslat} gizle={kur.gizle} /> : null;
+  const kurSuruyor = !!kur.islem && kur.islem.durum !== "tamam";
   // Panel açıkken (sürerken ya da hata/iptalde "Yeniden dene" ile) başlatma düğmesi tekrarlanmaz
   const girisSuruyor = !!giris.islem && giris.islem.durum !== "tamam";
   // Giriş paneli eksik olan satırda durur: önce giriş, sonra abonelik
@@ -64,7 +71,19 @@ export function ClaudeKurulumu() {
           baslik={t.kopya}
           deger={c.kaynak ? `${t.kaynak[c.kaynak]}${c.surum ? ` · ${t.surum(c.surum)}` : ""}` : t.kopyaYok}
         >
-          {!c.kaynak ? <p className="uyari-kutu">{c.hata ?? t.kopyaYokUyari}</p> : null}
+          {!c.kaynak ? (
+            <>
+              <p className="kurulum-ipucu">{t.kopyaYokAciklama}</p>
+              {kurPaneli}
+              {!kurSuruyor ? (
+                <div>
+                  <button type="button" className="dugme dugme-ana" onClick={kurBaslat}>
+                    {t.kur}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </KurulumOgesi>
 
         <KurulumOgesi durum={c.girisYapildi ? "tamam" : "eksik"} baslik={t.giris} deger={c.girisYapildi ? (c.eposta ?? t.girisYapildi) : t.girisYok}>
@@ -80,6 +99,15 @@ export function ClaudeKurulumu() {
                 </div>
               ) : null}
             </>
+          ) : c.abonelik ? (
+            // Giriş burada görünse de sunucuda geçersizleşmiş olabilir (ajanlar giriş hatası alır) ya da hesap değişecektir
+            (girisPaneli ?? (
+              <div>
+                <button type="button" className="metin-dugme" onClick={girisBaslat}>
+                  {t.yenidenGirisYap}
+                </button>
+              </div>
+            ))
           ) : null}
         </KurulumOgesi>
 
@@ -103,22 +131,25 @@ export function ClaudeKurulumu() {
           ) : null}
         </KurulumOgesi>
 
-        <KurulumOgesi durum={c.sistemde ? "tamam" : "bilgi"} baslik={t.terminal} deger={c.sistemde ? t.terminalVar : t.terminalYok}>
-          {!c.sistemde ? (
-            <>
-              <p className="kurulum-ipucu">{t.terminalAciklama}</p>
-              {kur.islem ? <IslemPaneli islem={kur.islem} yenidenDene={kurBaslat} gizle={kur.gizle} /> : null}
-              {!kur.islem || kur.islem.durum === "tamam" ? (
-                <div>
-                  <button type="button" className="dugme" onClick={kurBaslat}>
-                    <Simge ad="terminal" />
-                    {t.terminalKur}
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </KurulumOgesi>
+        {/* Kopya yokken kurulum ilk satırda; resmî betik terminal komutunu da kurar */}
+        {c.kaynak ? (
+          <KurulumOgesi durum={c.sistemde ? "tamam" : "bilgi"} baslik={t.terminal} deger={c.sistemde ? t.terminalVar : t.terminalYok}>
+            {!c.sistemde ? (
+              <>
+                <p className="kurulum-ipucu">{t.terminalAciklama}</p>
+                {kurPaneli}
+                {!kurSuruyor ? (
+                  <div>
+                    <button type="button" className="dugme" onClick={kurBaslat}>
+                      <Simge ad="terminal" />
+                      {t.terminalKur}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </KurulumOgesi>
+        ) : null}
       </KurulumListesi>
       <div className="kurulum-alt">
         <button

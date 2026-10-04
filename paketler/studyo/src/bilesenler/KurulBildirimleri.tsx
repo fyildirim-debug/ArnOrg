@@ -8,6 +8,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
 import { bildir, git } from "../durum/arayuz";
+import { claudeAsistaniniAc } from "../durum/kurulum";
 import {
   ceoyaYanitYaz,
   masaustuIzni,
@@ -141,7 +142,7 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
 
   return (
     <article
-      className={`kb kb-${k.tur}${EYLEMLI.includes(k.tur) ? " kb-eylemli" : ""}`}
+      className={`kb kb-${k.tur}${EYLEMLI.includes(k.tur) || k.eylem ? " kb-eylemli" : ""}`}
       aria-labelledby={baslikId}
       onKeyDown={(e) => {
         if (e.key === "Escape" && !e.defaultPrevented) {
@@ -265,6 +266,18 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
               }}
             >
               {b.yanitYaz}
+            </button>
+          ) : null}
+          {k.eylem === "claude_giris" ? (
+            <button
+              type="button"
+              className="dugme dugme-ana dugme-kucuk"
+              onClick={() => {
+                claudeAsistaniniAc();
+                kapat();
+              }}
+            >
+              {b.claudeGiris}
             </button>
           ) : null}
           {k.onayId ? (

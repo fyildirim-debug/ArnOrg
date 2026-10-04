@@ -1,5 +1,16 @@
 // Kurulum ve proje açma yardımcıları: masaüstü köprüsü, klasör adı ve yol işleri, işlem çıktısından ilerleme okuma
-import type { KurulumIslemi, MasaustuKoprusu } from "@arnorg/ortak";
+import type { ClaudeKurulumu, KurulumIslemi, MasaustuKoprusu } from "@arnorg/ortak";
+
+/** Ajanların çalışması için Claude Code'da eksik olan: hiç kopya yok, giriş yok ya da abonelik dışı giriş */
+export type ClaudeEksigi = "kurulu_degil" | "giris" | "abonelik";
+
+export function claudeEksigi(c: ClaudeKurulumu | null | undefined): ClaudeEksigi | null {
+  if (!c) return null;
+  if (!c.yol) return "kurulu_degil";
+  if (!c.girisYapildi) return "giris";
+  if (!c.abonelik) return "abonelik";
+  return null;
+}
 
 /** Masaüstü uygulamasının köprüsü (window.arnorg); tarayıcıda yoktur */
 export function masaustu(): MasaustuKoprusu | undefined {

@@ -15,6 +15,10 @@ interface KurulumDeposu {
   /** GitHub hesabı ve kuruluşları (depo sahibi seçimi, git kimliğini doldurma) */
   githubHesabi: GithubHesabi | null;
   githubHesabiYukleme: Yukleme;
+  /** Claude Code giriş ve kurulum asistanının çekmecesi açık mı (her ekrandan açılır) */
+  claudeAsistani: boolean;
+  /** Son durum okuması (pencereye dönünce bayatsa yeniden okunur) */
+  sonOkuma: number;
 }
 
 export const useKurulum = create<KurulumDeposu>()(() => ({
@@ -24,7 +28,19 @@ export const useKurulum = create<KurulumDeposu>()(() => ({
   islemler: {},
   githubHesabi: null,
   githubHesabiYukleme: "bos",
+  claudeAsistani: false,
+  sonOkuma: 0,
 }));
+
+export { claudeEksigi, type ClaudeEksigi } from "../bilesenler/kurulumYardimcilari";
+
+export function claudeAsistaniniAc() {
+  useKurulum.setState({ claudeAsistani: true });
+}
+
+export function claudeAsistaniniKapat() {
+  useKurulum.setState({ claudeAsistani: false });
+}
 
 const ayarla = useKurulum.setState;
 
@@ -42,9 +58,10 @@ export async function kurulumuYukle(tazele = false): Promise<KurulumDurumu | nul
 }
 
 export function kurulumDurumuUygula(durum: KurulumDurumu) {
+  const sonOkuma = Date.now();
   // GitHub girişi kapandıysa eski hesap bilgisi gösterilmesin
-  if (!durum.github.girisYapildi) ayarla({ durum, yukleme: "hazir", hata: null, githubHesabi: null, githubHesabiYukleme: "bos" });
-  else ayarla({ durum, yukleme: "hazir", hata: null });
+  if (!durum.github.girisYapildi) ayarla({ durum, yukleme: "hazir", hata: null, githubHesabi: null, githubHesabiYukleme: "bos", sonOkuma });
+  else ayarla({ durum, yukleme: "hazir", hata: null, sonOkuma });
 }
 
 export function islemUygula(islem: KurulumIslemi) {
