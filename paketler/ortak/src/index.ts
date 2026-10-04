@@ -784,7 +784,8 @@ export interface KureselKural {
   guncelleme: Zaman;
 }
 
-export type ZekaGunlukTuru = "ogrendi" | "guclendi" | "birlestirdi" | "emekli" | "etkinlesti" | "duzenlendi" | "geri_bildirim";
+/** "eledi": damıtıcı gözlemi projeye özgü bulduğu için global kural yapmadı */
+export type ZekaGunlukTuru = "ogrendi" | "guclendi" | "birlestirdi" | "emekli" | "etkinlesti" | "duzenlendi" | "geri_bildirim" | "eledi";
 
 export interface ZekaGunlukKaydi {
   id: string;

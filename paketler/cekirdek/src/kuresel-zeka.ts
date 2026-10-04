@@ -3,11 +3,14 @@
 // varsa kanıt eklenip güven artar, yoksa yeni kural açılır. Aday kural başka projede de görülünce ya da güveni
 // yükselince etkinleşir. Bakım: tekrar edenler birleşir, güveni düşenler emekliye ayrılır, etkin kural sayısı sınırlı tutulur.
 // Etkin kurallar her ajana rolü ve yetkisi kapsamında (herkes, yönetici, geliştirici ya da rol kimliği) talimatla verilir.
+// Damıtma: gözlem önce küçük bir modelle projeden bağımsız tek bir kurala çevrilir ya da projeye özgü diye elenir
+// (damitici.ts); damıtılamayan ham gözlem tek başına standart olmaz, aday kalır.
 import fs from "node:fs";
 import path from "node:path";
 import type { Ajan, KuralKaynagi, KureselKural, Rol, ZekaDurumu, ZekaGunlukTuru } from "@arnorg/ortak";
+import type { Damitici, DamitmaSonucu } from "./damitici.js";
 import type { Depo } from "./depo.js";
-import { iki } from "./dil.js";
+import { dil, iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
 import { anlamliSozcukler, aramaMetni, ArnorgHatasi, kisalt, simdi } from "./yardimci.js";
 
@@ -15,6 +18,9 @@ const ETKIN_SINIRI = 60;
 const BAGLAM_SINIRI = 2600;
 const BENZERLIK_ESIGI = 0.5;
 const KAPSAM_GRUPLARI = new Set(["yonetici", "gelistirici"]);
+/** Günde en çok bu kadar gözlem modele damıtılır; fazlası ham (temkinli) işlenir */
+const DAMITMA_GUNLUK = 80;
+const DAMITMA_ONBELLEK = 300;
 
 /** Metin bir projeye özgü mü (proje adı, dosya yolu, "bu projede")? Özgü olan global kural olmaz */
 export function projeyeOzguMu(metin: string): boolean {
@@ -60,16 +66,69 @@ export interface Gozlem {
   kapsam?: string[];
   /** Önem 5 ders gibi güçlü işaret: aday yerine doğrudan etkin */
   guclu?: boolean;
+  /** Damıtılamadı: tek başına standart olmaz, aday kalır */
+  ham?: boolean;
+  /** Damıtıldıysa gözlemin özgün metni (kanıt olarak saklanır) */
+  hamMetin?: string;
 }
 
 export class KureselZeka {
   private zamanlayici: NodeJS.Timeout | null = null;
+  private damitmaKuyrugu: Promise<unknown> = Promise.resolve();
+  private readonly damitmaOnbellegi = new Map<string, Exclude<DamitmaSonucu, null>>();
+  private damitmaSayaci = { gun: "", sayi: 0 };
 
   constructor(
     private readonly depo: Depo,
     private readonly olaylar: OlayYolu,
     private readonly veriDizini: string,
+    private damitici: Damitici | null = null,
   ) {}
+
+  damiticiAyarla(d: Damitici | null): void {
+    this.damitici = d;
+  }
+
+  /**
+   * Gözlemi damıtıp işler (sırayla; aynı metin için model bir kez çağrılır). Model kuralı genelleştirirse kural o
+   * metinle açılır ya da güçlenir, özgün metin kanıt olarak kalır; projeye özgü bulursa elenir; ulaşılamazsa gözlem
+   * ham işlenir. Damıtıcı yoksa (testler, oturumsuz kip) gözlem olduğu gibi işlenir.
+   */
+  gozlemDamit(g: Gozlem): Promise<KureselKural | null> {
+    if (!this.damitici) return Promise.resolve(this.gozlem(g));
+    const is = this.damitmaKuyrugu.then(() => this.damitVeIsle(g));
+    this.damitmaKuyrugu = is.catch(() => undefined);
+    return is;
+  }
+
+  private async damitVeIsle(g: Gozlem): Promise<KureselKural | null> {
+    const ham = g.metin.replace(/\s+/g, " ").trim();
+    if (ham.length < 8 || ham.length > 600) return null;
+    const anahtar = aramaMetni(ham);
+    let sonuc: DamitmaSonucu = this.damitmaOnbellegi.get(anahtar) ?? null;
+    if (!sonuc && this.damitmaHakkiVar()) {
+      sonuc = await this.damitici!(ham, { projeAd: g.projeAd, dil: dil() }).catch(() => null);
+      if (sonuc) {
+        this.damitmaOnbellegi.set(anahtar, sonuc);
+        if (this.damitmaOnbellegi.size > DAMITMA_ONBELLEK) this.damitmaOnbellegi.delete(this.damitmaOnbellegi.keys().next().value!);
+      }
+    }
+    if (sonuc?.tur === "ozgu") {
+      this.gunluk("eledi", iki(`Projeye özgü bulundu, global kural olmadı${g.projeAd ? ` (${g.projeAd})` : ""}: ${kisalt(ham, 140)}`, `Project-specific, not made a global rule${g.projeAd ? ` (${g.projeAd})` : ""}: ${kisalt(ham, 140)}`), null);
+      return null;
+    }
+    if (sonuc?.tur === "kural") return this.gozlem({ ...g, metin: sonuc.metin, hamMetin: ham, ham: false });
+    return this.gozlem({ ...g, metin: ham, ham: true });
+  }
+
+  /** Günlük damıtma sınırı */
+  private damitmaHakkiVar(): boolean {
+    const gun = simdi().slice(0, 10);
+    if (this.damitmaSayaci.gun !== gun) this.damitmaSayaci = { gun, sayi: 0 };
+    if (this.damitmaSayaci.sayi >= DAMITMA_GUNLUK) return false;
+    this.damitmaSayaci.sayi++;
+    return true;
+  }
 
   baslat(aralikMs = 6 * 3600_000): void {
     if (this.zamanlayici) return;
@@ -100,7 +159,7 @@ export class KureselZeka {
     const metin = g.metin.replace(/\s+/g, " ").trim();
     if (metin.length < 8 || metin.length > 600) return null;
     if (projeyeOzguMu(metin)) return null;
-    const kanit = { projeId: g.projeId, projeAd: g.projeAd, metin: kisalt(metin, 300), zaman: simdi() };
+    const kanit = { projeId: g.projeId, projeAd: g.projeAd, metin: kisalt(g.hamMetin ?? metin, 300), zaman: simdi() };
     const adaylar = this.depo
       .kurallar()
       .map((k) => ({ k, b: benzerlik(k.metin, metin) }))
@@ -126,8 +185,9 @@ export class KureselZeka {
       return yeni;
     }
     const kurulSozu = g.kaynak === "kurul" || g.kaynak === "tercih" || g.kaynak === "duzeltme";
-    const durum = kurulSozu || g.guclu ? "etkin" : "aday";
-    const guven = g.kaynak === "kurul" ? 0.85 : kurulSozu ? 0.72 : g.guclu ? 0.66 : 0.5;
+    // Damıtılamayan ham gözlem projeye özgü olabilir: başka projede de görülene ya da kurul etkinleştirene kadar aday
+    const durum = !g.ham && (kurulSozu || g.guclu) ? "etkin" : "aday";
+    const guven = g.ham ? 0.5 : g.kaynak === "kurul" ? 0.85 : kurulSozu ? 0.72 : g.guclu ? 0.66 : 0.5;
     const kural = this.depo.kuralEkle({ metin, kapsam: this.kapsamTemizle(g.kapsam), kaynak: g.kaynak, kanitlar: [kanit], guven, durum });
     this.gunluk(
       "ogrendi",
