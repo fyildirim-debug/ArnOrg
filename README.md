@@ -76,13 +76,15 @@ A software company built from Claude Code agents. You open a project; the CEO ag
 
 ## Install
 
-Installers are on the [Releases](https://github.com/fyildirim-debug/ArnOrg/releases) page:
+Installers are on the [Releases](https://github.com/fyildirim-debug/ArnOrg-surumler/releases) page of the public releases repository (the source repository is private):
 
 | System | File |
 |---|---|
 | Windows 10/11 · x64 | `ArnOrg-Kurulum-<version>-x64.exe` (setup wizard), or `ArnOrg-<version>-x64.msi` for managed deployment |
 | Linux · x64 | `ArnOrg-<version>-x86_64.AppImage` (no install), `ArnOrg-<version>-amd64.deb`, `ArnOrg-<version>-x86_64.rpm` |
 | Linux · arm64 | `ArnOrg-<version>-arm64.AppImage`, `ArnOrg-<version>-arm64.deb`, `ArnOrg-<version>-aarch64.rpm` |
+
+The desktop app updates itself from the same page: it checks for a new version when it opens and every 6 hours, downloads it in the background and offers **Restart** in a bar under the top bar. Versions up to 0.0.4 looked for updates in the private repository, so they need to be updated to 0.0.5 by hand once.
 
 You need a Claude subscription (Pro, Max or Team). The first-run assistant checks Claude Code, git and the GitHub CLI and helps you install and sign in to whatever is missing. The installers are unsigned: on the Windows SmartScreen prompt choose **More info → Run anyway**. The AppImage needs FUSE 2 (Ubuntu 24.04: `sudo apt install libfuse2t64`).
 
@@ -115,6 +117,8 @@ git push origin main v0.0.5            # surum.yml builds the packages and publi
 ```
 
 Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.5` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+
+The workflow publishes the release twice: in this repository, and in the public releases repository [`fyildirim-debug/ArnOrg-surumler`](https://github.com/fyildirim-debug/ArnOrg-surumler), where installed apps look for updates. For the second one the repository needs the `SURUM_DEPOSU_TOKENI` Actions secret: a fine-grained personal access token with **Contents: Read and write** on `ArnOrg-surumler` only. Without the secret the release is published here only and the workflow shows a warning.
 
 Development:
 

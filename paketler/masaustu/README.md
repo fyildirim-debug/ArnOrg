@@ -138,7 +138,7 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 
 ### Otomatik güncelleme
 
-`electron-builder.yml` → `publish` GitHub sürümlerini (fyildirim-debug/ArnOrg) gösterir; paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir, sürüm iş akışı bunları sürüme ekler. Paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar (`src/guncelleme.ts`, `electron-updater`). NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez. Depo özelken güncelleyici sürümleri okuyamaz; denetim yalnız kayda bir satır yazar, uygulama etkilenmez.
+`electron-builder.yml` → `publish` açık sürüm deposunun GitHub sürümlerini (fyildirim-debug/ArnOrg-surumler) gösterir: kaynak kod deposu özel olduğundan kurulu uygulama oradaki sürümleri okuyamaz, kurulum dosyaları bu yüzden açık depoda da yayınlanır. Paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir, sürüm iş akışı bunları iki sürüme de ekler (açık depo için `SURUM_DEPOSU_TOKENI` sırrı gerekir). Paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar (`src/guncelleme.ts`, `electron-updater`). NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez. 0.0.4'e kadarki sürümler güncellemeyi özel depoda aradığından bir kez elle güncellenmelidir; güncelleme denetlenemezse uygulama etkilenmez, yalnız kayda bir satır yazılır.
 
 ## Windows notları
 
@@ -156,7 +156,7 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 ## CI
 
 - `.github/workflows/ci.yml`: main'e gönderim ve çekme isteklerinde Ubuntu ve Windows'ta `npm ci`, `npm run typecheck`, `npm test`, `npm run build` ve kabuk derlemesi; Linux'ta sahte çekirdekle Electron duman testi (ekran görüntüsü yapıt olarak yüklenir).
-- `.github/workflows/surum.yml`: `v*` etiketinde (ya da elle çalıştırmada `surum` girdisiyle) önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. `surum` boş elle çalıştırma yalnız paketleri yapıt olarak üretir.
+- `.github/workflows/surum.yml`: `v*` etiketinde (ya da elle çalıştırmada `surum` girdisiyle) önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. Aynı sürüm `SURUM_DEPOSU_TOKENI` sırrıyla açık sürüm deposunda (fyildirim-debug/ArnOrg-surumler) da yayınlanır; sır yoksa bu adım uyarıyla atlanır. `surum` boş elle çalıştırma yalnız paketleri yapıt olarak üretir.
 
 ## Sürüm çıkarma
 

@@ -60,11 +60,14 @@ extraResources:
   - from: ../studyo/dist
     to: studyo
 
-# Güncelleme kaynağı (app-update.yml). Paketleri CI yükler (--publish never); sürümü surum.yml yayınlar.
+# Güncelleme kaynağı (app-update.yml). Kaynak kod deposu (fyildirim-debug/ArnOrg) özeldir; kurulu uygulamalar
+# özel depodaki sürümleri göremez. Bu yüzden güncellemeler yalnız kurulum dosyalarının yayınlandığı açık
+# depodan (fyildirim-debug/ArnOrg-surumler) okunur. Paketleri CI yükler (--publish never); sürümü surum.yml
+# hem özel depoda hem açık depoda yayınlar.
 publish:
   provider: github
   owner: fyildirim-debug
-  repo: ArnOrg
+  repo: ArnOrg-surumler
   releaseType: release
 
 # ---------------------------------------------------------------------------

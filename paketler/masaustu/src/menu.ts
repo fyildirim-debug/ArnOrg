@@ -2,7 +2,8 @@
 
 import { Menu, shell, type MenuItemConstructorOptions } from "electron";
 
-const DEPO = "https://github.com/fyildirim-debug/ArnOrg";
+/** Açık sürüm deposu: belgeler, kurulum dosyaları ve sorun bildirimi (kaynak kod deposu özeldir) */
+const DEPO = "https://github.com/fyildirim-debug/ArnOrg-surumler";
 
 export interface MenuEylemleri {
   veriKlasorunuAc(): void;
@@ -59,6 +60,7 @@ export function menuyuKur(e: MenuEylemleri): void {
       label: "Yardım",
       submenu: [
         { label: "Belgeler", click: () => void shell.openExternal(`${DEPO}#readme`) },
+        { label: "Sürümler", click: () => void shell.openExternal(`${DEPO}/releases`) },
         { label: "Sorun bildir", click: () => void shell.openExternal(`${DEPO}/issues`) },
         { label: "Kayıt klasörünü aç", click: () => e.kayitKlasorunuAc() },
         ayirici,

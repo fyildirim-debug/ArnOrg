@@ -7,6 +7,13 @@
 #     son commit'ine sürümle birlikte konur.
 # Etiket paket sürümleriyle uyuşmazsa ya da notlar yoksa paketleme başlamadan durur
 # (betikler/surum.mjs --denetle). "surum" boş bırakılırsa yalnız paketler yapıt olarak üretilir.
+#
+# Otomatik güncelleme: kaynak kod deposu özel olduğundan kurulu uygulamalar güncellemeleri açık sürüm
+# deposundan (fyildirim-debug/ArnOrg-surumler) okur (paketler/masaustu/electron-builder.yml → publish).
+# Sürüm bu depoda yayınlandıktan sonra kurulum dosyaları ve latest*.yml açık depoya da yüklenir. Bunun için
+# depo sırlarında SURUM_DEPOSU_TOKENI bulunmalı: yalnız fyildirim-debug/ArnOrg-surumler deposunda
+# "Contents: Read and write" izni olan ince ayarlı (fine-grained) erişim belirteci. Sır yoksa sürüm yalnız
+# bu depoda yayınlanır ve iş akışı uyarı verir.
 name: Sürüm
 
 on:
@@ -101,6 +108,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # Açık sürüm deposuna yazma belirteci; tanımlı değilse açık depo adımı atlanır
+      ACIK_DEPO_TOKENI: ${{ secrets.SURUM_DEPOSU_TOKENI }}
     steps:
       # Yalnız sürüm notları gerekir
       - uses: actions/checkout@v5
@@ -127,3 +137,24 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
           files: cikti/*
+
+      # Kurulu uygulamalar buradan güncellenir: aynı dosyalar ve notlar açık depoda, aynı etiketle yayınlanır.
+      # Etiket açık deponun varsayılan dalına konur (kaynak kodu orada yoktur).
+      - name: Açık sürüm deposunda yayınla
+        if: env.ACIK_DEPO_TOKENI != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: fyildirim-debug/ArnOrg-surumler
+          token: ${{ env.ACIK_DEPO_TOKENI }}
+          tag_name: ${{ env.SURUM_ETIKETI }}
+          name: ArnOrg ${{ env.SURUM_ETIKETI }}
+          body_path: docs/surumler/${{ env.SURUM_ETIKETI }}.md
+          draft: false
+          prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: cikti/*
+
+      - name: Açık sürüm deposu belirteci yok
+        if: env.ACIK_DEPO_TOKENI == ''
+        run: echo "::warning title=Otomatik güncelleme::SURUM_DEPOSU_TOKENI sırrı tanımlı değil. Sürüm açık depoda (fyildirim-debug/ArnOrg-surumler) yayınlanmadı; kurulu uygulamalar bu sürümü otomatik almaz."
