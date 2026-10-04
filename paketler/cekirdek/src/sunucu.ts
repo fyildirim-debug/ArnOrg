@@ -20,6 +20,7 @@ import {
   type TerminalIstemciMesaji,
 } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
+import { iki } from "./dil.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { fsUclariniKur } from "./fs-api.js";
@@ -81,6 +82,7 @@ const semalar = {
     varsayilanDal: z.string().min(1).max(200).optional(),
     otomatikGonder: z.boolean().optional(),
     hazirlik: z.enum(["bekliyor", "suruyor", "tamam", "atlandi"]).optional(),
+    otomatikOnay: z.object({ etkin: z.boolean(), turler: z.array(z.enum(["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"])) }).optional(),
   }),
   klonla: z.object({
     depo: z.string().min(3).max(220),
@@ -302,6 +304,49 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/dallar", async (i) => sirket.projeDallari(param(i, "pid")));
   app.post("/api/projeler/:pid/esitle", async (i) => sirket.esitle(param(i, "pid"), z.object({ gonder: z.boolean().optional() }).parse(i.body ?? {}).gonder ?? false));
   app.post("/api/projeler/:pid/github", async (i) => sirket.githubDeposuAc(param(i, "pid"), govde(semalar.githubDeposu, i)));
+  app.post("/api/projeler/:pid/hazirlik", async (i) => {
+    const pid = param(i, "pid");
+    const islem = z.object({ islem: z.enum(["baslat", "atla"]) }).parse(i.body ?? {}).islem;
+    return islem === "baslat" ? sirket.hazirlikBaslat(pid) : sirket.projeGuncelle(pid, { hazirlik: "atlandi" });
+  });
+
+  // ---------------- ana yasa ----------------
+  app.get("/api/projeler/:pid/anayasa", async (i) => {
+    sirket.proje(param(i, "pid"));
+    return sirket.anayasa(param(i, "pid"));
+  });
+  app.put("/api/projeler/:pid/anayasa", async (i) => {
+    const g = z.object({ maddeler: z.array(z.unknown()).max(40) }).parse(i.body ?? {});
+    return sirket.anayasaGuncelle(param(i, "pid"), g.maddeler, iki("Yönetim kurulu", "The board"));
+  });
+
+  // ---------------- ajan zekâsı: sözler, beceriler ----------------
+  app.get("/api/projeler/:pid/sozler", async (i) => {
+    sirket.proje(param(i, "pid"));
+    const durum = sorgu(i, "durum");
+    return sirket.depo.sozler(param(i, "pid"), { durum: durum === "acik" || durum === "tutuldu" || durum === "iptal" ? durum : undefined, sinir: 300 });
+  });
+  app.get("/api/projeler/:pid/beceriler", async (i) => sirket.zeka.beceriler(sirket.proje(param(i, "pid"))));
+  app.get("/api/projeler/:pid/beceriler/:ad", async (i) => sirket.zeka.beceriOku(sirket.proje(param(i, "pid")), param(i, "ad")));
+
+  // ---------------- global zekâ ----------------
+  app.get("/api/zeka", async () => sirket.kuresel.durum());
+  app.post("/api/zeka/kurallar", async (i) => {
+    const g = z.object({ metin: z.string().min(5).max(600), kapsam: z.array(z.string().max(20)).max(8).optional() }).parse(i.body ?? {});
+    return sirket.kuresel.kurulEkle(g.metin, g.kapsam ?? []);
+  });
+  app.patch("/api/zeka/kurallar/:id", async (i) => {
+    const g = z.object({ metin: z.string().min(5).max(600).optional(), kapsam: z.array(z.string().max(20)).max(8).optional(), durum: z.enum(["aday", "etkin", "emekli"]).optional() }).parse(i.body ?? {});
+    return sirket.kuresel.duzenle(param(i, "id"), g);
+  });
+  app.post("/api/zeka/kurallar/:id/geri-bildirim", async (i) => {
+    const g = z.object({ sonuc: z.enum(["ise_yaradi", "yanlis", "ihlal"]), not: z.string().max(500).optional() }).parse(i.body ?? {});
+    return sirket.kuresel.geriBildirim(param(i, "id"), g.sonuc, g.not ?? null, iki("Yönetim kurulu", "The board"));
+  });
+  app.delete("/api/zeka/kurallar/:id", async (i) => {
+    sirket.kuresel.sil(param(i, "id"));
+    return tamam;
+  });
   app.delete("/api/projeler/:pid", async (i) => {
     sirket.projeSil(param(i, "pid"));
     return tamam;
@@ -314,9 +359,20 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   });
   app.post("/api/projeler/:pid/ajanlar", async (i) => sirket.iseAl(param(i, "pid"), govde(semalar.iseAl, i)));
   app.patch("/api/ajanlar/:aid", async (i) => sirket.ajanGuncelle(param(i, "aid"), govde(semalar.ajanGuncelle, i)));
+  // İşten çıkarma: açık işleri ve bildikleri devralana (verilmezse yöneticisine) geçer
   app.delete("/api/ajanlar/:aid", async (i) => {
-    sirket.ajanSil(param(i, "aid"));
+    await sirket.istenCikar(param(i, "aid"), sorgu(i, "devralan") ?? null, iki("Yönetim kurulu", "The board"));
     return tamam;
+  });
+  app.get("/api/ajanlar/:aid/zeka", async (i) => {
+    const a = sirket.ajan(param(i, "aid"));
+    return sirket.zeka.ozet(a, sirket.hafiza.defter(a));
+  });
+  app.post("/api/ajanlar/:aid/aktar", async (i) => {
+    const g = z.object({ kime: z.string().min(1), sozler: z.boolean().optional(), not: z.string().max(1000).optional() }).parse(i.body ?? {});
+    const veren = sirket.ajan(param(i, "aid"));
+    const alan = sirket.ajan(g.kime);
+    return { mesaj: sirket.zeka.aktar(veren, alan, { sozler: g.sozler, not: g.not, defter: sirket.hafiza.defter(veren), defterYaz: (x, icerik) => sirket.defterYaz(x.id, icerik) }) };
   });
   app.post("/api/ajanlar/:aid/baslat", async (i) => sirket.ajanBaslat(param(i, "aid"), govde(semalar.baslat, i)));
   app.post("/api/ajanlar/:aid/mesaj", async (i) => {

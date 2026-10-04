@@ -1,6 +1,6 @@
 // Ajanların ArnOrg ile konuştuğu süreç içi MCP araçları (mcp__arnorg__*)
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
+import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalKimligi, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
@@ -8,9 +8,12 @@ import { raporOlustur, tokenMetni } from "./gozetmen.js";
 import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
+import { maddeleriDenetle } from "./anayasa.js";
+import { iki } from "./dil.js";
 import { rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { kisalt } from "./yardimci.js";
+import { KISISEL_SINIR } from "./zeka.js";
 
 type Sonuc = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -62,7 +65,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
       },
       (a) =>
         guvenli(async () => {
-          const kanal = a.kanal ?? (rolBul(ben().rol)?.kimlik === "ceo" ? "genel" : "muhendislik");
+          // Varsayılan: seslenildiği kanal (yanıt oraya gider), yoksa CEO için #genel, diğerleri için #muhendislik
+          const kanal = a.kanal ?? sirket.yazdigiKanal(ajanId) ?? (rolBul(ben().rol)?.kimlik === "ceo" ? "genel" : "muhendislik");
           let govde = a.metin;
           if (a.alici) {
             const alici = ajanBul(a.alici);
@@ -79,7 +83,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
       { kanal: z.string().default("genel"), sinir: z.number().int().min(1).max(100).default(30) },
       (a) =>
         guvenli(() => {
-          const mesajlar = sirket.depo.mesajlar(ben().projeId, a.kanal.replace(/^#/, ""), a.sinir);
+          const mesajlar = sirket.depo.mesajlar(ben().projeId, kanalKimligi(a.kanal), a.sinir);
           if (!mesajlar.length) return metin(`#${a.kanal} kanalında mesaj yok.`);
           return metin(mesajlar.map((m) => `[${m.zaman.slice(11, 16)}] ${m.gonderenAd}: ${m.metin}`).join("\n"));
         }),
@@ -567,6 +571,270 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           if (bekleyen) return metin(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`);
           const onay = sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${proje().varsayilanDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId });
           return metin(`${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`);
+        }),
+    ),
+    // ---------------- kendi zekâsı: kişisel hafıza, sözler, beceriler, geçmiş, aktarım ----------------
+    tool(
+      "kendime_not",
+      iki(
+        `Kişisel hafızana yazar (yalnız sana ait, kalıcı, ${KISISEL_SINIR} karakterle sınırlı). ekle: yeni madde; degistir: 'eski' parçasını içeren maddeyi 'metin' ile değiştirir; sil: 'eski' parçasını içeren maddeyi siler. Değişiklik bir sonraki oturumunda talimatına girer.`,
+        `Writes to your personal memory (yours only, lasting, limited to ${KISISEL_SINIR} characters). ekle: add an entry; degistir: replace the entry containing 'eski' with 'metin'; sil: remove the entry containing 'eski'. Changes appear in your next session's instructions.`,
+      ),
+      {
+        islem: z.enum(["ekle", "degistir", "sil"]),
+        metin: z.string().max(600).optional().describe(iki("Yeni madde ya da yeni hâli", "The new entry or its new text")),
+        eski: z.string().max(200).optional().describe(iki("Değiştirilecek ya da silinecek maddeden bir parça", "A fragment of the entry to replace or remove")),
+      },
+      (a) =>
+        guvenli(() => {
+          const s = sirket.zeka.kisiselYaz(ben(), a.islem, a.metin, a.eski);
+          return metin(iki(`Kişisel hafızan: ${s.maddeler.length} madde, ${s.kullanim}/${KISISEL_SINIR} karakter.`, `Your personal memory: ${s.maddeler.length} entries, ${s.kullanim}/${KISISEL_SINIR} characters.`));
+        }),
+    ),
+    tool(
+      "soz_ver",
+      iki(
+        "Bir ekip arkadaşına ya da kurula verdiğin sözü kaydeder. Söz tutulana kadar her turda sana, söz verdiğin kişiye de hatırlatılır.",
+        "Records a promise you made to a teammate or the board. It is shown to you every turn, and to the person you promised, until you keep it.",
+      ),
+      {
+        metin: z.string().min(5).max(500).describe(iki("Ne yapacaksın", "What you will do")),
+        kime: z.string().optional().describe(iki("Çalışanın adı; kurula söz verdiysen boş bırak ya da 'kurul' yaz", "The employee's name; leave empty or write 'kurul' for the board")),
+        son_tarih: z.string().optional().describe(iki("İsteğe bağlı bitiş zamanı (ISO, ör. 2026-10-05T17:00)", "Optional deadline (ISO, e.g. 2026-10-05T17:00)")),
+      },
+      (a) =>
+        guvenli(() => {
+          const kime = a.kime?.trim();
+          const alici = kime && !/^(kurul|board|yönetim kurulu)$/i.test(kime) ? ajanBul(kime) : null;
+          const soz = sirket.zeka.sozVer(ben(), alici, a.metin, a.son_tarih ?? null);
+          return metin(iki(`Söz kaydedildi (söz ${soz.id.slice(0, 8)}). Tutunca soz_tut ile kapat.`, `Promise recorded (promise ${soz.id.slice(0, 8)}). Close it with soz_tut when kept.`));
+        }),
+    ),
+    tool(
+      "soz_tut",
+      iki("Verdiğin sözü kapatır: tutuldu ya da iptal (gerekçesiyle). Söz verdiğin kişiye haber verilir.", "Closes a promise you made: kept (tutuldu) or withdrawn (iptal, with a reason). The person you promised is told."),
+      {
+        soz_id: z.string().min(4).describe(iki("Söz kimliği ya da ilk 8 karakteri", "The promise id or its first 8 characters")),
+        durum: z.enum(["tutuldu", "iptal"]).default("tutuldu"),
+        not: z.string().max(500).optional(),
+      },
+      (a) =>
+        guvenli(() => {
+          const acik = sirket.depo.sozler(ben().projeId, { verenId: ajanId, durum: "acik" });
+          const soz = acik.find((x) => x.id === a.soz_id || x.id.startsWith(a.soz_id));
+          if (!soz) return hata(iki(`Açık sözlerin arasında ${a.soz_id} yok. Açık sözlerin: ${acik.map((x) => `${x.id.slice(0, 8)} ${kisalt(x.metin, 40)}`).join("; ") || "yok"}`, `No open promise ${a.soz_id}. Your open promises: ${acik.map((x) => `${x.id.slice(0, 8)} ${kisalt(x.metin, 40)}`).join("; ") || "none"}`));
+          sirket.zeka.sozKapat(ben(), soz.id, a.durum, a.not ?? null);
+          return metin(iki(`Söz kapandı (${a.durum}).`, `Promise closed (${a.durum}).`));
+        }),
+    ),
+    tool(
+      "beceri_listele",
+      iki("Ekibin öğrendiği becerileri (yöntemleri) listeler.", "Lists the skills (methods) the team has learned."),
+      {},
+      () =>
+        guvenli(() => {
+          const l = sirket.zeka.beceriler(proje());
+          return metin(l.length ? l.map((b) => `${b.ad} — ${b.aciklama} (${b.yazan}, ${b.kullanim}×)`).join("\n") : iki("Henüz beceri yok. Zor bir işi çözünce yöntemini beceri_yaz ile kaydet.", "No skills yet. When you solve something hard, save the method with beceri_yaz."));
+        }),
+    ),
+    tool(
+      "beceri_oku",
+      iki("Bir becerinin tam metnini okur.", "Reads a skill in full."),
+      { ad: z.string().min(1).max(80) },
+      (a) =>
+        guvenli(() => {
+          const b = sirket.zeka.beceriOku(proje(), a.ad);
+          return metin(`# ${b.ad}\n${b.aciklama}\n(${b.yazan}, ${b.guncelleme.slice(0, 10)})\n\n${b.icerik}`);
+        }),
+    ),
+    tool(
+      "beceri_yaz",
+      iki(
+        "Bu projede bir işin nasıl yapılacağını beceri olarak kaydeder ya da günceller (.arnorg/beceriler). İçerik: ne zaman kullanılır, adımlar, dikkat edilecekler, doğrulama. Yanlış çıkan beceriyi aynı adla düzelt.",
+        "Saves or updates how to do something in this project as a skill (.arnorg/beceriler). Content: when to use it, steps, pitfalls, how to verify. Fix a skill that turns out wrong by writing it again under the same name.",
+      ),
+      {
+        ad: z.string().min(1).max(80).describe(iki("Kısa ad, ör. veritabani-gocu", "Short name, e.g. database-migration")),
+        aciklama: z.string().min(1).max(300).describe(iki("Ne zaman kullanılır (bir cümle)", "When to use it (one sentence)")),
+        icerik: z.string().min(1).max(12_000),
+      },
+      (a) =>
+        guvenli(() => {
+          const b = sirket.zeka.beceriYaz(proje(), ben().ad, a.ad, a.aciklama, a.icerik);
+          return metin(iki(`Beceri kaydedildi: ${b.ad}. Ekip bundan sonra talimatında görür.`, `Skill saved: ${b.ad}. The team will see it in their instructions.`));
+        }),
+    ),
+    tool(
+      "gecmiste_ara",
+      iki(
+        "Geçmiş konuşmalarda ve kanal mesajlarında arar: daha önce ne konuşuldu, ne yapıldı, hangi hata nasıl çözüldü. kapsam 'ben' kendi geçmişin, 'ekip' bütün ekibin geçmişi.",
+        "Searches past conversations and channel messages: what was discussed, what was done, how an error was solved. kapsam 'ben' is your own history, 'ekip' the whole team's.",
+      ),
+      { sorgu: z.string().min(2).max(300), kapsam: z.enum(["ben", "ekip"]).default("ben"), sinir: z.number().int().min(1).max(20).default(8) },
+      (a) => guvenli(() => metin(sirket.zeka.gecmisteAra(ben(), a.sorgu, a.kapsam, a.sinir))),
+    ),
+    tool(
+      "hafiza_aktar",
+      iki(
+        "Bildiklerini bir ekip arkadaşına aktarır: kişisel hafızan ve defterin onun defterine devir bölümü olarak yazılır; istersen açık sözlerin de ona geçer. İşi birine bırakırken kullan.",
+        "Transfers what you know to a teammate: your personal memory and journal are written into their journal as a handover section; optionally your open promises move to them. Use it when handing work over.",
+      ),
+      { kime: z.string().min(1), not: z.string().max(1000).optional(), sozler: z.boolean().default(false).describe(iki("Açık sözlerin de devredilsin mi", "Hand over your open promises too")) },
+      (a) =>
+        guvenli(() => {
+          const alan = ajanBul(a.kime);
+          const sonuc = sirket.zeka.aktar(ben(), alan, { sozler: a.sozler, not: a.not, defter: sirket.hafiza.defter(ben()), defterYaz: (x, icerik) => sirket.defterYaz(x.id, icerik) });
+          return metin(sonuc);
+        }),
+    ),
+    // ---------------- ana yasa ----------------
+    tool(
+      "anayasa_oku",
+      iki("Projenin ana yasasını (kesin kurallar) okur.", "Reads the project's constitution (binding rules)."),
+      {},
+      () =>
+        guvenli(() => {
+          const a = sirket.anayasa(ben().projeId);
+          if (!a.maddeler.length) return metin(iki("Ana yasa henüz yazılmadı.", "The constitution has not been written yet."));
+          return metin(
+            [iki(`Ana yasa · sürüm ${a.surum}`, `Constitution · version ${a.surum}`), ...a.maddeler.map((m) => `${m.no}. ${m.baslik}\n${m.metin}${m.kural ? `\n(${m.kural.hedef} · ${m.kural.karar} · ${m.kural.desenler.join(", ")})` : ""}`)].join("\n\n"),
+          );
+        }),
+    ),
+    tool(
+      "anayasa_oner",
+      iki(
+        "Ana yasanın yeni hâlini kurul onayına sunar (yalnız yöneticiler). Bütün maddeleri ver: var olanları da koruyarak. Makineyle denetlenebilecek maddeye kural ekle (hedef: komut, yol, url ya da arac; desenler: düzenli ifadeler; karar: ret ya da sor).",
+        "Submits the new version of the constitution for the board's approval (managers only). Give all articles, keeping existing ones. Add a rule to articles a machine can check (hedef: komut, yol, url or arac; desenler: regular expressions; karar: ret or sor).",
+      ),
+      {
+        maddeler: z
+          .array(
+            z.object({
+              baslik: z.string().min(1).max(120),
+              metin: z.string().min(1).max(2000),
+              kural: z.object({ hedef: z.enum(["komut", "yol", "url", "arac"]), desenler: z.array(z.string().min(1)).min(1).max(20), karar: z.enum(["ret", "sor"]) }).optional(),
+            }),
+          )
+          .min(1)
+          .max(40),
+        gerekce: z.string().min(5).max(2000),
+      },
+      (a) =>
+        guvenli(() => {
+          if (!yonetici()) return hata(iki("Ana yasayı yalnız yöneticiler önerebilir; önerini yöneticine ilet.", "Only managers can propose the constitution; pass your suggestion to your manager."));
+          const maddeler = maddeleriDenetle(a.maddeler.map((m) => ({ ...m, kural: m.kural ?? null })));
+          const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "anayasa");
+          if (bekleyen) return hata(iki("Kurulda bekleyen bir ana yasa önerisi zaten var; sonucunu bekle.", "A constitution proposal is already waiting for the board; wait for the decision."));
+          const ayrinti = [a.gerekce, "", ...maddeler.map((m) => `${m.no}. ${m.baslik} — ${m.metin}${m.kural ? ` [${m.kural.hedef}: ${m.kural.desenler.join(", ")} → ${m.kural.karar}]` : ""}`)].join("\n");
+          const onay = sirket.teklifAc(ben(), "anayasa", iki(`Ana yasa önerisi · ${maddeler.length} madde`, `Constitution proposal · ${maddeler.length} articles`), ayrinti, { maddeler, gerekce: a.gerekce });
+          return metin(iki(`Ana yasa önerisi kurula sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`, `The constitution proposal went to the board (approval ${onay.id.slice(0, 8)}). You will be told the result.`));
+        }),
+    ),
+    // ---------------- global zekâ ----------------
+    tool(
+      "kuresel_kural_oner",
+      iki(
+        "Bütün projelere yarayacak bir standart kural önerir (projeye özgü olmamalı). Benzer kural varsa kanıt olarak eklenir ve güçlenir; yeni kural aday olarak başlar, başka projelerde de görülünce standart olur.",
+        "Proposes a standard rule useful to every project (not project-specific). If a similar rule exists it is added as evidence and strengthened; a new rule starts as a candidate and becomes a standard when seen in other projects too.",
+      ),
+      {
+        metin: z.string().min(8).max(600),
+        kapsam: z.array(z.string().max(20)).max(8).optional().describe(iki("Kimlere: boş = herkes; yonetici, gelistirici ya da rol kimlikleri (backend, frontend…)", "Who: empty = everyone; yonetici, gelistirici or role ids (backend, frontend…)")),
+        gerekce: z.string().min(5).max(1000),
+      },
+      (a) =>
+        guvenli(() => {
+          const k = sirket.kuresel.gozlem({ metin: a.metin, kaynak: "ajan", projeId: ben().projeId, projeAd: proje().ad, kapsam: a.kapsam });
+          if (!k) return hata(iki("Bu kural projeye özgü görünüyor; proje hafızasına hafiza_kaydet ile yaz.", "This rule looks project-specific; save it to project memory with hafiza_kaydet."));
+          return metin(iki(`Global zekâya işlendi: ${k.durum === "etkin" ? "standart" : "aday"}, güven %${Math.round(k.guven * 100)}.`, `Recorded in global intelligence: ${k.durum === "etkin" ? "standard" : "candidate"}, confidence ${Math.round(k.guven * 100)}%.`));
+        }),
+    ),
+    tool(
+      "kuresel_kural_degerlendir",
+      iki("Bir standart kural için geri bildirim verir: ise_yaradi (güçlenir) ya da yanlis (zayıflar, yeterince zayıflarsa emekliye ayrılır).", "Gives feedback on a standard rule: ise_yaradi (strengthens it) or yanlis (weakens it; retired when weak enough)."),
+      { kural_id: z.string().min(4).describe(iki("Talimattaki köşeli parantez içindeki kimlik", "The id in square brackets in your instructions")), sonuc: z.enum(["ise_yaradi", "yanlis"]), not: z.string().max(500).optional() },
+      (a) =>
+        guvenli(() => {
+          const k = sirket.kuresel.geriBildirim(a.kural_id, a.sonuc, a.not ?? null, ben().ad);
+          return metin(iki(`Kaydedildi: güven %${Math.round(k.guven * 100)}, durum ${k.durum}.`, `Recorded: confidence ${Math.round(k.guven * 100)}%, status ${k.durum}.`));
+        }),
+    ),
+    // ---------------- kurul: bildirim, teslim, ekip ----------------
+    tool(
+      "kurula_bildir",
+      iki(
+        "Kurula önemli bir şey bildirir (yalnız yöneticiler): öneri, istek, yetki ihtiyacı, bilgi ya da uyarı. Kurul hangi ekranda olursa olsun açılır pencereyle görür; #yonetim kanalına da yazılır. Karar gerekiyorsa kurula_sor kullan.",
+        "Notifies the board about something important (managers only): a suggestion, a request, a need for permission, information or a warning. The board sees it as a popup on any screen; it is also posted to #ceo. If a decision is needed, use kurula_sor.",
+      ),
+      { tur: z.enum(["oneri", "istek", "yetki", "bilgi", "uyari"]), baslik: z.string().min(3).max(160), metin: z.string().min(3).max(4000) },
+      (a) =>
+        guvenli(() => {
+          if (!yonetici()) return hata(iki("Kurula doğrudan bildirimi yöneticiler yapar; yöneticine ilet.", "Managers notify the board directly; tell your manager."));
+          sirket.kurulaBildir(ben(), ben().projeId, a.tur, a.baslik, a.metin);
+          return metin(iki("Kurula bildirildi.", "The board has been notified."));
+        }),
+    ),
+    tool(
+      "teslim_et",
+      iki(
+        "Kurulun deneyebileceği bir sonucu teslim eder (yalnız yöneticiler): ne bitti, nasıl test edilir, çalıştırma komutu ya da adres. Kurul dener, kabul eder ya da geri bildirim verir; geri bildirim sana iş olarak döner.",
+        "Delivers a result the board can try (managers only): what is done, how to test it, a run command or address. The board tries it and accepts or gives feedback; feedback comes back to you as work.",
+      ),
+      {
+        baslik: z.string().min(3).max(160),
+        ozet: z.string().min(10).max(4000).describe(iki("Ne bitti, neler değişti", "What is done, what changed")),
+        test_adimlari: z.array(z.string().min(2).max(500)).min(1).max(20),
+        calistir: z.string().max(500).optional().describe(iki("Ana repoda çalıştırılacak komut, ör. npm install && npm run dev", "A command to run in the main repo, e.g. npm install && npm run dev")),
+        adres: z.string().max(500).optional().describe(iki("Açılacak adres, ör. http://localhost:5173", "An address to open, e.g. http://localhost:5173")),
+      },
+      (a) =>
+        guvenli(() => {
+          if (!yonetici()) return hata(iki("Teslimi yöneticiler yapar; işin bittiğini yöneticine bildir.", "Managers make deliveries; tell your manager the work is done."));
+          if (a.adres && !/^https?:\/\//i.test(a.adres)) return hata(iki("Adres http:// ya da https:// ile başlamalı.", "The address must start with http:// or https://."));
+          const ayrinti = [a.ozet, "", iki("Test adımları:", "Test steps:"), ...a.test_adimlari.map((x, i) => `${i + 1}. ${x}`), a.calistir ? `\n${iki("Çalıştır", "Run")}: ${a.calistir}` : "", a.adres ? `${iki("Adres", "Address")}: ${a.adres}` : ""].filter(Boolean).join("\n");
+          const onay = sirket.teklifAc(ben(), "teslim", iki(`Teslim: ${a.baslik}`, `Delivery: ${a.baslik}`), ayrinti, { baslik: a.baslik, ozet: a.ozet, testAdimlari: a.test_adimlari, calistir: a.calistir ?? null, adres: a.adres ?? null, dal: proje().varsayilanDal });
+          sirket.duyur(ben().projeId, iki(`Teslim hazır: ${a.baslik}. Kurul test edip geri bildirim verecek.`, `Delivery ready: ${a.baslik}. The board will test it and give feedback.`));
+          return metin(iki(`Teslim kurula sunuldu (onay ${onay.id.slice(0, 8)}). Kurul test edince sonucu sana bildirilecek.`, `The delivery went to the board (approval ${onay.id.slice(0, 8)}). You will be told once the board has tested it.`));
+        }),
+    ),
+    tool(
+      "isten_cikar_teklif",
+      iki(
+        "Artık gerek kalmayan bir çalışan için kurula gerekçeli işten çıkarma teklifi verir (yalnız yöneticiler). Onaylanırsa açık işleri ve bildikleri devralana (verilmezse yöneticisine) geçer.",
+        "Proposes letting go of an employee who is no longer needed, with reasons (managers only). If approved, their open work and knowledge go to the successor (or their manager).",
+      ),
+      { ad: z.string().min(1), gerekce: z.string().min(10).max(2000), devralan: z.string().optional().describe(iki("İşleri devralacak çalışan", "Who takes over the work")) },
+      (a) =>
+        guvenli(() => {
+          if (!yonetici()) return hata(iki("İşten çıkarma teklifini yalnız yöneticiler verebilir.", "Only managers can propose a dismissal."));
+          const hedef = ajanBul(a.ad);
+          if (hedef.rol === "ceo") return hata(iki("CEO işten çıkarılamaz.", "The CEO cannot be dismissed."));
+          if (hedef.id === ajanId) return hata(iki("Kendin için teklif veremezsin.", "You cannot propose your own dismissal."));
+          const devralan = a.devralan ? ajanBul(a.devralan) : null;
+          if (devralan?.id === hedef.id) return hata(iki("Devralan, çıkarılan kişi olamaz.", "The successor cannot be the person being let go."));
+          const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "isten_cikarma" && (o.veri as { ajanId?: string })?.ajanId === hedef.id);
+          if (bekleyen) return metin(iki(`${hedef.ad} için teklif zaten kurulda bekliyor.`, `A proposal for ${hedef.ad} is already waiting for the board.`));
+          const acikIs = sirket.depo.gorevler(ben().projeId).filter((g) => g.atananId === hedef.id && g.durum !== "tamam" && g.durum !== "iptal").length;
+          sirket.teklifAc(
+            ben(),
+            "isten_cikarma",
+            iki(`İşten çıkarma: ${hedef.ad} · ${hedef.rolAdi}`, `Dismissal: ${hedef.ad} · ${hedef.rolAdi}`),
+            `${a.gerekce}\n\n${iki("Açık iş", "Open tasks")}: ${acikIs} · ${iki("Devralan", "Successor")}: ${devralan?.ad ?? iki("yöneticisi", "their manager")}`,
+            { ajanId: hedef.id, ad: hedef.ad, devralanId: devralan?.id ?? null, gerekce: a.gerekce },
+          );
+          return metin(iki(`Teklif kurula sunuldu: ${hedef.ad}. Karar verilince haber verilecek.`, `The proposal went to the board: ${hedef.ad}. You will be told the decision.`));
+        }),
+    ),
+    tool(
+      "hazirlik_tamam",
+      iki("Kurulla hazırlık görüşmesi bitince özetini yazar (CEO).", "Writes the summary when the kickoff conversation with the board is done (CEO)."),
+      { ozet: z.string().min(10).max(3000).describe(iki("Amaç, alınan kararlar, ana yasa, ekip ve ilk plan", "Goal, decisions, constitution, team and first plan")) },
+      (a) =>
+        guvenli(() => {
+          if (rolBul(ben().rol)?.kimlik !== "ceo") return hata(iki("Hazırlığı CEO tamamlar.", "The CEO completes the kickoff."));
+          sirket.hazirlikBitir(ben().projeId, a.ozet, ben());
+          return metin(iki("Hazırlık tamamlandı olarak işaretlendi.", "The kickoff was marked complete."));
         }),
     ),
   ];

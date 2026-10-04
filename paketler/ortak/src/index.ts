@@ -83,6 +83,13 @@ export interface Proje {
   otomatikGonder: boolean;
   /** CEO ile hazırlık görüşmesi: amaç, ana yasa, ilk işe alımlar */
   hazirlik: HazirlikDurumu;
+  /** Açıkken seçili türdeki onaylar kendiliğinden verilir (kayıt yine tutulur) */
+  otomatikOnay: OtomatikOnay;
+}
+
+export interface OtomatikOnay {
+  etkin: boolean;
+  turler: OnayTuru[];
 }
 
 export type HazirlikDurumu = "bekliyor" | "suruyor" | "tamam" | "atlandi";
@@ -117,6 +124,7 @@ export interface ProjeGuncelleIstegi {
   varsayilanDal?: string;
   otomatikGonder?: boolean;
   hazirlik?: HazirlikDurumu;
+  otomatikOnay?: OtomatikOnay;
 }
 
 /** GitHub'daki depoyu klonlayıp proje olarak açar (POST /api/github/klonla) */
@@ -447,7 +455,8 @@ export interface DenetimKaydi {
   zaman: Zaman;
 }
 
-export type OnayTuru = "arac" | "ise_alim" | "birlestirme" | "genel";
+export type OnayTuru = "arac" | "ise_alim" | "birlestirme" | "genel" | "anayasa" | "isten_cikarma" | "teslim";
+export const ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"];
 export type OnayDurumu = "bekliyor" | "onaylandi" | "reddedildi" | "zaman_asimi";
 
 export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
@@ -455,6 +464,9 @@ export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
   ise_alim: "İşe alım",
   birlestirme: "Birleştirme",
   genel: "Karar",
+  anayasa: "Ana yasa",
+  isten_cikarma: "İşten çıkarma",
+  teslim: "Teslim",
 };
 
 export interface Onay {
@@ -656,6 +668,156 @@ export interface AjanSorusu {
 }
 
 // ---------------------------------------------------------------------------
+// Ana yasa: projenin kesin kuralları (.arnorg/anayasa.json + anayasa.md). CEO kurulla hazırlar,
+// kurul onaylar; her ajanın talimatının başına girer, makine kuralı olan maddeler denetim kapısında uygulanır.
+// ---------------------------------------------------------------------------
+
+export interface AnayasaKurali {
+  hedef: "komut" | "yol" | "url" | "arac";
+  /** Düzenli ifadeler (büyük/küçük harf duyarsız) */
+  desenler: string[];
+  karar: "ret" | "sor";
+}
+
+export interface AnayasaMaddesi {
+  no: number;
+  baslik: string;
+  metin: string;
+  /** Denetim kapısında uygulanan makine kuralı; yoksa yalnız talimattır */
+  kural: AnayasaKurali | null;
+}
+
+export interface Anayasa {
+  /** Her onaylı değişiklikte artar; ajanlara yeni sürüm hatırlatılır */
+  surum: number;
+  guncelleme: Zaman | null;
+  /** Son değişikliği onaylayan (Yönetim kurulu ya da otomatik onay) */
+  onaylayan: string | null;
+  maddeler: AnayasaMaddesi[];
+}
+
+// ---------------------------------------------------------------------------
+// Ajan zekâsı: her çalışanın kendi kalıcı hafızası, sözleri, ekipçe öğrenilen beceriler
+// ---------------------------------------------------------------------------
+
+export type SozDurumu = "acik" | "tutuldu" | "iptal";
+
+/** Bir çalışanın verdiği söz: tutulana kadar her turda kendisine, alana da hatırlatılır */
+export interface Soz {
+  id: string;
+  projeId: string;
+  verenId: string;
+  verenAd: string;
+  /** Söz verilen çalışan; kurula verildiyse null */
+  aliciId: string | null;
+  aliciAd: string;
+  metin: string;
+  sonTarih: Zaman | null;
+  durum: SozDurumu;
+  not: string | null;
+  olusturma: Zaman;
+  kapanis: Zaman | null;
+}
+
+/** Ekipçe öğrenilen yöntem (.arnorg/beceriler/<ad>.md) */
+export interface Beceri {
+  ad: string;
+  aciklama: string;
+  yazan: string;
+  guncelleme: Zaman;
+  kullanim: number;
+}
+
+export interface BeceriIcerigi extends Beceri {
+  icerik: string;
+}
+
+/** GET /api/ajanlar/:aid/zeka */
+export interface AjanZekasi {
+  /** Kişisel hafıza maddeleri (oturum başında donmuş anlık görüntü olarak verilir) */
+  kisisel: string[];
+  /** Kişisel hafızanın karakter sınırı ve kullanılan */
+  kisiselSinir: number;
+  kisiselKullanim: number;
+  defter: string;
+  sozler: Soz[];
+  /** Sözler: başkalarının bu çalışana verdiği açık sözler */
+  alinanSozler: Soz[];
+  beceriler: Beceri[];
+  /** Ekip bağları (yönetici, bağlı görevler, sorular, sözler) metin olarak */
+  baglar: string;
+}
+
+// ---------------------------------------------------------------------------
+// Global zekâ: projelerden bağımsız, kendi kendine öğrenen standart kurallar (veri dizininde).
+// Kurulun tercihleri, tekrar eden dersler ve düzeltmeler kurala dönüşür; her ajana rolü ve yetkisi kapsamında verilir.
+// ---------------------------------------------------------------------------
+
+export type KuralDurumu = "aday" | "etkin" | "emekli";
+export type KuralKaynagi = "tercih" | "ogrenilen" | "duzeltme" | "ajan" | "kurul";
+
+export interface KuralKaniti {
+  projeId: string | null;
+  projeAd: string | null;
+  metin: string;
+  zaman: Zaman;
+}
+
+export interface KureselKural {
+  id: string;
+  metin: string;
+  /** Kimlere: boşsa herkes; "yonetici", "gelistirici" ya da rol kimlikleri (backend, frontend…) */
+  kapsam: string[];
+  kaynak: KuralKaynagi;
+  kanitlar: KuralKaniti[];
+  /** 0–1: kanıt ve geri bildirimle artar, ihlal ve ret ile azalır */
+  guven: number;
+  /** Ajan talimatına girdiği oturum sayısı */
+  kullanim: number;
+  yarar: number;
+  ihlal: number;
+  durum: KuralDurumu;
+  olusturma: Zaman;
+  guncelleme: Zaman;
+}
+
+export type ZekaGunlukTuru = "ogrendi" | "guclendi" | "birlestirdi" | "emekli" | "etkinlesti" | "duzenlendi" | "geri_bildirim";
+
+export interface ZekaGunlukKaydi {
+  id: string;
+  zaman: Zaman;
+  tur: ZekaGunlukTuru;
+  metin: string;
+  kuralId: string | null;
+}
+
+/** GET /api/zeka */
+export interface ZekaDurumu {
+  kurallar: KureselKural[];
+  gunluk: ZekaGunlukKaydi[];
+  sayilar: Record<KuralDurumu, number>;
+}
+
+// ---------------------------------------------------------------------------
+// Kurula bildirim: önemli anlarda (onay, öneri, istek, yetki, teslim) her ekranda açılır pencere
+// ---------------------------------------------------------------------------
+
+export type KurulBildirimTuru = "onay" | "oneri" | "istek" | "yetki" | "teslim" | "bilgi" | "uyari";
+
+export interface KurulBildirimi {
+  id: string;
+  projeId: string;
+  ajanId: string | null;
+  ajanAd: string;
+  tur: KurulBildirimTuru;
+  baslik: string;
+  metin: string;
+  zaman: Zaman;
+  /** Bildirime bağlı onay (onaylanacaksa) */
+  onayId: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Kurulum: Claude Code, git ve GitHub (gh). Uçlar: /api/kurulum/* ve /api/github/*
 // ---------------------------------------------------------------------------
 
@@ -815,6 +977,10 @@ export type SunucuOlayi =
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
   | { tur: "kod.dizin"; projeId: string; durum: KodDizinDurumu }
+  | { tur: "anayasa.guncellendi"; projeId: string; anayasa: Anayasa }
+  | { tur: "soz.guncellendi"; soz: Soz }
+  | { tur: "zeka.guncellendi"; kural: KureselKural | null; gunluk: ZekaGunlukKaydi }
+  | { tur: "kurul.bildirimi"; projeId: string; bildirim: KurulBildirimi }
   | { tur: "kurulum.islem"; islem: KurulumIslemi }
   | { tur: "kurulum.durum"; durum: KurulumDurumu }
   /** Ajan bir kanaldaki mesaja yanıt hazırlıyor (yazıyor göstergesi); yaziyor=false ile biter */
@@ -1035,7 +1201,7 @@ export const AD_HARITALARI_EN = {
   ajanDurumu: { kapali: "Off", bosta: "Idle", calisiyor: "Working", karar_bekliyor: "Awaiting decision", duraklatildi: "Paused", hata: "Error" } as Record<AjanDurumu, string>,
   gorevDurumu: { bekleyen: "Backlog", planlandi: "Planned", calisiliyor: "In progress", inceleme: "In review", tamam: "Done", iptal: "Cancelled" } as Record<GorevDurumu, string>,
   karar: { izin: "Allowed", ret: "Denied", sor: "Ask for approval", degisti: "Input changed" } as Record<Karar, string>,
-  onayTuru: { arac: "Tool call", ise_alim: "Hiring", birlestirme: "Merge", genel: "Decision" } as Record<OnayTuru, string>,
+  onayTuru: { arac: "Tool call", ise_alim: "Hiring", birlestirme: "Merge", genel: "Decision", anayasa: "Constitution", isten_cikarma: "Dismissal", teslim: "Delivery" } as Record<OnayTuru, string>,
   hafizaTuru: { olgu: "Fact", karar: "Decision", tercih: "Board preference", ogrenilen: "Lesson", uzmanlik: "Expertise", ozet: "Summary" } as Record<HafizaTuru, string>,
 };
 

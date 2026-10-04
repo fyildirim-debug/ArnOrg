@@ -53,6 +53,8 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   sirket.hesap.baslat();
   // Uzak deposu olan projeler arada bir eşitlenir
   sirket.esitlemeBaslat();
+  // Global zekânın bakımı (birleştirme, emekliye ayırma)
+  sirket.kuresel.baslat();
   // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
   sirket.kodZekasi.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {

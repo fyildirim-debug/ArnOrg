@@ -5,8 +5,9 @@
 // - Bağlam sıkıştırılınca: defter ve oturum boyunca ekipten gelen kayıtlar
 // Aynı kayıt bir oturumda aynı amaçla bir kez hatırlatılır; hepsi yalnız ajanın kendi projesinden gelir.
 import path from "node:path";
-import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type Gorev, type HafizaKaydi } from "@arnorg/ortak";
+import { AD_HARITALARI_EN, HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type Gorev, type HafizaKaydi } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
+import { dil, iki } from "./dil.js";
 import type { ProjeHafizasi } from "./hafiza.js";
 import { anlamliSozcukler, aramaMetni, kisalt } from "./yardimci.js";
 
@@ -32,7 +33,7 @@ export function hataOzu(hata: string): string {
 }
 
 function satir(k: HafizaKaydi, uzunluk = 260): string {
-  return `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin, uzunluk)} (${k.kaynakAd})`;
+  return `- [${dil() === "en" ? AD_HARITALARI_EN.hafizaTuru[k.tur] : HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin, uzunluk)} (${k.kaynakAd})`;
 }
 
 /** Mesaj kalıcı bir tercih ya da kural bildiriyor gibi mi ("bundan sonra", "her zaman", "asla" ...) */
@@ -112,11 +113,14 @@ export class Hatirlatici {
       uyarilan.add(`${goreli}|${digerId}`);
       const gorev = diger.gorevId ? this.depo.gorev(diger.gorevId) : null;
       const dk = Math.max(1, Math.round((simdiMs - zaman) / 60_000));
-      digerleri.push(`${diger.ad} (${dk} dk önce${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""}${diger.dal ? `, dal ${diger.dal}` : ""})`);
+      digerleri.push(`${diger.ad} (${iki(`${dk} dk önce`, `${dk} min ago`)}${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""}${diger.dal ? `, ${iki("dal", "branch")} ${diger.dal}` : ""})`);
     }
     this.cakismaUyarilari.set(ajan.id, uyarilan);
     if (!digerleri.length) return null;
-    return `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de kendi dalında değiştirdi. Birleştirmede çakışma çıkabilir; değişikliğin onunkini etkiliyorsa ajana_sor ile sor ya da mesaj_gonder ile haber ver, aynı satırları ikiniz birden değiştirmeyin.`;
+    return iki(
+      `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de kendi dalında değiştirdi. Birleştirmede çakışma çıkabilir; değişikliğin onunkini etkiliyorsa ajana_sor ile sor ya da mesaj_gonder ile haber ver, aynı satırları ikiniz birden değiştirmeyin.`,
+      `[ArnOrg] Heads up: ${digerleri.join(" and ")} also changed ${goreli} on their own branch. The merge may conflict; if your change affects theirs, ask with ajana_sor or let them know with mesaj_gonder, and don't both change the same lines.`,
+    );
   }
 
   /**
@@ -147,7 +151,7 @@ export class Hatirlatici {
       .filter((k) => k.kaynakAjanId !== ajan.id && !iz.gosterilen.has(k.id) && !mesajdaVar(k))
       .slice(0, 6);
     iz.sonBakis = new Date().toISOString();
-    ekle("Ekipten yeni hafıza (son turundan beri yazıldı):", yeniler);
+    ekle(iki("Ekipten yeni hafıza (son turundan beri yazıldı):", "New team memory (written since your last turn):"), yeniler);
 
     const sozcukler = anlamliSozcukler(mesaj, 12);
     if (sozcukler.length) {
@@ -155,16 +159,19 @@ export class Hatirlatici {
         .ara(ajan.projeId, sozcukler.join(" "), undefined, 10)
         .filter((k) => !iz.gosterilen.has(k.id) && !mesajdaVar(k) && eslesir(k, sozcukler, Math.min(2, sozcukler.length)))
         .slice(0, 3);
-      ekle("Bu mesajla ilgili hafıza:", ilgili);
+      ekle(iki("Bu mesajla ilgili hafıza:", "Memory related to this message:"), ilgili);
     }
 
     if (kurulMu && iz.tercihIpucu < 3 && tercihGibi(mesaj)) {
       iz.tercihIpucu++;
       bolumler.push(
-        "Kurul kalıcı bir tercih ya da kural bildirmiş olabilir. Öyleyse mcp__arnorg__hafiza_kaydet ile tur: tercih, önem 5 olarak kaydet ki tüm ekip her oturumda uysun.",
+        iki(
+          "Kurul kalıcı bir tercih ya da kural bildirmiş olabilir. Öyleyse mcp__arnorg__hafiza_kaydet ile tur: tercih, önem 5 olarak kaydet ki tüm ekip her oturumda uysun. Bu yalnız bu projeye değil her projeye uyan bir kuralsa ArnOrg onu global zekâya da işler.",
+          "The board may have stated a lasting preference or rule. If so, save it with mcp__arnorg__hafiza_kaydet as tur: tercih, importance 5 so the whole team follows it every session. If it applies to every project, not just this one, ArnOrg also records it in global intelligence.",
+        ),
       );
     }
-    return bolumler.length ? `[ArnOrg hafızası]\n${bolumler.join("\n")}` : null;
+    return bolumler.length ? `${iki("[ArnOrg hafızası]", "[ArnOrg memory]")}\n${bolumler.join("\n")}` : null;
   }
 
   /** Bir komut hata verince: aynı hataya dair kayıt varsa onu, yoksa (oturumda bir kez) kaydetme ipucunu döner */
@@ -181,11 +188,14 @@ export class Hatirlatici {
       .slice(0, 2);
     if (adaylar.length) {
       for (const k of adaylar) iz.anlik.add(k.id);
-      return ["[ArnOrg hafızası] Bu hataya benzer bir durum hafızada var; aynı yoldan gitmeden önce bak:", ...adaylar.map((k) => satir(k, 600))].join("\n");
+      return [iki("[ArnOrg hafızası] Bu hataya benzer bir durum hafızada var; aynı yoldan gitmeden önce bak:", "[ArnOrg memory] Memory has something similar to this error; look before going the same way:"), ...adaylar.map((k) => satir(k, 600))].join("\n");
     }
     if (!iz.hataIpucu && HATA_ARACLARI.has(arac)) {
       iz.hataIpucu = true;
-      return "[ArnOrg hafızası] Bu hata için hafızada kayıt yok. Nedenini bulup çözersen mcp__arnorg__hafiza_kaydet ile tur: ogrenilen olarak kısa bir kayıt bırak (belirti, neden, çözüm); ekipten kimse aynı hatayla yeniden uğraşmasın.";
+      return iki(
+        "[ArnOrg hafızası] Bu hata için hafızada kayıt yok. Nedenini bulup çözersen mcp__arnorg__hafiza_kaydet ile tur: ogrenilen olarak kısa bir kayıt bırak (belirti, neden, çözüm); ekipten kimse aynı hatayla yeniden uğraşmasın.",
+        "[ArnOrg memory] Nothing in memory for this error. If you find the cause and fix it, leave a short record with mcp__arnorg__hafiza_kaydet as tur: ogrenilen (symptom, cause, fix) so nobody on the team fights the same error again.",
+      );
     }
     return null;
   }
@@ -213,22 +223,22 @@ export class Hatirlatici {
       .slice(0, 2);
     if (!adaylar.length) return null;
     for (const k of adaylar) iz.anlik.add(k.id);
-    return [`[ArnOrg hafızası] ${goreli} hakkında:`, ...adaylar.map((k) => satir(k, 400))].join("\n");
+    return [iki(`[ArnOrg hafızası] ${goreli} hakkında:`, `[ArnOrg memory] About ${goreli}:`), ...adaylar.map((k) => satir(k, 400))].join("\n");
   }
 
   /** Bağlam sıkıştırılınca: defter ve oturum açıldığından beri ekipten gelen kayıtlar */
   sikistirmaSonrasi(ajan: Ajan, bekleyenSorular: AjanSorusu[]): string | null {
     const iz = this.iz(ajan.id);
-    const bolumler: string[] = ["[ArnOrg hafızası] Bağlam sıkıştırıldı; unutmaman gerekenler:"];
+    const bolumler: string[] = [iki("[ArnOrg hafızası] Bağlam sıkıştırıldı; unutmaman gerekenler:", "[ArnOrg memory] Context was compacted; what you must not forget:")];
     const defter = this.hafiza.defter(ajan);
-    if (defter) bolumler.push("Defterin:", kisalt(defter, 2500));
+    if (defter) bolumler.push(iki("Defterin:", "Your journal:"), kisalt(defter, 2500));
     const yeniler = this.depo
       .hafizaKayitlari(ajan.projeId, { sonra: iz.acilis, sinir: 30 })
       .filter((k) => k.kaynakAjanId !== ajan.id)
       .slice(0, 8);
-    if (yeniler.length) bolumler.push("Bu oturumda ekipten gelen kayıtlar:", ...yeniler.map((k) => satir(k)));
+    if (yeniler.length) bolumler.push(iki("Bu oturumda ekipten gelen kayıtlar:", "Records from the team this session:"), ...yeniler.map((k) => satir(k)));
     if (bekleyenSorular.length) {
-      bolumler.push("Yanıt bekleyen soruların:", ...bekleyenSorular.slice(0, 6).map((s) => `- (soru ${s.id}) ${s.soranAd}: ${kisalt(s.soru, 200)}`));
+      bolumler.push(iki("Yanıt bekleyen soruların:", "Questions waiting for your answer:"), ...bekleyenSorular.slice(0, 6).map((s) => `- (${iki("soru", "question")} ${s.id}) ${s.soranAd}: ${kisalt(s.soru, 200)}`));
     }
     return bolumler.length > 1 ? bolumler.join("\n") : null;
   }

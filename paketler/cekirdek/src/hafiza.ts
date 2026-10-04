@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru, type HafizaYazIstegi, type Proje } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
+import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
 import { anlamliSozcukler, aramaMetni, ArnorgHatasi, jsonOku, kisalt, sadelestir } from "./yardimci.js";
 
@@ -11,14 +12,17 @@ export const HAFIZA_TURLERI: HafizaTuru[] = ["tercih", "karar", "ogrenilen", "ol
 const HAFIZA_DIZINI = [".arnorg", "hafiza"];
 /** Oturum bağlamına girecek bölüm başına en çok kayıt */
 const BAGLAM_SINIRI: Record<HafizaTuru, number> = { tercih: 15, karar: 10, ogrenilen: 10, olgu: 8, uzmanlik: 10, ozet: 6 };
-const BAGLAM_BASLIKLARI: Record<HafizaTuru, string> = {
-  tercih: "Kurul tercihleri (her zaman uy)",
-  karar: "Kararlar",
-  ogrenilen: "Öğrenilenler (aynı hatayı tekrarlama)",
-  olgu: "Proje olguları",
-  uzmanlik: "Kim neyi biliyor",
-  ozet: "Son tamamlananlar",
-};
+function baglamBasligi(tur: HafizaTuru): string {
+  const b: Record<HafizaTuru, [string, string]> = {
+    tercih: ["Kurul tercihleri (her zaman uy)", "Board preferences (always follow)"],
+    karar: ["Kararlar", "Decisions"],
+    ogrenilen: ["Öğrenilenler (aynı hatayı tekrarlama)", "Lessons (do not repeat the same mistake)"],
+    olgu: ["Proje olguları", "Project facts"],
+    uzmanlik: ["Kim neyi biliyor", "Who knows what"],
+    ozet: ["Son tamamlananlar", "Recently completed"],
+  };
+  return iki(b[tur][0], b[tur][1]);
+}
 
 export interface Kaynak {
   ajan: Ajan | null;
@@ -188,16 +192,19 @@ export class ProjeHafizasi {
 
   /** Oturum başında ajanın talimatına eklenen hafıza: kurul tercihleri, kararlar, öğrenilenler, uzmanlıklar, defter, bekleyen sorular */
   baglam(ajan: Ajan, bekleyenSorular: AjanSorusu[], gosterilen?: string[]): string {
-    const satirlar: string[] = ["## Proje hafızası"];
+    const satirlar: string[] = [iki("## Proje hafızası", "## Project memory")];
     satirlar.push(
-      "Bu projede ekipçe öğrendiklerimiz. Kurul tercihlerine her zaman uy. Bir karar değişirse ya da yeni bir şey öğrenirsen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
+      iki(
+        "Bu projede ekipçe öğrendiklerimiz. Kurul tercihlerine her zaman uy. Bir karar değişirse ya da yeni bir şey öğrenirsen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
+        "What we have learned as a team in this project. Always follow the board's preferences. If a decision changes or you learn something new, save it with mcp__arnorg__hafiza_kaydet; mark the replaced record with yerine_gecen.",
+      ),
     );
     let toplam = 0;
     const karakterSiniri = 7000;
     for (const tur of HAFIZA_TURLERI) {
       const kayitlar = this.depo.hafizaKayitlari(ajan.projeId, { tur, sinir: BAGLAM_SINIRI[tur] });
       if (!kayitlar.length) continue;
-      satirlar.push("", `### ${BAGLAM_BASLIKLARI[tur]}`);
+      satirlar.push("", `### ${baglamBasligi(tur)}`);
       for (const k of kayitlar) {
         const satir = `- ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 220)} (${k.kaynakAd}, kimlik ${k.id.slice(0, 8)})`;
         toplam += satir.length;
@@ -207,13 +214,13 @@ export class ProjeHafizasi {
       }
       if (toplam > karakterSiniri) break;
     }
-    if (satirlar.length === 2) satirlar.push("", "Henüz kayıt yok. İlk kararları ve kurulun tercihlerini sen kaydet.");
+    if (satirlar.length === 2) satirlar.push("", iki("Henüz kayıt yok. İlk kararları ve kurulun tercihlerini sen kaydet.", "No records yet. Save the first decisions and the board's preferences yourself."));
     const defter = this.defter(ajan);
-    satirlar.push("", "## Defterin", defter ? kisalt(defter, 2500) : "Boş. İlk turunun sonunda defter_yaz ile açık işlerini ve sözlerini yaz.");
+    satirlar.push("", iki("## Defterin", "## Your journal"), defter ? kisalt(defter, 2500) : iki("Boş. İlk turunun sonunda defter_yaz ile açık işlerini ve sözlerini yaz.", "Empty. At the end of your first turn write your open work and promises with defter_yaz."));
     if (bekleyenSorular.length) {
-      satirlar.push("", "## Sana sorulan, yanıt bekleyen sorular");
-      for (const s of bekleyenSorular.slice(0, 8)) satirlar.push(`- (soru ${s.id}) ${s.soranAd}: ${kisalt(s.soru, 300)}`);
-      satirlar.push("Bunları soruyu_yanitla ile yanıtla.");
+      satirlar.push("", iki("## Sana sorulan, yanıt bekleyen sorular", "## Questions waiting for your answer"));
+      for (const s of bekleyenSorular.slice(0, 8)) satirlar.push(`- (${iki("soru", "question")} ${s.id}) ${s.soranAd}: ${kisalt(s.soru, 300)}`);
+      satirlar.push(iki("Bunları soruyu_yanitla ile yanıtla.", "Answer them with soruyu_yanitla."));
     }
     return satirlar.join("\n");
   }
@@ -272,7 +279,7 @@ export class ProjeHafizasi {
     for (const tur of HAFIZA_TURLERI) {
       const liste = gecerli.filter((k) => k.tur === tur);
       if (!liste.length) continue;
-      md.push("", `## ${BAGLAM_BASLIKLARI[tur].replace(/ \(.*\)$/, "")}`, "");
+      md.push("", `## ${baglamBasligi(tur).replace(/ \(.*\)$/, "")}`, "");
       for (const k of liste) md.push(`- **${k.baslik}** — ${k.metin.replace(/\n+/g, " ")} _(${k.kaynakAd}, ${k.guncelleme.slice(0, 10)})_`);
     }
     fs.writeFileSync(path.join(kok, "hafiza.md"), md.join("\n") + "\n", "utf8");
