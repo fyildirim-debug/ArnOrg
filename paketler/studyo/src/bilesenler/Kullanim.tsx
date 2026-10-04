@@ -1,6 +1,7 @@
 // Abonelik kullanımı: üst çubuk göstergesi ve Karargâh paneli.
 // ArnOrg yalnız Claude aboneliğiyle çalışır; sınır claude.ai planının 5 saatlik ve haftalık pencereleridir.
 import type { HesapDurumu, KullanimPenceresi } from "@arnorg/ortak";
+import { useSozluk, type Sozluk } from "../dil";
 import { git } from "../durum/arayuz";
 import { hesabiYukle, useVeri } from "../durum/veri";
 import { akilliZaman, saat, token, yuzde } from "../yardimcilar/bicim";
@@ -8,6 +9,24 @@ import { akilliZaman, saat, token, yuzde } from "../yardimcilar/bicim";
 /** Göstergede öne çıkan pencereler: 5 saatlik ve haftalık */
 function anaPencereler(h: HesapDurumu | null): KullanimPenceresi[] {
   return (h?.pencereler ?? []).filter((p) => p.tur === "bes_saat" || p.tur === "haftalik");
+}
+
+/** Pencerenin arayüz dilindeki adı; türü bilinmeyen pencerede çekirdeğin verdiği ad */
+export function pencereAdi(s: Sozluk, p: KullanimPenceresi): string {
+  const k = s.bilesenler.kullanim;
+  if (p.tur === "model") {
+    // Çekirdek "Haftalık · <model>" yazar; model adı olduğu gibi kalır
+    const model = p.ad.split(" · ").slice(1).join(" · ");
+    return model ? k.haftalikModel(model) : p.ad;
+  }
+  return k.pencere[p.tur] ?? p.ad;
+}
+
+/** Sınırı aşan pencerenin adı (çekirdek adıyla bildirir) */
+function sinirPencereAdi(s: Sozluk, h: HesapDurumu): string {
+  const ad = h.sinir?.pencere ?? "";
+  const p = h.pencereler.find((x) => x.ad === ad);
+  return p ? pencereAdi(s, p) : ad;
 }
 
 /** Pencerenin ayardaki üst sınırı (5 saatlik ya da haftalık) */
@@ -28,35 +47,39 @@ export function KullanimCubugu({ deger, sinir, etiket }: { deger: number | null;
 
 /** Üst çubuk: plan ve iki pencere; pencereler henüz okunmadıysa bugünkü token */
 export function UstKullanim() {
+  const s = useSozluk();
+  const k = s.bilesenler.kullanim;
   const hesap = useVeri((d) => d.hesap);
   const kullanim = useVeri((d) => d.kullanim);
   const pencereler = anaPencereler(hesap);
   const baslik = hesap?.sinir
-    ? `Kullanım sınırda: ${hesap.sinir.pencere} %${hesap.sinir.yuzde}. Ajanlar ${hesap.sinir.sifirlanma ? saat(hesap.sinir.sifirlanma) : "pencere açılınca"} sürecek.`
-    : "Claude aboneliği: planın 5 saatlik ve haftalık pencereleri sayılır";
+    ? k.sinirBaslik(sinirPencereAdi(s, hesap), yuzde(hesap.sinir.yuzde), hesap.sinir.sifirlanma ? saat(hesap.sinir.sifirlanma) : null)
+    : k.abonelikBaslik;
   return (
     <button type="button" className={`ust-kullanim${hesap?.sinir ? " ust-kullanim-sinir" : ""}`} onClick={() => git("ayarlar")} title={baslik}>
       {hesap?.plan ? <span className="plan-rozet">{hesap.plan}</span> : null}
       {pencereler.length ? (
         pencereler.map((p) => (
           <span key={p.tur} className="ust-pencere">
-            <small>{p.tur === "bes_saat" ? "5 sa" : "Hafta"}</small>
-            <KullanimCubugu deger={p.yuzde} sinir={pencereSiniri(hesap, p)} etiket={`${p.ad} yüzde ${Math.round(p.yuzde ?? 0)}`} />
+            <small>{p.tur === "bes_saat" ? k.besSaatKisa : k.haftaKisa}</small>
+            <KullanimCubugu deger={p.yuzde} sinir={pencereSiniri(hesap, p)} etiket={k.cubuk(pencereAdi(s, p), Math.round(p.yuzde ?? 0))} />
             <b>{yuzde(p.yuzde)}</b>
           </span>
         ))
       ) : (
         <span className="metre">
-          Bugün <b>{token(kullanim?.bugunToken ?? 0)}</b> token
+          {k.bugun} <b>{token(kullanim?.bugunToken ?? 0)}</b> {s.genel.tokenBirimi(kullanim?.bugunToken ?? 0)}
         </span>
       )}
-      {hesap?.uyari ? <i className="ust-uyari" aria-label="Giriş uyarısı" /> : null}
+      {hesap?.uyari ? <i className="ust-uyari" aria-label={k.girisUyarisi} /> : null}
     </button>
   );
 }
 
 /** Karargâh: pencereler, sıfırlanma zamanları, ajan başına bugünkü token */
 export function KullanimPaneli() {
+  const s = useSozluk();
+  const k = s.bilesenler.kullanim;
   const hesap = useVeri((d) => d.hesap);
   const kullanim = useVeri((d) => d.kullanim);
   const pencereler = hesap?.pencereler ?? [];
@@ -67,17 +90,21 @@ export function KullanimPaneli() {
     <div className="kullanim-panel">
       <div className="kullanim-baslik">
         <span>
-          Claude {hesap?.plan ?? "aboneliği"}
+          {hesap?.plan ? `Claude ${hesap.plan}` : k.claudeAboneligi}
           {hesap?.eposta ? <small> · {hesap.eposta}</small> : null}
         </span>
-        <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)} title="Claude Code'a yeniden sor">
-          Yenile
+        <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)} title={k.yenidenSor}>
+          {s.genel.yenile}
         </button>
       </div>
       {hesap?.sinir ? (
         <p className="kullanim-uyari">
-          {hesap.sinir.pencere} %{hesap.sinir.yuzde}, sınır %{hesap.sinir.sinirYuzde}. Ajanlar durdu;{" "}
-          {hesap.sinir.sifirlanma ? `${akilliZaman(hesap.sinir.sifirlanma)} sürecekler` : "pencere açılınca sürecekler"}.
+          {k.sinirUyari(
+            sinirPencereAdi(s, hesap),
+            yuzde(hesap.sinir.yuzde),
+            yuzde(hesap.sinir.sinirYuzde),
+            hesap.sinir.sifirlanma ? akilliZaman(hesap.sinir.sifirlanma) : null,
+          )}
         </p>
       ) : null}
       {hesap?.uyari ? <p className="kullanim-uyari">{hesap.uyari}</p> : null}
@@ -87,10 +114,10 @@ export function KullanimPaneli() {
             const sinir = pencereSiniri(hesap, p);
             return (
               <li key={`${p.tur}-${p.ad}`}>
-                <span className="kp-ad">{p.ad}</span>
+                <span className="kp-ad">{pencereAdi(s, p)}</span>
                 <b>{yuzde(p.yuzde)}</b>
-                <KullanimCubugu deger={p.yuzde} sinir={sinir} etiket={`${p.ad} yüzde ${Math.round(p.yuzde ?? 0)}`} />
-                <small>{p.sifirlanma ? `Sıfırlanma ${akilliZaman(p.sifirlanma)}` : " "}</small>
+                <KullanimCubugu deger={p.yuzde} sinir={sinir} etiket={k.cubuk(pencereAdi(s, p), Math.round(p.yuzde ?? 0))} />
+                <small>{p.sifirlanma ? k.sifirlanma(akilliZaman(p.sifirlanma)) : " "}</small>
               </li>
             );
           })}
@@ -98,28 +125,28 @@ export function KullanimPaneli() {
       ) : (
         <p className="soluk kullanim-bos">
           {hesap?.durum === "hata"
-            ? `Kullanım okunamadı: ${hesap.hata ?? "bilinmeyen hata"}`
+            ? k.okunamadi(hesap.hata)
             : hesap?.durum === "hazir" && !hesap.pencereVar
-              ? "Bu girişte plan pencereleri yok."
-              : "Pencereler ilk ajan çalışınca ya da Yenile ile okunur."}
+              ? k.pencereYok
+              : k.pencereBekleniyor}
         </p>
       )}
       <dl className="kullanim-token">
         <div>
-          <dt>Bugün</dt>
+          <dt>{k.bugun}</dt>
           <dd>
-            <b>{token(kullanim?.bugunToken ?? 0)}</b> token
+            <b>{token(kullanim?.bugunToken ?? 0)}</b> {s.genel.tokenBirimi(kullanim?.bugunToken ?? 0)}
           </dd>
         </div>
         <div>
-          <dt>Toplam</dt>
+          <dt>{k.toplam}</dt>
           <dd>
-            <b>{token(kullanim?.toplamToken ?? 0)}</b> token
+            <b>{token(kullanim?.toplamToken ?? 0)}</b> {s.genel.tokenBirimi(kullanim?.toplamToken ?? 0)}
           </dd>
         </div>
       </dl>
       {ajanlar.length ? (
-        <ul className="kullanim-ajanlar" aria-label="Bugün ajan başına token">
+        <ul className="kullanim-ajanlar" aria-label={k.ajanBasina}>
           {ajanlar.map((a) => (
             <li key={a.ajanId}>
               <span>{a.ad}</span>
@@ -131,7 +158,7 @@ export function KullanimPaneli() {
           ))}
         </ul>
       ) : null}
-      <p className="kullanim-not">Ajanlar Claude aboneliğinizle çalışır. Token; girdi, çıktı ve önbelleğe yazılanın toplamıdır (önbellekten okuma hariç).</p>
+      <p className="kullanim-not">{k.not}</p>
     </div>
   );
 }

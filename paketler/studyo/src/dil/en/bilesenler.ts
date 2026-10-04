@@ -1,4 +1,85 @@
 // Ortak bileşenler: durumlar, çekmece, kullanım, kişi, karakter seçici, görev dağılımı, ekip tablosu (İngilizce)
 import type { bilesenler as tr } from "../tr/bilesenler";
 
-export const bilesenler: typeof tr = {};
+export const bilesenler: typeof tr = {
+  durumlar: {
+    yukleniyor: "Loading",
+    yuklenemedi: "Couldn't load",
+  },
+  kisi: {
+    siz: "You",
+  },
+  anmaOneri: "Agent to mention",
+  gorevDagilimi: (ozet: string) => `Task breakdown: ${ozet}`,
+  ekipTablosu: {
+    calisan: "Employee",
+    durum: "Status",
+    suAn: "Currently",
+    bugunkuKullanim: "Usage today",
+    pay: (oran: number) => `${oran}% of the team's highest usage`,
+  },
+  kullanim: {
+    pencere: {
+      bes_saat: "5-hour window",
+      haftalik: "Weekly",
+      haftalik_opus: "Weekly · Opus",
+      haftalik_sonnet: "Weekly · Sonnet",
+    },
+    haftalikModel: (model: string) => `Weekly · ${model}`,
+    besSaatKisa: "5h",
+    haftaKisa: "Week",
+    sinirBaslik: (pencere: string, yuzde: string, saat: string | null) =>
+      `Usage at the limit: ${pencere} ${yuzde}. Agents resume ${saat ? `at ${saat}` : "when the window reopens"}.`,
+    abonelikBaslik: "Claude subscription: your plan's 5-hour and weekly windows count",
+    cubuk: (pencere: string, yuzde: number) => `${pencere}: ${yuzde}%`,
+    bugun: "Today",
+    toplam: "Total",
+    girisUyarisi: "Sign-in warning",
+    claudeAboneligi: "Claude subscription",
+    yenidenSor: "Ask Claude Code again",
+    sinirUyari: (pencere: string, yuzde: string, sinir: string, zaman: string | null) =>
+      `${pencere} ${yuzde}, limit ${sinir}. Agents are paused; they resume ${zaman ? `at ${zaman}` : "when the window reopens"}.`,
+    sifirlanma: (zaman: string) => `Resets ${zaman}`,
+    okunamadi: (hata: string | null) => `Couldn't read usage: ${hata ?? "unknown error"}`,
+    pencereYok: "This sign-in has no plan windows.",
+    pencereBekleniyor: "Windows are read when the first agent runs, or when you click Refresh.",
+    ajanBasina: "Tokens per agent today",
+    not: "Agents run on your Claude subscription. Tokens are the sum of input, output and cache writes (cache reads excluded).",
+  },
+  karakter: {
+    yukleniyor: "Loading characters…",
+    otomatik: "Automatic",
+    otomatikSecim: "automatic pick",
+    kullaniyor: (kim: string) => `used by ${kim}`,
+    suAnKullaniyor: (kim: string) => `currently used by ${kim}`,
+    otoKisa: "Auto",
+    rolKisa: "role",
+    otomatikIpucu: (karakter: string | null) => `Automatic: a free character that fits the role${karakter ? ` (for now, ${karakter})` : ""}`,
+    kisilik: (lakap: string) => `${lakap}'s personality`,
+    uslup: "Voice",
+    calisma: "Work style",
+    ofiste: "In the office",
+    enCok: (yer: string) => `Usually ${yer}`,
+    yerler: {
+      kahve: "by the coffee machine",
+      kanepe: "on the couch",
+      kitaplik: "at the bookshelf",
+      bitki: "by the plants",
+      "beyaz-tahta": "at the whiteboard",
+      sunucu: "in the server room",
+      su: "at the water cooler",
+      pencere: "by the window",
+      "masa-tenisi": "at the ping-pong table",
+      otomat: "at the snack machine",
+    },
+  },
+  arac: {
+    arac: "tool",
+    yapilacaklar: (n: number) => `${n}-item to-do list`,
+    uzman: "expert",
+    defterGuncellendi: "updated their notebook",
+    defteri: (ajan: string) => `${ajan}'s notebook`,
+    kendiDefteri: "their own notebook",
+    gecersizDesen: "Invalid regular expression",
+  },
+};

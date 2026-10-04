@@ -1,6 +1,7 @@
 // Sağdan açılan çekmece: Escape ile kapanır, odak içeride kalır ve kapanınca geri döner
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useSozluk } from "../dil";
 import { Simge } from "./Simge";
 
 const ODAKLANABILIR =
@@ -19,6 +20,7 @@ export function Cekmece({
   alt?: ReactNode;
   kapat: () => void;
 }) {
+  const s = useSozluk();
   const ref = useRef<HTMLDivElement>(null);
   const baslikId = useId();
   const kapatRef = useRef(kapat);
@@ -62,7 +64,7 @@ export function Cekmece({
         <div className="cekmece-ust">
           <h2 id={baslikId}>{baslik}</h2>
           {ust}
-          <button type="button" className="dugme dugme-sessiz dugme-simge" onClick={() => kapatRef.current()} aria-label="Kapat">
+          <button type="button" className="dugme dugme-sessiz dugme-simge" onClick={() => kapatRef.current()} aria-label={s.genel.kapat}>
             <Simge ad="kapat" />
           </button>
         </div>

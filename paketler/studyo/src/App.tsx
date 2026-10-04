@@ -1,7 +1,7 @@
 // Uygulama kabuğu ve ekran yönlendirmesi
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { anahtar, anahtarDinle } from "./api/anahtar";
-import { useDil } from "./dil";
+import { useDil, useSozluk } from "./dil";
 import { Bildirimler } from "./bilesenler/Bildirimler";
 import { CanliRay } from "./bilesenler/CanliRay";
 import { Iskelet } from "./bilesenler/Durumlar";
@@ -51,6 +51,7 @@ const KENARSIZ: Gorunum[] = ["ofis"];
 function Studyo() {
   // Dil değişince bütün ağaç yeni sözlük ve biçimlerle yeniden çizilir
   useDil();
+  const s = useSozluk();
   const gorunum = useArayuz((d) => d.gorunum);
   const rayAcik = useArayuz((d) => d.rayAcik);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
@@ -96,8 +97,8 @@ function Studyo() {
       type="button"
       className="dugme dugme-sessiz dugme-kucuk dugme-simge"
       aria-pressed={rayGorunur}
-      aria-label={rayGorunur ? "Canlı akışı gizle" : "Canlı akışı göster"}
-      title="Canlı akış"
+      aria-label={rayGorunur ? s.gezinti.ray.gizle : s.gezinti.ray.goster}
+      title={s.gezinti.ray.baslik}
       onClick={() => (genis ? rayiDegistir() : setRayKatman(!rayKatman))}
     >
       <Simge ad="ray" />
@@ -115,7 +116,7 @@ function Studyo() {
               <Suspense
                 fallback={
                   <div className="ana-ic">
-                    <Iskelet satir={8} etiket="Kod ekranı yükleniyor" />
+                    <Iskelet satir={8} etiket={s.gezinti.kodYukleniyor} />
                   </div>
                 }
               >
@@ -141,6 +142,7 @@ function Studyo() {
 }
 
 function Ekran({ gorunum }: { gorunum: Gorunum }) {
+  const s = useSozluk();
   switch (gorunum) {
     case "projeler":
       return <Projeler />;
@@ -162,7 +164,7 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Hafiza />;
     case "kod-zekasi":
       return (
-        <Suspense fallback={<Iskelet satir={6} etiket="Kod zekâsı yükleniyor" />}>
+        <Suspense fallback={<Iskelet satir={6} etiket={s.gezinti.kodZekasiYukleniyor} />}>
           <KodZekasi />
         </Suspense>
       );

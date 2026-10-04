@@ -1,4 +1,46 @@
 // Projeler (İngilizce)
 import type { projeler as tr } from "../tr/projeler";
 
-export const projeler: typeof tr = {};
+export const projeler: typeof tr = {
+  baslik: "Projects",
+  aciklama: "Each project is a git repository with its own team, board, memory and audit policy",
+  yeniProje: "New project",
+  listeAlinamadi: "Couldn't load the project list.",
+  acikProjeler: "Open projects",
+  ekip: "Team",
+  onay: "Approvals",
+  bugun: "Today",
+  bugunBaslik: "Tokens processed today",
+  karargahaGit: "Go to Headquarters",
+  listedenCikar: "Remove from list",
+  cikarEtiket: (ad: string) => `Remove ${ad} from the list`,
+  cikarOnay: (ad: string) =>
+    `${ad} will be removed from the ArnOrg list. The repo, the .arnorg/ folder and the workspaces stay on disk; you can connect the same path again.`,
+  cikarildi: (ad: string) => `${ad} was removed from the list. Its files were not touched.`,
+  form: {
+    ilkBaslik: "Open your first project",
+    kapat: "Close form",
+    ilkAciklamaOnce: "A project is a git repository that ArnOrg manages. Opening one adds a ",
+    ilkAciklamaSonra:
+      " scaffold to the repo (vision and architecture notes, team identities, memory) and hires a CEO agent. You give the brief; the CEO drafts the plan, proposes the team and hands out the work.",
+    kaynak: "Source",
+    yeniRepo: "Create new repo",
+    varOlanRepo: "Connect existing repo",
+    yeniRepoIpucu: "The folder is created if it doesn't exist; then git init, a CLAUDE.md and a first commit.",
+    varOlanIpucu: "The folder must be a git repository. Your files stay untouched; only .arnorg/ is added.",
+    ad: "Project name",
+    adOrnek: "Order Panel",
+    adGerekli: "Project name is required.",
+    yol: "Folder (absolute path)",
+    yolOrnekYeni: "/home/you/projects/order-panel",
+    yolOrnekVar: "/home/you/code/existing-repo",
+    yolGerekli: "Folder path is required.",
+    yolMutlak: "Enter an absolute path (e.g. /home/you/projects/order-panel).",
+    aciklama: "Description (optional)",
+    aciklamaOrnek: "Order and shipping tracking for small businesses",
+    acilamadi: "Couldn't open the project",
+    olustur: "Create project",
+    bagla: "Connect repo",
+    acildi: (ad: string) => `${ad} is open. A CEO has been hired; give a brief from Headquarters.`,
+  },
+};

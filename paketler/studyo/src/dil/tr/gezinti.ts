@@ -21,4 +21,48 @@ export const gezinti = {
   rozetOnay: (n: number) => `${n} onay bekliyor`,
   rozetSoru: (n: number) => `${n} soru yanıt bekliyor`,
   rozetOkunmamis: (n: number) => `${n} okunmamış mesaj`,
+  /** Tembel yüklenen ekranlar yüklenirken */
+  kodYukleniyor: "Kod ekranı yükleniyor",
+  kodZekasiYukleniyor: "Kod zekâsı yükleniyor",
+  bildirimKapat: "Bildirimi kapat",
+  /** Üst çubuk */
+  ust: {
+    proje: "Proje",
+    projeSecin: "Proje seçin",
+    aktifBaslik: "Çalışan ya da karar bekleyen ajan sayısı",
+    /** "3 aktif · 8 çalışan": sayılar kalın yazılır, sözcükler buradan gelir */
+    aktif: "aktif",
+    calisan: (_n: number) => "çalışan",
+    ws: { bagli: "Canlı", baglaniyor: "Bağlanıyor", kopuk: "Bağlantı yok" },
+    wsBaslik: "Canlı olay bağlantısı",
+    wsKopukBaslik: "Canlı bağlantı koptu; arka planda yeniden deneniyor. Hemen denemek için tıklayın.",
+    projeYok: "Henüz proje yok.",
+    tumProjeler: "Tüm projeler",
+    yeniProje: "Yeni proje",
+    mesai: "Mesaiyi durdur",
+    mesaiBaslik: "Projedeki bütün ajan oturumlarını kapat",
+    acikOturumYok: "Açık oturum yok",
+    hepsiniDurdur: "Hepsini durdur",
+    mesaiOnay: (n: number) =>
+      `${n} ajanın oturumu kapanır. Çalışan turlar kesilir; oturum kimlikleri saklanır, ajanlar sonra kaldığı yerden başlatılabilir.`,
+    mesaiDurdu: (n: number) => `${n} ajanın oturumu kapatıldı. Mesai durdu.`,
+  },
+  /** Canlı akış rayı; olay etiketleri çizim anında çevrilir */
+  ray: {
+    baslik: "Canlı akış",
+    alt: "araç çağrıları",
+    goster: "Canlı akışı göster",
+    gizle: "Canlı akışı gizle",
+    gizleKisa: "Gizle",
+    bos: "Ajanlar çalışmaya başlayınca her araç çağrısı ve denetim kararı burada akar.",
+    onay: { bekliyor: "Onay bekliyor", onaylandi: "Onaylandı", reddedildi: "Reddedildi", zaman_asimi: "Süre doldu" },
+    /** Denetim kararının kısa adı: "Bash · reddedildi" */
+    karar: { izin: "izin", ret: "reddedildi", sor: "onaya soruldu", degisti: "girdi değişti" },
+    gorev: "görev",
+    hafiza: "hafıza",
+    hafizaGuncel: "hafıza güncel",
+    soru: "soru",
+    yanit: "yanıt",
+    yanitsiz: "yanıtsız",
+  },
 };

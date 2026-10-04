@@ -1,4 +1,78 @@
 // Ayarlar (İngilizce)
 import type { ayarlar as tr } from "../tr/ayarlar";
 
-export const ayarlar: typeof tr = {};
+export const ayarlar: typeof tr = {
+  baslik: "Settings",
+  aciklama: "Core settings apply to every project",
+  alinamadi: "Couldn't load settings.",
+  kaydedildi: "Settings saved.",
+  degisiklikYok: "No changes",
+  dil: {
+    aciklama: "The interface and the agents use this language. Running agents switch at their next session.",
+  },
+  giris: {
+    baslik: "Claude sign-in",
+    kaynak: "sign-in",
+    ulasilamadi: (hata: string) => `Couldn't reach Claude Code: ${hata}`,
+    okunmadi: "Claude Code sign-in hasn't been read yet.",
+    sifirlanma: (zaman: string) => `resets ${zaman}`,
+    yenidenOku: "Read sign-in again",
+    abonelik:
+      "ArnOrg runs only on a Claude subscription: agents use your Claude Code sign-in on this machine (Pro, Max or Team). Your plan's 5-hour and weekly windows count; an API key in the environment is never passed to agents.",
+    besSaat: "5-hour window cap (%)",
+    besSaatIpucu: "Agents stop at this percentage; the rest is left for you. 0 means no cap.",
+    hafta: "Weekly window cap (%)",
+    haftaIpucu: "When the window resets, agents pick up where they left off.",
+  },
+  cekirdek: {
+    baslik: "Core",
+    claudeYolu: "Claude Code path",
+    claudeYoluOrnek: "Empty: PATH first, then the binary bundled with the SDK",
+    izinModu: "Default permission mode",
+    izinModuIpucu: "Whatever the mode, every call passes through the PreToolUse gate.",
+    sure: "Decision timeout (seconds)",
+    sureHata: "At least 10 seconds.",
+    sureIpucu: "When time runs out, the pending tool call is rejected.",
+    tikanma: "Stall threshold (minutes)",
+    tikanmaHata: "Must be between 0 and 1440.",
+    tikanmaIpucu: "If a task makes no progress for this long, its owner gets a reminder; then it goes to their manager and the Board. 0 turns it off.",
+    editor: "External editor",
+    editorBaska: "Another command…",
+    editorKomutu: "Editor command",
+  },
+  kodZekasi: {
+    baslik: "Code intel",
+    model: "Semantic search model",
+    modeller: { kaliteli: "Quality", hizli: "Fast", kapali: "Off" },
+    kapaliIpucu: "Code is searched by keyword and symbol name only; no model is downloaded.",
+    modelIpucu: "The model downloads on first use and runs on this machine; your code never leaves it.",
+    indirildi: (mb: number) => `Downloaded (${mb} MB).`,
+    indirilecek: (mb: number) => `Downloads ~${mb} MB on first use.`,
+    yerel: "The model runs on this machine; your code never leaves it.",
+    otomatik: "Index projects automatically",
+    otomatikIpucu:
+      "When on, the main repo is indexed in the background when ArnOrg starts and when a project is added; changed files update on their own. When off, the first search starts indexing.",
+  },
+  sistem: {
+    baslik: "System",
+    bulundu: "Found",
+    bulunamadi: "Not found",
+    yol: "Path",
+    veriDizini: "Data directory",
+    uyari: "Agents can't start. Install Claude Code or set its path above.",
+  },
+  tarayici: {
+    baslik: "This browser",
+    sirketAdi: "Company name shown in the top bar",
+    uygula: "Apply",
+    yerel: "Stored only in this browser.",
+    sirketGuncellendi: "Company name updated.",
+    baglanti: "Connection",
+    anahtariUnut: "Forget key",
+    baglantiyiKes: "Disconnect this tab",
+    anahtarIpucu: "The access key is kept in sessionStorage; once it's forgotten, you'll need to paste it again.",
+  },
+  hakkinda: {
+    baslik: "About",
+  },
+};

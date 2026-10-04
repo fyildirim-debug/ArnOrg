@@ -1,5 +1,6 @@
 // Çekirdek HTTP API'si için fetch sarmalayıcısı
 import type { ApiHatasi as ApiHataGovdesi } from "@arnorg/ortak";
+import { sozluk } from "../dil";
 import { anahtar, anahtarAyarla } from "./anahtar";
 
 export class ApiHatasi extends Error {
@@ -17,14 +18,26 @@ export interface IstekSecenekleri {
   sinyal?: AbortSignal;
 }
 
-const DURUM_METINLERI: Record<number, string> = {
-  400: "Geçersiz istek.",
-  401: "Erişim anahtarı geçersiz.",
-  404: "Bulunamadı.",
-  409: "İşlem şu an yapılamıyor.",
-  413: "Dosya çok büyük.",
-  500: "Çekirdekte bir hata oluştu.",
-};
+/** Çekirdek hata metni göndermezse durum koduna göre gösterilen metin (hata anındaki dilde) */
+function durumMetni(durum: number): string {
+  const m = sozluk().bildirim.api;
+  switch (durum) {
+    case 400:
+      return m.gecersizIstek;
+    case 401:
+      return m.anahtarGecersiz;
+    case 404:
+      return m.bulunamadi;
+    case 409:
+      return m.yapilamiyor;
+    case 413:
+      return m.cokBuyuk;
+    case 500:
+      return m.cekirdekHatasi;
+    default:
+      return m.beklenmeyen(durum);
+  }
+}
 
 export async function istek<T>(yol: string, secenek: IstekSecenekleri = {}): Promise<T> {
   const { method = "GET", govde, sinyal } = secenek;
@@ -43,11 +56,11 @@ export async function istek<T>(yol: string, secenek: IstekSecenekleri = {}): Pro
     });
   } catch (hata) {
     if (hata instanceof DOMException && hata.name === "AbortError") throw hata;
-    throw new ApiHatasi("Çekirdeğe ulaşılamadı. Bağlantıyı denetleyin.", 0);
+    throw new ApiHatasi(sozluk().bildirim.api.ulasilamadi, 0);
   }
 
   if (!yanit.ok) {
-    let mesaj = DURUM_METINLERI[yanit.status] ?? `Beklenmeyen yanıt (${yanit.status}).`;
+    let mesaj = durumMetni(yanit.status);
     try {
       const j = (await yanit.json()) as Partial<ApiHataGovdesi>;
       if (j && typeof j.hata === "string" && j.hata) mesaj = j.hata;
@@ -66,7 +79,7 @@ export async function istek<T>(yol: string, secenek: IstekSecenekleri = {}): Pro
 /** Hata nesnesinden kullanıcıya gösterilecek metni çıkarır */
 export function hataMetni(hata: unknown): string {
   if (hata instanceof Error) return hata.message;
-  return "Bilinmeyen bir hata oluştu.";
+  return sozluk().bildirim.api.bilinmeyen;
 }
 
 /** Sorgu dizesi kurar; boş değerleri atlar */

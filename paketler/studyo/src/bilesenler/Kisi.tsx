@@ -1,6 +1,6 @@
 // Avatar, ajan kişi etiketi ve durum göstergesi
-import { sozluk } from "../dil";
-import { AJAN_DURUM_ADLARI, KURUL, type Ajan, type AjanDurumu } from "@arnorg/ortak";
+import { sozluk, useSozluk } from "../dil";
+import { KURUL, type Ajan, type AjanDurumu } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
 import { ilkHarf } from "../yardimcilar/bicim";
 import { KarakterPortresi, useAjanKarakteri } from "./KarakterSecici";
@@ -8,10 +8,11 @@ import { KarakterPortresi, useAjanKarakteri } from "./KarakterSecici";
 type Boyut = "xs" | "s" | "m" | "l";
 
 export function Avatar({ ad, ceo, siz, boyut = "m" }: { ad: string; ceo?: boolean; siz?: boolean; boyut?: Boyut }) {
+  const s = useSozluk();
   const sinif = ["av", boyut !== "m" ? `av-${boyut}` : "", ceo ? "av-ceo" : "", siz ? "av-siz" : ""].filter(Boolean).join(" ");
   return (
     <span className={sinif} aria-hidden="true">
-      {siz ? "S" : ilkHarf(ad)}
+      {ilkHarf(siz ? s.bilesenler.kisi.siz : ad)}
     </span>
   );
 }
@@ -44,6 +45,7 @@ export function AjanKisi({
   boyut?: Boyut;
   tiklanir?: boolean;
 }) {
+  const s = useSozluk();
   const icerik = (
     <>
       <AjanAvatar ajan={ajan} boyut={boyut} />
@@ -62,7 +64,7 @@ export function AjanKisi({
         e.stopPropagation();
         ajanaGit(ajan.id);
       }}
-      title={`${ajan.ad} oturumunu aç`}
+      title={s.genel.oturumuAc(ajan.ad)}
     >
       {icerik}
     </button>
@@ -71,23 +73,25 @@ export function AjanKisi({
 
 /** Kurul ya da ajan için gönderen görünümü */
 export function GonderenAvatar({ gonderenId, ad, ajan, boyut = "m" }: { gonderenId: string; ad: string; ajan?: Ajan; boyut?: Boyut }) {
-  if (gonderenId === KURUL) return <Avatar ad="Siz" siz boyut={boyut} />;
+  if (gonderenId === KURUL) return <Avatar ad="" siz boyut={boyut} />;
   // Ajan hâlâ ekipteyse ofis karakterinin portresi; işten çıkmışsa adın baş harfi
   if (ajan) return <AjanAvatar ajan={ajan} boyut={boyut} />;
   return <Avatar ad={ad} boyut={boyut} />;
 }
 
 export function AjanDurum({ durum }: { durum: AjanDurumu }) {
+  const s = useSozluk();
   return (
     <span className={`durum durum-${durum}`}>
       <i aria-hidden="true" />
-      {AJAN_DURUM_ADLARI[durum]}
+      {s.genel.ajanDurumu[durum]}
     </span>
   );
 }
 
 export function DurumNoktasi({ durum }: { durum: AjanDurumu }) {
-  return <i className={`nokta nokta-${durum}`} title={AJAN_DURUM_ADLARI[durum]} aria-hidden="true" />;
+  const s = useSozluk();
+  return <i className={`nokta nokta-${durum}`} title={s.genel.ajanDurumu[durum]} aria-hidden="true" />;
 }
 
 const MODEL_ADLARI: Record<string, string> = { opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };

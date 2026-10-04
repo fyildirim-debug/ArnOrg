@@ -1,8 +1,9 @@
 // Ofis karakterleri: katalog, ajanların çözülmüş karakteri (avatarlar için) ve karakter seçici (radyo grubu)
-import type { Ajan } from "@arnorg/ortak";
-import { karakterBul, type OfisYeri } from "@arnorg/ortak/karakterler";
+import type { Ajan, Dil } from "@arnorg/ortak";
+import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { create } from "zustand";
+import { useDil, useSozluk } from "../dil";
 import { useVeri } from "../durum/veri";
 import { projeAtamalari } from "../ofis/karakterAtama";
 import { adayKarakteri } from "../ofis/karakterSecimi";
@@ -71,6 +72,12 @@ export function useAjanKarakteri(ajanId: string | null | undefined): KarakterVar
 // Portre ve seçici
 // ---------------------------------------------------------------------------
 
+/** Karakterin arayüz dilindeki görünüş tanımı; çevirisi yoksa varlık bildirimindeki ad */
+function karakterAdi(k: KarakterVarligi, dil: Dil): string {
+  const tanim = karakterBul(k.id);
+  return tanim ? karakterMetni(tanim, dil).ad : k.ad;
+}
+
 /** Görselin üst kısmı (yüz ve omuzlar) kare ya da yuvarlak kutuda */
 export function KarakterPortresi({ karakter, className }: { karakter: KarakterVarligi; className?: string }) {
   return <img className={`karakter-portre${className ? ` ${className}` : ""}`} src={varlikAdresi(karakter.dosya)} alt="" draggable={false} decoding="async" loading="lazy" />;
@@ -89,13 +96,15 @@ interface SeciciOzellikleri {
 }
 
 export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi }: SeciciOzellikleri) {
+  const t = useSozluk().bilesenler.karakter;
+  const dil = useDil();
   const v = useKarakterKatalogu();
   const harita = useAtamalar((s) => s.harita);
   const ajanlar = useVeri((d) => d.ajanlar);
   const dugmeler = useRef<(HTMLButtonElement | null)[]>([]);
   const aciklamaId = useId();
 
-  if (!v) return <p className="alan-ipucu">Karakterler yükleniyor…</p>;
+  if (!v) return <p className="alan-ipucu">{t.yukleniyor}</p>;
   const katalog = v.karakterler;
 
   // Başka ajanların kullandığı karakterler (kayıtlı ya da otomatik atanmış)
@@ -135,7 +144,9 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
           const isaretli = i === seciliNo;
           const kim = kid ? kullanan.get(kid) : undefined;
           const oneri = deger === null && kid !== null && kid === otomatik;
-          const ad = k ? `${k.ad}${kim ? ` · ${kim} kullanıyor` : ""}${oneri ? " · otomatik seçim" : ""}` : `Otomatik${otomatikKarakter ? `: ${otomatikKarakter.ad}` : ""}`;
+          const ad = k
+            ? `${karakterAdi(k, dil)}${kim ? ` · ${t.kullaniyor(kim)}` : ""}${oneri ? ` · ${t.otomatikSecim}` : ""}`
+            : `${t.otomatik}${otomatikKarakter ? `: ${karakterAdi(otomatikKarakter, dil)}` : ""}`;
           return (
             <button
               key={kid ?? "otomatik"}
@@ -158,8 +169,8 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
                 <KarakterPortresi karakter={k} />
               ) : (
                 <span aria-hidden="true">
-                  <b>Oto</b>
-                  <small>rol</small>
+                  <b>{t.otoKisa}</b>
+                  <small>{t.rolKisa}</small>
                 </span>
               )}
             </button>
@@ -168,33 +179,24 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
       </div>
       <p className="alan-ipucu" id={aciklamaId}>
         {secili
-          ? `${secili.ad}${kullanan.has(secili.id) ? ` · şu an ${kullanan.get(secili.id)} kullanıyor` : ""}`
-          : `Otomatik: role uyan boş karakter${otomatikKarakter ? ` (şimdilik ${otomatikKarakter.ad.toLocaleLowerCase("tr-TR")})` : ""}`}
+          ? `${karakterAdi(secili, dil)}${kullanan.has(secili.id) ? ` · ${t.suAnKullaniyor(kullanan.get(secili.id) ?? "")}` : ""}`
+          : t.otomatikIpucu(otomatikKarakter ? karakterAdi(otomatikKarakter, dil).toLocaleLowerCase(dil === "tr" ? "tr-TR" : "en-US") : null)}
       </p>
       <KisilikOzeti karakterId={secili?.id ?? otomatikKarakter?.id ?? null} />
     </>
   );
 }
 
-const YER_ADLARI: Record<OfisYeri, string> = {
-  kahve: "kahve makinesinin başı",
-  kanepe: "kanepe",
-  kitaplik: "kitaplık",
-  bitki: "bitkilerin yanı",
-  "beyaz-tahta": "beyaz tahta",
-  sunucu: "sunucu odası",
-  su: "su sebili",
-  pencere: "pencere önü",
-  "masa-tenisi": "masa tenisi",
-  otomat: "atıştırmalık otomatı",
-};
-
 /** Karakterin kişiliği: ajanın üslubuna ve ofisteki davranışına yansır */
 export function KisilikOzeti({ karakterId }: { karakterId: string | null }) {
-  const k = karakterBul(karakterId);
-  if (!k) return null;
+  const t = useSozluk().bilesenler.karakter;
+  const dil = useDil();
+  const tanim = karakterBul(karakterId);
+  if (!tanim) return null;
+  // Kişilik metinleri arayüz dilinde; çevirisi yoksa Türkçesi
+  const k = karakterMetni(tanim, dil);
   return (
-    <div className="kisilik" aria-label={`${k.lakap} kişiliği`}>
+    <div className="kisilik" aria-label={t.kisilik(k.lakap)}>
       <div className="kisilik-ust">
         <b className="kisilik-lakap">{k.lakap}</b>
         <span className="kisilik-mizac">
@@ -208,17 +210,17 @@ export function KisilikOzeti({ karakterId }: { karakterId: string | null }) {
       <p>{k.ozet}</p>
       <dl>
         <div>
-          <dt>Üslup</dt>
+          <dt>{t.uslup}</dt>
           <dd>{k.konusma}</dd>
         </div>
         <div>
-          <dt>Çalışma</dt>
+          <dt>{t.calisma}</dt>
           <dd>{k.calisma}</dd>
         </div>
         <div>
-          <dt>Ofiste</dt>
+          <dt>{t.ofiste}</dt>
           <dd>
-            En çok {YER_ADLARI[k.sevdigiYer]} · <q>{k.sozler[0]}</q>
+            {t.enCok(t.yerler[tanim.sevdigiYer])} · <q>{k.sozler[0]}</q>
           </dd>
         </div>
       </dl>

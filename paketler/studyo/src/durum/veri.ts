@@ -13,7 +13,7 @@ import type {
   Rol,
   Saglik,
 } from "@arnorg/ortak";
-import { diliAyarla } from "../dil";
+import { diliAyarla, type Sozluk } from "../dil";
 import { create } from "zustand";
 import type { WsDurumu } from "../api/canli";
 import { hataMetni } from "../api/istek";
@@ -22,15 +22,22 @@ import type { AracSinifi } from "../yardimcilar/arac";
 
 export type Yukleme = "bos" | "yukleniyor" | "hazir" | "hata";
 
+/** Düz metin ya da geçerli sözlükten üreten işlev; rayda saklanan metin dil değişince yeniden çevrilsin diye */
+export type CevrilenMetin = string | ((s: Sozluk) => string);
+
+export function metinCevir(m: CevrilenMetin, s: Sozluk): string {
+  return typeof m === "function" ? m(s) : m;
+}
+
 /** Canlı akış rayındaki tek satır */
 export interface CanliOlay {
   id: string;
   zaman: string;
   ajanId: string | null;
-  ajanAd: string;
-  etiket: string;
+  ajanAd: CevrilenMetin;
+  etiket: CevrilenMetin;
   sinif: AracSinifi | "ret" | "sor" | "ok" | "bilgi";
-  hedef: string;
+  hedef: CevrilenMetin;
 }
 
 export interface VeriDurumu {
@@ -303,14 +310,10 @@ export function denetimdenCanli(k: DenetimKaydi): CanliOlay {
     zaman: k.zaman,
     ajanId: k.ajanId,
     ajanAd: k.ajanAd,
-    etiket: k.karar === "izin" ? k.arac.replace(/^mcp__[^_]+__/, "") : `${k.arac} · ${kararKisa(k.karar)}`,
+    etiket: k.karar === "izin" ? k.arac.replace(/^mcp__[^_]+__/, "") : (s) => `${k.arac} · ${s.gezinti.ray.karar[k.karar]}`,
     sinif: sinif ?? aracSinifiCanli(k.arac),
     hedef: k.girdiOzeti,
   };
-}
-
-function kararKisa(k: DenetimKaydi["karar"]): string {
-  return k === "ret" ? "reddedildi" : k === "sor" ? "onaya soruldu" : k === "degisti" ? "girdi değişti" : "izin";
 }
 
 function aracSinifiCanli(arac: string): CanliOlay["sinif"] {

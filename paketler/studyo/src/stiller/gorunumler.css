@@ -1496,6 +1496,40 @@
   padding-top: var(--b-4);
   border-top: 1px solid var(--line);
 }
+/* Dil: sayfanın en üstünde, iki sütunun üzerinde; seçim düğmeleri ve kısa açıklama tek satırda */
+.ayar-dil {
+  margin-bottom: var(--b-8);
+}
+.ayar-dil-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-4);
+}
+/* Hakkında: sayfanın sonunda kıl çizginin altında tek satırlık imza */
+.ayar-hakkinda {
+  margin-top: var(--b-10);
+  padding-top: var(--b-4);
+  border-top: 1px solid var(--line);
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.ayar-hakkinda-marka {
+  font-family: var(--font-display);
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.ayar-hakkinda a {
+  color: var(--muted);
+  text-decoration-color: var(--line-strong);
+}
+.ayar-hakkinda a:hover,
+.ayar-hakkinda a:focus-visible {
+  color: var(--coral);
+  text-decoration-color: var(--coral);
+}
 
 /* ---------- dar ekranlar ---------- */
 @media (max-width: 1180px) {

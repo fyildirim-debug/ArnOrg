@@ -1,2 +1,78 @@
 // Ayarlar (Türkçe)
-export const ayarlar = {};
+export const ayarlar = {
+  baslik: "Ayarlar",
+  aciklama: "Çekirdek ayarları bütün projeler için geçerlidir",
+  alinamadi: "Ayarlar alınamadı.",
+  kaydedildi: "Ayarlar kaydedildi.",
+  degisiklikYok: "Değişiklik yok",
+  /** Dil bölümünün başlığı s.genel.dil; seçenekler kendi dillerinde yazılır (Türkçe, English) */
+  dil: {
+    aciklama: "Arayüz ve ajanlar bu dili kullanır. Çalışan ajanlar bir sonraki oturumlarında yeni dile geçer.",
+  },
+  giris: {
+    baslik: "Claude girişi",
+    /** " · giriş: claude.ai" */
+    kaynak: "giriş",
+    ulasilamadi: (hata: string) => `Claude Code'a ulaşılamadı: ${hata}`,
+    okunmadi: "Claude Code girişi henüz okunmadı.",
+    sifirlanma: (zaman: string) => `sıfırlanma ${zaman}`,
+    yenidenOku: "Girişi yeniden oku",
+    abonelik:
+      "ArnOrg yalnız Claude aboneliğiyle çalışır: ajanlar bu makinedeki Claude Code girişinizle (Pro, Max ya da Team) çalışır. Planın 5 saatlik ve haftalık pencereleri sayılır; ortamda API anahtarı olsa da ajanlara verilmez.",
+    besSaat: "5 saatlik pencere üst sınırı (%)",
+    besSaatIpucu: "Ajanlar bu yüzdede durur, kalanı sizin kullanımınıza kalır. 0 sınırsız.",
+    hafta: "Haftalık pencere üst sınırı (%)",
+    haftaIpucu: "Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.",
+  },
+  cekirdek: {
+    baslik: "Çekirdek",
+    claudeYolu: "Claude Code yolu",
+    claudeYoluOrnek: "Boş: önce PATH, sonra SDK ile gelen ikili",
+    izinModu: "Varsayılan izin modu",
+    izinModuIpucu: "Her çağrı modu ne olursa olsun PreToolUse kapısından geçer.",
+    sure: "Karar süresi (saniye)",
+    sureHata: "En az 10 saniye.",
+    sureIpucu: "Süre dolunca bekleyen araç çağrısı reddedilir.",
+    tikanma: "Tıkanma eşiği (dakika)",
+    tikanmaHata: "0 ile 1440 arasında olmalı.",
+    tikanmaIpucu: "Bu süre ilerlemeyen görevin sorumlusu hatırlatılır, sonra yöneticiye ve kurula iletilir. 0 kapatır.",
+    editor: "Dış editör",
+    editorBaska: "Başka bir komut…",
+    editorKomutu: "Editör komutu",
+  },
+  kodZekasi: {
+    baslik: "Kod zekâsı",
+    model: "Anlamsal arama modeli",
+    modeller: { kaliteli: "Kaliteli", hizli: "Hızlı", kapali: "Kapalı" },
+    kapaliIpucu: "Kod yalnız anahtar sözcük ve sembol adıyla aranır; model indirilmez.",
+    modelIpucu: "Model ilk kullanımda indirilir ve bu makinede çalışır; kod dışarı gönderilmez.",
+    indirildi: (mb: number) => `İndirildi (${mb} MB).`,
+    indirilecek: (mb: number) => `İlk kullanımda ~${mb} MB indirilir.`,
+    yerel: "Model bu makinede çalışır; kod dışarı gönderilmez.",
+    otomatik: "Projeleri otomatik dizinle",
+    otomatikIpucu:
+      "Açıkken ArnOrg açılınca ve proje eklenince ana repo arka planda dizinlenir; değişen dosyalar kendiliğinden güncellenir. Kapalıyken ilk arama dizinlemeyi başlatır.",
+  },
+  sistem: {
+    baslik: "Sistem",
+    bulundu: "Bulundu",
+    bulunamadi: "Bulunamadı",
+    yol: "Yol",
+    veriDizini: "Veri dizini",
+    uyari: "Ajanlar başlatılamaz. Claude Code'u kurun ya da yolunu yukarıda belirtin.",
+  },
+  tarayici: {
+    baslik: "Bu tarayıcı",
+    sirketAdi: "Üst çubukta görünen şirket adı",
+    uygula: "Uygula",
+    yerel: "Yalnız bu tarayıcıda saklanır.",
+    sirketGuncellendi: "Şirket adı güncellendi.",
+    baglanti: "Bağlantı",
+    anahtariUnut: "Anahtarı unut",
+    baglantiyiKes: "Bu sekmede bağlantıyı kes",
+    anahtarIpucu: "Erişim anahtarı sessionStorage'da durur; unutulunca yeniden yapıştırmanız gerekir.",
+  },
+  hakkinda: {
+    baslik: "Hakkında",
+  },
+};

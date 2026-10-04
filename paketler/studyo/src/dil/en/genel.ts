@@ -53,4 +53,6 @@ export const genel: typeof tr = {
   calisanSayisi: (n: number) => `${n} ${n === 1 ? "employee" : "employees"}`,
   gorevSayisi: (n: number) => `${n} ${n === 1 ? "task" : "tasks"}`,
   kayitSayisi: (n: number) => `${n} ${n === 1 ? "record" : "records"}`,
+  tokenBirimi: (n: number) => (n === 1 ? "token" : "tokens"),
+  oturumuAc: (ajan: string) => `Open ${ajan}'s session`,
 };

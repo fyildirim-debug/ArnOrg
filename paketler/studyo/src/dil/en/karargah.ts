@@ -1,4 +1,47 @@
 // Karargâh (İngilizce)
 import type { karargah as tr } from "../tr/karargah";
 
-export const karargah: typeof tr = {};
+export const karargah: typeof tr = {
+  baslik: "Headquarters",
+  veriAlinamadi: "Couldn't load project data.",
+  ozet: "Summary",
+  onayBekleyen: (n: number) => `${n} ${n === 1 ? "decision awaits" : "decisions await"} approval`,
+  onayYok: "No pending approvals",
+  aracBekliyor: (n: number) => `${n} tool ${n === 1 ? "call" : "calls"} waiting`,
+  gorevler: "Tasks",
+  panoyaGit: "Go to Board",
+  ekip: "Team",
+  orgSemasi: "Org chart",
+  ekipBos: "No team yet",
+  ekipBosAciklama: "The team shows up here once the CEO proposes hires.",
+  rapor: {
+    etiket: "CEO report",
+    zaman: (zaman: string) => `CEO report · ${zaman}`,
+    ceoYok: "No CEO",
+    ceoYokAciklama: "This project has no CEO agent. Hire someone with the CEO role from the Team screen.",
+    henuzYok: "The CEO hasn't reported yet. Give a brief below; the plan and the proposed team will show up here.",
+    kisalt: "Show less",
+    tamami: "Read all",
+    donem: "Weekly report",
+    donemBaslik: "Writes a report of the last 7 days to Notes",
+    hazirlaniyor: "Preparing",
+    kaydedildi: (yol: string) => `Weekly report saved to Notes: ${yol}`,
+  },
+  brief: {
+    baslik: "Give a brief",
+    nereye: (kanal: string) => `Posted to ${kanal}; goes to the CEO unless you mention someone`,
+    yer: "Describe what you want in plain words. E.g. Add CSV export to the order list; it should be live by the end of the month.",
+    kisayol: "Press Ctrl+Enter to send",
+    kime: (ad: string) => `Send to ${ad}`,
+    gonderildi: (kanal: string, ceo: string | null) => `Brief posted to ${kanal}${ceo ? `; ${ceo} has it` : ""}.`,
+  },
+  hafiza: {
+    baslik: "Memory",
+    son24: (n: number) => `${n} in the last 24 hours`,
+    soruBekliyor: (n: number) => `${n} ${n === 1 ? "question awaits" : "questions await"} an answer`,
+    git: "Go to Memory",
+    bos: "Memory is empty",
+    bosAciklama: "Agents write here as they make decisions, fix bugs and finish work.",
+    soru: "Question",
+  },
+};

@@ -1,6 +1,7 @@
 // Sunucu olaylarını (WS /ws) depoya artımlı uygular
-import { GOREV_DURUM_ADLARI, HAFIZA_TURU_ADLARI, KURUL, ONAY_TURU_ADLARI, type SunucuOlayi } from "@arnorg/ortak";
+import { KURUL, type SunucuOlayi } from "@arnorg/ortak";
 import { CanliBaglanti } from "../api/canli";
+import { sozluk } from "../dil";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
@@ -22,13 +23,6 @@ import {
   useVeri,
   type VeriDurumu,
 } from "./veri";
-
-const ONAY_DURUM_METNI = {
-  bekliyor: "Onay bekliyor",
-  onaylandi: "Onaylandı",
-  reddedildi: "Reddedildi",
-  zaman_asimi: "Süre doldu",
-} as const;
 
 /** Ofis sahnesi gibi olayları ayrıca canlandıran dinleyiciler; olay depoya uygulandıktan sonra çağrılır */
 export type OfisOlayDinleyicisi = (olay: SunucuOlayi, onceki: VeriDurumu) => void;
@@ -81,15 +75,19 @@ function depoyaUygula(olay: SunucuOlayi) {
       akisOgesiEkle(oge);
       if (oge.tur === "arac_cagrisi") {
         const ajan = ajanBul(oge.ajanId);
-        const ozet = girdiOzeti(oge.arac, oge.girdi, ajan?.calismaAlani);
+        const kok = ajan?.calismaAlani;
+        // Özet ve araç adı sözlükten parça içerebilir; çizim anında üretilir
         canliEkle({
           id: `a-${oge.id}`,
           zaman: oge.zaman,
           ajanId: oge.ajanId,
           ajanAd: ajan?.ad ?? oge.ajanId,
-          etiket: aracAdi(oge.arac),
+          etiket: () => aracAdi(oge.arac),
           sinif: aracSinifi(oge.arac),
-          hedef: ozet.kod ?? ozet.metin,
+          hedef: () => {
+            const ozet = girdiOzeti(oge.arac, oge.girdi, kok);
+            return ozet.kod ?? ozet.metin;
+          },
         });
       }
       return;
@@ -117,12 +115,12 @@ function depoyaUygula(olay: SunucuOlayi) {
         zaman: o.sonuclanma ?? o.olusturma,
         ajanId: o.ajanId,
         ajanAd: ajan?.ad ?? "ArnOrg",
-        etiket: ONAY_DURUM_METNI[o.durum],
+        etiket: (sz) => sz.gezinti.ray.onay[o.durum],
         sinif: o.durum === "bekliyor" ? "sor" : o.durum === "onaylandi" ? "ok" : "ret",
-        hedef: `${ONAY_TURU_ADLARI[o.tur]} · ${o.baslik}`,
+        hedef: (sz) => `${sz.genel.onayTuru[o.tur]} · ${o.baslik}`,
       });
       if (olay.tur === "onay.yeni" && o.durum === "bekliyor" && o.tur === "arac") {
-        bildir("uyari", `${ajan?.ad ?? "Bir ajan"} kararınızı bekliyor: ${kisalt(o.baslik, 60)}`);
+        bildir("uyari", sozluk().bildirim.kararBekliyor(ajan?.ad ?? null, kisalt(o.baslik, 60)));
       }
       return;
     }
@@ -138,10 +136,10 @@ function depoyaUygula(olay: SunucuOlayi) {
           id: `g-${g.id}-${g.durum}-${g.guncelleme}`,
           zaman: g.guncelleme,
           ajanId: g.atananId,
-          ajanAd: ajan?.ad ?? "Pano",
-          etiket: "görev",
+          ajanAd: ajan?.ad ?? ((sz) => sz.gezinti.menu.pano),
+          etiket: (sz) => sz.gezinti.ray.gorev,
           sinif: g.durum === "tamam" ? "ok" : g.durum === "iptal" ? "ret" : "bilgi",
-          hedef: `${g.kod} → ${GOREV_DURUM_ADLARI[g.durum]}`,
+          hedef: (sz) => `${g.kod} → ${sz.genel.gorevDurumu[g.durum]}`,
         });
       }
       return;
@@ -199,9 +197,9 @@ function depoyaUygula(olay: SunucuOlayi) {
           zaman: k.guncelleme,
           ajanId: k.kaynakAjanId,
           ajanAd: k.kaynakAd,
-          etiket: yeni ? "hafıza" : "hafıza güncel",
+          etiket: (sz) => (yeni ? sz.gezinti.ray.hafiza : sz.gezinti.ray.hafizaGuncel),
           sinif: k.tur === "tercih" ? "sor" : k.tur === "ogrenilen" ? "ok" : "bilgi",
-          hedef: `${HAFIZA_TURU_ADLARI[k.tur]} · ${k.baslik}`,
+          hedef: (sz) => `${sz.genel.hafizaTuru[k.tur]} · ${k.baslik}`,
         });
       }
       return;
@@ -220,7 +218,7 @@ function depoyaUygula(olay: SunucuOlayi) {
         zaman: s.yanitlanma ?? s.olusturma,
         ajanId: s.durum === "yanitlandi" ? s.soruluId : s.soranId,
         ajanAd: s.durum === "yanitlandi" ? s.soruluAd : s.soranAd,
-        etiket: s.durum === "bekliyor" ? "soru" : s.durum === "yanitlandi" ? "yanıt" : "yanıtsız",
+        etiket: (sz) => (s.durum === "bekliyor" ? sz.gezinti.ray.soru : s.durum === "yanitlandi" ? sz.gezinti.ray.yanit : sz.gezinti.ray.yanitsiz),
         sinif: s.durum === "bekliyor" ? "sor" : s.durum === "yanitlandi" ? "ok" : "ret",
         hedef: s.durum === "bekliyor" ? `→ ${s.soruluAd}: ${kisalt(s.soru, 70)}` : `→ ${s.soranAd}: ${kisalt(s.yanit ?? s.soru, 70)}`,
       });

@@ -2,9 +2,12 @@
 import { useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { hataMetni } from "../api/istek";
+import { sozluk, useSozluk } from "../dil";
 import type { Saglik } from "@arnorg/ortak";
 
 export function AnahtarGerekli() {
+  const s = useSozluk();
+  const t = s.anahtar;
   const [deger, setDeger] = useState("");
   const [hata, setHata] = useState<string | null>(null);
   const [suruyor, setSuruyor] = useState(false);
@@ -15,8 +18,9 @@ export function AnahtarGerekli() {
     const ham = deger.trim();
     const eslesme = /anahtar=([^&\s]+)/.exec(ham);
     const anahtar = eslesme?.[1] ? decodeURIComponent(eslesme[1]) : ham;
+    const m = sozluk().anahtar;
     if (!anahtar) {
-      setHata("Anahtarı yapıştırın.");
+      setHata(m.yapistirin);
       return;
     }
     setSuruyor(true);
@@ -25,12 +29,12 @@ export function AnahtarGerekli() {
       // Anahtar sağlık ucuyla doğrulanır; geçersizse 401 döner.
       // istek() kullanılmaz: o, 401'de anahtarı siler ve genel hata metni verir
       const yanit = await fetch("/api/saglik", { headers: { Authorization: `Bearer ${anahtar}` } });
-      if (yanit.status === 401) throw new Error("Anahtar geçersiz. Çekirdeğin yazdığı son bağlantıyı kullanın.");
-      if (!yanit.ok) throw new Error(`Çekirdek yanıt vermedi (${yanit.status}).`);
+      if (yanit.status === 401) throw new Error(m.gecersiz);
+      if (!yanit.ok) throw new Error(m.yanitYok(yanit.status));
       (await yanit.json()) as Saglik;
       anahtarAyarla(anahtar);
     } catch (e) {
-      setHata(e instanceof TypeError ? "Çekirdeğe ulaşılamadı. Sunucunun çalıştığını denetleyin." : hataMetni(e));
+      setHata(e instanceof TypeError ? m.ulasilamadi : hataMetni(e));
     } finally {
       setSuruyor(false);
     }
@@ -39,17 +43,14 @@ export function AnahtarGerekli() {
   return (
     <main className="giris">
       <div className="giris-ic">
-        <p className="giris-marka" aria-label="ArnOrg">
+        <p className="giris-marka" aria-label={s.genel.arnorg}>
           Arn<span>Org</span>
         </p>
-        <h1>Bağlantı anahtarı gerekli</h1>
-        <p>
-          Çekirdek ilk açılışta bir erişim anahtarı üretir ve sunucu modunda bağlantı adresini terminale yazar. O adresi açın ya da anahtarı aşağıya
-          yapıştırın. Anahtar yalnız bu sekmede tutulur; sekme kapanınca silinir.
-        </p>
+        <h1>{t.baslik}</h1>
+        <p>{t.aciklama}</p>
         <form onSubmit={gonder} noValidate>
           <div className="alan">
-            <label htmlFor="anahtar-girdi">Erişim anahtarı ya da bağlantı adresi</label>
+            <label htmlFor="anahtar-girdi">{t.etiket}</label>
             <div className="giris-satir">
               <input
                 id="anahtar-girdi"
@@ -66,7 +67,7 @@ export function AnahtarGerekli() {
               />
               <button type="submit" className="dugme dugme-ana" disabled={suruyor}>
                 {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-                Bağlan
+                {t.baglan}
               </button>
             </div>
             {hata ? (
@@ -75,7 +76,7 @@ export function AnahtarGerekli() {
               </span>
             ) : (
               <span id="anahtar-ipucu" className="alan-ipucu">
-                Anahtar dosyası: &lt;veri dizini&gt;/erisim-anahtari
+                {t.dosya}
               </span>
             )}
           </div>

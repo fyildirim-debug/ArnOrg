@@ -1,2 +1,45 @@
 // Projeler (Türkçe)
-export const projeler = {};
+export const projeler = {
+  baslik: "Projeler",
+  aciklama: "Her proje bir git deposu; kendi ekibi, panosu, hafızası ve denetim politikası olur",
+  yeniProje: "Yeni proje",
+  listeAlinamadi: "Proje listesi alınamadı.",
+  acikProjeler: "Açık projeler",
+  ekip: "Ekip",
+  onay: "Onay",
+  bugun: "Bugün",
+  bugunBaslik: "Bugün işlenen token",
+  karargahaGit: "Karargâha git",
+  listedenCikar: "Listeden çıkar",
+  cikarEtiket: (ad: string) => `${ad} projesini listeden çıkar`,
+  cikarOnay: (ad: string) =>
+    `${ad} ArnOrg listesinden çıkarılır. Repo, .arnorg/ klasörü ve çalışma alanları diskte kalır; aynı yolu yeniden bağlayabilirsiniz.`,
+  cikarildi: (ad: string) => `${ad} listeden çıkarıldı. Dosyalara dokunulmadı.`,
+  form: {
+    ilkBaslik: "İlk projenizi açın",
+    kapat: "Formu kapat",
+    /** Açıklama iki parça: arasında <code>.arnorg/</code> durur */
+    ilkAciklamaOnce: "Proje, ArnOrg'un yönettiği bir git deposudur. Açtığınızda depoya ",
+    ilkAciklamaSonra:
+      " iskeleti (vizyon ve mimari notları, ekip kimlikleri, hafıza) eklenir ve bir CEO ajanı işe alınır. Siz brief verirsiniz; CEO planı çıkarır, ekibi önerir, işi dağıtır.",
+    kaynak: "Kaynak",
+    yeniRepo: "Yeni repo oluştur",
+    varOlanRepo: "Var olan repoyu bağla",
+    yeniRepoIpucu: "Klasör yoksa açılır; git init, CLAUDE.md ve ilk commit yapılır.",
+    varOlanIpucu: "Klasör bir git deposu olmalı. Dosyalarınıza dokunulmaz; yalnız .arnorg/ eklenir.",
+    ad: "Proje adı",
+    adOrnek: "Sipariş Paneli",
+    adGerekli: "Proje adı gerekli.",
+    yol: "Klasör (mutlak yol)",
+    yolOrnekYeni: "/home/siz/projeler/siparis-paneli",
+    yolOrnekVar: "/home/siz/kod/var-olan-repo",
+    yolGerekli: "Klasör yolu gerekli.",
+    yolMutlak: "Mutlak yol yazın (ör. /home/siz/projeler/siparis-paneli).",
+    aciklama: "Açıklama (isteğe bağlı)",
+    aciklamaOrnek: "Küçük işletmeler için sipariş ve kargo takibi",
+    acilamadi: "Proje açılamadı",
+    olustur: "Projeyi oluştur",
+    bagla: "Repoyu bağla",
+    acildi: (ad: string) => `${ad} açıldı. CEO işe alındı; Karargâh'tan brief verebilirsiniz.`,
+  },
+};

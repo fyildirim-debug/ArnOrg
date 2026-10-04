@@ -1,6 +1,7 @@
 // @ ile ajan anma önerili metin alanı
 import type { Ajan } from "@arnorg/ortak";
 import { useRef, useState, type KeyboardEvent } from "react";
+import { useSozluk } from "../dil";
 import { AjanAvatar } from "./Kisi";
 
 const ANMA = /@([\p{L}\p{N}_-]*)$/u;
@@ -24,6 +25,7 @@ export function AnmaliYazi({
   id: string;
   devreDisi?: boolean;
 }) {
+  const s = useSozluk();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [sorgu, setSorgu] = useState<string | null>(null);
   const [secili, setSecili] = useState(0);
@@ -111,7 +113,7 @@ export function AnmaliYazi({
         aria-activedescendant={oneriler.length ? `${id}-oneri-${secili}` : undefined}
       />
       {oneriler.length ? (
-        <ul className="anma-oneri" id={`${id}-oneri`} role="listbox" aria-label="Anılacak ajan">
+        <ul className="anma-oneri" id={`${id}-oneri`} role="listbox" aria-label={s.bilesenler.anmaOneri}>
           {oneriler.map((a, i) => (
             <li
               key={a.id}

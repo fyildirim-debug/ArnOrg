@@ -1,5 +1,6 @@
 // Terminal oturumu: POST ile açılır, WS /ws/terminal/:id ile konuşulur
 import type { TerminalIstemciMesaji } from "@arnorg/ortak";
+import { sozluk } from "../dil";
 import { wsAdresi } from "./canli";
 import { api } from "./uclar";
 
@@ -42,7 +43,7 @@ export async function terminalAc(s: Secenekler): Promise<TerminalOturumu> {
   ws.onclose = () => {
     if (bitti) return;
     bitti = true;
-    s.kapandi("Terminal oturumu kapandı.");
+    s.kapandi(sozluk().bildirim.api.terminalKapandi);
   };
 
   return {

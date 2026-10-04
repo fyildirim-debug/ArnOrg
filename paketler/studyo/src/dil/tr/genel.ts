@@ -53,4 +53,7 @@ export const genel = {
   calisanSayisi: (n: number) => `${n} çalışan`,
   gorevSayisi: (n: number) => `${n} görev`,
   kayitSayisi: (n: number) => `${n} kayıt`,
+  /** Sayıdan sonra gelen birim: "48 bin token" (sayı ayrıca biçimlenir) */
+  tokenBirimi: (_n: number) => "token",
+  oturumuAc: (ajan: string) => `${ajan} oturumunu aç`,
 };

@@ -1,4 +1,6 @@
-// Araç çağrılarını kısa ve okunur göstermek için yardımcılar
+// Araç çağrılarını kısa ve okunur göstermek için yardımcılar; metin parçaları geçerli sözlükten
+import { kanalGorunenAdi, kanalKimligi } from "@arnorg/ortak";
+import { sozluk, useDilDurumu } from "../dil";
 
 export type AracSinifi = "yaz" | "kabuk" | "oku" | "mcp" | "alt" | "diger";
 
@@ -14,7 +16,7 @@ export function aracSinifi(arac: string | undefined): AracSinifi {
 
 /** mcp__arnorg__mesaj_gonder → mesaj_gonder */
 export function aracAdi(arac: string | undefined): string {
-  if (!arac) return "araç";
+  if (!arac) return sozluk().bilesenler.arac.arac;
   const m = /^mcp__[^_]+(?:_[^_]+)*?__(.+)$/.exec(arac);
   return m?.[1] ?? arac;
 }
@@ -71,20 +73,26 @@ export function girdiOzeti(arac: string | undefined, girdi: unknown, kok?: strin
       return { metin: dize(g.description) ?? dize(g.prompt) ?? "" };
     case "TodoWrite": {
       const n = Array.isArray(g.todos) ? g.todos.length : 0;
-      return { metin: `${n} maddelik yapılacaklar listesi` };
+      return { metin: sozluk().bilesenler.arac.yapilacaklar(n) };
     }
     case "mcp__arnorg__ajana_sor":
-      return { metin: `→ ${dize(g.ajan) ?? "uzman"}: ${dize(g.soru) ?? ""}` };
+      return { metin: `→ ${dize(g.ajan) ?? sozluk().bilesenler.arac.uzman}: ${dize(g.soru) ?? ""}` };
     case "mcp__arnorg__soruyu_yanitla":
       return { metin: dize(g.yanit) ?? "" };
-    case "mcp__arnorg__hafiza_kaydet":
-      return { metin: [dize(g.tur), dize(g.baslik)].filter(Boolean).join(" · ") };
+    case "mcp__arnorg__hafiza_kaydet": {
+      // Kayıt türü arayüz dilindeki adıyla (karar → Karar / Decision)
+      const tur = dize(g.tur);
+      const turAdi = tur ? ((sozluk().genel.hafizaTuru as Record<string, string>)[tur] ?? tur) : null;
+      return { metin: [turAdi, dize(g.baslik)].filter(Boolean).join(" · ") };
+    }
     case "mcp__arnorg__hafiza_ara":
       return { metin: `"${dize(g.sorgu) ?? ""}"` };
     case "mcp__arnorg__defter_yaz":
-      return { metin: "defterini güncelledi" };
-    case "mcp__arnorg__defter_oku":
-      return { metin: dize(g.ajan) ? `${dize(g.ajan)} defteri` : "kendi defteri" };
+      return { metin: sozluk().bilesenler.arac.defterGuncellendi };
+    case "mcp__arnorg__defter_oku": {
+      const ajan = dize(g.ajan);
+      return { metin: ajan ? sozluk().bilesenler.arac.defteri(ajan) : sozluk().bilesenler.arac.kendiDefteri };
+    }
     default: {
       if (typeof girdi === "string") return { metin: girdi };
       // ArnOrg MCP araçları: anlamlı ilk alanlar
@@ -92,7 +100,9 @@ export function girdiOzeti(arac: string | undefined, girdi: unknown, kok?: strin
       const parcalar: string[] = [];
       for (const a of oncelikli) {
         const v = g[a];
-        if (typeof v === "string" || typeof v === "number") parcalar.push(a === "kanal" ? `#${v}` : String(v));
+        // Sistem kanalı arayüz dilindeki adıyla: #genel → #general
+        if (typeof v === "string" || typeof v === "number")
+          parcalar.push(a === "kanal" ? `#${kanalGorunenAdi(kanalKimligi(String(v)), useDilDurumu.getState().dil)}` : String(v));
       }
       if (parcalar.length) return { metin: parcalar.join(" · ") };
       const json = JSON.stringify(girdi ?? {});
@@ -107,6 +117,6 @@ export function desenHatasi(desen: string): string | null {
     new RegExp(desen, "i");
     return null;
   } catch (e) {
-    return e instanceof Error ? e.message : "Geçersiz düzenli ifade";
+    return e instanceof Error ? e.message : sozluk().bilesenler.arac.gecersizDesen;
   }
 }

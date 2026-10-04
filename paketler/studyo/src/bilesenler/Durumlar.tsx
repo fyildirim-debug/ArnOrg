@@ -1,5 +1,6 @@
 // Boş, yükleniyor ve hata durumları
 import type { ReactNode } from "react";
+import { useSozluk } from "../dil";
 
 export function Bos({
   baslik,
@@ -23,9 +24,10 @@ export function Bos({
   );
 }
 
-export function Iskelet({ satir = 4, etiket = "Yükleniyor" }: { satir?: number; etiket?: string }) {
+export function Iskelet({ satir = 4, etiket }: { satir?: number; etiket?: string }) {
+  const s = useSozluk();
   return (
-    <div className="iskelet" role="status" aria-label={etiket}>
+    <div className="iskelet" role="status" aria-label={etiket ?? s.bilesenler.durumlar.yukleniyor}>
       {Array.from({ length: satir }, (_, i) => (
         <span key={i} />
       ))}
@@ -33,24 +35,26 @@ export function Iskelet({ satir = 4, etiket = "Yükleniyor" }: { satir?: number;
   );
 }
 
-export function Yukleniyor({ metin = "Yükleniyor…" }: { metin?: string }) {
+export function Yukleniyor({ metin }: { metin?: string }) {
+  const s = useSozluk();
   return (
     <span className="yukleniyor-satir" role="status">
       <span className="doner" aria-hidden="true" />
-      {metin}
+      {metin ?? s.genel.yukleniyor}
     </span>
   );
 }
 
-export function HataKutu({ baslik = "Yüklenemedi", metin, yeniden }: { baslik?: string; metin: string; yeniden?: () => void }) {
+export function HataKutu({ baslik, metin, yeniden }: { baslik?: string; metin: string; yeniden?: () => void }) {
+  const s = useSozluk();
   return (
     <div className="hata-kutu" role="alert">
-      <b>{baslik}</b>
+      <b>{baslik ?? s.bilesenler.durumlar.yuklenemedi}</b>
       <span>{metin}</span>
       {yeniden ? (
         <div>
           <button type="button" className="dugme dugme-kucuk" onClick={yeniden}>
-            Yeniden dene
+            {s.genel.yenidenDene}
           </button>
         </div>
       ) : null}

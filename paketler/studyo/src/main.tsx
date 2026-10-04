@@ -14,9 +14,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { anahtariBaslat } from "./api/anahtar";
 import { App } from "./App";
+import { useDilDurumu } from "./dil";
 
 // Anahtar adres parçasından okunur ve adres çubuğundan silinir; ilk çizimden önce yapılır
 anahtariBaslat();
+// Belge dili ilk çizimden itibaren arayüz diline uysun (çekirdeğin dili gelince diliAyarla günceller)
+document.documentElement.lang = useDilDurumu.getState().dil;
 
 const kok = document.getElementById("kok");
 if (!kok) throw new Error("#kok öğesi bulunamadı");

@@ -1,8 +1,10 @@
 // Ekranın sağ altında üst üste duran bildirimler
+import { useSozluk } from "../dil";
 import { bildirimKapat, useArayuz } from "../durum/arayuz";
 import { Simge } from "./Simge";
 
 export function Bildirimler() {
+  const s = useSozluk();
   const bildirimler = useArayuz((d) => d.bildirimler);
   return (
     <div className="bildirimler" aria-live="polite" aria-relevant="additions">
@@ -13,7 +15,7 @@ export function Bildirimler() {
             type="button"
             className="dugme dugme-sessiz dugme-kucuk dugme-simge"
             onClick={() => bildirimKapat(b.id)}
-            aria-label="Bildirimi kapat"
+            aria-label={s.gezinti.bildirimKapat}
           >
             <Simge ad="kapat" boyut={12} />
           </button>

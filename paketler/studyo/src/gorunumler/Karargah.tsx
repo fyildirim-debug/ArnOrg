@@ -1,7 +1,8 @@
 // Karargâh: CEO'nun son raporu, brief kutusu, görev dağılımı ve ekip
-import { GOREV_DURUMLARI, type GorevDurumu } from "@arnorg/ortak";
+import { GOREV_DURUMLARI, kanalGorunenAdi, type GorevDurumu } from "@arnorg/ortak";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api/uclar";
+import { sozluk, useDil, useSozluk } from "../dil";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { EkipTablosu } from "../bilesenler/EkipTablosu";
 import { GorevDagilimi } from "../bilesenler/GorevDagilimi";
@@ -11,10 +12,12 @@ import { ajanaGit, bildir, git } from "../durum/arayuz";
 import { HafizaNabzi } from "../bilesenler/HafizaNabzi";
 import { KullanimPaneli } from "../bilesenler/Kullanim";
 import { ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
-import { akilliZaman, yonelme } from "../yardimcilar/bicim";
+import { akilliZaman } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
 
 export function Karargah() {
+  const s = useSozluk();
+  const k = s.karargah;
   const projeler = useVeri((d) => d.projeler);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const yukleme = useVeri((d) => d.projeYukleme);
@@ -42,7 +45,7 @@ export function Karargah() {
   if (yukleme === "yukleniyor" && ajanlar.length === 0) {
     return (
       <>
-        <Baslik ad="Karargâh" alt={proje?.ad ?? ""} />
+        <Baslik ad={k.baslik} alt={proje?.ad ?? ""} />
         <Iskelet satir={10} />
       </>
     );
@@ -50,27 +53,27 @@ export function Karargah() {
   if (yukleme === "hata" && ajanlar.length === 0) {
     return (
       <>
-        <Baslik ad="Karargâh" alt={proje?.ad ?? ""} />
-        <HataKutu metin={projeHatasi ?? "Proje verisi alınamadı."} yeniden={() => void projeVerisiniYukle()} />
+        <Baslik ad={k.baslik} alt={proje?.ad ?? ""} />
+        <HataKutu metin={projeHatasi ?? k.veriAlinamadi} yeniden={() => void projeVerisiniYukle()} />
       </>
     );
   }
 
   return (
     <>
-      <Baslik ad="Karargâh" alt={proje?.aciklama || proje?.yol || ""} />
+      <Baslik ad={k.baslik} alt={proje?.aciklama || proje?.yol || ""} />
 
       <div className="karargah-ust">
         <CeoRaporu />
-        <aside className="karargah-ozet" aria-label="Özet">
+        <aside className="karargah-ozet" aria-label={k.ozet}>
           <KullanimPaneli />
           <div className="dugme-satir">
             <button type="button" className={`dugme${bekleyenOnay ? " dugme-ana" : ""}`} onClick={() => git("onaylar")}>
-              {bekleyenOnay ? `Onay bekleyen ${bekleyenOnay} karar` : "Bekleyen onay yok"}
+              {bekleyenOnay ? k.onayBekleyen(bekleyenOnay) : k.onayYok}
             </button>
             {bekleyenArac ? (
               <button type="button" className="dugme" onClick={() => git("denetim")}>
-                {bekleyenArac} araç çağrısı bekliyor
+                {k.aracBekliyor(bekleyenArac)}
               </button>
             ) : null}
           </div>
@@ -80,10 +83,10 @@ export function Karargah() {
       <BriefKutusu ceoAdi={ceo?.ad} />
 
       <h2 className="ara-baslik">
-        Görevler <small>{etkinGorev} görev</small>
+        {k.gorevler} <small>{s.genel.gorevSayisi(etkinGorev)}</small>
         <span className="baslik-eylem">
           <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => git("pano")}>
-            Panoya git
+            {k.panoyaGit}
           </button>
         </span>
       </h2>
@@ -92,18 +95,18 @@ export function Karargah() {
       <HafizaNabzi />
 
       <h2 className="ara-baslik">
-        Ekip <small>{ajanlar.length} çalışan</small>
+        {k.ekip} <small>{s.genel.calisanSayisi(ajanlar.length)}</small>
         <span className="baslik-eylem">
           <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => git("ekip")}>
-            Organizasyon şeması
+            {k.orgSemasi}
           </button>
         </span>
       </h2>
       {ajanlar.length ? (
         <EkipTablosu ajanlar={ajanlar} />
       ) : (
-        <Bos kucuk baslik="Ekip boş">
-          CEO işe alım teklif edince ekip burada görünür.
+        <Bos kucuk baslik={k.ekipBos}>
+          {k.ekipBosAciklama}
         </Bos>
       )}
     </>
@@ -123,6 +126,8 @@ function Baslik({ ad, alt }: { ad: string; alt: string }) {
 
 /** CEO'nun en son yazdığı metin: oturum akışındaki son asistan metni ya da #genel'deki son mesajı */
 function CeoRaporu() {
+  const s = useSozluk();
+  const t = s.karargah.rapor;
   const ajanlar = useVeri((d) => d.ajanlar);
   const ceo = ceoBul(ajanlar);
   const akis = useVeri((d) => (ceo ? d.akislar[ceo.id] : undefined));
@@ -136,7 +141,7 @@ function CeoRaporu() {
     if (!aktifProjeId) return;
     void calistir("rapor", async () => {
       const r = await api.raporKaydet(aktifProjeId, 7);
-      bildir("basari", `Dönem raporu notlara kaydedildi: ${r.yol}`);
+      bildir("basari", sozluk().karargah.rapor.kaydedildi(r.yol));
       git("notlar", { notYolu: r.yol });
     });
   };
@@ -168,8 +173,8 @@ function CeoRaporu() {
   if (!ceo) {
     return (
       <section className="rapor">
-        <Bos kucuk baslik="CEO yok">
-          Bu projede CEO ajanı bulunamadı. Ekip ekranından CEO rolüyle birini işe alın.
+        <Bos kucuk baslik={t.ceoYok}>
+          {t.ceoYokAciklama}
         </Bos>
       </section>
     );
@@ -178,12 +183,12 @@ function CeoRaporu() {
   const uzun = (rapor?.metin.length ?? 0) > 700;
 
   return (
-    <section className="rapor" aria-label="CEO raporu">
+    <section className="rapor" aria-label={t.etiket}>
       <div className="rapor-kim">
         <AjanAvatar ajan={ceo} />
         <span className="kisi-metin">
           <b>{ceo.ad}</b>
-          <small>{rapor ? `CEO raporu · ${akilliZaman(rapor.zaman)}` : ceo.rolAdi}</small>
+          <small>{rapor ? t.zaman(akilliZaman(rapor.zaman)) : ceo.rolAdi}</small>
         </span>
         <span className="rapor-durum">
           <AjanDurum durum={ceo.durum} />
@@ -196,19 +201,19 @@ function CeoRaporu() {
       ) : akisYukleme === "yukleniyor" ? (
         <Iskelet satir={3} />
       ) : (
-        <p className="soluk">CEO henüz rapor yazmadı. Aşağıdan bir brief verin; planı ve ekip önerisini burada okursunuz.</p>
+        <p className="soluk">{t.henuzYok}</p>
       )}
       <div className="dugme-satir">
         {uzun ? (
           <button type="button" className="metin-dugme" onClick={() => setGenis(!genis)}>
-            {genis ? "Kısalt" : "Tamamını oku"}
+            {genis ? t.kisalt : t.tamami}
           </button>
         ) : null}
         <button type="button" className="metin-dugme" onClick={() => ajanaGit(ceo.id)}>
-          {ceo.ad} oturumunu aç
+          {s.genel.oturumuAc(ceo.ad)}
         </button>
-        <button type="button" className="metin-dugme" onClick={donemRaporu} disabled={suruyor !== null} title="Son 7 günün raporunu notlara yazar">
-          {suruyor === "rapor" ? "Hazırlanıyor" : "Dönem raporu"}
+        <button type="button" className="metin-dugme" onClick={donemRaporu} disabled={suruyor !== null} title={t.donemBaslik}>
+          {suruyor === "rapor" ? t.hazirlaniyor : t.donem}
         </button>
       </div>
     </section>
@@ -216,6 +221,11 @@ function CeoRaporu() {
 }
 
 function BriefKutusu({ ceoAdi }: { ceoAdi?: string }) {
+  const s = useSozluk();
+  const b = s.karargah.brief;
+  const dil = useDil();
+  // Brief #genel kanalına gider; kanal dile göre görünen adıyla anılır (İngilizcede #general)
+  const kanal = `#${kanalGorunenAdi("genel", dil)}`;
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const [metin, setMetin] = useState("");
   const { suruyor, calistir } = useIslem();
@@ -228,15 +238,15 @@ function BriefKutusu({ ceoAdi }: { ceoAdi?: string }) {
       const m = await api.mesajGonder(aktifProjeId, "genel", temiz);
       mesajUygula(m);
       setMetin("");
-      bildir("basari", `Brief #genel kanalına yazıldı${ceoAdi ? `; ${ceoAdi} aldı` : ""}.`);
+      bildir("basari", sozluk().karargah.brief.gonderildi(kanal, ceoAdi ?? null));
     });
   };
 
   return (
     <form className="brief" onSubmit={gonder}>
       <label htmlFor="brief-metin" className="brief-baslik">
-        Brief ver
-        <small>#genel kanalına yazılır; anma yoksa CEO'ya gider</small>
+        {b.baslik}
+        <small>{b.nereye(kanal)}</small>
       </label>
       <textarea
         id="brief-metin"
@@ -247,13 +257,13 @@ function BriefKutusu({ ceoAdi }: { ceoAdi?: string }) {
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) gonder();
         }}
-        placeholder="Ne istediğinizi düz metinle yazın. Örn. Sipariş listesine CSV dışa aktarma ekleyin; ay sonuna kadar canlıda olsun."
+        placeholder={b.yer}
       />
       <div className="brief-alt">
-        <span className="alan-ipucu">Ctrl+Enter ile gönderin</span>
+        <span className="alan-ipucu">{b.kisayol}</span>
         <button type="submit" className="dugme dugme-ana" disabled={!metin.trim() || suruyor !== null}>
           {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-          {ceoAdi ? `${yonelme(ceoAdi)} gönder` : "Gönder"}
+          {ceoAdi ? b.kime(ceoAdi) : s.genel.gonder}
         </button>
       </div>
     </form>

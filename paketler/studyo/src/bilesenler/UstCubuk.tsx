@@ -1,6 +1,7 @@
 // Üst çubuk: şirket / proje seçici, ekip sayacı, abonelik kullanımı, bağlantı durumu, mesaiyi durdur
 import { useRef, useState } from "react";
 import { api } from "../api/uclar";
+import { sozluk, useSozluk } from "../dil";
 import { bildir, git, hataBildir, yeniProjeIste } from "../durum/arayuz";
 import { simdiYenidenBaglan } from "../durum/olaylar";
 import { aktifMi, ajanUygula, oturumAcikMi, projeyiSec, useVeri } from "../durum/veri";
@@ -10,9 +11,9 @@ import { useTercihler } from "../yardimcilar/tercihler";
 import { OnaySor } from "./OnaySor";
 import { Simge } from "./Simge";
 
-const WS_METNI = { bagli: "Canlı", baglaniyor: "Bağlanıyor", kopuk: "Bağlantı yok" } as const;
-
 export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
+  const s = useSozluk();
+  const u = s.gezinti.ust;
   const sirketAdi = useTercihler((t) => t.sirketAdi);
   const projeler = useVeri((d) => d.projeler);
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
@@ -28,17 +29,17 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
         <span className="logo" aria-hidden="true">
           A
         </span>
-        <span className="ust-sirket ust-gizle-dar">{sirketAdi || "ArnOrg"}</span>
+        <span className="ust-sirket ust-gizle-dar">{sirketAdi || s.genel.arnorg}</span>
         <span className="ust-ayrac ust-gizle-dar" aria-hidden="true">
           /
         </span>
-        <ProjeSecici adi={proje?.ad ?? (aktifProjeId ? "Proje" : "Proje seçin")} />
+        <ProjeSecici adi={proje?.ad ?? (aktifProjeId ? u.proje : u.projeSecin)} />
       </div>
       <div className="ust-sag">
         {aktifProjeId ? (
           <>
-            <span className="metre" title="Çalışan ya da karar bekleyen ajan sayısı">
-              <b>{aktif}</b> aktif · <b>{ajanlar.length}</b> çalışan
+            <span className="metre" title={u.aktifBaslik}>
+              <b>{aktif}</b> {u.aktif} · <b>{ajanlar.length}</b> {u.calisan(ajanlar.length)}
             </span>
             <span className="metre-ayrac ust-gizle-dar" aria-hidden="true" />
             <UstKullanim />
@@ -49,15 +50,15 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
             type="button"
             className="ws-durum ws-kopuk"
             onClick={simdiYenidenBaglan}
-            title="Canlı bağlantı koptu; arka planda yeniden deneniyor. Hemen denemek için tıklayın."
+            title={u.wsKopukBaslik}
           >
             <i aria-hidden="true" />
-            {WS_METNI.kopuk}
+            {u.ws.kopuk}
           </button>
         ) : (
-          <span className={`ws-durum ws-${wsDurumu}`} title="Canlı olay bağlantısı" role="status">
+          <span className={`ws-durum ws-${wsDurumu}`} title={u.wsBaslik} role="status">
             <i aria-hidden="true" />
-            {WS_METNI[wsDurumu]}
+            {u.ws[wsDurumu]}
           </span>
         )}
         {aktifProjeId ? <MesaiDugmesi /> : null}
@@ -68,6 +69,7 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
 }
 
 function ProjeSecici({ adi }: { adi: string }) {
+  const s = useSozluk();
   const [acik, setAcik] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const projeler = useVeri((d) => d.projeler);
@@ -82,7 +84,7 @@ function ProjeSecici({ adi }: { adi: string }) {
       </button>
       {acik ? (
         <div className="acilir" role="menu">
-          {projeler.length === 0 ? <p className="acilir-not">Henüz proje yok.</p> : null}
+          {projeler.length === 0 ? <p className="acilir-not">{s.gezinti.ust.projeYok}</p> : null}
           {projeler.map((p) => (
             <button
               key={p.id}
@@ -113,7 +115,7 @@ function ProjeSecici({ adi }: { adi: string }) {
             }}
           >
             <Simge ad="projeler" boyut={14} />
-            Tüm projeler
+            {s.gezinti.ust.tumProjeler}
           </button>
           <button
             type="button"
@@ -125,7 +127,7 @@ function ProjeSecici({ adi }: { adi: string }) {
             }}
           >
             <Simge ad="arti" boyut={14} />
-            Yeni proje
+            {s.gezinti.ust.yeniProje}
           </button>
         </div>
       ) : null}
@@ -135,6 +137,7 @@ function ProjeSecici({ adi }: { adi: string }) {
 
 /** Projedeki bütün açık oturumları kapatır */
 function MesaiDugmesi() {
+  const u = useSozluk().gezinti.ust;
   const [acik, setAcik] = useState(false);
   const [suruyor, setSuruyor] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -154,7 +157,7 @@ function MesaiDugmesi() {
     });
     setSuruyor(false);
     setAcik(false);
-    if (basarili) bildir("basari", `${basarili} ajanın oturumu kapatıldı. Mesai durdu.`);
+    if (basarili) bildir("basari", sozluk().gezinti.ust.mesaiDurdu(basarili));
   };
 
   return (
@@ -165,16 +168,15 @@ function MesaiDugmesi() {
         onClick={() => setAcik(!acik)}
         disabled={acikOlanlar.length === 0}
         aria-expanded={acik}
-        title={acikOlanlar.length === 0 ? "Açık oturum yok" : "Projedeki bütün ajan oturumlarını kapat"}
+        title={acikOlanlar.length === 0 ? u.acikOturumYok : u.mesaiBaslik}
       >
         <Simge ad="dur" boyut={12} />
-        Mesaiyi durdur
+        {u.mesai}
       </button>
       {acik ? (
         <div className="acilir acilir-sag">
-          <OnaySor evet={durdur} vazgec={() => setAcik(false)} evetMetni="Hepsini durdur" suruyor={suruyor}>
-            {acikOlanlar.length} ajanın oturumu kapanır. Çalışan turlar kesilir; oturum kimlikleri saklanır, ajanlar sonra kaldığı yerden
-            başlatılabilir.
+          <OnaySor evet={durdur} vazgec={() => setAcik(false)} evetMetni={u.hepsiniDurdur} suruyor={suruyor}>
+            {u.mesaiOnay(acikOlanlar.length)}
           </OnaySor>
         </div>
       ) : null}

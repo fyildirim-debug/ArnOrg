@@ -1,10 +1,23 @@
-// Ayarlar: Claude girişi ve abonelik sınırları, çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri ve bağlantı
-import type { Ayarlar as AyarlarTipi, IzinModu, KodZekasiModelBilgisi, KodZekasiModeli, Saglik } from "@arnorg/ortak";
+// Ayarlar: dil, Claude girişi ve abonelik sınırları, çekirdek ayarları, sağlık bilgisi, bu tarayıcının tercihleri,
+// bağlantı ve hakkında satırı
+import {
+  ARNORG_SURUMU,
+  DIL_ADLARI,
+  DILLER,
+  type Ayarlar as AyarlarTipi,
+  type Dil,
+  type IzinModu,
+  type KodZekasiModelBilgisi,
+  type KodZekasiModeli,
+  type Saglik,
+} from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { api } from "../api/uclar";
+import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { IZIN_MODLARI, izinModuAdi } from "../bilesenler/Kisi";
+import { pencereAdi } from "../bilesenler/Kullanim";
 import { bildir } from "../durum/arayuz";
 import { hesabiYukle, useVeri } from "../durum/veri";
 import { akilliZaman, yuzde } from "../yardimcilar/bicim";
@@ -17,7 +30,11 @@ const DIS_EDITORLER = [
   ["cursor", "Cursor"],
 ] as const;
 
+const KOD_ZEKASI_MODELLERI: KodZekasiModeli[] = ["kaliteli", "hizli", "kapali"];
+
 export function Ayarlar() {
+  const s = useSozluk();
+  const t = s.ayarlar;
   const [ayarlar, setAyarlar] = useState<AyarlarTipi | null>(null);
   const [taslak, setTaslak] = useState<AyarlarTipi | null>(null);
   const [saglik, setSaglik] = useState<Saglik | null>(null);
@@ -28,13 +45,13 @@ export function Ayarlar() {
   const yukle = () => {
     setHata(null);
     Promise.all([api.ayarlar(), api.saglik()])
-      .then(([a, s]) => {
+      .then(([a, sg]) => {
         setAyarlar(a);
         setTaslak(a);
-        setSaglik(s);
-        useVeri.setState({ saglik: s });
+        setSaglik(sg);
+        useVeri.setState({ saglik: sg });
       })
-      .catch((e: unknown) => setHata(e instanceof Error ? e.message : "Ayarlar alınamadı."));
+      .catch((e: unknown) => setHata(e instanceof Error ? e.message : sozluk().ayarlar.alinamadi));
   };
   useEffect(yukle, []);
   useEffect(() => {
@@ -58,59 +75,64 @@ export function Ayarlar() {
       const a = await api.ayarlariKaydet({ ...taslak, claudeYolu: taslak.claudeYolu?.trim() ? taslak.claudeYolu.trim() : null });
       setAyarlar(a);
       setTaslak(a);
-      bildir("basari", "Ayarlar kaydedildi.");
+      bildir("basari", sozluk().ayarlar.kaydedildi);
     });
   };
-  const degistir = (d: Partial<AyarlarTipi>) => setTaslak((t) => (t ? { ...t, ...d } : t));
+  // Dil kaydedilince ekrandaki ve durumdaki kopyalar da yeni dili taşısın (sonraki Kaydet eski dili geri yazmasın)
+  const dilKaydedildi = (dil: Dil) => {
+    setAyarlar((x) => (x ? { ...x, dil } : x));
+    setTaslak((x) => (x ? { ...x, dil } : x));
+    setSaglik((x) => (x ? { ...x, dil } : x));
+    useVeri.setState((d) => (d.saglik ? { saglik: { ...d.saglik, dil } } : {}));
+  };
+  const degistir = (d: Partial<AyarlarTipi>) => setTaslak((x) => (x ? { ...x, ...d } : x));
   const disEditorOzel = taslak && !DIS_EDITORLER.some(([k]) => k === taslak.disEditor);
 
   return (
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Ayarlar</h1>
-          <p>Çekirdek ayarları bütün projeler için geçerlidir</p>
+          <h1>{t.baslik}</h1>
+          <p>{t.aciklama}</p>
         </div>
       </div>
+      <DilSecimi kaydedildi={dilKaydedildi} />
       {hata ? <HataKutu metin={hata} yeniden={yukle} /> : null}
       {!taslak && !hata ? <Iskelet satir={8} /> : null}
 
       <div className="ayarlar-yerlesim">
         {taslak ? (
           <form className="ayar-bolum" onSubmit={kaydet} noValidate>
-            <h2 className="ara-baslik">Claude girişi</h2>
+            <h2 className="ara-baslik">{t.giris.baslik}</h2>
             <div className="hesap-durum" role="status">
               {hesap?.durum === "hazir" ? (
                 <p>
                   <b>{hesap.plan ? `Claude ${hesap.plan}` : "Claude Code"}</b>
                   {hesap.eposta ? ` · ${hesap.eposta}` : ""}
-                  {hesap.kaynak ? <small> · giriş: {hesap.kaynak}</small> : null}
+                  {hesap.kaynak ? <small> · {t.giris.kaynak}: {hesap.kaynak}</small> : null}
                 </p>
               ) : (
                 <p className="soluk">
-                  {hesap?.durum === "hata" ? `Claude Code'a ulaşılamadı: ${hesap.hata ?? ""}` : "Claude Code girişi henüz okunmadı."}
+                  {hesap?.durum === "hata" ? t.giris.ulasilamadi(hesap.hata ?? "") : t.giris.okunmadi}
                 </p>
               )}
               {hesap?.pencereler.length ? (
                 <p className="hesap-pencereler">
                   {hesap.pencereler
                     .filter((p) => p.tur === "bes_saat" || p.tur === "haftalik")
-                    .map((p) => `${p.ad} ${yuzde(p.yuzde)}${p.sifirlanma ? ` (sıfırlanma ${akilliZaman(p.sifirlanma)})` : ""}`)
+                    .map((p) => `${pencereAdi(s, p)} ${yuzde(p.yuzde)}${p.sifirlanma ? ` (${t.giris.sifirlanma(akilliZaman(p.sifirlanma))})` : ""}`)
                     .join(" · ")}
                 </p>
               ) : null}
               {hesap?.uyari ? <p className="alan-hata">{hesap.uyari}</p> : null}
               <button type="button" className="metin-dugme" onClick={() => void hesabiYukle(true)}>
-                Girişi yeniden oku
+                {t.giris.yenidenOku}
               </button>
             </div>
             <div className="form-izgara">
-              <p className="alan-ipucu tam">
-                ArnOrg yalnız Claude aboneliğiyle çalışır: ajanlar bu makinedeki Claude Code girişinizle (Pro, Max ya da Team) çalışır.
-                Planın 5 saatlik ve haftalık pencereleri sayılır; ortamda API anahtarı olsa da ajanlara verilmez.
-              </p>
+              <p className="alan-ipucu tam">{t.giris.abonelik}</p>
               <div className="alan">
-                <label htmlFor="ay-bes">5 saatlik pencere üst sınırı (%)</label>
+                <label htmlFor="ay-bes">{t.giris.besSaat}</label>
                 <input
                   id="ay-bes"
                   className="girdi"
@@ -122,10 +144,10 @@ export function Ayarlar() {
                   onChange={(e) => degistir({ besSaatlikSinirYuzde: e.target.valueAsNumber })}
                   aria-invalid={yuzdeGecersiz(taslak.besSaatlikSinirYuzde) ? true : undefined}
                 />
-                <span className="alan-ipucu">Ajanlar bu yüzdede durur, kalanı sizin kullanımınıza kalır. 0 sınırsız.</span>
+                <span className="alan-ipucu">{t.giris.besSaatIpucu}</span>
               </div>
               <div className="alan">
-                <label htmlFor="ay-hafta">Haftalık pencere üst sınırı (%)</label>
+                <label htmlFor="ay-hafta">{t.giris.hafta}</label>
                 <input
                   id="ay-hafta"
                   className="girdi"
@@ -137,25 +159,25 @@ export function Ayarlar() {
                   onChange={(e) => degistir({ haftalikSinirYuzde: e.target.valueAsNumber })}
                   aria-invalid={yuzdeGecersiz(taslak.haftalikSinirYuzde) ? true : undefined}
                 />
-                <span className="alan-ipucu">Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.</span>
+                <span className="alan-ipucu">{t.giris.haftaIpucu}</span>
               </div>
             </div>
 
-            <h2 className="ara-baslik">Çekirdek</h2>
+            <h2 className="ara-baslik">{t.cekirdek.baslik}</h2>
             <div className="form-izgara">
               <div className="alan tam">
-                <label htmlFor="ay-claude">Claude Code yolu</label>
+                <label htmlFor="ay-claude">{t.cekirdek.claudeYolu}</label>
                 <input
                   id="ay-claude"
                   className="girdi"
                   value={taslak.claudeYolu ?? ""}
                   onChange={(e) => degistir({ claudeYolu: e.target.value })}
-                  placeholder="Boş: önce PATH, sonra SDK ile gelen ikili"
+                  placeholder={t.cekirdek.claudeYoluOrnek}
                   spellCheck={false}
                 />
               </div>
               <div className="alan">
-                <label htmlFor="ay-mod">Varsayılan izin modu</label>
+                <label htmlFor="ay-mod">{t.cekirdek.izinModu}</label>
                 <select
                   id="ay-mod"
                   className="secim"
@@ -168,10 +190,10 @@ export function Ayarlar() {
                     </option>
                   ))}
                 </select>
-                <span className="alan-ipucu">Her çağrı modu ne olursa olsun PreToolUse kapısından geçer.</span>
+                <span className="alan-ipucu">{t.cekirdek.izinModuIpucu}</span>
               </div>
               <div className="alan">
-                <label htmlFor="ay-sure">Karar süresi (saniye)</label>
+                <label htmlFor="ay-sure">{t.cekirdek.sure}</label>
                 <input
                   id="ay-sure"
                   className="girdi"
@@ -183,11 +205,11 @@ export function Ayarlar() {
                   aria-invalid={sureGecersiz ? true : undefined}
                 />
                 <span className={sureGecersiz ? "alan-hata" : "alan-ipucu"}>
-                  {sureGecersiz ? "En az 10 saniye." : "Süre dolunca bekleyen araç çağrısı reddedilir."}
+                  {sureGecersiz ? t.cekirdek.sureHata : t.cekirdek.sureIpucu}
                 </span>
               </div>
               <div className="alan">
-                <label htmlFor="ay-tikanma">Tıkanma eşiği (dakika)</label>
+                <label htmlFor="ay-tikanma">{t.cekirdek.tikanma}</label>
                 <input
                   id="ay-tikanma"
                   className="girdi"
@@ -200,13 +222,11 @@ export function Ayarlar() {
                   aria-invalid={tikanmaGecersiz ? true : undefined}
                 />
                 <span className={tikanmaGecersiz ? "alan-hata" : "alan-ipucu"}>
-                  {tikanmaGecersiz
-                    ? "0 ile 1440 arasında olmalı."
-                    : "Bu süre ilerlemeyen görevin sorumlusu hatırlatılır, sonra yöneticiye ve kurula iletilir. 0 kapatır."}
+                  {tikanmaGecersiz ? t.cekirdek.tikanmaHata : t.cekirdek.tikanmaIpucu}
                 </span>
               </div>
               <div className="alan">
-                <label htmlFor="ay-editor">Dış editör</label>
+                <label htmlFor="ay-editor">{t.cekirdek.editor}</label>
                 <select
                   id="ay-editor"
                   className="secim"
@@ -218,12 +238,12 @@ export function Ayarlar() {
                       {ad}
                     </option>
                   ))}
-                  <option value="ozel">Başka bir komut…</option>
+                  <option value="ozel">{t.cekirdek.editorBaska}</option>
                 </select>
               </div>
               {disEditorOzel ? (
                 <div className="alan">
-                  <label htmlFor="ay-editor-ozel">Editör komutu</label>
+                  <label htmlFor="ay-editor-ozel">{t.cekirdek.editorKomutu}</label>
                   <input
                     id="ay-editor-ozel"
                     className="girdi"
@@ -235,43 +255,37 @@ export function Ayarlar() {
                 </div>
               ) : null}
             </div>
-            <h2 className="ara-baslik">Kod zekâsı</h2>
+            <h2 className="ara-baslik">{t.kodZekasi.baslik}</h2>
             <div className="form-izgara">
               <div className="alan tam">
                 <span className="alan-ad" id="kz-model-ad">
-                  Anlamsal arama modeli
+                  {t.kodZekasi.model}
                 </span>
                 <div className="bolumlu" role="group" aria-labelledby="kz-model-ad">
-                  {(
-                    [
-                      ["kaliteli", "Kaliteli"],
-                      ["hizli", "Hızlı"],
-                      ["kapali", "Kapalı"],
-                    ] as [KodZekasiModeli, string][]
-                  ).map(([k, ad]) => (
+                  {KOD_ZEKASI_MODELLERI.map((k) => (
                     <button key={k} type="button" aria-pressed={taslak.kodZekasiModeli === k} onClick={() => degistir({ kodZekasiModeli: k })}>
-                      {ad}
+                      {t.kodZekasi.modeller[k]}
                     </button>
                   ))}
                 </div>
                 <span className="alan-ipucu">
                   {taslak.kodZekasiModeli === "kapali"
-                    ? "Kod yalnız anahtar sözcük ve sembol adıyla aranır; model indirilmez."
+                    ? t.kodZekasi.kapaliIpucu
                     : (() => {
+                        const kz = t.kodZekasi;
                         const m = modeller.find((x) => x.secim === taslak.kodZekasiModeli);
-                        if (!m) return "Model ilk kullanımda indirilir ve bu makinede çalışır; kod dışarı gönderilmez.";
-                        return `${m.ad}: ${m.aciklama} ${m.indirildi ? `İndirildi (${m.diskMb} MB).` : `İlk kullanımda ~${m.indirmeMb} MB indirilir.`} Model bu makinede çalışır; kod dışarı gönderilmez.`;
+                        if (!m) return kz.modelIpucu;
+                        // Model adı ve açıklaması çekirdekten gelir
+                        return `${m.ad}: ${m.aciklama} ${m.indirildi ? kz.indirildi(m.diskMb) : kz.indirilecek(m.indirmeMb)} ${kz.yerel}`;
                       })()}
                 </span>
               </div>
               <div className="alan tam">
                 <label className="secenek">
                   <input type="checkbox" checked={taslak.kodZekasiOtomatik} onChange={(e) => degistir({ kodZekasiOtomatik: e.target.checked })} />
-                  Projeleri otomatik dizinle
+                  {t.kodZekasi.otomatik}
                 </label>
-                <span className="alan-ipucu">
-                  Açıkken ArnOrg açılınca ve proje eklenince ana repo arka planda dizinlenir; değişen dosyalar kendiliğinden güncellenir. Kapalıyken ilk arama dizinlemeyi başlatır.
-                </span>
+                <span className="alan-ipucu">{t.kodZekasi.otomatikIpucu}</span>
               </div>
             </div>
             <div className="dugme-satir ayar-kaydet">
@@ -281,14 +295,14 @@ export function Ayarlar() {
                 disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz}
               >
                 {suruyor ? <span className="doner" aria-hidden="true" /> : null}
-                Kaydet
+                {s.genel.kaydet}
               </button>
               {kirli ? (
                 <button type="button" className="dugme dugme-sessiz" onClick={() => setTaslak(ayarlar)}>
-                  Vazgeç
+                  {s.genel.vazgec}
                 </button>
               ) : (
-                <span className="alan-ipucu">Değişiklik yok</span>
+                <span className="alan-ipucu">{t.degisiklikYok}</span>
               )}
             </div>
           </form>
@@ -299,15 +313,72 @@ export function Ayarlar() {
           <YerelTercihler />
         </div>
       </div>
+
+      <Hakkinda surum={saglik?.surum ?? ARNORG_SURUMU} />
     </>
   );
 }
 
+/** Arayüz ve ajan dili: seçim hemen çekirdeğe yazılır, sonra arayüz yeni dille yeniden çizilir */
+function DilSecimi({ kaydedildi }: { kaydedildi: (dil: Dil) => void }) {
+  const s = useSozluk();
+  const dil = useDil();
+  const { calistir } = useIslem();
+
+  const sec = (yeni: Dil) => {
+    if (yeni === dil) return;
+    void calistir("dil", async () => {
+      await api.ayarlariKaydet({ dil: yeni });
+      diliAyarla(yeni);
+      kaydedildi(yeni);
+    });
+  };
+
+  return (
+    <section className="ayar-bolum ayar-dil" aria-labelledby="dil-baslik">
+      <h2 className="ara-baslik" id="dil-baslik">
+        {s.genel.dil}
+      </h2>
+      <div className="ayar-dil-satir">
+        <div className="bolumlu" role="group" aria-labelledby="dil-baslik">
+          {/* Seçenekler kendi dillerinde yazılır */}
+          {DILLER.map((d) => (
+            <button key={d} type="button" lang={d} aria-pressed={dil === d} onClick={() => sec(d)}>
+              {DIL_ADLARI[d]}
+            </button>
+          ))}
+        </div>
+        <span className="alan-ipucu">{s.ayarlar.dil.aciklama}</span>
+      </div>
+    </section>
+  );
+}
+
+/** Sayfanın sonunda tek satırlık imza: sürüm ve yapan */
+function Hakkinda({ surum }: { surum: string }) {
+  const s = useSozluk();
+  return (
+    <section className="ayar-hakkinda" aria-labelledby="hakkinda-baslik">
+      <h2 className="gizli" id="hakkinda-baslik">
+        {s.ayarlar.hakkinda.baslik}
+      </h2>
+      <p>
+        <span className="ayar-hakkinda-marka">ArnOrg</span> {surum} <span aria-hidden="true">·</span> Furkan YILDIRIM{" "}
+        <span aria-hidden="true">·</span>{" "}
+        <a href="https://furkanyildirim.com" target="_blank" rel="noreferrer">
+          furkanyildirim.com
+        </a>
+      </p>
+    </section>
+  );
+}
+
 function SaglikBilgisi({ saglik }: { saglik: Saglik }) {
+  const t = useSozluk().ayarlar.sistem;
   return (
     <section className="ayar-bolum" aria-labelledby="saglik-baslik">
       <h2 className="ara-baslik" id="saglik-baslik">
-        Sistem
+        {t.baslik}
       </h2>
       <dl className="kv">
         <dt>Claude Code</dt>
@@ -315,18 +386,19 @@ function SaglikBilgisi({ saglik }: { saglik: Saglik }) {
           {saglik.claudeBulundu ? (
             <span className="durum durum-calisiyor">
               <i aria-hidden="true" />
-              Bulundu{saglik.claudeSurumu ? ` · ${saglik.claudeSurumu}` : ""}
+              {t.bulundu}
+              {saglik.claudeSurumu ? ` · ${saglik.claudeSurumu}` : ""}
             </span>
           ) : (
             <span className="durum durum-hata">
               <i aria-hidden="true" />
-              Bulunamadı
+              {t.bulunamadi}
             </span>
           )}
         </dd>
         {saglik.claudeYolu ? (
           <>
-            <dt>Yol</dt>
+            <dt>{t.yol}</dt>
             <dd>
               <code>{saglik.claudeYolu}</code>
             </dd>
@@ -338,61 +410,63 @@ function SaglikBilgisi({ saglik }: { saglik: Saglik }) {
         <dd>{saglik.surum}</dd>
         <dt>Platform</dt>
         <dd>{saglik.platform}</dd>
-        <dt>Veri dizini</dt>
+        <dt>{t.veriDizini}</dt>
         <dd>
           <code>{saglik.veriDizini}</code>
         </dd>
       </dl>
-      {!saglik.claudeBulundu ? <p className="uyari-kutu">Ajanlar başlatılamaz. Claude Code'u kurun ya da yolunu yukarıda belirtin.</p> : null}
+      {!saglik.claudeBulundu ? <p className="uyari-kutu">{t.uyari}</p> : null}
     </section>
   );
 }
 
 function YerelTercihler() {
-  const sirketAdi = useTercihler((t) => t.sirketAdi);
+  const s = useSozluk();
+  const t = s.ayarlar.tarayici;
+  const sirketAdi = useTercihler((x) => x.sirketAdi);
   const [ad, setAd] = useState(sirketAdi);
   const [cikis, setCikis] = useState(false);
   return (
     <section className="ayar-bolum" aria-labelledby="tercih-baslik">
       <h2 className="ara-baslik" id="tercih-baslik">
-        Bu tarayıcı
+        {t.baslik}
       </h2>
       <form
         className="alan"
         onSubmit={(e) => {
           e.preventDefault();
           sirketAdiAyarla(ad);
-          bildir("basari", "Şirket adı güncellendi.");
+          bildir("basari", sozluk().ayarlar.tarayici.sirketGuncellendi);
         }}
       >
-        <label htmlFor="ay-sirket">Üst çubukta görünen şirket adı</label>
+        <label htmlFor="ay-sirket">{t.sirketAdi}</label>
         <div className="giris-satir">
-          <input id="ay-sirket" className="girdi" value={ad} onChange={(e) => setAd(e.target.value)} placeholder="ArnOrg" />
+          <input id="ay-sirket" className="girdi" value={ad} onChange={(e) => setAd(e.target.value)} placeholder={s.genel.arnorg} />
           <button type="submit" className="dugme" disabled={ad.trim() === sirketAdi}>
-            Uygula
+            {t.uygula}
           </button>
         </div>
-        <span className="alan-ipucu">Yalnız bu tarayıcıda saklanır.</span>
+        <span className="alan-ipucu">{t.yerel}</span>
       </form>
       <div className="alan ayar-baglanti">
-        <span className="alan-ad">Bağlantı</span>
+        <span className="alan-ad">{t.baglanti}</span>
         {cikis ? (
           <div className="dugme-satir">
             <button type="button" className="dugme dugme-tehlike dugme-kucuk" onClick={() => anahtarAyarla(null)}>
-              Anahtarı unut
+              {t.anahtariUnut}
             </button>
             <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setCikis(false)}>
-              Vazgeç
+              {s.genel.vazgec}
             </button>
           </div>
         ) : (
           <div>
             <button type="button" className="dugme dugme-kucuk" onClick={() => setCikis(true)}>
-              Bu sekmede bağlantıyı kes
+              {t.baglantiyiKes}
             </button>
           </div>
         )}
-        <span className="alan-ipucu">Erişim anahtarı sessionStorage'da durur; unutulunca yeniden yapıştırmanız gerekir.</span>
+        <span className="alan-ipucu">{t.anahtarIpucu}</span>
       </div>
     </section>
   );
