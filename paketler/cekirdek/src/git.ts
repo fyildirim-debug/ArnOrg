@@ -194,3 +194,50 @@ export async function birlestir(repo: string, kaynakDal: string, mesaj: string):
     return { basarili: false, cikti: (h as Error).message };
   }
 }
+
+/** Dal adı git'in kurallarına uyuyor mu (git check-ref-format --branch) */
+export async function gecerliDalMi(dizin: string, dal: string): Promise<boolean> {
+  if (!dal || dal.startsWith("-") || dal.length > 200) return false;
+  try {
+    await git(dizin, ["check-ref-format", "--branch", dal]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Çalışma dalına geçer: yerelde varsa ona; uzak izleme dalı varsa onu izleyen yerel dal açarak;
+ * yoksa bulunulan yerden yeni dal açarak. Hiç commit yoksa HEAD yeni dalı gösterir.
+ */
+export async function dalaGec(dizin: string, dal: string): Promise<void> {
+  if (!(await gecerliDalMi(dizin, dal))) throw new ArnorgHatasi(`Geçersiz dal adı: ${dal}`);
+  if ((await mevcutDal(dizin)) === dal) return;
+  if (!(await commitVarMi(dizin))) {
+    await git(dizin, ["symbolic-ref", "HEAD", `refs/heads/${dal}`]);
+    return;
+  }
+  if (await dalVarMi(dizin, dal)) {
+    await git(dizin, ["checkout", dal]);
+    return;
+  }
+  const uzakta = await git(dizin, ["rev-parse", "--verify", "-q", `refs/remotes/origin/${dal}`], { izinVerilenKodlar: [1] }).then((c) => Boolean(c.trim()));
+  if (uzakta) await git(dizin, ["checkout", "-b", dal, "--track", `origin/${dal}`]);
+  else await git(dizin, ["checkout", "-b", dal]);
+}
+
+/** Yerel dallar ve uzak izleme dalları (origin/… önekiyle değil, yalın adla) */
+export async function dallar(dizin: string): Promise<{ yerel: string[]; uzak: string[] }> {
+  const yerel = (await git(dizin, ["for-each-ref", "--format=%(refname:short)", "refs/heads"], { izinVerilenKodlar: [128] })).split("\n").map((s) => s.trim()).filter(Boolean);
+  const uzak = (await git(dizin, ["for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"], { izinVerilenKodlar: [128] }))
+    .split("\n")
+    .map((s) => s.trim().replace(/^origin\//, ""))
+    .filter((s) => s && s !== "HEAD" && s !== "origin");
+  return { yerel, uzak };
+}
+
+/** origin adresi; yoksa null */
+export async function uzakAdresi(dizin: string): Promise<string | null> {
+  const c = await git(dizin, ["remote", "get-url", "origin"], { izinVerilenKodlar: [2, 128] }).catch(() => "");
+  return c.trim() || null;
+}

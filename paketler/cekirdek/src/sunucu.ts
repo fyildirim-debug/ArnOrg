@@ -20,6 +20,7 @@ import {
   type TerminalIstemciMesaji,
 } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
+import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { fsUclariniKur } from "./fs-api.js";
 import * as gitIslemleri from "./git.js";
@@ -66,7 +67,29 @@ const semalar = {
     etiketler: z.array(z.string().max(40)).max(12).optional(),
     onem: z.number().int().min(1).max(5).optional(),
   }),
-  proje: z.object({ ad: z.string().min(1).max(80), yol: z.string().min(1), olustur: z.boolean(), aciklama: z.string().max(2000).optional() }),
+  proje: z.object({
+    ad: z.string().min(1).max(80),
+    yol: z.string().max(1000).optional(),
+    olustur: z.boolean(),
+    aciklama: z.string().max(2000).optional(),
+    dal: z.string().max(200).optional(),
+    github: z.object({ ozel: z.boolean(), sahip: z.string().max(100).optional() }).nullable().optional(),
+  }),
+  projeGuncelle: z.object({
+    ad: z.string().min(1).max(80).optional(),
+    aciklama: z.string().max(2000).optional(),
+    varsayilanDal: z.string().min(1).max(200).optional(),
+    otomatikGonder: z.boolean().optional(),
+    hazirlik: z.enum(["bekliyor", "suruyor", "tamam", "atlandi"]).optional(),
+  }),
+  klonla: z.object({
+    depo: z.string().min(3).max(220),
+    dal: z.string().max(200).optional(),
+    yol: z.string().max(1000).optional(),
+    ad: z.string().min(1).max(80).optional(),
+    aciklama: z.string().max(2000).optional(),
+  }),
+  githubDeposu: z.object({ ozel: z.boolean(), sahip: z.string().max(100).optional() }),
   iseAl: z.object({
     ad: z.string().min(1).max(40),
     rol: z.string().min(1),
@@ -118,6 +141,9 @@ const semalar = {
     haftalikSinirYuzde: z.number().min(0).max(100).optional(),
     kodZekasiModeli: z.enum(["kaliteli", "hizli", "kapali"]).optional(),
     kodZekasiOtomatik: z.boolean().optional(),
+    ghYolu: z.string().max(1000).nullable().optional(),
+    projeKoku: z.string().max(1000).nullable().optional(),
+    kurulumTamam: z.boolean().optional(),
   }),
   politika: z.array(
     z.object({
@@ -238,10 +264,44 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/hesap", async (i) => (sorgu(i, "tazele") === "1" ? sirket.hesap.tazele() : sirket.hesap.mevcut));
   app.get("/api/roller", async () => ROLLER);
 
+  // ---------------- kurulum: Claude Code, git, GitHub CLI ----------------
+  app.get("/api/kurulum", async (i) => sirket.kurulum.durum(sorgu(i, "tazele") === "1"));
+  app.get("/api/kurulum/islemler", async () => sirket.kurulum.islemListesi());
+  app.get("/api/kurulum/islemler/:id", async (i) => sirket.kurulum.islem(param(i, "id")));
+  app.post("/api/kurulum/islemler/:id/girdi", async (i) => sirket.kurulum.girdi(param(i, "id"), z.object({ metin: z.string().min(1).max(2000) }).parse(i.body ?? {}).metin));
+  app.delete("/api/kurulum/islemler/:id", async (i) => sirket.kurulum.iptal(param(i, "id")));
+  app.post("/api/kurulum/claude/giris", async () => sirket.kurulum.claudeGirisBaslat());
+  app.post("/api/kurulum/claude/kur", async () => sirket.kurulum.claudeKur());
+  app.post("/api/kurulum/gh/kur", async () => sirket.kurulum.ghKur());
+  app.post("/api/kurulum/gh/giris", async () => sirket.kurulum.ghGirisBaslat());
+  app.post("/api/kurulum/gh/git-yardimcisi", async () => sirket.kurulum.gitYardimcisiAyarla());
+  app.post("/api/kurulum/git/kur", async () => sirket.kurulum.gitKur());
+  app.put("/api/kurulum/git/kimlik", async (i) => {
+    const g = z.object({ ad: z.string().max(100), eposta: z.string().max(200) }).parse(i.body ?? {});
+    return sirket.kurulum.gitKimligiAyarla(g.ad, g.eposta);
+  });
+
+  // ---------------- GitHub ----------------
+  app.get("/api/github/hesap", async () => sirket.github.hesap());
+  app.get("/api/github/depolar", async (i) => sirket.github.depolar(sorgu(i, "q")));
+  app.get("/api/github/dallar", async (i) => sirket.github.dallar(sorgu(i, "depo") ?? ""));
+  app.post("/api/github/klonla", async (i) => sirket.github.klonla(govde(semalar.klonla, i), (p) => sirket.projeOlustur(p)));
+
+  // ---------------- dizin gezgini (tarayıcıdaki Stüdyo için klasör seçimi) ----------------
+  app.get("/api/dizinler", async (i) => dizinListesi(sorgu(i, "yol"), sirket.yapilandirma.projeKoku));
+  app.post("/api/dizinler", async (i) => {
+    const g = z.object({ ust: z.string().min(1).max(1000), ad: z.string().min(1).max(120) }).parse(i.body ?? {});
+    return { yol: dizinOlustur(g.ust, g.ad) };
+  });
+
   // ---------------- projeler ----------------
   app.get("/api/projeler", async () => sirket.projeler());
   app.post("/api/projeler", async (i) => sirket.projeOlustur(govde(semalar.proje, i)));
   app.get("/api/projeler/:pid", async (i) => sirket.projeOzeti(param(i, "pid")));
+  app.patch("/api/projeler/:pid", async (i) => sirket.projeGuncelle(param(i, "pid"), govde(semalar.projeGuncelle, i)));
+  app.get("/api/projeler/:pid/dallar", async (i) => sirket.projeDallari(param(i, "pid")));
+  app.post("/api/projeler/:pid/esitle", async (i) => sirket.esitle(param(i, "pid"), z.object({ gonder: z.boolean().optional() }).parse(i.body ?? {}).gonder ?? false));
+  app.post("/api/projeler/:pid/github", async (i) => sirket.githubDeposuAc(param(i, "pid"), govde(semalar.githubDeposu, i)));
   app.delete("/api/projeler/:pid", async (i) => {
     sirket.projeSil(param(i, "pid"));
     return tamam;

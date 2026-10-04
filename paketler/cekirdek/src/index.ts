@@ -51,6 +51,8 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   const gozetmen = new Gozetmen(sirket);
   gozetmen.baslat();
   sirket.hesap.baslat();
+  // Uzak deposu olan projeler arada bir eşitlenir
+  sirket.esitlemeBaslat();
   // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
   sirket.kodZekasi.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {

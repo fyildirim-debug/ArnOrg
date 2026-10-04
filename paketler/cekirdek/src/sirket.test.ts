@@ -44,7 +44,7 @@ describe("proje", () => {
     const ceo = depo.ajanlar(p.id)[0]!;
     expect(ceo.rol).toBe("ceo");
     expect(ceo.izinModu).toBe("bypassPermissions");
-    expect(depo.kanallar(p.id).map((k) => k.ad)).toEqual(["genel", "muhendislik"]);
+    expect(depo.kanallar(p.id).map((k) => k.ad)).toEqual(["genel", "muhendislik", "yonetim"]);
   });
 
   it("aynı repoyu ikinci kez eklemez, git olmayan klasörü bağlamaz", async () => {

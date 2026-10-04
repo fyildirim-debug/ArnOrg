@@ -54,6 +54,12 @@ export interface Ayarlar {
   kodZekasiModeli: KodZekasiModeli;
   /** Proje açılınca ana repo arka planda dizinlenir, değişen dosyalar kendiliğinden güncellenir */
   kodZekasiOtomatik: boolean;
+  /** GitHub CLI (gh) yolu; boşsa PATH ve ArnOrg'un indirdiği kopya denenir */
+  ghYolu: string | null;
+  /** Yeni projelerin açıldığı kök dizin; boşsa ~/ArnOrg */
+  projeKoku: string | null;
+  /** İlk açılış hazırlığı (dil, Claude, GitHub, ilk proje) bitti ya da atlandı */
+  kurulumTamam: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,9 +72,20 @@ export interface Proje {
   /** Repo kök dizini (mutlak yol) */
   yol: string;
   aciklama: string;
+  /** Kurulun seçtiği çalışma dalı: ajanlar buradan dallanır, onaylı birleştirmeler buraya girer */
   varsayilanDal: string;
   olusturma: Zaman;
+  /** Uzak depo (origin) adresi; yoksa null */
+  uzakAdres: string | null;
+  /** Uzak depo GitHub'daysa "sahip/ad" */
+  github: string | null;
+  /** Onaylı birleştirmeden sonra çalışma dalını uzak depoya gönder */
+  otomatikGonder: boolean;
+  /** CEO ile hazırlık görüşmesi: amaç, ana yasa, ilk işe alımlar */
+  hazirlik: HazirlikDurumu;
 }
+
+export type HazirlikDurumu = "bekliyor" | "suruyor" | "tamam" | "atlandi";
 
 export interface ProjeOzeti extends Proje {
   ajanSayisi: number;
@@ -81,10 +98,37 @@ export interface ProjeOzeti extends Proje {
 
 export interface ProjeOlusturIstegi {
   ad: string;
-  /** Mutlak yol. olustur=true ise klasör yoksa açılır */
-  yol: string;
+  /** Mutlak yol; verilmezse proje kökünde (~/ArnOrg/<ad>) açılır. olustur=true ise klasör yoksa açılır */
+  yol?: string;
   /** true: yeni repo (git init + ilk commit); false: var olan repoyu bağla */
   olustur: boolean;
+  aciklama?: string;
+  /** Çalışma dalı; verilmezse reponun o anki dalı (yeni repoda main) */
+  dal?: string;
+  /** Yeni repo GitHub'da da açılsın (gh ile); sahip verilmezse giriş yapan hesap */
+  github?: { ozel: boolean; sahip?: string } | null;
+}
+
+/** Proje ayarları (PATCH /api/projeler/:pid) */
+export interface ProjeGuncelleIstegi {
+  ad?: string;
+  aciklama?: string;
+  /** Çalışma dalını değiştirir: ana repo bu dala geçer (yoksa açılır) */
+  varsayilanDal?: string;
+  otomatikGonder?: boolean;
+  hazirlik?: HazirlikDurumu;
+}
+
+/** GitHub'daki depoyu klonlayıp proje olarak açar (POST /api/github/klonla) */
+export interface KlonlaIstegi {
+  /** "sahip/ad" */
+  depo: string;
+  /** Çalışma dalı; verilmezse deponun varsayılan dalı */
+  dal?: string;
+  /** Hedef klasör; verilmezse proje kökünde (~/ArnOrg/<ad>) */
+  yol?: string;
+  /** Proje adı; verilmezse depo adı */
+  ad?: string;
   aciklama?: string;
 }
 
@@ -290,14 +334,33 @@ export const ARNORG_GONDEREN = "arnorg";
 /**
  * ArnOrg'un açtığı kanallar. Kimlikleri sabittir (dil değişse de proje verisi bozulmaz);
  * İngilizce arayüzde ve İngilizce konuşan ajanlarda görünen adlarıyla anılır.
- *  genel: şirketin ana kanalı · yonetim: kurul ile CEO'nun bire bir sohbeti · toplanti: toplantılar
+ *  genel: şirketin ana kanalı · yonetim: kurul ile CEO'nun bire bir sohbeti · muhendislik: teknik konuşmalar · toplanti: toplantılar
  */
-export const SISTEM_KANALLARI = ["genel", "yonetim", "toplanti"] as const;
-const KANAL_ADLARI_EN: Record<string, string> = { genel: "general", yonetim: "ceo", toplanti: "meetings" };
+export const SISTEM_KANALLARI = ["genel", "yonetim", "muhendislik", "toplanti"] as const;
+const KANAL_ADLARI_EN: Record<string, string> = { genel: "general", yonetim: "ceo", muhendislik: "engineering", toplanti: "meetings" };
+const KANAL_ACIKLAMALARI: Record<Dil, Record<string, string>> = {
+  tr: {
+    genel: "Şirket geneli: brief, rapor, duyuru",
+    yonetim: "Yönetim kurulu ile CEO'nun bire bir sohbeti",
+    muhendislik: "Teknik konuşmalar ve kararlar",
+    toplanti: "Toplantılar: gündem, görüşler, karar",
+  },
+  en: {
+    genel: "Company-wide: brief, reports, announcements",
+    yonetim: "One-on-one between the board and the CEO",
+    muhendislik: "Technical discussions and decisions",
+    toplanti: "Meetings: agenda, opinions, decision",
+  },
+};
 
 /** Kanalın arayüzde görünen adı (# olmadan) */
 export function kanalGorunenAdi(kanal: string, dil: Dil): string {
   return dil === "en" ? (KANAL_ADLARI_EN[kanal] ?? kanal) : kanal;
+}
+
+/** Sistem kanalının açıklaması seçilen dilde; diğer kanallarda kayıtlı açıklama */
+export function kanalAciklamasi(kanal: string, kayitli: string, dil: Dil): string {
+  return KANAL_ACIKLAMALARI[dil][kanal] ?? kayitli;
 }
 
 /** Görünen adı kanal kimliğine çevirir: "#general" → "genel"; bilinmeyen ad olduğu gibi kalır */
@@ -593,6 +656,144 @@ export interface AjanSorusu {
 }
 
 // ---------------------------------------------------------------------------
+// Kurulum: Claude Code, git ve GitHub (gh). Uçlar: /api/kurulum/* ve /api/github/*
+// ---------------------------------------------------------------------------
+
+/** Claude Code'un bu makinedeki durumu */
+export interface ClaudeKurulumu {
+  /** Kullanılan ikili: ayardaki yol, sistemdeki claude komutu ya da ArnOrg'la gelen kopya */
+  kaynak: "ayar" | "sistem" | "paket" | null;
+  yol: string | null;
+  surum: string | null;
+  /** Terminalde claude komutu var mı (yoksa ajanlar ArnOrg'la gelen kopyayla çalışır) */
+  sistemde: boolean;
+  girisYapildi: boolean;
+  /** claude.ai aboneliğiyle giriş (API anahtarı ya da Console değil) */
+  abonelik: boolean;
+  /** claude auth status: authMethod */
+  girisYontemi: string | null;
+  saglayici: string | null;
+  eposta: string | null;
+  hata: string | null;
+}
+
+export interface GitKurulumu {
+  kurulu: boolean;
+  yol: string | null;
+  surum: string | null;
+  /** git config --global user.name ve user.email: ajan commit'leri bu kimlikle atılır */
+  kullaniciAdi: string | null;
+  eposta: string | null;
+}
+
+export interface GithubKurulumu {
+  /** GitHub CLI (gh) */
+  kurulu: boolean;
+  /** sistem: PATH'teki gh · arnorg: ArnOrg'un veri dizinine indirdiği kopya · ayar: ayardaki yol */
+  kaynak: "sistem" | "arnorg" | "ayar" | null;
+  yol: string | null;
+  surum: string | null;
+  girisYapildi: boolean;
+  /** GitHub kullanıcı adı (login) */
+  kullanici: string | null;
+  ad: string | null;
+  /** git, GitHub kimliğini gh'den alıyor (gh auth setup-git) */
+  gitYardimcisi: boolean;
+  hata: string | null;
+}
+
+/** GET /api/kurulum */
+export interface KurulumDurumu {
+  claude: ClaudeKurulumu;
+  git: GitKurulumu;
+  github: GithubKurulumu;
+  /** "win32-x64", "linux-arm64"… */
+  platform: string;
+  /** Yeni projelerin varsayılan kök dizini */
+  projeKoku: string;
+  /** Masaüstünde winget, Linux'ta paket yöneticisi gibi git kurulum yolu var mı */
+  gitKurulabilir: boolean;
+}
+
+export type KurulumIslemTuru = "claude_giris" | "claude_kur" | "gh_kur" | "gh_giris" | "git_kur" | "klonla" | "github_olustur";
+export type KurulumIslemDurumu = "calisiyor" | "tamam" | "hata" | "iptal";
+
+/** Uzun süren kurulum işlemi; canlı çıktısı "kurulum.islem" olayıyla gelir */
+export interface KurulumIslemi {
+  id: string;
+  tur: KurulumIslemTuru;
+  durum: KurulumIslemDurumu;
+  /** Son çıktı (renk kodları ayıklanmış, en çok ~8 KB) */
+  cikti: string;
+  /** Tarayıcıda açılacak adres (giriş sayfası) */
+  adres: string | null;
+  /** Kullanıcıya gösterilecek tek kullanımlık kod (GitHub cihaz kodu) */
+  kod: string | null;
+  /** Süreç kullanıcıdan girdi bekliyor (Claude girişinde tarayıcıdaki kodu yapıştırma) */
+  girdiBekliyor: boolean;
+  hata: string | null;
+  baslangic: Zaman;
+  bitis: Zaman | null;
+  /** İş bitince dönen veri (ör. klonlanan projenin kimliği) */
+  sonuc: Record<string, unknown> | null;
+}
+
+export interface GithubDeposu {
+  ad: string;
+  /** "sahip/ad" */
+  tamAd: string;
+  sahip: string;
+  aciklama: string;
+  ozel: boolean;
+  /** Boş depoda null */
+  varsayilanDal: string | null;
+  guncelleme: Zaman;
+  adres: string;
+}
+
+export interface GithubDali {
+  ad: string;
+  korumali: boolean;
+}
+
+/** Uzak depoyla eşitleme sonucu (POST /api/projeler/:pid/esitle) */
+export interface EsitlemeSonucu {
+  durum: "guncel" | "cekildi" | "gonderildi" | "ayrisik" | "kirli" | "uzak_yok" | "dal_farkli" | "hata";
+  mesaj: string;
+  /** Yerelde olup uzakta olmayan commit sayısı */
+  onde: number;
+  /** Uzakta olup yerelde olmayan commit sayısı */
+  geride: number;
+}
+
+/** Projenin dalları: yerel ve uzak izleme dalları */
+export interface ProjeDallari {
+  mevcut: string;
+  calisma: string;
+  yerel: string[];
+  uzak: string[];
+}
+
+/** GitHub hesabı ve üyesi olduğu kuruluşlar (depo açarken sahip seçimi) */
+export interface GithubHesabi {
+  kullanici: string;
+  ad: string | null;
+  eposta: string | null;
+  kuruluslar: string[];
+}
+
+/** Dizin gezgini (GET /api/dizinler): masaüstünde sistemin klasör seçicisi, tarayıcıda bu uç kullanılır */
+export interface DizinListesi {
+  yol: string;
+  ust: string | null;
+  /** Ev dizini, masaüstü, belgeler, proje kökü, sürücüler */
+  kisayollar: { ad: string; yol: string }[];
+  dizinler: { ad: string; yol: string; repo: boolean }[];
+  /** Bu dizin bir git deposu mu */
+  repo: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Canlı olaylar (WebSocket /ws)
 // ---------------------------------------------------------------------------
 
@@ -614,6 +815,10 @@ export type SunucuOlayi =
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
   | { tur: "kod.dizin"; projeId: string; durum: KodDizinDurumu }
+  | { tur: "kurulum.islem"; islem: KurulumIslemi }
+  | { tur: "kurulum.durum"; durum: KurulumDurumu }
+  /** Ajan bir kanaldaki mesaja yanıt hazırlıyor (yazıyor göstergesi); yaziyor=false ile biter */
+  | { tur: "kanal.yaziyor"; projeId: string; kanal: string; ajanId: string; ad: string; yaziyor: boolean }
   | { tur: "bildirim"; seviye: "bilgi" | "uyari" | "hata"; metin: string; projeId?: string };
 
 export type IstemciOlayi = { tur: "abone"; projeId: string | null } | { tur: "ping" };
@@ -643,6 +848,8 @@ export interface MasaustuKoprusu {
   surum: string;
   /** http/https adresini sistem tarayıcısında açar */
   disaridaAc(url: string): Promise<boolean>;
+  /** Sistemin klasör seçicisi; vazgeçilirse null. Eski masaüstü sürümlerinde yoktur */
+  klasorSec?(secenek?: { baslik?: string; varsayilan?: string }): Promise<string | null>;
 }
 
 /** API hata gövdesi */

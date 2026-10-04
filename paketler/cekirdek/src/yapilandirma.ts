@@ -1,11 +1,13 @@
 // Uygulama ayarları ve erişim anahtarı (veri dizininde)
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { Ayarlar, Dil } from "@arnorg/ortak";
 import { rastgeleAnahtar } from "./yardimci.js";
 
-/** Sistem dili: Türkçe yerel ayarda "tr", diğerlerinde "en" */
+/** Sistem dili: Türkçe yerel ayarda "tr", diğerlerinde "en". ARNORG_DIL (tr/en) her şeyin önüne geçer */
 export function sistemDili(kaynak: NodeJS.ProcessEnv = process.env): Dil {
+  if (kaynak.ARNORG_DIL === "tr" || kaynak.ARNORG_DIL === "en") return kaynak.ARNORG_DIL;
   const adaylar = [kaynak.LC_ALL, kaynak.LC_MESSAGES, kaynak.LANG, kaynak.LANGUAGE, Intl.DateTimeFormat().resolvedOptions().locale];
   const ilk = adaylar.find((d) => d && d !== "C" && d !== "POSIX" && !d.startsWith("C."));
   return ilk?.toLowerCase().startsWith("tr") ? "tr" : "en";
@@ -22,6 +24,9 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   haftalikSinirYuzde: 95,
   kodZekasiModeli: "kaliteli",
   kodZekasiOtomatik: true,
+  ghYolu: null,
+  projeKoku: null,
+  kurulumTamam: false,
 };
 
 /** Yalnız bilinen ayarlar: eski sürümlerden kalan alanlar (ör. kaldırılan API girişi ve dolar bütçesi) okunmaz, açılışta dosyadan silinir */
@@ -77,6 +82,9 @@ export class Yapilandirma {
     if (typeof degisiklik.tikanmaDakika === "number") temiz.tikanmaDakika = Math.min(Math.max(0, Math.round(degisiklik.tikanmaDakika)), 1440);
     if (degisiklik.kodZekasiModeli === "kaliteli" || degisiklik.kodZekasiModeli === "hizli" || degisiklik.kodZekasiModeli === "kapali") temiz.kodZekasiModeli = degisiklik.kodZekasiModeli;
     if (typeof degisiklik.kodZekasiOtomatik === "boolean") temiz.kodZekasiOtomatik = degisiklik.kodZekasiOtomatik;
+    if (degisiklik.ghYolu !== undefined) temiz.ghYolu = degisiklik.ghYolu ? String(degisiklik.ghYolu) : null;
+    if (degisiklik.projeKoku !== undefined) temiz.projeKoku = degisiklik.projeKoku?.trim() ? path.resolve(degisiklik.projeKoku.trim()) : null;
+    if (typeof degisiklik.kurulumTamam === "boolean") temiz.kurulumTamam = degisiklik.kurulumTamam;
     this.mevcut = { ...this.mevcut, ...temiz };
     fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
     return this.ayarlar;
@@ -102,5 +110,15 @@ export class Yapilandirma {
 
   get calismaKoku(): string {
     return path.join(this.veriDizini, "calisma");
+  }
+
+  /** Yeni projelerin kök dizini: ayardaki ya da ~/ArnOrg */
+  get projeKoku(): string {
+    return this.mevcut.projeKoku ?? path.join(os.homedir(), "ArnOrg");
+  }
+
+  /** ArnOrg'un indirdiği araçlar (gh) */
+  get araclarDizini(): string {
+    return path.join(this.veriDizini, "araclar");
   }
 }

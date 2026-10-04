@@ -6,6 +6,7 @@ import type { CanUseTool, HookJSONOutput, PermissionResult } from "@anthropic-ai
 import {
   GOREV_DURUMLARI,
   GOREV_GECISLERI,
+  ARNORG_GONDEREN,
   HAFIZA_TURU_ADLARI,
   KURUL,
   type Ajan,
@@ -31,12 +32,18 @@ import {
   type Onay,
   type OnayTuru,
   type PolitikaKurali,
+  type EsitlemeSonucu,
   type Proje,
+  type ProjeDallari,
+  type ProjeGuncelleIstegi,
   type ProjeOlusturIstegi,
   type ProjeOzeti,
 } from "@arnorg/ortak";
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
+import { dilKaynagi, iki } from "./dil.js";
+import { GithubIslemleri, klasorAdiYap } from "./github.js";
 import { HesapIzleyici } from "./hesap.js";
+import { Kurulum } from "./kurulum.js";
 import { ProjeHafizasi } from "./hafiza.js";
 import { karakterBul, karakterSec } from "@arnorg/ortak/karakterler";
 import { Hatirlatici, oncekiYanit, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
@@ -138,6 +145,11 @@ export class Sirket {
   private readonly arnorgCommitZamanlayicilari = new Map<string, NodeJS.Timeout>();
   /** Kod tarayıcı, sembol ve bağımlılık haritası, anlamsal kod dizini */
   readonly kodZekasi: KodZekasi;
+  /** Claude Code, git ve GitHub CLI kurulumu ve girişleri */
+  readonly kurulum: Kurulum;
+  /** GitHub depoları, klonlama ve uzak depoyla eşitleme */
+  readonly github: GithubIslemleri;
+  private esitlemeZamanlayici: NodeJS.Timeout | null = null;
 
   constructor(
     readonly depo: Depo,
@@ -147,6 +159,7 @@ export class Sirket {
     /** Testlerde gerçek Claude Code oturumu açılmasını engeller */
     private readonly oturumlarKapali = false,
   ) {
+    dilKaynagi(() => yapilandirma.ayarlar.dil);
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat();
     depo.bekleyenSorulariKapat();
@@ -164,6 +177,19 @@ export class Sirket {
     this.karakterleriTamamla();
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali);
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
+    this.kurulum = new Kurulum(yapilandirma, olaylar, { claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined) });
+    this.github = new GithubIslemleri(this.kurulum, yapilandirma);
+  }
+
+  /** Uzak deposu olan projeler arada bir eşitlenir (çekme; yerel dal geride ve temizse ileri sarma) */
+  esitlemeBaslat(aralikMs = 10 * 60_000): void {
+    if (this.esitlemeZamanlayici) return;
+    this.esitlemeZamanlayici = setInterval(() => {
+      for (const p of this.depo.projeler()) {
+        if (p.uzakAdres && fs.existsSync(p.yol)) void this.esitle(p.id, false, true).catch(() => undefined);
+      }
+    }, aralikMs);
+    this.esitlemeZamanlayici.unref();
   }
 
   private async acikOturumdanKullanim() {
@@ -252,37 +278,50 @@ export class Sirket {
 
   async projeOlustur(istek: ProjeOlusturIstegi): Promise<ProjeOzeti> {
     const ad = istek.ad?.trim();
-    if (!ad) throw new ArnorgHatasi("Proje adı gerekli.");
-    if (!istek.yol?.trim()) throw new ArnorgHatasi("Proje yolu gerekli.");
-    if (!(await gitIslemleri.gitVarMi())) throw new ArnorgHatasi("Sistemde git bulunamadı. Git kurulu olmalı.", 500);
-    let kok = path.resolve(istek.yol.trim());
+    if (!ad) throw new ArnorgHatasi(iki("Proje adı gerekli.", "Project name is required."));
+    if (!istek.olustur && !istek.yol?.trim()) throw new ArnorgHatasi(iki("Var olan repoyu bağlamak için klasörünü seçin.", "Choose the folder of the existing repository."));
+    if (!this.kurulum.gitYolu() || !(await gitIslemleri.gitVarMi())) throw new ArnorgHatasi(iki("Sistemde git bulunamadı. Git kurulu olmalı.", "git was not found. Git must be installed."), 500);
+    // Yol verilmezse proje kökünde (~/ArnOrg/<ad>) açılır
+    let kok = path.resolve(istek.yol?.trim() || path.join(this.yapilandirma.projeKoku, klasorAdiYap(ad)));
+    const istenenDal = istek.dal?.trim() || null;
+    if (istenenDal && !(await gitIslemleri.gecerliDalMi(process.cwd(), istenenDal))) throw new ArnorgHatasi(iki(`Geçersiz dal adı: ${istenenDal}`, `Invalid branch name: ${istenenDal}`));
     let yeniRepo = false;
     if (istek.olustur) {
       fs.mkdirSync(kok, { recursive: true });
       if (!(await gitIslemleri.repoMu(kok))) {
-        await gitIslemleri.repoBaslat(kok, "main");
+        await gitIslemleri.repoBaslat(kok, istenenDal ?? "main");
         yeniRepo = true;
       } else {
         kok = await gitIslemleri.repoKoku(kok);
       }
     } else {
-      if (!fs.existsSync(kok)) throw new ArnorgHatasi("Klasör bulunamadı.", 404);
-      if (!(await gitIslemleri.repoMu(kok))) throw new ArnorgHatasi("Klasör bir git deposu değil. Yeni repo oluşturmayı seçin ya da git init çalıştırın.");
+      if (!fs.existsSync(kok)) throw new ArnorgHatasi(iki("Klasör bulunamadı.", "Folder not found."), 404);
+      if (!(await gitIslemleri.repoMu(kok))) throw new ArnorgHatasi(iki("Klasör bir git deposu değil. Yeni repo oluşturmayı seçin ya da git init çalıştırın.", "The folder is not a git repository. Choose to create a new repository or run git init."));
       kok = await gitIslemleri.repoKoku(kok);
     }
     kok = gitIslemleri.gercekYol(kok);
-    if (this.depo.projeler().some((p) => gitIslemleri.ayniYol(p.yol, kok))) throw new ArnorgHatasi("Bu repo zaten bir ArnOrg projesi.", 409);
+    if (this.depo.projeler().some((p) => gitIslemleri.ayniYol(p.yol, kok))) throw new ArnorgHatasi(iki("Bu repo zaten bir ArnOrg projesi.", "This repository is already an ArnOrg project."), 409);
 
+    // Çalışma dalı: istenen dal (yoksa açılır), yoksa reponun o anki dalı
+    if (istenenDal) await gitIslemleri.dalaGec(kok, istenenDal);
+    let dal = await gitIslemleri.mevcutDal(kok);
+    if (dal === "HEAD") dal = istenenDal ?? "main";
     const ilkCommitGerek = !(await gitIslemleri.commitVarMi(kok));
-    iskeletOlustur(kok, ad, istek.aciklama?.trim() ?? "", "main", yeniRepo || ilkCommitGerek);
+    iskeletOlustur(kok, ad, istek.aciklama?.trim() ?? "", dal, yeniRepo || ilkCommitGerek);
     if (yeniRepo || ilkCommitGerek) {
       await gitIslemleri.kimlikGuvenceAltinaAl(kok);
-      await gitIslemleri.tumunuCommitle(kok, "ArnOrg: proje iskeleti");
+      await gitIslemleri.tumunuCommitle(kok, iki("ArnOrg: proje iskeleti", "ArnOrg: project scaffold"));
     }
-    let dal = await gitIslemleri.mevcutDal(kok);
-    if (dal === "HEAD") dal = "main";
 
-    const proje = this.depo.projeEkle({ ad, yol: kok, aciklama: istek.aciklama?.trim() ?? "", varsayilanDal: dal });
+    const proje = this.depo.projeEkle({
+      ad,
+      yol: kok,
+      aciklama: istek.aciklama?.trim() ?? "",
+      varsayilanDal: dal,
+      uzakAdres: await gitIslemleri.uzakAdresi(kok),
+      otomatikGonder: true,
+      hazirlik: "bekliyor",
+    });
     this.depo.politikaYaz(proje.id, varsayilanKurallar());
 
     // Repo içinde kayıtlı ekip varsa geri yükle
@@ -301,16 +340,95 @@ export class Sirket {
       this.iseAl(proje.id, { ad: "Ada", rol: "ceo" });
     }
     this.hafiza.iceAktar(proje, this.depo.ajanlar(proje.id));
-    this.depo.mesajEkle({
-      projeId: proje.id,
-      kanal: "genel",
-      gonderenId: "arnorg",
-      gonderenAd: "ArnOrg",
-      metin: `${ad} projesi açıldı. CEO hazır; brief'inizi bu kanala yazın.`,
-      anilanlar: [],
-    });
+
+    // GitHub'da yeni depo: iskelet commit'iyle birlikte gönderilir
+    if (istek.github && !proje.uzakAdres) {
+      try {
+        const uzak = await this.github.depoOlustur(proje, { ozel: istek.github.ozel, sahip: istek.github.sahip, aciklama: proje.aciklama });
+        this.depo.projeGuncelle(proje.id, { uzakAdres: uzak });
+      } catch (h) {
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`GitHub deposu açılamadı: ${(h as Error).message}`, `Could not create the GitHub repository: ${(h as Error).message}`), projeId: proje.id });
+      }
+    }
+    const son = this.proje(proje.id);
+    this.kanalMesaji(
+      proje.id,
+      "genel",
+      { id: ARNORG_GONDEREN, ad: "ArnOrg" },
+      iki(
+        `${ad} projesi açıldı. Çalışma dalı ${son.varsayilanDal}${son.github ? `, GitHub deposu ${son.github}` : ""}. CEO hazır: hazırlık görüşmesi için #yonetim kanalını kullanın ya da brief'inizi buraya yazın.`,
+        `${ad} is open. Working branch ${son.varsayilanDal}${son.github ? `, GitHub repository ${son.github}` : ""}. The CEO is ready: use #ceo for the kickoff conversation or write your brief here.`,
+      ),
+    );
     this.projeYayinla(proje.id);
     return this.projeOzeti(proje.id);
+  }
+
+  /** Proje ayarları: ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık durumu */
+  async projeGuncelle(id: string, istek: ProjeGuncelleIstegi): Promise<ProjeOzeti> {
+    const p = this.proje(id);
+    const alanlar: Parameters<Depo["projeGuncelle"]>[1] = {};
+    if (istek.ad !== undefined) {
+      const ad = istek.ad.trim();
+      if (!ad || ad.length > 80) throw new ArnorgHatasi(iki("Proje adı 1–80 karakter olmalı.", "Project name must be 1–80 characters."));
+      alanlar.ad = ad;
+    }
+    if (istek.aciklama !== undefined) alanlar.aciklama = istek.aciklama.trim().slice(0, 2000);
+    if (istek.otomatikGonder !== undefined) alanlar.otomatikGonder = istek.otomatikGonder;
+    if (istek.hazirlik !== undefined) alanlar.hazirlik = istek.hazirlik;
+    if (istek.varsayilanDal !== undefined && istek.varsayilanDal.trim() !== p.varsayilanDal) {
+      const dal = istek.varsayilanDal.trim();
+      const kirli = (await gitIslemleri.git(p.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
+      if (kirli) throw new ArnorgHatasi(iki("Ana repoda commit'lenmemiş değişiklik var; dal değiştirilmedi.", "The main repo has uncommitted changes; the branch was not changed."), 409);
+      await this.arnorgCommitle(id).catch(() => false);
+      await gitIslemleri.dalaGec(p.yol, dal);
+      alanlar.varsayilanDal = dal;
+      this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`Çalışma dalı ${dal} oldu. Yeni işler bu daldan açılır, onaylı birleştirmeler bu dala girer.`, `The working branch is now ${dal}. New work branches off it and approved merges go into it.`));
+    }
+    this.depo.projeGuncelle(id, alanlar);
+    this.projeYayinla(id);
+    return this.projeOzeti(id);
+  }
+
+  /** Var olan projeyi GitHub'da yeni depo olarak açar ve bağlar */
+  async githubDeposuAc(id: string, secenek: { ozel: boolean; sahip?: string }): Promise<ProjeOzeti> {
+    const p = this.proje(id);
+    const uzak = await this.github.depoOlustur(p, { ...secenek, aciklama: p.aciklama });
+    const yeni = this.depo.projeGuncelle(id, { uzakAdres: uzak });
+    this.kanalMesaji(
+      id,
+      "genel",
+      { id: ARNORG_GONDEREN, ad: "ArnOrg" },
+      iki(
+        `GitHub deposu açıldı: ${yeni.github ?? uzak}. Onaylı birleştirmeler ${yeni.varsayilanDal} dalıyla oraya gönderilecek.`,
+        `GitHub repository created: ${yeni.github ?? uzak}. Approved merges will be pushed there on ${yeni.varsayilanDal}.`,
+      ),
+    );
+    this.projeYayinla(id);
+    return this.projeOzeti(id);
+  }
+
+  async projeDallari(id: string): Promise<ProjeDallari> {
+    const p = this.proje(id);
+    const d = await gitIslemleri.dallar(p.yol);
+    return { mevcut: await gitIslemleri.mevcutDal(p.yol).catch(() => p.varsayilanDal), calisma: p.varsayilanDal, yerel: d.yerel, uzak: d.uzak.filter((u) => !d.yerel.includes(u)) };
+  }
+
+  /** Uzak depoyla eşitle; sessiz=true iken yalnız bir şey değiştiyse ya da sorun varsa bildirilir */
+  async esitle(id: string, gonder = false, sessiz = false): Promise<EsitlemeSonucu> {
+    let p = this.proje(id);
+    if (!p.uzakAdres) {
+      const uzak = await gitIslemleri.uzakAdresi(p.yol).catch(() => null);
+      if (uzak) p = this.depo.projeGuncelle(id, { uzakAdres: uzak });
+    }
+    const sonuc = await this.github.esitle(p, gonder);
+    const onemli = sonuc.durum === "cekildi" || sonuc.durum === "gonderildi" || sonuc.durum === "ayrisik" || sonuc.durum === "kirli" || sonuc.durum === "hata";
+    if (!sessiz || onemli) {
+      if (sonuc.durum === "cekildi" || sonuc.durum === "ayrisik") this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, sonuc.mesaj);
+      if (onemli) this.olaylar.yayinla({ tur: "bildirim", seviye: sonuc.durum === "cekildi" || sonuc.durum === "gonderildi" ? "bilgi" : "uyari", metin: sonuc.mesaj, projeId: id });
+    }
+    if (sonuc.durum === "cekildi") this.projeYayinla(id);
+    return sonuc;
   }
 
   projeSil(id: string): void {
@@ -983,7 +1101,17 @@ export class Sirket {
       for (const g of this.depo.gorevler(proje.id)) {
         if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
       }
-      this.kanalMesaji(proje.id, "genel", { id: "arnorg", ad: "ArnOrg" }, `${veri.dal} ${proje.varsayilanDal} dalına birleştirildi. ${kisalt(veri.ozet, 200)}`);
+      this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`${veri.dal} ${proje.varsayilanDal} dalına birleştirildi. ${kisalt(veri.ozet, 200)}`, `${veri.dal} was merged into ${proje.varsayilanDal}. ${kisalt(veri.ozet, 200)}`));
+      // Uzak depo varsa ve otomatik gönderim açıksa çalışma dalı gönderilir
+      if (proje.uzakAdres && proje.otomatikGonder) {
+        void this.github
+          .gonder(proje)
+          .then((g) => {
+            if (g.durum === "gonderildi") this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, g.mesaj);
+            else this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: g.mesaj, projeId: proje.id });
+          })
+          .catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: proje.id }));
+      }
       this.hafiza.yaz(
         proje.id,
         { tur: "ozet", baslik: `${veri.dal} → ${proje.varsayilanDal}`, metin: kisalt(veri.ozet, 800), etiketler: ["birlestirme"], onem: 2 },
@@ -1468,6 +1596,8 @@ export class Sirket {
 
   kapat(): void {
     this.hesap.durdur();
+    this.kurulum.kapat();
+    if (this.esitlemeZamanlayici) clearInterval(this.esitlemeZamanlayici);
     this.hafiza.kapat();
     void this.kodZekasi.kapat();
     for (const z of this.arnorgCommitZamanlayicilari.values()) clearTimeout(z);

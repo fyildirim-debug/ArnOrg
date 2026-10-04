@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
+import { iki } from "./dil.js";
 import type { Ajan, NotDosyasi, NotIcerigi } from "@arnorg/ortak";
 import { ArnorgHatasi, sadelestir } from "./yardimci.js";
 
@@ -26,25 +27,37 @@ export function iskeletOlustur(kok: string, ad: string, aciklama: string, varsay
       aciklama,
       varsayilan_dal: varsayilanDal,
       birlestirme: "yerel",
-      not: "ArnOrg proje ayarları. Ekip kimlikleri ekip/, proje hafızası notlar/ altında tutulur.",
+      not: iki(
+        "ArnOrg proje ayarları. Ekip kimlikleri ekip/, proje hafızası notlar/ altında tutulur.",
+        "ArnOrg project settings. Team identities live in ekip/, project memory in notlar/.",
+      ),
     }),
   );
   yazYoksa(
     arnorgYolu(kok, "notlar", "vizyon.md"),
-    `# Vizyon\n\n${aciklama || "Projenin amacı, kullanıcısı ve ilk sürümün kapsamı buraya yazılır."}\n`,
+    iki(
+      `# Vizyon\n\n${aciklama || "Projenin amacı, kullanıcısı ve ilk sürümün kapsamı buraya yazılır."}\n`,
+      `# Vision\n\n${aciklama || "The purpose of the project, its users and the scope of the first release go here."}\n`,
+    ),
   );
-  yazYoksa(arnorgYolu(kok, "notlar", "mimari.md"), "# Mimari\n\nKatmanlar, teknoloji seçimleri ve aralarındaki sınırlar.\n");
-  yazYoksa(arnorgYolu(kok, "notlar", "sozluk.md"), "# Sözlük\n\nProjeye özgü terimler ve anlamları.\n");
+  yazYoksa(arnorgYolu(kok, "notlar", "mimari.md"), iki("# Mimari\n\nKatmanlar, teknoloji seçimleri ve aralarındaki sınırlar.\n", "# Architecture\n\nLayers, technology choices and the boundaries between them.\n"));
+  yazYoksa(arnorgYolu(kok, "notlar", "sozluk.md"), iki("# Sözlük\n\nProjeye özgü terimler ve anlamları.\n", "# Glossary\n\nProject-specific terms and their meanings.\n"));
   yazYoksa(
     arnorgYolu(kok, "notlar", "kararlar", "ADR-001-arnorg.md"),
-    "# ADR-001 · Proje ArnOrg ile yönetilir\n\n**Durum:** Kabul edildi\n\n**Bağlam.** Proje Claude Code ajanlarından oluşan bir ekiple geliştirilecek.\n\n**Karar.** Görevler, notlar ve ekip kimlikleri `.arnorg/` altında tutulur; her ajan kendi git çalışma alanında çalışır; main'e yalnız onaylı iş girer.\n\n**Sonuçlar.** Kararlar bu klasörde ADR olarak birikir; ajanlar işe başlamadan notları okur.\n",
+    iki(
+      `# ADR-001 · Proje ArnOrg ile yönetilir\n\n**Durum:** Kabul edildi\n\n**Bağlam.** Proje Claude Code ajanlarından oluşan bir ekiple geliştirilecek.\n\n**Karar.** Görevler, notlar ve ekip kimlikleri \`.arnorg/\` altında tutulur; her ajan kendi git çalışma alanında çalışır; ${varsayilanDal} dalına yalnız onaylı iş girer.\n\n**Sonuçlar.** Kararlar bu klasörde ADR olarak birikir; ajanlar işe başlamadan notları okur.\n`,
+      `# ADR-001 · The project is run with ArnOrg\n\n**Status:** Accepted\n\n**Context.** The project will be built by a team of Claude Code agents.\n\n**Decision.** Tasks, notes and team identities live under \`.arnorg/\`; each agent works in its own git workspace; only approved work goes into ${varsayilanDal}.\n\n**Consequences.** Decisions accumulate here as ADRs; agents read the notes before they start.\n`,
+    ),
   );
-  yazYoksa(arnorgYolu(kok, "hafiza", "README.md"), "# Hafıza\n\nAjanların öğrendiği dersler ve günlükleri.\n");
+  yazYoksa(arnorgYolu(kok, "hafiza", "README.md"), iki("# Hafıza\n\nAjanların öğrendiği dersler ve günlükleri.\n", "# Memory\n\nLessons the agents learned and their journals.\n"));
   fs.mkdirSync(arnorgYolu(kok, "ekip"), { recursive: true });
   if (yeniRepo) {
     yazYoksa(
       path.join(kok, "CLAUDE.md"),
-      `# ${ad}\n\n${aciklama}\n\n## Çalışma kuralları\n\n- Bu proje ArnOrg ile yönetilir. Proje notları \`.arnorg/notlar/\`, kararlar \`.arnorg/notlar/kararlar/\` altındadır; işe başlamadan ilgili notları oku.\n- Her ajan kendi git çalışma alanında ve dalında çalışır. main'e doğrudan commit atılmaz.\n- Commit mesajları Türkçe ve ne değiştiğini söyler.\n- Testler geçmeden iş 'inceleme' durumuna alınmaz.\n`,
+      iki(
+        `# ${ad}\n\n${aciklama}\n\n## Çalışma kuralları\n\n- Bu proje ArnOrg ile yönetilir. Proje notları \`.arnorg/notlar/\`, kararlar \`.arnorg/notlar/kararlar/\` altındadır; işe başlamadan ilgili notları oku.\n- Projenin ana yasası \`.arnorg/anayasa.md\` dosyasındadır; herkes uyar.\n- Her ajan kendi git çalışma alanında ve dalında çalışır. ${varsayilanDal} dalına doğrudan commit atılmaz.\n- Commit mesajları ne değiştiğini söyler.\n- Testler geçmeden iş 'inceleme' durumuna alınmaz.\n`,
+        `# ${ad}\n\n${aciklama}\n\n## Working rules\n\n- This project is run with ArnOrg. Project notes live in \`.arnorg/notlar/\`, decisions in \`.arnorg/notlar/kararlar/\`; read the relevant notes before you start.\n- The project's constitution is in \`.arnorg/anayasa.md\`; everyone follows it.\n- Every agent works in its own git workspace and branch. Nobody commits to ${varsayilanDal} directly.\n- Commit messages say what changed.\n- Work does not move to 'inceleme' (review) until the tests pass.\n`,
+      ),
     );
     yazYoksa(path.join(kok, ".gitignore"), "node_modules/\ndist/\nbuild/\ncoverage/\n.env\n.env.local\n*.log\n");
   }

@@ -22,6 +22,13 @@ import type {
 } from "@arnorg/ortak";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 
+/** Uzak depo adresinden GitHub "sahip/ad": https://github.com/a/b(.git), git@github.com:a/b(.git), ssh://git@github.com/a/b */
+export function githubDeposu(adres: string | null | undefined): string | null {
+  if (!adres) return null;
+  const m = adres.trim().match(/^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
 const SEMA = `
 CREATE TABLE IF NOT EXISTS projeler (
   id TEXT PRIMARY KEY,
@@ -29,7 +36,10 @@ CREATE TABLE IF NOT EXISTS projeler (
   yol TEXT NOT NULL UNIQUE,
   aciklama TEXT NOT NULL DEFAULT '',
   varsayilan_dal TEXT NOT NULL DEFAULT 'main',
-  olusturma TEXT NOT NULL
+  olusturma TEXT NOT NULL,
+  uzak_adres TEXT,
+  otomatik_gonder INTEGER NOT NULL DEFAULT 1,
+  hazirlik TEXT NOT NULL DEFAULT 'tamam'
 );
 CREATE TABLE IF NOT EXISTS ajanlar (
   id TEXT PRIMARY KEY,
@@ -206,6 +216,13 @@ export class Depo {
       });
       tasi();
     }
+    // 0.0.2: uzak depo, otomatik gönderim ve hazırlık görüşmesi; var olan projelerin hazırlığı bitmiş sayılır
+    const projeSutunlari = (this.db.prepare("PRAGMA table_info(projeler)").all() as Satir[]).map((s) => String(s.name));
+    if (!projeSutunlari.includes("uzak_adres")) this.db.exec("ALTER TABLE projeler ADD COLUMN uzak_adres TEXT");
+    if (!projeSutunlari.includes("otomatik_gonder")) this.db.exec("ALTER TABLE projeler ADD COLUMN otomatik_gonder INTEGER NOT NULL DEFAULT 1");
+    if (!projeSutunlari.includes("hazirlik")) this.db.exec("ALTER TABLE projeler ADD COLUMN hazirlik TEXT NOT NULL DEFAULT 'tamam'");
+    // Kurul ile CEO'nun bire bir kanalı her projede bulunur
+    this.db.prepare("INSERT OR IGNORE INTO kanallar (proje_id, ad, aciklama) SELECT id, 'yonetim', 'Yönetim kurulu ile CEO''nun bire bir sohbeti' FROM projeler").run();
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
     if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
     if (ajanSutunlari.includes("gunluk_butce")) this.db.exec("ALTER TABLE ajanlar DROP COLUMN gunluk_butce");
@@ -223,21 +240,39 @@ export class Depo {
 
   // ---------------- projeler ----------------
 
-  projeEkle(p: Omit<Proje, "id" | "olusturma">): Proje {
-    const proje: Proje = { id: kimlik(), olusturma: simdi(), ...p };
+  projeEkle(p: Pick<Proje, "ad" | "yol" | "aciklama" | "varsayilanDal"> & Partial<Pick<Proje, "uzakAdres" | "otomatikGonder" | "hazirlik">>): Proje {
+    const id = kimlik();
+    const olusturma = simdi();
     this.db
-      .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(proje.id, proje.ad, proje.yol, proje.aciklama, proje.varsayilanDal, proje.olusturma);
+      .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam");
     for (const [ad, aciklama] of [
       ["genel", "Şirket geneli: brief, rapor, duyuru"],
+      ["yonetim", "Yönetim kurulu ile CEO'nun bire bir sohbeti"],
       ["muhendislik", "Teknik konuşmalar ve kararlar"],
     ] as const) {
-      this.kanalEkle(proje.id, ad, aciklama);
+      this.kanalEkle(id, ad, aciklama);
     }
-    return proje;
+    return this.proje(id)!;
+  }
+
+  projeGuncelle(id: string, alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik">>): Proje {
+    const sutunlar: Record<string, string> = { ad: "ad", aciklama: "aciklama", varsayilanDal: "varsayilan_dal", uzakAdres: "uzak_adres", otomatikGonder: "otomatik_gonder", hazirlik: "hazirlik" };
+    const atamalar: string[] = [];
+    const degerler: unknown[] = [];
+    for (const [k, v] of Object.entries(alanlar)) {
+      if (v === undefined || !sutunlar[k]) continue;
+      atamalar.push(`${sutunlar[k]} = ?`);
+      degerler.push(typeof v === "boolean" ? (v ? 1 : 0) : v);
+    }
+    if (atamalar.length) this.db.prepare(`UPDATE projeler SET ${atamalar.join(", ")} WHERE id = ?`).run(...degerler, id);
+    const p = this.proje(id);
+    if (!p) throw new Error("Proje bulunamadı");
+    return p;
   }
 
   private projeSatiri(s: Satir): Proje {
+    const uzak = (s.uzak_adres as string | null) ?? null;
     return {
       id: String(s.id),
       ad: String(s.ad),
@@ -245,6 +280,10 @@ export class Depo {
       aciklama: String(s.aciklama),
       varsayilanDal: String(s.varsayilan_dal),
       olusturma: String(s.olusturma),
+      uzakAdres: uzak,
+      github: githubDeposu(uzak),
+      otomatikGonder: Number(s.otomatik_gonder ?? 1) === 1,
+      hazirlik: (String(s.hazirlik ?? "tamam") as Proje["hazirlik"]),
     };
   }
 
