@@ -120,7 +120,7 @@ describe("ajanlar arası sorular", () => {
     expect(soru.soru).toBe("Test verisi hangi klasörde?");
     // Karşılıklı bekleme reddedilir
     await expect(sirket.ajanaSor(mert.id, "Deniz", "Sen de bana bir şey söyle")).rejects.toThrow(/senden yanıt bekliyor/);
-    expect(() => sirket.soruYanitla(deniz.id, soru.id, "x")).toThrow(/Mert'a soruldu/);
+    expect(() => sirket.soruYanitla(deniz.id, soru.id, "x")).toThrow(/Mert'e soruldu/);
     sirket.soruYanitla(mert.id, soru.id, "test/veri altında.");
     const sonuc = await bekleyen;
     expect(sonuc).toMatchObject({ durum: "yanitlandi", yanit: "test/veri altında." });

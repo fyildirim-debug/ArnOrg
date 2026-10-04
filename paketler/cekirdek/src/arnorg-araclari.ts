@@ -9,10 +9,11 @@ import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { maddeleriDenetle } from "./anayasa.js";
+import { aracGirdisiniOnar } from "./arac-girdisi.js";
 import { dil, iki } from "./dil.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
-import { kisalt } from "./yardimci.js";
+import { kisalt, yonelme } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
 
 type Sonuc = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -32,6 +33,29 @@ async function guvenli(f: () => Promise<Sonuc> | Sonuc): Promise<Sonuc> {
   } catch (h) {
     return hata((h as Error).message);
   }
+}
+
+/** Şemada metin olan alanlar (isteğe bağlı, varsayılanlı ya da boş geçilebilir sarmalar açılır) */
+function metinAlanlari(sema: Record<string, unknown>): string[] {
+  return Object.entries(sema)
+    .filter(([, t0]) => {
+      let t = t0 as { _zod?: { def?: { innerType?: unknown } } } | undefined;
+      while (t?._zod?.def?.innerType) t = t._zod.def.innerType as typeof t;
+      return t instanceof z.ZodString;
+    })
+    .map(([ad]) => ad);
+}
+
+/** Mesajda bir taahhüt var mı: "I'll…", "I will…", "yapacağım", "bakacağım" */
+const SOZ_KALIBI = /\b(?:I'll|I will|I'm going to)\b|\p{L}+(?:acağım|eceğim)(?![\p{L}])/iu;
+
+type AracTanimi = { inputSchema: Record<string, unknown>; handler: (args: never, extra: unknown) => Promise<unknown> };
+
+/** İşleyiciyi girdi onarıcısıyla sarar: küçük modellerin bir metin alanına sızdırdığı çağrı biçimi ayıklanır */
+function onarimli<T extends AracTanimi>(t: T): T {
+  const alanlar = metinAlanlari(t.inputSchema);
+  const isleyici = t.handler as unknown as (a: Record<string, unknown>, e: unknown) => Promise<unknown>;
+  return { ...t, handler: (a: Record<string, unknown>, e: unknown) => isleyici(aracGirdisiniOnar(a, alanlar), e) } as T;
 }
 
 const durumSemasi = z.enum(GOREV_DURUMLARI as [GorevDurumu, ...GorevDurumu[]]);
@@ -77,10 +101,13 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           }
           const m = await sirket.mesajGonder(ben().projeId, kanal, ajanId, govde);
           const uyarilanlar = m.anilanlar.map((id) => sirket.depo.ajan(id)?.ad).filter(Boolean);
+          // Taahhüt içeren mesajda son 10 dakikada söz kaydedilmediyse soz_ver hatırlatılır
+          const onDakika = new Date(Date.now() - 10 * 60_000).toISOString();
+          const sozHatirlat = SOZ_KALIBI.test(govde) && !sirket.depo.sozler(ben().projeId, { verenId: ajanId, sinir: 5 }).some((x) => x.olusturma >= onDakika);
           return metin(
             iki(
-              `Mesaj #${m.kanal} kanalına bırakıldı.${uyarilanlar.length ? ` Uyarılan: ${uyarilanlar.join(", ")}.` : ""}`,
-              `Message posted to #${kanalGorunenAdi(m.kanal, "en")}.${uyarilanlar.length ? ` Notified: ${uyarilanlar.join(", ")}.` : ""}`,
+              `Mesaj #${m.kanal} kanalına bırakıldı.${uyarilanlar.length ? ` Uyarılan: ${uyarilanlar.join(", ")}.` : ""}${sozHatirlat ? " Bu mesajda bir şey yapacağını söyledin; taahhütse soz_ver ile kaydet." : ""}`,
+              `Message posted to #${kanalGorunenAdi(m.kanal, "en")}.${uyarilanlar.length ? ` Notified: ${uyarilanlar.join(", ")}.` : ""}${sozHatirlat ? " You said you will do something; if it is a commitment, record it with soz_ver." : ""}`,
             ),
           );
         }),
@@ -167,7 +194,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
               return metin(iki(`${g.kod} açıldı ama başlatılamadı: ${(h as Error).message}`, `${g.kod} opened but could not be started: ${(h as Error).message}`));
             }
           }
-          return metin(iki(`${g.kod} açıldı (${atanan ? `${atanan.ad}'e atandı, planlandı` : "atanmadı"}).`, `${g.kod} opened (${atanan ? `assigned to ${atanan.ad}, planned` : "unassigned"}).`));
+          return metin(iki(`${g.kod} açıldı (${atanan ? `${yonelme(atanan.ad)} atandı, planlandı` : "atanmadı"}).`, `${g.kod} opened (${atanan ? `assigned to ${atanan.ad}, planned` : "unassigned"}).`));
         }),
     ),
     tool(
@@ -193,7 +220,14 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           const yeni = await sirket.gorevGuncelle(g.id, { durum: a.durum, atananId: atanan?.id }, ajanId);
           if (a.not) await sirket.mesajGonder(ben().projeId, "muhendislik", ajanId, `${yeni.kod} → ${yeni.durum}: ${a.not}`);
           const kim = yeni.atananId ? ` · ${sirket.depo.ajan(yeni.atananId)?.ad}` : "";
-          return metin(iki(`${yeni.kod} güncellendi: ${yeni.durum}${kim}.`, `${yeni.kod} updated: ${yeni.durum}${kim}.`));
+          const kendiIsiBitti = yeni.atananId === ajanId && (yeni.durum === "inceleme" || yeni.durum === "tamam") && yeni.durum !== g.durum;
+          const ders = kendiIsiBitti
+            ? iki(
+                " Devam etmeden: bu iş sana burada çalışmaya dair bir şey öğrettiyse kendime_not ile bir satır yaz; yeniden kullanılacak bir yöntem çözdüysen beceri_yaz ile kaydet.",
+                " Before you move on: if this work taught you something about working here, add one line with kendime_not; if you worked out a reusable method, save it with beceri_yaz.",
+              )
+            : "";
+          return metin(iki(`${yeni.kod} güncellendi: ${yeni.durum}${kim}.${ders}`, `${yeni.kod} updated: ${yeni.durum}${kim}.${ders}`));
         }),
     ),
     tool(
@@ -434,11 +468,11 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           if (s.onceki)
             return metin(
               iki(
-                `Bu soru ${s.olusturma.slice(0, 10)} tarihinde ${s.soranAd} tarafından ${s.soruluAd}'a soruldu ve şöyle yanıtlandı:\nSoru: ${kisalt(s.soru, 400)}\nYanıt: ${s.yanit}\n\nYeterli değilse ajana_sor'u yeniden: true ile çağır.`,
+                `Bu soru ${s.olusturma.slice(0, 10)} tarihinde ${s.soranAd} tarafından ${yonelme(s.soruluAd)} soruldu ve şöyle yanıtlandı:\nSoru: ${kisalt(s.soru, 400)}\nYanıt: ${s.yanit}\n\nYeterli değilse ajana_sor'u yeniden: true ile çağır.`,
                 `${s.soranAd} asked ${s.soruluAd} this question on ${s.olusturma.slice(0, 10)}, and the answer was:\nQuestion: ${kisalt(s.soru, 400)}\nAnswer: ${s.yanit}\n\nIf that is not enough, call ajana_sor again with yeniden: true.`,
               ),
             );
-          const yol = s.yonlendirme ? iki(`ArnOrg soruyu ${s.soruluAd}'a yönlendirdi (${s.yonlendirme}).\n`, `ArnOrg routed the question to ${s.soruluAd} (${s.yonlendirme}).\n`) : "";
+          const yol = s.yonlendirme ? iki(`ArnOrg soruyu ${yonelme(s.soruluAd)} yönlendirdi (${s.yonlendirme}).\n`, `ArnOrg routed the question to ${s.soruluAd} (${s.yonlendirme}).\n`) : "";
           if (s.durum === "yanitlandi")
             return metin(
               iki(
@@ -489,7 +523,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
       (a) =>
         guvenli(() => {
           const s = sirket.soruYanitla(ajanId, a.soru_id, a.yanit);
-          return metin(iki(`Yanıtın ${s.soranAd}'a iletildi.`, `Your answer was sent to ${s.soranAd}.`));
+          return metin(iki(`Yanıtın ${yonelme(s.soranAd)} iletildi.`, `Your answer was sent to ${s.soranAd}.`));
         }),
     ),
     tool(
@@ -857,10 +891,16 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         gerekce: z.string().min(5).max(1000),
       },
       (a) =>
-        guvenli(() => {
-          const k = sirket.kuresel.gozlem({ metin: a.metin, kaynak: "ajan", projeId: ben().projeId, projeAd: proje().ad, kapsam: a.kapsam });
+        guvenli(async () => {
+          // Öneri de damıtılır: genelleştirilir ya da projeye özgüyse elenir
+          const k = await sirket.kuresel.gozlemDamit({ metin: a.metin, kaynak: "ajan", projeId: ben().projeId, projeAd: proje().ad, kapsam: a.kapsam });
           if (!k) return hata(iki("Bu kural projeye özgü görünüyor; proje hafızasına hafiza_kaydet ile yaz.", "This rule looks project-specific; save it to project memory with hafiza_kaydet."));
-          return metin(iki(`Global zekâya işlendi: ${k.durum === "etkin" ? "standart" : "aday"}, güven %${Math.round(k.guven * 100)}.`, `Recorded in global intelligence: ${k.durum === "etkin" ? "standard" : "candidate"}, confidence ${Math.round(k.guven * 100)}%.`));
+          return metin(
+            iki(
+              `Global zekâya işlendi: ${k.durum === "etkin" ? "standart" : "aday"}, güven %${Math.round(k.guven * 100)}. Kural: ${k.metin}`,
+              `Recorded in global intelligence: ${k.durum === "etkin" ? "standard" : "candidate"}, confidence ${Math.round(k.guven * 100)}%. Rule: ${k.metin}`,
+            ),
+          );
         }),
     ),
     tool(
@@ -952,5 +992,5 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
   ];
 
-  return araclar;
+  return araclar.map(onarimli);
 }

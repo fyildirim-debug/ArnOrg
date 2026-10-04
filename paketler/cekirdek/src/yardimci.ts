@@ -140,3 +140,57 @@ export function anlamliSozcukler(metin: string, sinir = 12): string[] {
   }
   return [...goruldu];
 }
+
+// ---------------------------------------------------------------------------
+// Türkçe ad ekleri (ünlü ve ünsüz uyumu): Ada'ya, Ece'nin, Mert'ten, Burak'ta, main'i
+// ---------------------------------------------------------------------------
+
+const UNLULER = "aıoueiöü";
+const SERT_UNSUZLER = "çfhkpsşt";
+
+function kucukHarf(ad: string): string {
+  return ad.trim().toLocaleLowerCase("tr-TR");
+}
+
+function sonUnlu(ad: string): string {
+  const k = kucukHarf(ad);
+  for (let i = k.length - 1; i >= 0; i--) if (UNLULER.includes(k[i]!)) return k[i]!;
+  return "e";
+}
+
+function unluyleBiter(ad: string): boolean {
+  return UNLULER.includes(kucukHarf(ad).at(-1) ?? "");
+}
+
+function sertleBiter(ad: string): boolean {
+  return SERT_UNSUZLER.includes(kucukHarf(ad).at(-1) ?? "");
+}
+
+/** Yönelme: Ada'ya, Kerem'e */
+export function yonelme(ad: string): string {
+  return `${ad}'${unluyleBiter(ad) ? "y" : ""}${"aıou".includes(sonUnlu(ad)) ? "a" : "e"}`;
+}
+
+/** Belirtme: Ada'yı, Ece'yi, Onur'u, main'i */
+export function belirtme(ad: string): string {
+  const u = sonUnlu(ad);
+  const ek = "aı".includes(u) ? "ı" : "ou".includes(u) ? "u" : "ei".includes(u) ? "i" : "ü";
+  return `${ad}'${unluyleBiter(ad) ? "y" : ""}${ek}`;
+}
+
+/** İlgi: Ada'nın, Kerem'in, Onur'un */
+export function ilgi(ad: string): string {
+  const u = sonUnlu(ad);
+  const ek = "aı".includes(u) ? "ın" : "ou".includes(u) ? "un" : "ei".includes(u) ? "in" : "ün";
+  return `${ad}'${unluyleBiter(ad) ? "n" : ""}${ek}`;
+}
+
+/** Ayrılma: Ada'dan, Kerem'den, Mert'ten */
+export function ayrilma(ad: string): string {
+  return `${ad}'${sertleBiter(ad) ? "t" : "d"}${"aıou".includes(sonUnlu(ad)) ? "an" : "en"}`;
+}
+
+/** Bulunma: Ada'da, Kerem'de, Burak'ta */
+export function bulunma(ad: string): string {
+  return `${ad}'${sertleBiter(ad) ? "t" : "d"}${"aıou".includes(sonUnlu(ad)) ? "a" : "e"}`;
+}

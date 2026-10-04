@@ -983,7 +983,7 @@ export type SunucuOlayi =
   | { tur: "kod.dizin"; projeId: string; durum: KodDizinDurumu }
   | { tur: "anayasa.guncellendi"; projeId: string; anayasa: Anayasa }
   | { tur: "soz.guncellendi"; soz: Soz }
-  | { tur: "zeka.guncellendi"; kural: KureselKural | null; gunluk: ZekaGunlukKaydi }
+  | { tur: "zeka.guncellendi"; kural: KureselKural | null; gunluk: ZekaGunlukKaydi; silinenId?: string }
   | { tur: "kurul.bildirimi"; projeId: string; bildirim: KurulBildirimi }
   | { tur: "kurulum.islem"; islem: KurulumIslemi }
   | { tur: "kurulum.durum"; durum: KurulumDurumu }

@@ -82,9 +82,16 @@ export function anayasaMarkdown(a: Anayasa): string {
   ];
   for (const m of a.maddeler) {
     satirlar.push("", `## ${m.no}. ${m.baslik}`, "", m.metin);
-    if (m.kural) satirlar.push("", iki(`_Denetim kapısı: ${m.kural.hedef} · ${m.kural.karar === "ret" ? "reddedilir" : "kurula sorulur"} · ${m.kural.desenler.map((d) => `\`${d}\``).join(", ")}_`, `_Gate: ${m.kural.hedef} · ${m.kural.karar === "ret" ? "denied" : "asks the board"} · ${m.kural.desenler.map((d) => `\`${d}\``).join(", ")}_`));
+    if (m.kural) satirlar.push("", iki(`_Denetim kapısı: ${hedefAdi(m.kural.hedef)} · ${m.kural.karar === "ret" ? "reddedilir" : "kurula sorulur"} · ${m.kural.desenler.map((d) => `\`${d}\``).join(", ")}_`, `_Gate: ${hedefAdi(m.kural.hedef)} · ${m.kural.karar === "ret" ? "denied" : "asks the board"} · ${m.kural.desenler.map((d) => `\`${d}\``).join(", ")}_`));
   }
   return satirlar.join("\n") + "\n";
+}
+
+/** Kural hedefinin okunur adı (kimlikler komut, yol, url, arac kalır; insana dilinde gösterilir) */
+export function hedefAdi(hedef: AnayasaKurali["hedef"]): string {
+  const adlar: Record<AnayasaKurali["hedef"], [string, string]> = { komut: ["komut", "command"], yol: ["dosya yolu", "file path"], url: ["adres", "URL"], arac: ["araç", "tool"] };
+  const [tr, en] = adlar[hedef] ?? [hedef, hedef];
+  return iki(tr, en);
 }
 
 /** Talimatın başına giren bölüm (verilen dilde) */

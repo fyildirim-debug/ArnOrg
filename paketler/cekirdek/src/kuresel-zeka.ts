@@ -142,9 +142,9 @@ export class KureselZeka {
     this.zamanlayici = null;
   }
 
-  private gunluk(tur: ZekaGunlukTuru, metin: string, kural: KureselKural | null): void {
+  private gunluk(tur: ZekaGunlukTuru, metin: string, kural: KureselKural | null, silinenId?: string): void {
     const g = this.depo.zekaGunluguEkle(tur, metin, kural?.id ?? null);
-    this.olaylar.yayinla({ tur: "zeka.guncellendi", kural, gunluk: g });
+    this.olaylar.yayinla({ tur: "zeka.guncellendi", kural, gunluk: g, ...(silinenId ? { silinenId } : {}) });
   }
 
   private kapsamTemizle(kapsam: string[] | undefined): string[] {
@@ -286,7 +286,7 @@ export class KureselZeka {
     const k = this.depo.kural(id);
     if (!k) throw new ArnorgHatasi(iki("Kural bulunamadı.", "Rule not found."), 404);
     this.depo.kuralSil(id);
-    this.gunluk("duzenlendi", iki(`Kurul sildi: ${kisalt(k.metin, 160)}`, `Deleted by the board: ${kisalt(k.metin, 160)}`), null);
+    this.gunluk("duzenlendi", iki(`Kurul sildi: ${kisalt(k.metin, 160)}`, `Deleted by the board: ${kisalt(k.metin, 160)}`), null, k.id);
     this.yansit();
   }
 

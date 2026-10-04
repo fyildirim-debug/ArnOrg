@@ -49,7 +49,8 @@ import {
 import { AjanOturumu, type MesajKaynagi, type Toplam } from "./ajan-oturumu.js";
 import { anayasaKisa, anayasaOku, anayasaPolitikasi, anayasaYaz, BOS_ANAYASA } from "./anayasa.js";
 import { dil, dilKaynagi, iki } from "./dil.js";
-import { KureselZeka } from "./kuresel-zeka.js";
+import { claudeDamitici } from "./damitici.js";
+import { KureselZeka, type Gozlem } from "./kuresel-zeka.js";
 import { hatirlatmaMetni, talimatOlustur } from "./talimat.js";
 import { AjanZekasiYoneticisi } from "./zeka.js";
 import { GithubIslemleri, klasorAdiYap } from "./github.js";
@@ -92,7 +93,7 @@ import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./polit
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
-import { ArnorgHatasi, bugun, bulunamadi, emojiAyikla, kimlik, kisalt, sadelestir, simdi } from "./yardimci.js";
+import { ArnorgHatasi, belirtme, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, sadelestir, simdi, yonelme } from "./yardimci.js";
 
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
@@ -201,9 +202,16 @@ export class Sirket {
     this.kurulum = new Kurulum(yapilandirma, olaylar, { claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined) });
     this.github = new GithubIslemleri(this.kurulum, yapilandirma);
     this.zeka = new AjanZekasiYoneticisi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
-    this.kuresel = new KureselZeka(depo, olaylar, yapilandirma.veriDizini);
+    // Gözlemler küçük modelle projeden bağımsız kurala damıtılır; testlerde ve oturumsuz kipte model çağrılmaz
+    const damitici = oturumlarKapali ? null : claudeDamitici({ cwd: yapilandirma.veriDizini, claudeYolu: () => this.claudeYolu, izinli: () => !this.hesap.sinir });
+    this.kuresel = new KureselZeka(depo, olaylar, yapilandirma.veriDizini, damitici);
     // Global zekâ gözlemleri: kurul tercihleri ve dersler kurala dönüşür
     olaylar.dinle((o) => this.zekaGozlemi(o));
+  }
+
+  /** Gözlemi arka planda damıtıp global zekâya işler; hata iş akışını etkilemez */
+  private gozle(g: Gozlem): void {
+    void this.kuresel.gozlemDamit(g).catch(() => undefined);
   }
 
   /** Olaylardan global zekâya giden gözlemler */
@@ -214,13 +222,13 @@ export class Sirket {
         const projeAd = this.depo.proje(k.projeId)?.ad ?? null;
         const kurulYazdi = !k.kaynakAjanId;
         if (k.tur === "tercih" && (k.onem >= 4 || kurulYazdi)) {
-          this.kuresel.gozlem({ metin: k.metin.length <= 220 ? `${k.baslik}: ${k.metin}` : k.baslik, kaynak: kurulYazdi ? "kurul" : "tercih", projeId: k.projeId, projeAd, kapsam: k.etiketler });
+          this.gozle({ metin: k.metin.length <= 220 ? `${k.baslik}: ${k.metin}` : k.baslik, kaynak: kurulYazdi ? "kurul" : "tercih", projeId: k.projeId, projeAd, kapsam: k.etiketler });
         } else if (k.tur === "ogrenilen" && k.onem >= 3) {
-          this.kuresel.gozlem({ metin: k.metin.length <= 220 ? `${k.baslik}: ${k.metin}` : k.baslik, kaynak: "ogrenilen", projeId: k.projeId, projeAd, guclu: k.onem >= 5 });
+          this.gozle({ metin: k.metin.length <= 220 ? `${k.baslik}: ${k.metin}` : k.baslik, kaynak: "ogrenilen", projeId: k.projeId, projeAd, guclu: k.onem >= 5 });
         }
       } else if (o.tur === "onay.sonuc" && o.onay.durum === "reddedildi" && o.onay.not && tercihGibi(o.onay.not)) {
         // Kurulun gerekçeli reddi bir düzeltmedir
-        this.kuresel.gozlem({ metin: o.onay.not, kaynak: "duzeltme", projeId: o.onay.projeId, projeAd: this.depo.proje(o.onay.projeId)?.ad ?? null });
+        this.gozle({ metin: o.onay.not, kaynak: "duzeltme", projeId: o.onay.projeId, projeAd: this.depo.proje(o.onay.projeId)?.ad ?? null });
       }
     } catch {
       // gözlem işlenemezse iş akışı etkilenmez
@@ -743,7 +751,7 @@ export class Sirket {
       .slice(0, 5)
       .map((g) => ({ kod: g.kod, baslik: g.baslik, durum: g.durum }));
     const sozler = this.depo.sozler(ajan.projeId, { verenId: ajan.id, durum: "acik", sinir: 5 }).map((s) => ({ kime: s.aliciAd, metin: s.metin }));
-    return hatirlatmaMetni({ ajan, rol: rolBul(ajan.rol) ?? undefined, lakap: k ? karakterMetni(k, dil()).lakap : null, gorevler, sozler, anayasaKisa: anayasaKisa(this.anayasa(ajan.projeId)), dil: dil() });
+    return hatirlatmaMetni({ ajan, rol: rolBul(ajan.rol) ?? undefined, lakap: k ? karakterMetni(k, dil()).lakap : null, gorevler, sozler, anayasaKisa: anayasaKisa(this.anayasa(ajan.projeId)), dil: dil(), kisiselBos: this.zeka.kisisel(ajan).length === 0 });
   }
 
   /** Tur başı: hafıza, ekipten haberler (bağ kancaları), ana yasa değiştiyse yeni hâli */
@@ -1287,7 +1295,7 @@ export class Sirket {
     this.duyur(
       a.projeId,
       iki(
-        `${a.ad} (${rolAdiDilde(a)}) ekipten ayrıldı${aktarilan ? `; açık işleri ve bildikleri ${aktarilan.ad}'e devredildi` : ""}.`,
+        `${a.ad} (${rolAdiDilde(a)}) ekipten ayrıldı${aktarilan ? `; açık işleri ve bildikleri ${yonelme(aktarilan.ad)} devredildi` : ""}.`,
         `${a.ad} (${rolAdiDilde(a)}) left the team${aktarilan ? `; open work and knowledge were handed over to ${aktarilan.ad}` : ""}.`,
       ),
     );
@@ -1304,7 +1312,7 @@ export class Sirket {
     if (!this.depo.ajan(veri.ajanId)) return;
     const { devralan } = await this.istenCikar(veri.ajanId, veri.devralanId ?? null, onaylayan);
     if (oneren && this.depo.ajan(oneren.id)) {
-      await this.sistemMesaji(oneren.id, iki(`${veri.ad ?? "Çalışan"} ekipten çıkarıldı.${devralan ? ` İşleri ${devralan.ad}'e devredildi.` : ""} Planı buna göre güncelle.`, `${veri.ad ?? "The employee"} was let go.${devralan ? ` Their work went to ${devralan.ad}.` : ""} Update the plan accordingly.`));
+      await this.sistemMesaji(oneren.id, iki(`${veri.ad ?? "Çalışan"} ekipten çıkarıldı.${devralan ? ` İşleri ${yonelme(devralan.ad)} devredildi.` : ""} Planı buna göre güncelle.`, `${veri.ad ?? "The employee"} was let go.${devralan ? ` Their work went to ${devralan.ad}.` : ""} Update the plan accordingly.`));
     }
   }
 
@@ -1396,7 +1404,7 @@ export class Sirket {
       await this.sistemMesaji(
         sahip.id,
         iki(
-          `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${proje.varsayilanDal}'i al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
+          `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${belirtme(proje.varsayilanDal)} al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
           `Branch ${veri.dal} conflicts with ${proje.varsayilanDal} and could not be merged. Bring ${proje.varsayilanDal} into your branch (git merge ${proje.varsayilanDal}), resolve the conflicts, run the tests, commit and call birlestirme_iste again.`,
         ),
       );
@@ -1545,7 +1553,8 @@ export class Sirket {
     const durumDegisti = yeniDurum && yeniDurum !== eski.durum;
     const atamaDegisti = istek.atananId !== undefined && istek.atananId !== eski.atananId;
     if (gorev.durum === "calisiliyor" && gorev.atananId && (durumDegisti || atamaDegisti) && gorev.atananId !== kaynakAjanId) {
-      await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null).catch((h) =>
+      // İncelemeden aynı kişiye geri dönen görev yeniden başlatılır ama "geri döndü" diye duyurulur
+      await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null, !atamaDegisti && eski.durum === "inceleme").catch((h) =>
         this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${gorev.kod} başlatılamadı: ${(h as Error).message}`, `${gorev.kod} could not be started: ${(h as Error).message}`), projeId: gorev.projeId }),
       );
     }
@@ -1554,11 +1563,19 @@ export class Sirket {
     return gorev;
   }
 
-  private async gorevBaslat(g: Gorev, oncekiSahipId: string | null = null): Promise<void> {
+  private async gorevBaslat(g: Gorev, oncekiSahipId: string | null = null, geriDonus = false): Promise<void> {
     if (!g.atananId) return;
     this.depo.ajanGuncelle(g.atananId, { gorevId: g.id });
     const sahip = this.depo.ajan(g.atananId);
-    if (sahip) this.duyur(g.projeId, iki(`${sahip.ad}, ${g.kod} "${kisalt(g.baslik, 80)}" görevine başladı.`, `${sahip.ad} started ${g.kod} "${kisalt(g.baslik, 80)}".`));
+    if (sahip) {
+      const baslik = kisalt(g.baslik, 80);
+      this.duyur(
+        g.projeId,
+        geriDonus
+          ? iki(`${sahip.ad}, ${g.kod} "${baslik}" görevine geri döndü (incelemede düzeltme istendi).`, `${sahip.ad} is back on ${g.kod} "${baslik}" (changes requested in review).`)
+          : iki(`${sahip.ad}, ${g.kod} "${baslik}" görevine başladı.`, `${sahip.ad} started ${g.kod} "${baslik}".`),
+      );
+    }
     // Devralınan görevde önceki sahibin bildikleri yeni sahibe aktarılır
     if (oncekiSahipId && oncekiSahipId !== g.atananId && sahip) {
       const onceki = this.depo.ajan(oncekiSahipId);
@@ -1663,7 +1680,7 @@ export class Sirket {
           tur: "bildirim",
           seviye: "uyari",
           metin: iki(
-            `${alici.ad} son 10 dakikada çok sık uyandırıldı; ${gonderen.ad}'in mesajı kanalda bırakıldı, ajan uyandırılmadı.`,
+            `${alici.ad} son 10 dakikada çok sık uyandırıldı; ${ilgi(gonderen.ad)} mesajı kanalda bırakıldı, ajan uyandırılmadı.`,
             `${alici.ad} was woken too often in the last 10 minutes; ${gonderen.ad}'s message was left in the channel and the agent was not woken.`,
           ),
           projeId: alici.projeId,
@@ -1757,7 +1774,7 @@ export class Sirket {
     if (!gonderenAjan && (temizKanal === "genel" || temizKanal === "yonetim") && !alicilar.length && ceo) alicilar = [ceo];
     if (!gonderenAjan) {
       // Kurul kalıcı bir kural koyuyor gibiyse global zekâya gözlem olarak gider (projeye özgü değilse)
-      if (govde.length <= 400 && tercihGibi(govde)) this.kuresel.gozlem({ metin: govde, kaynak: "tercih", projeId, projeAd: proje.ad });
+      if (govde.length <= 400 && tercihGibi(govde)) this.gozle({ metin: govde, kaynak: "tercih", projeId, projeAd: proje.ad });
       // İlk brief: ekip işe başlıyor
       if (ceo && alicilar.some((a) => a.id === ceo.id) && !this.depo.deger(`ilk-brief:${projeId}`)) {
         this.depo.degerYaz(`ilk-brief:${projeId}`, simdi());
@@ -1916,7 +1933,7 @@ export class Sirket {
       katilimcilar.map((k) => k.ajan.id),
     );
     const soru = iki(
-      `Toplantı (${cagiran.ad} çağırdı): ${metin}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk. Başkalarının görüşünü bekleme; karar ${cagiran.ad}'da.`,
+      `Toplantı (${cagiran.ad} çağırdı): ${metin}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk. Başkalarının görüşünü bekleme; karar ${bulunma(cagiran.ad)}.`,
       `Meeting (called by ${cagiran.ad}): ${metin}\n\nGive your view briefly: your proposal, your reasoning, the risks you see. Don't wait for the others' views; ${cagiran.ad} makes the decision.`,
     );
     const gorusler = await Promise.all(
@@ -1954,7 +1971,7 @@ export class Sirket {
     const a = this.ajan(ajanId);
     const soru = this.depo.soru(soruId);
     if (!soru || soru.projeId !== a.projeId) throw new ArnorgHatasi(iki("Soru bulunamadı.", "Question not found."), 404);
-    if (soru.soruluId !== a.id) throw new ArnorgHatasi(iki(`Bu soru ${soru.soruluAd}'a soruldu.`, `This question was asked to ${soru.soruluAd}.`), 403);
+    if (soru.soruluId !== a.id) throw new ArnorgHatasi(iki(`Bu soru ${yonelme(soru.soruluAd)} soruldu.`, `This question was asked to ${soru.soruluAd}.`), 403);
     if (soru.durum !== "bekliyor") throw new ArnorgHatasi(iki("Bu soru artık yanıt beklemiyor (süre dolmuş olabilir). Yanıtı mesaj_gonder ile ilet.", "This question is no longer waiting for an answer (it may have timed out). Send your answer with mesaj_gonder."), 409);
     const metin = yanit.trim();
     if (!metin) throw new ArnorgHatasi(iki("Yanıt boş olamaz.", "The answer cannot be empty."));

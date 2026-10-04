@@ -15,7 +15,7 @@ import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
 import { arnorgYolu } from "./proje-dosyalari.js";
 import { rolAdiDilde } from "./roller.js";
-import { anlamliSozcukler, aramaMetni, ArnorgHatasi, jsonOku, kisalt, sadelestir, simdi } from "./yardimci.js";
+import { anlamliSozcukler, aramaMetni, ArnorgHatasi, ayrilma, ilgi, jsonOku, kisalt, sadelestir, simdi, yonelme } from "./yardimci.js";
 
 export const KISISEL_SINIR = 2200;
 const MADDE_SINIRI = 600;
@@ -159,7 +159,8 @@ export class AjanZekasiYoneticisi {
       .sort((a, b) => b.kullanim - a.kullanim || a.ad.localeCompare(b.ad));
   }
 
-  beceriOku(proje: Proje, ad: string): BeceriIcerigi {
+  /** Beceriyi okur; ajan okuyunca kullanım sayılır, kurulun Stüdyo'da açması sayılmaz (kullanimSay: false) */
+  beceriOku(proje: Proje, ad: string, secenek: { kullanimSay?: boolean } = {}): BeceriIcerigi {
     const anahtar = sadelestir(ad);
     const dosya = path.join(beceriDizini(proje), `${anahtar}.md`);
     let b: BeceriIcerigi | null = null;
@@ -170,9 +171,11 @@ export class AjanZekasiYoneticisi {
     }
     if (!b) throw new ArnorgHatasi(iki(`"${ad}" adında beceri yok. Becerileri beceri_listele ile gör.`, `No skill named "${ad}". List skills with beceri_listele.`), 404);
     const kullanim = jsonOku<Record<string, number>>(this.depo.deger(`beceri-kullanim:${proje.id}`), {});
-    kullanim[anahtar] = (kullanim[anahtar] ?? 0) + 1;
-    this.depo.degerYaz(`beceri-kullanim:${proje.id}`, JSON.stringify(kullanim));
-    return { ...b, kullanim: kullanim[anahtar]! };
+    if (secenek.kullanimSay !== false) {
+      kullanim[anahtar] = (kullanim[anahtar] ?? 0) + 1;
+      this.depo.degerYaz(`beceri-kullanim:${proje.id}`, JSON.stringify(kullanim));
+    }
+    return { ...b, kullanim: kullanim[anahtar] ?? 0 };
   }
 
   /** Beceri yazar ya da günceller; aynı ad aynı dosyadır */
@@ -296,26 +299,30 @@ export class AjanZekasiYoneticisi {
     const parcalar = [
       iki(`## Devir: ${veren.ad} (${rolAdiDilde(veren)}) → ${alan.ad}, ${simdi().slice(0, 10)}`, `## Handover: ${veren.ad} (${rolAdiDilde(veren)}) → ${alan.ad}, ${simdi().slice(0, 10)}`),
       secenek.not?.trim() ? `${iki("Not", "Note")}: ${secenek.not.trim()}` : "",
-      kisisel.length ? `${iki(`${veren.ad}'in kişisel hafızası`, `${veren.ad}'s personal memory`)}:\n${kisisel.map((m) => `- ${m}`).join("\n")}` : "",
-      secenek.defter.trim() ? `${iki(`${veren.ad}'in defteri`, `${veren.ad}'s journal`)}:\n${kisalt(secenek.defter.trim(), 2500)}` : "",
+      kisisel.length ? `${iki(`${ilgi(veren.ad)} kişisel hafızası`, `${veren.ad}'s personal memory`)}:\n${kisisel.map((m) => `- ${m}`).join("\n")}` : "",
+      secenek.defter.trim() ? `${iki(`${ilgi(veren.ad)} defteri`, `${veren.ad}'s journal`)}:\n${kisalt(secenek.defter.trim(), 2500)}` : "",
     ].filter(Boolean);
     const mevcutDefter = this.depo.defter(alan.id)?.icerik ?? "";
     const yeniDefter = `${mevcutDefter ? `${mevcutDefter}\n\n` : ""}${parcalar.join("\n\n")}`;
     // Defter sınırı 6000: eskisi kırpılır, devir bölümü korunur
     secenek.defterYaz(alan, yeniDefter.length > 6000 ? yeniDefter.slice(-6000) : yeniDefter);
+    const onEk = iki(`${ayrilma(veren.ad)} devir aldım (${simdi().slice(0, 10)})`, `I took over from ${veren.ad} (${simdi().slice(0, 10)})`);
     const ozet = iki(
-      `${veren.ad}'den devir aldım (${simdi().slice(0, 10)}): defterimde "Devir" bölümüne bak.${secenek.not?.trim() ? ` ${kisalt(secenek.not.trim(), 160)}` : ""}`,
-      `I took over from ${veren.ad} (${simdi().slice(0, 10)}): see the "Handover" section in my journal.${secenek.not?.trim() ? ` ${kisalt(secenek.not.trim(), 160)}` : ""}`,
+      `${onEk}: defterimde "Devir" bölümüne bak.${secenek.not?.trim() ? ` ${kisalt(secenek.not.trim(), 160)}` : ""}`,
+      `${onEk}: see the "Handover" section in my journal.${secenek.not?.trim() ? ` ${kisalt(secenek.not.trim(), 160)}` : ""}`,
     );
     try {
-      this.kisiselYaz(alan, "ekle", ozet);
+      // Aynı kişiden aynı gün ikinci devir (ör. aktarımın ardından işten çıkarma) yeni madde açmaz, eskisini günceller
+      const varMi = this.kisisel(alan).some((m) => aramaMetni(m).startsWith(aramaMetni(onEk)));
+      if (varMi) this.kisiselYaz(alan, "degistir", ozet, onEk);
+      else this.kisiselYaz(alan, "ekle", ozet);
     } catch {
       // Kişisel hafıza doluysa defterdeki devir bölümü yeterli
     }
     const devredilen = secenek.sozler ? this.sozleriDevret(veren, alan) : 0;
     this.haberEkle(alan.id, iki(`${veren.ad} sana hafızasını aktardı; defterindeki "Devir" bölümünü oku.`, `${veren.ad} transferred their memory to you; read the "Handover" section in your journal.`));
     return iki(
-      `${alan.ad}'e aktarıldı: ${kisisel.length} kişisel madde, defter${devredilen ? `, ${devredilen} açık söz` : ""}.`,
+      `${yonelme(alan.ad)} aktarıldı: ${kisisel.length} kişisel madde, defter${devredilen ? `, ${devredilen} açık söz` : ""}.`,
       `Transferred to ${alan.ad}: ${kisisel.length} personal entries, journal${devredilen ? `, ${devredilen} open promises` : ""}.`,
     );
   }

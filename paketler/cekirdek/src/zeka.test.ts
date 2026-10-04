@@ -257,6 +257,18 @@ describe("kurul akışları", () => {
     expect(depo.hafizaKayitlari(pid, { tur: "ozet" }).some((k) => k.baslik.includes("Giriş ekranı v2"))).toBe(true);
   });
 
+  it("teslim: modelin özete sızdırdığı parametre ayıklanır, çalıştırma komutu yerine konur", async () => {
+    const ceo = depo.ajanlar(pid).find((a) => a.rol === "ceo")!;
+    const r = await arac(ceo.id, "teslim_et", { baslik: "Not uygulaması", ozet: 'Ekleme, listeleme ve silme hazır.</ozet>\n<parameter name="calistir">npm test', test_adimlari: ["npm test"] });
+    expect(r.hata).toBe(false);
+    await bekle();
+    const t = depo.onaylar(pid, "bekliyor").find((o) => o.tur === "teslim")!;
+    const veri = t.veri as { ozet: string; calistir: string | null };
+    expect(veri.ozet).toBe("Ekleme, listeleme ve silme hazır.");
+    expect(veri.calistir).toBe("npm test");
+    await sirket.onayKarari(t.id, "onayla");
+  });
+
   it("#yonetim: kurulun mesajı CEO'ya gider (yazıyor göstergesi), başkası yazamaz; İngilizce ad kimliğe çevrilir", async () => {
     gelenler.length = 0;
     await sirket.mesajGonder(pid, "yonetim", "kurul", "Merhaba, ilk hedefimiz ne olmalı?");

@@ -330,7 +330,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return sirket.depo.sozler(param(i, "pid"), { durum: durum === "acik" || durum === "tutuldu" || durum === "iptal" ? durum : undefined, sinir: 300 });
   });
   app.get("/api/projeler/:pid/beceriler", async (i) => sirket.zeka.beceriler(sirket.proje(param(i, "pid"))));
-  app.get("/api/projeler/:pid/beceriler/:ad", async (i) => sirket.zeka.beceriOku(sirket.proje(param(i, "pid")), param(i, "ad")));
+  app.get("/api/projeler/:pid/beceriler/:ad", async (i) => sirket.zeka.beceriOku(sirket.proje(param(i, "pid")), param(i, "ad"), { kullanimSay: false }));
 
   // ---------------- global zekâ ----------------
   app.get("/api/zeka", async () => sirket.kuresel.durum());
