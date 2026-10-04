@@ -11,9 +11,12 @@ import { OlayYolu } from "./olaylar.js";
 const gecici = fs.mkdtempSync(path.join(os.tmpdir(), "arnorg-damitici-"));
 let sayac = 0;
 let depo: Depo;
+/** Açılan veritabanları: Windows açık dosyayı silmez, temizlikten önce kapatılır */
+const depolar: Depo[] = [];
 
 function zeka(damitici: Damitici | null): KureselZeka {
   depo = new Depo(path.join(gecici, `${++sayac}.db`));
+  depolar.push(depo);
   return new KureselZeka(depo, new OlayYolu(), gecici, damitici);
 }
 
@@ -29,6 +32,7 @@ function sahte(yanit: (metin: string) => DamitmaSonucu) {
 }
 
 afterAll(() => {
+  for (const d of depolar) d.kapat();
   fs.rmSync(gecici, { recursive: true, force: true });
 });
 
