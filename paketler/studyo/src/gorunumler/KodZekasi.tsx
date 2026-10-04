@@ -1,13 +1,11 @@
 // Kod zekâsı: anlamsal kod araması, semboller, depo haritası ve modül bağımlılık grafiği.
 // Ajanlar kod_ara, sembol_bul, kod_haritasi, bagimliliklar ve benzer_kod araçlarıyla aynı dizini kullanır.
 import {
-  KOD_SEMBOL_TURU_ADLARI,
   type CalismaAlani,
   type KodAramaSonucu,
   type KodAramaYaniti,
   type KodBagimliliklari,
   type KodDizinDurumu,
-  type KodEslesmeTuru,
   type KodGrafigi,
   type KodHaritaDugumu,
   type KodSembolTuru,
@@ -19,22 +17,14 @@ import { hataMetni } from "../api/istek";
 import { api } from "../api/uclar";
 import { Bos, HataKutu, Iskelet, Yukleniyor } from "../bilesenler/Durumlar";
 import { Simge } from "../bilesenler/Simge";
+import { useSozluk, type Sozluk } from "../dil";
 import { git, hataBildir } from "../durum/arayuz";
 import { dizinSuruyor, kodAlaniSec, kodDurumlariniYukle, useKodZekasi } from "../durum/kodZekasi";
 import { useVeri } from "../durum/veri";
 import { tezgahtaAc } from "../tezgah";
-import { goreli, sayi } from "../yardimcilar/bicim";
+import { goreli, sayi, yuzde } from "../yardimcilar/bicim";
 
 type Sekme = "arama" | "semboller" | "harita" | "grafik";
-
-const ESLESME_ADLARI: Record<KodEslesmeTuru, string> = {
-  anlamsal: "anlamsal",
-  sozcuk: "anahtar sözcük",
-  sembol: "sembol adı",
-  karma: "birden çok yöntem",
-};
-
-const ORNEK_SORGULAR = ["hata nasıl yakalanıp kaydediliyor", "kimlik doğrulama ve oturum", "veritabanı bağlantısı nerede kuruluyor"];
 
 /** Dosyayı Kod ekranının düzenleyicisinde açar (satır verilirse orada) */
 function koddaAc(projeId: string, alan: string, yol: string, satir?: number) {
@@ -43,8 +33,8 @@ function koddaAc(projeId: string, alan: string, yol: string, satir?: number) {
 }
 
 /** Modelin okunur adı: "onnx-community/embeddinggemma-300m-ONNX@q8" → "embeddinggemma-300m" */
-function modelAdi(model: string | null): string {
-  if (!model) return "Kapalı";
+function modelAdi(s: Sozluk, model: string | null): string {
+  if (!model) return s.kodZekasi.modelKapali;
   const ad = model.split("@")[0]!.split("/").pop() ?? model;
   return ad.replace(/-ONNX$/i, "");
 }
@@ -59,6 +49,8 @@ function yolParcalari(yol: string): { klasor: string; ad: string } {
 // ---------------------------------------------------------------------------
 
 export function KodZekasi() {
+  const s = useSozluk();
+  const z = s.kodZekasi;
   const pid = useVeri((d) => d.aktifProjeId);
   const ajanlar = useVeri((d) => d.ajanlar);
   const alan = useKodZekasi((d) => d.alan);
@@ -86,7 +78,7 @@ export function KodZekasi() {
     };
   }, [pid]);
 
-  const alanAdi = (a: CalismaAlani) => (a.ana ? "Ana repo" : (ajanlar.find((x) => x.id === a.ajanId)?.ad ?? a.kimlik));
+  const alanAdi = (a: CalismaAlani) => (a.ana ? z.anaRepo : (ajanlar.find((x) => x.id === a.ajanId)?.ad ?? a.kimlik));
 
   const dizinle = async (sifirdan = false) => {
     if (!pid) return;
@@ -105,20 +97,20 @@ export function KodZekasi() {
     <>
       <div className="baslik">
         <div className="baslik-metin">
-          <h1>Kod zekâsı</h1>
-          <p>Anlamsal kod araması, semboller, depo haritası ve bağımlılık grafiği · ajanlar aynı dizinle çalışır</p>
+          <h1>{z.baslik}</h1>
+          <p>{z.aciklama}</p>
         </div>
         <div className="baslik-eylem kz-eylem">
-          <select className="girdi suzgec-secim" aria-label="Çalışma alanı" value={alan} onChange={(e) => kodAlaniSec(e.target.value)}>
+          <select className="girdi suzgec-secim" aria-label={z.calismaAlani} value={alan} onChange={(e) => kodAlaniSec(e.target.value)}>
             {(alanlar.length ? alanlar : [{ kimlik: "ana", ana: true } as CalismaAlani]).map((a) => (
               <option key={a.kimlik} value={a.kimlik}>
                 {alanAdi(a)}
               </option>
             ))}
           </select>
-          <button type="button" className="dugme" disabled={dizinleniyor || dizinSuruyor(durum)} onClick={() => void dizinle(false)} title="Değişen dosyaları yeniden okur">
+          <button type="button" className="dugme" disabled={dizinleniyor || dizinSuruyor(durum)} onClick={() => void dizinle(false)} title={z.yenidenDizinleIpucu}>
             <Simge ad="yenile" />
-            Yeniden dizinle
+            {z.yenidenDizinle}
           </button>
         </div>
       </div>
@@ -126,17 +118,10 @@ export function KodZekasi() {
       {hata ? <HataKutu metin={hata} yeniden={() => void kodDurumlariniYukle(pid).catch((e) => setHata(hataMetni(e)))} /> : null}
       <DizinOzeti durum={durum} sifirdan={() => void dizinle(true)} />
 
-      <div className="bolumlu kz-sekmeler" role="group" aria-label="Kod zekâsı bölümü">
-        {(
-          [
-            ["arama", "Arama"],
-            ["semboller", "Semboller"],
-            ["harita", "Harita"],
-            ["grafik", "Grafik"],
-          ] as [Sekme, string][]
-        ).map(([s, ad]) => (
-          <button key={s} type="button" aria-pressed={sekme === s} onClick={() => setSekme(s)}>
-            {ad}
+      <div className="bolumlu kz-sekmeler" role="group" aria-label={z.bolumEtiketi}>
+        {(["arama", "semboller", "harita", "grafik"] as Sekme[]).map((b) => (
+          <button key={b} type="button" aria-pressed={sekme === b} onClick={() => setSekme(b)}>
+            {z.sekmeler[b]}
           </button>
         ))}
       </div>
@@ -174,13 +159,9 @@ function useKalanSure(d: KodDizinDurumu | undefined): number | null {
   return ((d.toplamParca - d.gomulen) / yapilan) * gecen;
 }
 
-function sureMetni(sn: number): string {
-  if (sn < 90) return "1 dakikadan az";
-  if (sn < 3600) return `~${Math.round(sn / 60)} dk`;
-  return `~${Math.floor(sn / 3600)} sa ${Math.round((sn % 3600) / 60)} dk`;
-}
-
 function DizinOzeti({ durum, sifirdan }: { durum: KodDizinDurumu | undefined; sifirdan: () => void }) {
+  const s = useSozluk();
+  const z = s.kodZekasi;
   const d = durum;
   const gomuluYuzde = d && d.toplamParca ? Math.round((d.gomulen / d.toplamParca) * 100) : 0;
   const kalan = useKalanSure(d);
@@ -188,15 +169,15 @@ function DizinOzeti({ durum, sifirdan }: { durum: KodDizinDurumu | undefined; si
     if (!d) return null;
     switch (d.durum) {
       case "taraniyor":
-        return { metin: `Dosyalar taranıyor${d.toplamDosya ? ` · ${sayi(d.taranan ?? 0)}/${sayi(d.toplamDosya)}` : ""}`, oran: d.toplamDosya ? (d.taranan ?? 0) / d.toplamDosya : null };
+        return { metin: z.taraniyor(d.taranan ?? 0, d.toplamDosya ?? 0), oran: d.toplamDosya ? (d.taranan ?? 0) / d.toplamDosya : null };
       case "model-indiriliyor":
-        return { metin: `Anlamsal arama modeli indiriliyor · %${d.indirmeYuzde ?? 0} (yalnız ilk kez)`, oran: (d.indirmeYuzde ?? 0) / 100 };
+        return { metin: z.modelIndiriliyor(yuzde(d.indirmeYuzde ?? 0)), oran: (d.indirmeYuzde ?? 0) / 100 };
       case "gomuluyor": {
-        const sure = kalan !== null ? ` · kalan ${sureMetni(kalan)}` : "";
+        const sure = kalan !== null ? z.kalan(z.sure(kalan)) : "";
         // Uzun sürecekse daha hızlı model önerilir (yalnız kaliteli modelde)
-        const oneri = kalan !== null && kalan > 20 * 60 && d.model?.includes("embeddinggemma") ? " · Ayarlar → Kod zekâsı → Hızlı ile birkaç kat kısa sürer" : "";
+        const oneri = kalan !== null && kalan > 20 * 60 && d.model?.includes("embeddinggemma") ? z.hizliOneri : "";
         return {
-          metin: `Anlamsal dizin kuruluyor · ${sayi(d.gomulen)}/${sayi(d.toplamParca)} parça${sure}; anahtar sözcük araması şimdiden çalışır${oneri}`,
+          metin: z.gomuluyor(d.gomulen, d.toplamParca, sure, oneri),
           oran: d.toplamParca ? d.gomulen / d.toplamParca : null,
         };
       }
@@ -207,28 +188,28 @@ function DizinOzeti({ durum, sifirdan }: { durum: KodDizinDurumu | undefined; si
 
   return (
     <>
-      <dl className="kz-ozet" aria-label="Dizin özeti">
+      <dl className="kz-ozet" aria-label={z.ozetEtiketi}>
         <div>
-          <dt>Dosya</dt>
+          <dt>{z.dosya}</dt>
           <dd className="sayi">{d ? sayi(d.dosya) : "—"}</dd>
         </div>
         <div>
-          <dt>Sembol</dt>
+          <dt>{z.sembol}</dt>
           <dd className="sayi">{d ? sayi(d.sembol) : "—"}</dd>
         </div>
         <div>
-          <dt>Parça</dt>
+          <dt>{z.parca}</dt>
           <dd className="sayi">{d ? sayi(d.parca) : "—"}</dd>
         </div>
-        <div title="Vektörü hesaplanmış parçalar">
-          <dt>Anlamsal</dt>
-          <dd className="sayi">{d?.model ? `%${gomuluYuzde}` : "—"}</dd>
+        <div title={z.anlamsalIpucu}>
+          <dt>{z.anlamsal}</dt>
+          <dd className="sayi">{d?.model ? yuzde(gomuluYuzde) : "—"}</dd>
         </div>
         <div className="kz-ozet-model">
-          <dt>Model</dt>
+          <dt>{z.model}</dt>
           <dd>
-            <span>{d ? modelAdi(d.model) : "—"}</span>
-            <small>{d?.sonGuncelleme ? `güncellendi ${goreli(d.sonGuncelleme)}` : d?.durum === "bos" ? "henüz dizinlenmedi" : ""}</small>
+            <span>{d ? modelAdi(s, d.model) : "—"}</span>
+            <small>{d?.sonGuncelleme ? z.guncellendi(goreli(d.sonGuncelleme)) : d?.durum === "bos" ? z.henuzDizinlenmedi : ""}</small>
           </dd>
         </div>
       </dl>
@@ -247,11 +228,11 @@ function DizinOzeti({ durum, sifirdan }: { durum: KodDizinDurumu | undefined; si
       ) : null}
       {d?.durum === "hata" ? (
         <div className="hata-kutu kz-hata" role="alert">
-          <b>Dizin hatası</b>
+          <b>{z.dizinHatasi}</b>
           <span>{d.hata}</span>
-          <span>Anahtar sözcük araması çalışmaya devam eder.</span>
+          <span>{z.sozcukAramasiSurer}</span>
           <button type="button" className="dugme dugme-kucuk" onClick={sifirdan}>
-            Sıfırdan dizinle
+            {z.sifirdanDizinle}
           </button>
         </div>
       ) : null}
@@ -305,6 +286,7 @@ function Kesit({ kesit, bas, ifade }: { kesit: string; bas: number; ifade: RegEx
 // ---------------------------------------------------------------------------
 
 function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizinDurumu | undefined }) {
+  const z = useSozluk().kodZekasi;
   const [q, setQ] = useState("");
   const [yol, setYol] = useState("");
   const [yanit, setYanit] = useState<KodAramaYaniti | null>(null);
@@ -364,7 +346,7 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
   const ifade = useMemo(() => (benzerKaynak ? null : vurguIfadesi(q)), [q, benzerKaynak]);
 
   return (
-    <section aria-label="Kod araması">
+    <section aria-label={z.aramaEtiketi}>
       <div className="kz-arama">
         <div className="arama-kutu kz-arama-kutu">
           <Simge ad="ara" boyut={15} />
@@ -372,8 +354,8 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
             ref={girdiRef}
             className="girdi"
             type="search"
-            aria-label="Kodda ara"
-            placeholder="Ne arıyorsun? Türkçe ya da İngilizce sor: “sipariş durumu nerede değişiyor”"
+            aria-label={z.koddaAra}
+            placeholder={z.aramaIpucu}
             value={q}
             onChange={(e) => {
               setBenzerKaynak(null);
@@ -383,8 +365,8 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
         </div>
         <input
           className="girdi kz-yol-suzgec"
-          aria-label="Yol süzgeci"
-          placeholder="Yol ya da glob: src/sunucu, **/*.tsx"
+          aria-label={z.yolSuzgeci}
+          placeholder={z.yolIpucu}
           value={yol}
           onChange={(e) => {
             setBenzerKaynak(null);
@@ -399,24 +381,24 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
             <b>
               {benzerKaynak.yol}:{benzerKaynak.satir}
             </b>{" "}
-            koduna en çok benzeyen yerler
+            {z.benzeyenYerler}
           </span>
           <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setBenzerKaynak(null)}>
-            Aramaya dön
+            {z.aramayaDon}
           </button>
         </div>
       ) : null}
 
-      {hata ? <HataKutu baslik="Aranamadı" metin={hata} /> : null}
-      {araniyor && !yanit ? <Yukleniyor metin="Aranıyor…" /> : null}
+      {hata ? <HataKutu baslik={z.aranamadi} metin={hata} /> : null}
+      {araniyor && !yanit ? <Yukleniyor metin={z.araniyor} /> : null}
 
       {yanit ? (
         <>
           <div className="kz-sonuc-ust" role="status">
-            {araniyor ? <Yukleniyor metin="Aranıyor…" /> : <span>{yanit.sonuclar.length ? `${yanit.sonuclar.length} sonuç · ${yanit.sureMs} ms` : "Sonuç yok"}</span>}
+            {araniyor ? <Yukleniyor metin={z.araniyor} /> : <span>{yanit.sonuclar.length ? z.sonucSayisi(yanit.sonuclar.length, yanit.sureMs) : z.sonucYok}</span>}
             {yanit.yalnizSozcuk ? (
               <span className="kz-uyari">
-                {durum?.model ? "Anlamsal dizin henüz hazır değil; anahtar sözcükle bulundu." : "Anlamsal arama kapalı (Ayarlar → Kod zekâsı); anahtar sözcükle bulundu."}
+                {durum?.model ? z.dizinHazirDegil : z.anlamsalKapali}
               </span>
             ) : null}
           </div>
@@ -427,14 +409,16 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
               ))}
             </ol>
           ) : (
-            <Bos kucuk baslik="Eşleşen kod yok">Başka sözcüklerle deneyin, yol süzgecini kaldırın ya da Semboller sekmesinde adıyla arayın.</Bos>
+            <Bos kucuk baslik={z.eslesenYok}>
+              {z.eslesenYokAyrinti}
+            </Bos>
           )}
         </>
       ) : !araniyor && !hata ? (
         <div className="kz-bos">
-          <p>Doğal dille sorun: anlamsal arama, anahtar sözcük ve sembol adları birleşir. Sonuca tıklayınca dosya Kod ekranında o satırda açılır.</p>
+          <p>{z.aramaAciklama}</p>
           <div className="kz-ornekler">
-            {ORNEK_SORGULAR.map((o) => (
+            {z.ornekSorgular.map((o) => (
               <button key={o} type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setQ(o)}>
                 {o}
               </button>
@@ -447,11 +431,12 @@ function Arama({ pid, alan, durum }: { pid: string; alan: string; durum: KodDizi
 }
 
 function SonucSatiri({ r, ifade, ac, benzer }: { r: KodAramaSonucu; ifade: RegExp | null; ac: () => void; benzer: () => void }) {
+  const z = useSozluk().kodZekasi;
   const { klasor, ad } = yolParcalari(r.yol);
   return (
     <li className="kz-sonuc">
       <div className="kz-sonuc-baslik">
-        <button type="button" className="kz-yol" onClick={ac} title="Kod ekranında aç">
+        <button type="button" className="kz-yol" onClick={ac} title={z.koddaAc}>
           <span className="soluk">{klasor}</span>
           <b>{ad}</b>
           <span className="soluk">
@@ -461,22 +446,22 @@ function SonucSatiri({ r, ifade, ac, benzer }: { r: KodAramaSonucu; ifade: RegEx
         {r.sembol ? (
           <span className="kz-sembol">
             {r.sembol}
-            {r.sembolTuru ? <small>{KOD_SEMBOL_TURU_ADLARI[r.sembolTuru]}</small> : null}
+            {r.sembolTuru ? <small>{z.sembolTuru[r.sembolTuru]}</small> : null}
           </span>
         ) : null}
         <span className="kz-sonuc-sag">
-          <span className="kz-eslesme" title="Bu sonucu bulan yöntem">
-            {ESLESME_ADLARI[r.eslesme]}
+          <span className="kz-eslesme" title={z.yontem}>
+            {z.eslesme[r.eslesme]}
           </span>
-          <span className="kz-puan" title={`Puan ${r.puan.toFixed(2)}`} aria-label={`Puan ${r.puan.toFixed(2)}`}>
+          <span className="kz-puan" title={z.puan(r.puan.toFixed(2))} aria-label={z.puan(r.puan.toFixed(2))}>
             <span style={{ width: `${Math.max(4, r.puan * 100)}%` }} />
           </span>
-          <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={benzer} title="Bu koda benzeyen yerleri bul">
-            Benzerleri
+          <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={benzer} title={z.benzerleriBul}>
+            {z.benzerleri}
           </button>
         </span>
       </div>
-      <button type="button" className="kz-kesit-dugme" onClick={ac} aria-label={`${r.yol} ${r.kesitBas}. satırda aç`}>
+      <button type="button" className="kz-kesit-dugme" onClick={ac} aria-label={z.satirdaAc(r.yol, r.kesitBas)}>
         <Kesit kesit={r.kesit} bas={r.kesitBas} ifade={ifade} />
       </button>
     </li>
@@ -488,6 +473,7 @@ function SonucSatiri({ r, ifade, ac, benzer }: { r: KodAramaSonucu; ifade: RegEx
 // ---------------------------------------------------------------------------
 
 function Semboller({ pid, alan }: { pid: string; alan: string }) {
+  const z = useSozluk().kodZekasi;
   const [q, setQ] = useState("");
   const [tur, setTur] = useState<KodSembolTuru | "">("");
   const [liste, setListe] = useState<KodSembolu[] | null>(null);
@@ -511,40 +497,40 @@ function Semboller({ pid, alan }: { pid: string; alan: string }) {
   }, [q, tur, pid, alan]);
 
   return (
-    <section aria-label="Semboller">
+    <section aria-label={z.sembollerEtiketi}>
       <div className="suzgec">
         <div className="arama-kutu">
           <Simge ad="ara" boyut={13} />
-          <input className="girdi" type="search" aria-label="Sembol ara" placeholder="Ad ya da başı: siparis, Depo, useAuth" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="girdi" type="search" aria-label={z.sembolAra} placeholder={z.sembolIpucu} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <select className="girdi suzgec-secim" aria-label="Sembol türü" value={tur} onChange={(e) => setTur(e.target.value as KodSembolTuru | "")}>
-          <option value="">Tüm türler</option>
-          {(Object.keys(KOD_SEMBOL_TURU_ADLARI) as KodSembolTuru[]).map((t) => (
+        <select className="girdi suzgec-secim" aria-label={z.sembolTuruEtiketi} value={tur} onChange={(e) => setTur(e.target.value as KodSembolTuru | "")}>
+          <option value="">{z.tumTurler}</option>
+          {(Object.keys(z.sembolTuru) as KodSembolTuru[]).map((t) => (
             <option key={t} value={t}>
-              {KOD_SEMBOL_TURU_ADLARI[t]}
+              {z.sembolTuru[t]}
             </option>
           ))}
         </select>
         {liste ? (
           <span className="alan-ipucu" role="status">
-            {liste.length >= 200 ? "200+ sembol" : `${liste.length} sembol`}
-            {q.trim() ? "" : " · öne çıkanlar"}
+            {z.sembolSayisi(liste.length, liste.length >= 200)}
+            {q.trim() ? "" : z.oneCikanlar}
           </span>
         ) : null}
       </div>
       {hata ? <HataKutu metin={hata} /> : null}
-      {!liste && !hata ? <Iskelet satir={6} etiket="Semboller yükleniyor" /> : null}
+      {!liste && !hata ? <Iskelet satir={6} etiket={z.sembollerYukleniyor} /> : null}
       {liste?.length ? (
         <ul className="kz-semboller">
           {liste.map((s) => (
             <li key={`${s.yol}:${s.bas}:${s.ad}`}>
-              <button type="button" onClick={() => koddaAc(pid, alan, s.yol, s.bas)} title="Kod ekranında aç">
+              <button type="button" onClick={() => koddaAc(pid, alan, s.yol, s.bas)} title={z.koddaAc}>
                 <span className="kz-sembol-ad">
                   {s.ust ? <span className="soluk">{s.ust}.</span> : null}
                   <b>{s.ad}</b>
                 </span>
-                <span className="kz-etiket">{KOD_SEMBOL_TURU_ADLARI[s.tur]}</span>
-                {s.disaAcik ? <span className="kz-etiket kz-etiket-disa">dışa açık</span> : null}
+                <span className="kz-etiket">{z.sembolTuru[s.tur]}</span>
+                {s.disaAcik ? <span className="kz-etiket kz-etiket-disa">{z.disaAcik}</span> : null}
                 <span className="kz-sembol-yol soluk">
                   {s.yol}:{s.bas}
                 </span>
@@ -554,7 +540,9 @@ function Semboller({ pid, alan }: { pid: string; alan: string }) {
           ))}
         </ul>
       ) : liste ? (
-        <Bos kucuk baslik="Sembol bulunamadı">Adın bir kısmıyla ya da Arama sekmesinde doğal dille deneyin.</Bos>
+        <Bos kucuk baslik={z.sembolYok}>
+          {z.sembolYokAyrinti}
+        </Bos>
       ) : null}
     </section>
   );
@@ -565,6 +553,7 @@ function Semboller({ pid, alan }: { pid: string; alan: string }) {
 // ---------------------------------------------------------------------------
 
 function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string | null }) {
+  const z = useSozluk().kodZekasi;
   const [kok, setKok] = useState<KodHaritaDugumu | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [acik, setAcik] = useState<Set<string>>(new Set());
@@ -614,8 +603,13 @@ function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string
   };
 
   if (hata) return <HataKutu metin={hata} />;
-  if (!kok) return <Iskelet satir={8} etiket="Harita yükleniyor" />;
-  if (!kok.cocuklar?.length) return <Bos kucuk baslik="Dizin boş">Dizinleme bitince dosyalar burada görünür.</Bos>;
+  if (!kok) return <Iskelet satir={8} etiket={z.haritaYukleniyor} />;
+  if (!kok.cocuklar?.length)
+    return (
+      <Bos kucuk baslik={z.dizinBos}>
+        {z.dizinBosAyrinti}
+      </Bos>
+    );
 
   const satirlar: ReactNode[] = [];
   const ciz = (d: KodHaritaDugumu, derinlik: number) => {
@@ -643,9 +637,7 @@ function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string
                 {ac ? "▾" : "▸"}
               </span>
               <b>{c.ad}/</b>
-              <span className="kz-agac-bilgi soluk">
-                {sayi(c.dosyaSayisi ?? 0)} dosya · {sayi(c.satir)} satır
-              </span>
+              <span className="kz-agac-bilgi soluk">{z.dosyaSatir(c.dosyaSayisi ?? 0, c.satir)}</span>
             </button>
           </li>,
         );
@@ -663,7 +655,7 @@ function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string
                   .join(", ")}
               </span>
               <span className="kz-agac-bilgi soluk">
-                {c.iceAktaran ? <span title="Bu dosyayı içe aktaran dosya sayısı">↙{c.iceAktaran} · </span> : null}
+                {c.iceAktaran ? <span title={z.iceAktaranSayisi}>↙{c.iceAktaran} · </span> : null}
                 {sayi(c.satir)}
               </span>
             </button>
@@ -676,12 +668,12 @@ function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string
 
   return (
     <div className="kz-iki-sutun">
-      <section aria-label="Klasör ağacı" className="kz-agac-kap">
+      <section aria-label={z.klasorAgaci} className="kz-agac-kap">
         <div className="kz-agac-ust soluk">
-          {sayi(kok.dosyaSayisi ?? 0)} dosya · {sayi(kok.satir)} satır
+          {z.dosyaSatir(kok.dosyaSayisi ?? 0, kok.satir)}
           <span className="kz-agac-eylem">
             <button type="button" className="dugme dugme-sessiz dugme-kucuk" onClick={() => setAcik(new Set())}>
-              Tümünü kapat
+              {z.tumunuKapat}
             </button>
           </span>
         </div>
@@ -693,6 +685,7 @@ function Harita({ pid, alan, surum }: { pid: string; alan: string; surum: string
 }
 
 function DosyaPaneli({ pid, alan, dosya, sec }: { pid: string; alan: string; dosya: KodHaritaDugumu | null; sec: (yol: string) => void }) {
+  const z = useSozluk().kodZekasi;
   const [bag, setBag] = useState<KodBagimliliklari | null>(null);
   const [hata, setHata] = useState<string | null>(null);
 
@@ -712,29 +705,27 @@ function DosyaPaneli({ pid, alan, dosya, sec }: { pid: string; alan: string; dos
 
   if (!dosya)
     return (
-      <aside className="kz-panel kz-panel-bos" aria-label="Dosya ayrıntısı">
-        <p className="soluk">Bir dosya seçin: sembolleri, içe aktardıkları ve onu kullananlar burada görünür.</p>
+      <aside className="kz-panel kz-panel-bos" aria-label={z.dosyaAyrintisi}>
+        <p className="soluk">{z.dosyaSecin}</p>
       </aside>
     );
   return (
-    <aside className="kz-panel" aria-label="Dosya ayrıntısı">
+    <aside className="kz-panel" aria-label={z.dosyaAyrintisi}>
       <div className="kz-panel-baslik">
         <b className="kz-panel-yol">{dosya.yol}</b>
-        <span className="soluk">
-          {dosya.dil} · {sayi(dosya.satir)} satır
-        </span>
+        <span className="soluk">{z.dilSatir(dosya.dil ?? "", dosya.satir)}</span>
         <button type="button" className="dugme dugme-kucuk" onClick={() => koddaAc(pid, alan, dosya.yol)}>
-          Kod'da aç
+          {z.koddaAcKisa}
         </button>
       </div>
       {dosya.semboller?.length ? (
         <>
-          <h3 className="kz-panel-alt">Öne çıkan semboller</h3>
+          <h3 className="kz-panel-alt">{z.oneCikanSemboller}</h3>
           <ul className="kz-panel-liste">
             {dosya.semboller.map((s) => (
               <li key={`${s.ad}:${s.bas}`}>
                 <button type="button" onClick={() => koddaAc(pid, alan, dosya.yol, s.bas)}>
-                  <b>{s.ad}</b> <span className="soluk">{KOD_SEMBOL_TURU_ADLARI[s.tur]} · satır {s.bas}</span>
+                  <b>{s.ad}</b> <span className="soluk">{z.turSatir(z.sembolTuru[s.tur], s.bas)}</span>
                 </button>
               </li>
             ))}
@@ -742,42 +733,42 @@ function DosyaPaneli({ pid, alan, dosya, sec }: { pid: string; alan: string; dos
         </>
       ) : null}
       {hata ? <HataKutu metin={hata} /> : null}
-      {!bag && !hata ? <Yukleniyor metin="Bağımlılıklar…" /> : null}
+      {!bag && !hata ? <Yukleniyor metin={z.bagimliliklarYukleniyor} /> : null}
       {bag ? (
         <>
-          <h3 className="kz-panel-alt">İçe aktardıkları · {bag.iceAktardiklari.length}</h3>
+          <h3 className="kz-panel-alt">{z.iceAktardiklari(bag.iceAktardiklari.length)}</h3>
           {bag.iceAktardiklari.length ? (
             <ul className="kz-panel-liste">
               {bag.iceAktardiklari.map((i) => (
                 <li key={`${i.kaynak}:${i.satir}`}>
                   {i.yol ? (
                     <button type="button" onClick={() => sec(i.yol!)}>
-                      {i.yol} <span className="soluk">satır {i.satir}</span>
+                      {i.yol} <span className="soluk">{z.satir(i.satir)}</span>
                     </button>
                   ) : (
                     <span className="soluk">
-                      {i.kaynak} <small>{i.kaynak.startsWith(".") ? "bulunamadı" : "dış paket"}</small>
+                      {i.kaynak} <small>{i.kaynak.startsWith(".") ? z.bulunamadi : z.disPaket}</small>
                     </span>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="soluk kz-panel-not">İçe aktarma yok.</p>
+            <p className="soluk kz-panel-not">{z.iceAktarmaYok}</p>
           )}
-          <h3 className="kz-panel-alt">Onu kullananlar · {bag.iceAktaranlar.length}</h3>
+          <h3 className="kz-panel-alt">{z.onuKullananlar(bag.iceAktaranlar.length)}</h3>
           {bag.iceAktaranlar.length ? (
             <ul className="kz-panel-liste">
               {bag.iceAktaranlar.map((i) => (
                 <li key={`${i.yol}:${i.satir}`}>
                   <button type="button" onClick={() => sec(i.yol)}>
-                    {i.yol} <span className="soluk">satır {i.satir}</span>
+                    {i.yol} <span className="soluk">{z.satir(i.satir)}</span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="soluk kz-panel-not">Bu dosyayı içe aktaran yok.</p>
+            <p className="soluk kz-panel-not">{z.iceAktaranYok}</p>
           )}
         </>
       ) : null}
@@ -801,13 +792,14 @@ interface Kenar extends SimulationLinkDatum<Dugum> {
   agirlik: number;
 }
 
-function etiket(id: string, duzey: "klasor" | "dosya"): string {
-  if (id === ".") return "kök";
+function etiket(id: string, duzey: "klasor" | "dosya", kok: string): string {
+  if (id === ".") return kok;
   const p = id.split("/");
   return duzey === "dosya" ? p[p.length - 1]! : p.slice(-2).join("/");
 }
 
 function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string | null }) {
+  const z = useSozluk().kodZekasi;
   const [duzey, setDuzey] = useState<"klasor" | "dosya">("klasor");
   const [grafik, setGrafik] = useState<KodGrafigi | null>(null);
   const [hata, setHata] = useState<string | null>(null);
@@ -998,14 +990,14 @@ function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string
   const etiketli = new Set(enBuyuk.map((d) => d.id));
 
   return (
-    <section aria-label="Modül bağımlılık grafiği">
+    <section aria-label={z.grafikEtiketi}>
       <div className="suzgec">
-        <div className="bolumlu" role="group" aria-label="Grafik düzeyi">
+        <div className="bolumlu" role="group" aria-label={z.grafikDuzeyi}>
           <button type="button" aria-pressed={duzey === "klasor"} onClick={() => setDuzey("klasor")}>
-            Klasörler
+            {z.klasorler}
           </button>
           <button type="button" aria-pressed={duzey === "dosya"} onClick={() => setDuzey("dosya")}>
-            Dosyalar
+            {z.dosyalar}
           </button>
         </div>
         {grafik?.dugumler.length ? (
@@ -1018,19 +1010,17 @@ function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string
             }}
           >
             <Simge ad="sigdir" />
-            Sığdır
+            {z.sigdir}
           </button>
         ) : null}
-        {grafik ? (
-          <span className="alan-ipucu">
-            {grafik.dugumler.length} düğüm · {grafik.kenarlar.length} bağlantı{grafik.kirpilan ? ` · ${grafik.kirpilan} düğüm sığmadı` : ""} · sürükle, tekerlekle yakınlaştır
-          </span>
-        ) : null}
+        {grafik ? <span className="alan-ipucu">{z.grafikBilgi(grafik.dugumler.length, grafik.kenarlar.length, grafik.kirpilan ?? 0)}</span> : null}
       </div>
       {!grafik ? (
-        <Iskelet satir={6} etiket="Grafik hazırlanıyor" />
+        <Iskelet satir={6} etiket={z.grafikHazirlaniyor} />
       ) : !grafik.dugumler.length ? (
-        <Bos kucuk baslik="Bağımlılık yok">Çözülebilen içe aktarma bulunamadı ya da dizin henüz boş.</Bos>
+        <Bos kucuk baslik={z.bagimlilikYok}>
+          {z.bagimlilikYokAyrinti}
+        </Bos>
       ) : (
         <div className="kz-iki-sutun kz-grafik-duzen">
           <div className="kz-grafik" ref={kapRef}>
@@ -1039,7 +1029,7 @@ function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string
               height={boyut.boy}
               viewBox={`0 0 ${boyut.en} ${boyut.boy}`}
               role="img"
-              aria-label={`${grafik.dugumler.length} düğümlü bağımlılık grafiği`}
+              aria-label={z.grafikResmi(grafik.dugumler.length)}
               onPointerDown={asagi}
               onPointerMove={hareket}
               onPointerUp={yukari}
@@ -1077,10 +1067,10 @@ function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string
                   return (
                     <g key={d.id} data-dugum={d.id} className={`kz-dugum${durum}`} transform={`translate(${d.x ?? 0} ${d.y ?? 0})`} onPointerEnter={() => setUzerinde(d.id)} onPointerLeave={() => setUzerinde(null)}>
                       <circle r={d.r} />
-                      <title>{`${d.id} · ${d.dosya} dosya · ${d.satir} satır`}</title>
+                      <title>{z.dugumBilgi(d.id, d.dosya, d.satir)}</title>
                       {yazi ? (
                         <text y={d.r + 11 / gorunum.k} style={{ fontSize: `${11 / gorunum.k}px` }}>
-                          {etiket(d.id, grafik.duzey)}
+                          {etiket(d.id, grafik.duzey, z.kok)}
                         </text>
                       ) : null}
                     </g>
@@ -1097,31 +1087,28 @@ function Grafik({ pid, alan, surum }: { pid: string; alan: string; surum: string
 }
 
 function GrafikPaneli({ pid, alan, grafik, secili, sec }: { pid: string; alan: string; grafik: KodGrafigi; secili: string | null; sec: (id: string) => void }) {
+  const z = useSozluk().kodZekasi;
   if (!secili)
     return (
-      <aside className="kz-panel kz-panel-bos" aria-label="Düğüm ayrıntısı">
-        <p className="soluk">Bir düğüme tıklayın: neleri kullandığı ve kimlerin onu kullandığı burada görünür. Düğüm boyu satır sayısını, çizgi kalınlığı içe aktarma sayısını gösterir.</p>
+      <aside className="kz-panel kz-panel-bos" aria-label={z.dugumAyrintisi}>
+        <p className="soluk">{z.dugumSecin}</p>
       </aside>
     );
   const d = grafik.dugumler.find((x) => x.id === secili);
   const giden = grafik.kenarlar.filter((k) => k.kaynak === secili).sort((a, b) => b.agirlik - a.agirlik);
   const gelen = grafik.kenarlar.filter((k) => k.hedef === secili).sort((a, b) => b.agirlik - a.agirlik);
   return (
-    <aside className="kz-panel" aria-label="Düğüm ayrıntısı">
+    <aside className="kz-panel" aria-label={z.dugumAyrintisi}>
       <div className="kz-panel-baslik">
-        <b className="kz-panel-yol">{secili === "." ? "Kök klasör" : secili}</b>
-        {d ? (
-          <span className="soluk">
-            {d.dil || "karışık"} · {sayi(d.dosya)} dosya · {sayi(d.satir)} satır
-          </span>
-        ) : null}
+        <b className="kz-panel-yol">{secili === "." ? z.kokKlasor : secili}</b>
+        {d ? <span className="soluk">{z.dugumOzeti(d.dil || z.karisik, d.dosya, d.satir)}</span> : null}
         {grafik.duzey === "dosya" ? (
           <button type="button" className="dugme dugme-kucuk" onClick={() => koddaAc(pid, alan, secili)}>
-            Kod'da aç
+            {z.koddaAcKisa}
           </button>
         ) : null}
       </div>
-      <h3 className="kz-panel-alt">Kullandıkları · {giden.length}</h3>
+      <h3 className="kz-panel-alt">{z.kullandiklari(giden.length)}</h3>
       {giden.length ? (
         <ul className="kz-panel-liste">
           {giden.map((k) => (
@@ -1133,9 +1120,9 @@ function GrafikPaneli({ pid, alan, grafik, secili, sec }: { pid: string; alan: s
           ))}
         </ul>
       ) : (
-        <p className="soluk kz-panel-not">Yok.</p>
+        <p className="soluk kz-panel-not">{z.yok}</p>
       )}
-      <h3 className="kz-panel-alt">Onu kullananlar · {gelen.length}</h3>
+      <h3 className="kz-panel-alt">{z.onuKullananlar(gelen.length)}</h3>
       {gelen.length ? (
         <ul className="kz-panel-liste">
           {gelen.map((k) => (
@@ -1147,7 +1134,7 @@ function GrafikPaneli({ pid, alan, grafik, secili, sec }: { pid: string; alan: s
           ))}
         </ul>
       ) : (
-        <p className="soluk kz-panel-not">Yok.</p>
+        <p className="soluk kz-panel-not">{z.yok}</p>
       )}
     </aside>
   );

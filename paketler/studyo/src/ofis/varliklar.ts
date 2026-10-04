@@ -1,5 +1,6 @@
 // Ofis varlıkları: public/ofis/varliklar.json bildirimi, görsel adresleri ve oranları.
 // Boyutlar sabit varsayılmaz: bildirimdeki en/boy kullanılır, görsel yüklenince gerçek boyutla düzeltilir.
+import { sozluk } from "../dil";
 import { VARSAYILAN_ORANLAR, type EsyaAdi, type EsyaOranlari } from "./yerlesim";
 
 export interface KarakterVarligi {
@@ -72,15 +73,22 @@ export function bildirimiCoz(ham: unknown): Varliklar {
 }
 
 let yukleme: Promise<Varliklar> | null = null;
+let yuklu: Varliklar | null = null;
+
+/** Daha önce yüklenmiş bildirim (yoksa null): ekran yeniden açılınca beklemeden kullanılır */
+export function yukluVarliklar(): Varliklar | null {
+  return yuklu;
+}
 
 /** Bildirimi bir kez yükler; hata olursa sonraki çağrı yeniden dener */
 export function varliklariYukle(): Promise<Varliklar> {
   yukleme ??= fetch(varlikAdresi("varliklar.json"), { cache: "no-cache" })
     .then((y) => {
-      if (!y.ok) throw new Error(`Ofis varlıkları alınamadı (${y.status}).`);
+      if (!y.ok) throw new Error(sozluk().ofis.varliklarAlinamadi(y.status));
       return y.json() as Promise<unknown>;
     })
     .then(bildirimiCoz)
+    .then((v) => (yuklu = v))
     .catch((e: unknown) => {
       yukleme = null;
       throw e;

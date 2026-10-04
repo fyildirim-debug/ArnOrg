@@ -1,11 +1,12 @@
 // Konuşma balonları için metin hazırlama: Markdown işaretlerini temizler, kısaltır
+import { sozluk } from "../dil";
 
 /** Markdown biçimini düz metne indirir: kod blokları, başlık, liste, bağlantı, vurgu işaretleri */
 export function markdownTemizle(metin: string): string {
   return (
     metin
-      // Kod blokları: içerik yerine kısa işaret
-      .replace(/```[\s\S]*?```/g, " [kod] ")
+      // Kod blokları: içerik yerine kısa işaret ([kod] / [code])
+      .replace(/```[\s\S]*?```/g, ` ${sozluk().ofis.balon.kod} `)
       .replace(/`([^`]*)`/g, "$1")
       // Görsel ve bağlantı: yalnız metin
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -54,4 +55,32 @@ export function adlariBul<T extends { ad: string }>(metin: string, ajanlar: T[])
     }
     return false;
   });
+}
+
+/**
+ * #toplanti kanalındaki toplantı duyurusunun gündemi; duyuru değilse null. Dilden bağımsız, yapıdan tanır:
+ * ilk satır "Etiket: gündem", son satır yalnız anmalardan oluşan "Etiket: @A @B" (Türkçe "Toplantı: …" /
+ * "Katılımcılar: …", İngilizce "Meeting: …" / "Participants: …"). Katılımcılar mesajın anılanlarından alınır.
+ */
+export function toplantiDuyurusu(metin: string): string | null {
+  const satirlar = metin
+    .trim()
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (satirlar.length < 2) return null;
+  const ilk = /^[^\s:()@]{2,30}:\s*(\S.*)$/u.exec(satirlar[0]!);
+  const son = /^[^\s:()@]{2,30}:\s*(?:@[^\s@]+\s*)+$/u.test(satirlar[satirlar.length - 1]!);
+  return ilk && son ? ilk[1]!.trim() : null;
+}
+
+/**
+ * Toplantı sorusu mu (toplanti_yap katılımcılara görüş sorar)? Dilden bağımsız: ilk satır "Etiket (…): …" ve
+ * parantezde çağıranın adı geçer (Türkçe "Toplantı (Ada çağırdı): …", İngilizce "Meeting (called by Ada): …").
+ */
+export function toplantiSorusuMu(soru: string, cagiranAd: string): boolean {
+  const m = /^[^\s:()@]{2,30} \(([^)\n]+)\):/u.exec(soru.trim());
+  if (!m) return false;
+  const ad = cagiranAd.trim().toLocaleLowerCase("tr-TR");
+  return !ad || m[1]!.toLocaleLowerCase("tr-TR").includes(ad);
 }

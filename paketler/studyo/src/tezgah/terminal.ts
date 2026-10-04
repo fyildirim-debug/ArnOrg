@@ -12,6 +12,7 @@ import {
   type ITerminalChildProcess,
 } from "@codingame/monaco-vscode-terminal-service-override";
 import { hataMetni } from "../api/istek";
+import { sozluk } from "../dil";
 import { terminalAc, type TerminalOturumu } from "../api/terminal";
 import { api } from "../api/uclar";
 import { useVeri } from "../durum/veri";
@@ -69,7 +70,7 @@ class ArnorgTerminalSureci extends SimpleTerminalProcess {
       for (const g of this.bekleyenGirdi.splice(0)) this.oturum.gonder(g);
       return undefined;
     } catch (h) {
-      return { message: `Terminal açılamadı: ${hataMetni(h)}` };
+      return { message: sozluk().kod.terminalAcilamadi(hataMetni(h)) };
     }
   }
 

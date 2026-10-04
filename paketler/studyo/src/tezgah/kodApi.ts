@@ -9,13 +9,14 @@ import type {
   MetinAramaSonucu,
 } from "@arnorg/ortak";
 import { anahtar, anahtarAyarla } from "../api/anahtar";
+import { sozluk } from "../dil";
 import { ApiHatasi, istek, sorgu } from "../api/istek";
 
 const k = encodeURIComponent;
 const fs = (pid: string) => `/api/projeler/${k(pid)}/fs`;
 const gitYolu = (pid: string) => `/api/projeler/${k(pid)}/git`;
 
-/** Ham gövdeli istek; hata gövdesindeki Türkçe metni ApiHatasi olarak taşır */
+/** Ham gövdeli istek; hata gövdesindeki metni ApiHatasi olarak taşır */
 async function hamIstek(yol: string, s: { method?: "GET" | "PUT"; govde?: Uint8Array; sinyal?: AbortSignal } = {}): Promise<Response> {
   const basliklar: Record<string, string> = {};
   const a = anahtar();
@@ -26,10 +27,10 @@ async function hamIstek(yol: string, s: { method?: "GET" | "PUT"; govde?: Uint8A
     yanit = await fetch(yol, { method: s.method ?? "GET", headers: basliklar, body: s.govde as BodyInit | undefined, signal: s.sinyal, cache: "no-store" });
   } catch (h) {
     if (h instanceof DOMException && h.name === "AbortError") throw h;
-    throw new ApiHatasi("Çekirdeğe ulaşılamadı.", 0);
+    throw new ApiHatasi(sozluk().kod.cekirdegeUlasilamadi, 0);
   }
   if (!yanit.ok) {
-    let mesaj = `Beklenmeyen yanıt (${yanit.status}).`;
+    let mesaj = sozluk().kod.beklenmeyenYanit(yanit.status);
     try {
       const j = (await yanit.json()) as { hata?: string };
       if (j?.hata) mesaj = j.hata;
@@ -43,7 +44,7 @@ async function hamIstek(yol: string, s: { method?: "GET" | "PUT"; govde?: Uint8A
 }
 
 /** Olmayan dosya: yoksa=bos ile istenir, konsolda 404 hatası birikmesin */
-const yok = (yol: string) => new ApiHatasi(`Bulunamadı: ${yol}`, 404);
+const yok = (yol: string) => new ApiHatasi(sozluk().kod.bulunamadi(yol), 404);
 
 export const kodApi = {
   stat: async (pid: string, alan: string, yol: string) => {

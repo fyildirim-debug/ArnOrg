@@ -233,27 +233,20 @@
   outline-offset: 3px;
 }
 
-/* monitör ışıması */
+/* ekran ışığı: monitör masanın arkasında oturana bakar; ışık onun yüzüne düşer ve kasanın ardından taşar */
 .ofis-monitor {
   position: absolute;
   pointer-events: none;
-  border-radius: 3px;
   opacity: 0;
-  background:
-    linear-gradient(rgba(186, 228, 255, 0.22), rgba(186, 228, 255, 0.1)),
-    radial-gradient(ellipse at 50% 50%, rgba(186, 228, 255, 0.55), transparent 75%);
+  background: radial-gradient(
+    ellipse 50% 48% at 60% 46%,
+    rgba(186, 228, 255, 0.42),
+    rgba(186, 228, 255, 0.2) 35%,
+    rgba(186, 228, 255, 0.07) 68%,
+    rgba(186, 228, 255, 0) 100%
+  );
   mix-blend-mode: screen;
-  box-shadow: 0 0 18px 4px rgba(150, 210, 255, 0.28);
   transition: opacity 0.7s ease;
-}
-.ofis-monitor::after {
-  content: "";
-  position: absolute;
-  left: -40%;
-  right: -40%;
-  top: 85%;
-  height: 150%;
-  background: radial-gradient(ellipse at 50% 0%, rgba(176, 222, 255, 0.22), transparent 70%);
 }
 .ofis-monitor[data-durum="acik"] {
   opacity: 0.85;
@@ -261,6 +254,23 @@
 }
 .ofis-monitor[data-durum="parlak"] {
   opacity: 1;
+}
+/* oturumda hata: ekran mercan renginde yavaşça yanıp söner */
+.ofis-monitor[data-durum="hata"] {
+  opacity: 0.9;
+  background: radial-gradient(
+    ellipse 50% 48% at 60% 46%,
+    oklch(0.72 0.19 25 / 0.5),
+    oklch(0.72 0.19 25 / 0.22) 35%,
+    oklch(0.72 0.19 25 / 0.08) 68%,
+    oklch(0.72 0.19 25 / 0) 100%
+  );
+  animation: ofis-hata-ekran 1.8s ease-in-out infinite;
+}
+@keyframes ofis-hata-ekran {
+  50% {
+    opacity: 0.4;
+  }
 }
 @keyframes ofis-titre {
   50% {
@@ -767,6 +777,16 @@
   background: var(--ink-3);
   border: 1px solid var(--coral-cizgi);
   color: var(--coral);
+  animation: ofis-uyari 1.8s ease-in-out infinite;
+}
+@keyframes ofis-uyari {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.72 0.19 25 / 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px oklch(0.72 0.19 25 / 0);
+  }
 }
 
 /* LOD: uzaktan yalnız işaretler; orta mesafede iş yazısı gizli */

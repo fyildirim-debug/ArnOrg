@@ -16,6 +16,14 @@ export interface KameraSecenekleri {
 const EN_BUYUK = 2.6;
 const SURUKLEME_ESIGI = 5;
 
+/** Kameranın saklanabilir hâli: görünür alanın ortasındaki dünya noktası ve ölçek. elle=false ise sığdırılır. */
+export interface KameraDurumu {
+  olcek: number;
+  x: number;
+  y: number;
+  elle: boolean;
+}
+
 export class Kamera {
   olcek = 1;
   tx = 0;
@@ -32,6 +40,8 @@ export class Kamera {
   private gozlemci: ResizeObserver;
   private kaldir: (() => void)[] = [];
   private animasyon: number | null = null;
+  /** Son ölçülen alan boyu: ekran kapanırken alan DOM'dan çıkmış olsa da görünüm doğru saklansın */
+  private sonBoy = { g: 1, y: 1 };
 
   constructor(s: KameraSecenekleri) {
     this.s = s;
@@ -78,7 +88,10 @@ export class Kamera {
   }
 
   private alanBoyu() {
-    return { g: this.s.alan.clientWidth || 1, y: this.s.alan.clientHeight || 1 };
+    const g = this.s.alan.clientWidth;
+    const y = this.s.alan.clientHeight;
+    if (g > 0 && y > 0) this.sonBoy = { g, y };
+    return this.sonBoy;
   }
 
   sigdirOlcegi(): number {
@@ -121,6 +134,26 @@ export class Kamera {
     if (sx > kenar && sx < g - kenar && sy > kenar && sy < h - kenar) return;
     this.elle = true;
     this.git(this.olcek, g / 2 - x * this.olcek, h / 2 - y * this.olcek, true);
+  }
+
+  /** Kullanıcının bıraktığı görünüm: ekran boyutundan bağımsız (alanın ortasındaki dünya noktası) */
+  durum(): KameraDurumu {
+    const { g, y } = this.alanBoyu();
+    return { olcek: this.olcek, x: (g / 2 - this.tx) / this.olcek, y: (y / 2 - this.ty) / this.olcek, elle: this.elle };
+  }
+
+  /** Saklanan görünüme animasyonsuz döner; kullanıcı oynamamışsa sığdırır */
+  durumaGetir(d: KameraDurumu | null) {
+    if (!d || !d.elle || !Number.isFinite(d.olcek) || !Number.isFinite(d.x) || !Number.isFinite(d.y)) {
+      this.sigdir(false);
+      return;
+    }
+    // Sınırlar sığdırma ölçeğinden gelir
+    this.enKucuk = Math.min(this.sigdirOlcegi() * 0.85, 0.5);
+    const { g, y } = this.alanBoyu();
+    const olcek = Math.min(EN_BUYUK, Math.max(this.enKucuk, d.olcek));
+    this.elle = true;
+    this.git(olcek, g / 2 - d.x * olcek, y / 2 - d.y * olcek, false);
   }
 
   /** Dünya → ekran (görüntü alanına göre) */
@@ -302,5 +335,27 @@ export class Kamera {
   private kaydirAdim(dx: number, dy: number) {
     this.elle = true;
     this.git(this.olcek, this.tx + dx, this.ty + dy, true);
+  }
+}
+
+const kameraAnahtari = (pid: string) => `arnorg.ofis.kamera.${pid}`;
+
+export function kameraOku(pid: string): KameraDurumu | null {
+  try {
+    const ham = localStorage.getItem(kameraAnahtari(pid));
+    const d = ham ? (JSON.parse(ham) as Partial<KameraDurumu>) : null;
+    if (!d || typeof d.olcek !== "number" || typeof d.x !== "number" || typeof d.y !== "number") return null;
+    return { olcek: d.olcek, x: d.x, y: d.y, elle: d.elle === true };
+  } catch {
+    return null;
+  }
+}
+
+export function kameraYaz(pid: string, d: KameraDurumu) {
+  try {
+    const yuvarla = (n: number) => Math.round(n * 1000) / 1000;
+    localStorage.setItem(kameraAnahtari(pid), JSON.stringify({ olcek: yuvarla(d.olcek), x: Math.round(d.x), y: Math.round(d.y), elle: d.elle }));
+  } catch {
+    // depolama kapalı: görünüm yalnız bu oturumda korunur
   }
 }

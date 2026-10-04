@@ -30,6 +30,59 @@
 .tezgah-kabi-gizli {
   visibility: hidden;
 }
+
+/* Dil notu: arayüz dili tezgâh açıldıktan sonra değişti; VS Code yeniden yüklenince yeni dilde açılır */
+.kod-dil-notu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--b-4);
+  height: 2.5rem;
+  padding: 0 var(--b-2) 0 var(--b-4);
+  background: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-xs);
+}
+.kod-dil-notu p {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b-3);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.kod-dil-notu b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  color: var(--paper);
+  font-weight: 500;
+}
+.kod-dil-notu b::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  flex: none;
+}
+.kod-dil-notu span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+.kod-dil-notu .dugme {
+  flex: none;
+}
+.kod-ekrani-notlu .tezgah-kabi {
+  top: 2.5rem;
+}
 .tezgah-durum {
   position: absolute;
   inset: 0;
@@ -59,8 +112,20 @@
   gap: var(--b-1);
   padding: var(--b-3) var(--b-4);
   border: 1px solid var(--line);
-  border-left: 2px solid var(--coral);
   border-radius: var(--r-2);
+}
+.kod-dar-not b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+}
+.kod-dar-not b::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  flex: none;
 }
 .kod-dar-not p {
   color: var(--muted);

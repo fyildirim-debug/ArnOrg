@@ -64,11 +64,8 @@ export type ZeminTuru = "oda" | "hali" | "ahsap" | "yukseltilmis" | "acik" | "ki
 export type SicakNokta = "kurul" | "pano" | "sunucu" | "arsiv" | "toplanti";
 
 export interface Oda {
+  /** Levhadaki ya da zemindeki ad ve alt yazı sözlükten bu kimlikle gelir (s.ofis.odalar) */
   kimlik: OdaKimligi;
-  /** Duvar levhasındaki ya da zemindeki büyük ad */
-  ad: string;
-  /** Küçük alt yazı */
-  alt: string;
   alan: KaroAlani;
   zemin: ZeminTuru;
   /** Üst duvarı (levha bandı) olan odalar */
@@ -116,9 +113,12 @@ export interface Masa extends Koltuk {
   kimlik: string;
   oda: "ceo" | "cto" | "muhendislik";
   esyaKimligi: string;
-  /** Monitör ekranının alanı (ışıma için), dünya pikseli */
+  /** Monitörün kasası, dünya pikseli. Oturan masanın arkasında izleyiciye dönük oturur; ekran ona bakar,
+   * izleyici monitörün arkasını görür. Araç simgesi kasanın üst kenarında, oturanın yanında durur. */
   monitor: { x: number; y: number; g: number; h: number };
-  /** Masanın üst kenarı (simge ve saat için) */
+  /** Ekran ışığının düştüğü yer: oturanın yüzü ve göğsü (masanın arkasında, kasanın sağ üstü) */
+  isik: { x: number; y: number; g: number; h: number };
+  /** Masanın üst kenarı (saat için) */
   ust: Nokta;
 }
 
@@ -154,6 +154,14 @@ export interface Yerlesim {
     sunucuKimlikleri: string[];
     arsivOnu: Karo[];
     arsivKimligi: string;
+    /** Görev panosunun önü (pano işleri) */
+    panoOnu: Karo[];
+    /** Toplantı odasındaki beyaz tahtanın önü (rapor) */
+    beyazTahtaOnu: Karo[];
+    beyazTahtaKimligi: string;
+    /** Okuma köşesi: dinlenme alanındaki kitaplığın ve okuma kanepelerinin önü (web araştırması) */
+    okumaKosesi: Karo[];
+    okumaKimligi: string;
     adaylar: Karo[];
     /** Pano tahtasının ayak ortası ve boyutu */
     pano: { x: number; y: number; genislik: number; yukseklik: number; engel: KaroAlani };
@@ -259,22 +267,20 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   // ---------------- Odalar ----------------
   const ODA_Y = DUVAR_SATIRI - 2;
   const odalar: Oda[] = [
-    { kimlik: "ceo", ad: "CEO", alt: "yönetim", alan: { c: 1, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
-    { kimlik: "cto", ad: "CTO", alt: "teknik yönetim", alan: { c: 10, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
-    { kimlik: "toplanti", ad: "Toplantı", alt: "#toplanti", alan: { c: 19, r: 2, g: 12, y: ODA_Y }, zemin: "hali", levha: true },
-    { kimlik: "arsiv", ad: "Arşiv", alt: "hafıza · notlar", alan: { c: 32, r: 2, g: 7, y: ODA_Y }, zemin: "ahsap", levha: true },
-    { kimlik: "sunucu", ad: "Sunucu", alt: "main dalı", alan: { c: 40, r: 2, g: 7, y: ODA_Y }, zemin: "yukseltilmis", levha: true },
+    { kimlik: "ceo", alan: { c: 1, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
+    { kimlik: "cto", alan: { c: 10, r: 2, g: 8, y: ODA_Y }, zemin: "ahsap", levha: true },
+    { kimlik: "toplanti", alan: { c: 19, r: 2, g: 12, y: ODA_Y }, zemin: "hali", levha: true },
+    { kimlik: "arsiv", alan: { c: 32, r: 2, g: 7, y: ODA_Y }, zemin: "ahsap", levha: true },
+    { kimlik: "sunucu", alan: { c: 40, r: 2, g: 7, y: ODA_Y }, zemin: "yukseltilmis", levha: true },
     {
       kimlik: "muhendislik",
-      ad: "Mühendislik",
-      alt: "açık ofis",
       alan: { c: 1, r: 11, g: 27, y: R - 12 },
       zemin: "acik",
       levha: false,
       etiket: { x: 1.5 * KARO, y: 11.95 * KARO },
     },
-    { kimlik: "dinlenme", ad: "Dinlenme", alt: "kahve · su · sohbet", alan: { c: 29, r: 11, g: 18, y: 7 }, zemin: "kilim", levha: false, etiket: { x: 40.4 * KARO, y: 17.15 * KARO } },
-    { kimlik: "kurul", ad: "Kurul", alt: "onay masası · giriş", alan: { c: 29, r: 18 + alt, g: 18, y: 8 }, zemin: "acik", levha: false },
+    { kimlik: "dinlenme", alan: { c: 29, r: 11, g: 18, y: 7 }, zemin: "kilim", levha: false, etiket: { x: 40.4 * KARO, y: 17.15 * KARO } },
+    { kimlik: "kurul", alan: { c: 29, r: 18 + alt, g: 18, y: 8 }, zemin: "acik", levha: false },
   ];
 
   // ---------------- Eşyalar ----------------
@@ -305,7 +311,8 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   const masalar: Masa[] = [];
   const MASA_G = 96;
   const masaKur = (kimlik: string, oda: Masa["oda"], c: number, r: number) => {
-    // Masa ayak izi: c..c+2, r..r+1; arkasında (kuzeyinde) sandalye ve oturma yeri
+    // Masa ayak izi: c..c+2, r..r+1; arkasında (kuzeyinde) sandalye ve oturma yeri. Oturan izleyiciye dönük,
+    // monitörün ekranı ona bakar: görselde monitörün arkası görünür (public/ofis/esyalar/masa.png)
     const ayakY = (r + 2) * KARO;
     const solX = c * KARO;
     const h = MASA_G * oranlar.masa;
@@ -322,7 +329,9 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       oturma,
       yaklasma: { c: Math.floor(oturmaX / KARO), r: r - 1 },
       kesit: ust + h * 0.56,
-      monitor: { x: solX + MASA_G * 0.2, y: ust + h * 0.05, g: MASA_G * 0.52, h: h * 0.33 },
+      // Görseldeki kasa: x 58–238 / 320, y 3–106 / 258
+      monitor: { x: solX + MASA_G * 0.18, y: ust + h * 0.012, g: MASA_G * 0.56, h: h * 0.4 },
+      isik: { x: solX + MASA_G * 0.5, y: ust - 32, g: MASA_G * 0.56, h: 56 },
       ust: { x: solX + MASA_G * 0.46, y: ust },
     });
   };
@@ -363,7 +372,13 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     });
   }
   yerlestir("toplanti-masasi", tmX, tmAyak, tmG, { kimlik: "toplanti-masasi", engel: { c: 22, r: 4, g: 6, y: 2 }, sicak: "toplanti", golge: 0.9 });
-  yerlestir("beyaz-tahta", 29.4 * KARO, 4 * KARO, 90, { engel: { c: 28, r: 2, g: 3, y: 2 } });
+  const beyazTahtaKimligi = "beyaz-tahta";
+  yerlestir("beyaz-tahta", 29.4 * KARO, 4 * KARO, 90, { kimlik: beyazTahtaKimligi, engel: { c: 28, r: 2, g: 3, y: 2 } });
+  const beyazTahtaOnu: Karo[] = [
+    { c: 29, r: 4 },
+    { c: 30, r: 4 },
+    { c: 28, r: 4 },
+  ];
   yerlestir("bitki-buyuk", 19.6 * KARO, 4 * KARO, 46, { engel: { c: 19, r: 3, g: 1, y: 1 } });
   yerlestir("bitki-kucuk", 30.4 * KARO, 7.9 * KARO, 28, { engel: { c: 30, r: 7, g: 1, y: 1 } });
   const toplantiAyakta: Karo[] = [
@@ -408,6 +423,8 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   const panoG = 12 * KARO;
   const pano = { x: 14.5 * KARO, y: 13 * KARO, genislik: panoG, yukseklik: 118, engel: { c: 8, r: 12, g: 13, y: 1 } };
   kapat(pano.engel);
+  // Panonun önündeki sıra: masaların yaklaşma karolarının (satır 14) üstü
+  const panoOnu: Karo[] = [11, 14, 17, 9, 19, 12, 16].map((c) => ({ c, r: 13 }));
   let masaNo = 0;
   for (let ada = 0; ada < adaSayisi; ada++) {
     const satir = Math.floor(ada / SATIR_ADA);
@@ -432,7 +449,13 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   yerlestir("su", 46.5 * KARO, 16 * KARO, 24, { engel: { c: 46, r: 15, g: 1, y: 1 } });
   yerlestir("bitki-buyuk", 46.4 * KARO, 12.2 * KARO, 44, { engel: { c: 46, r: 11, g: 1, y: 1 } });
   yerlestir("bitki-buyuk", 30.5 * KARO, 12.2 * KARO, 44, { engel: { c: 30, r: 11, g: 1, y: 1 } });
-  yerlestir("kitaplik", 31.8 * KARO, 13 * KARO, 52, { engel: { c: 31, r: 12, g: 2, y: 1 } });
+  const okumaKimligi = "okuma-kitapligi";
+  yerlestir("kitaplik", 31.8 * KARO, 13 * KARO, 52, { kimlik: okumaKimligi, engel: { c: 31, r: 12, g: 2, y: 1 } });
+  const okumaKosesi: Karo[] = [
+    { c: 31, r: 13 },
+    { c: 32, r: 13 },
+    { c: 30, r: 13 },
+  ];
   // Kanepenin önünde alçak sehpa
   yerlestir("toplanti-masasi", 37.5 * KARO, 15.75 * KARO, 76, { kimlik: "sehpa", engel: { c: 36, r: 15, g: 3, y: 1 }, golge: 0.85 });
 
@@ -443,6 +466,7 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     yerlestir("lamba", 41.6 * KARO, (r + 2.85) * KARO, 50, { engel: { c: 41, r: r + 2, g: 1, y: 1 } });
     yerlestir("bitki-buyuk", 33.8 * KARO, (r + 3) * KARO, 44, { engel: { c: 33, r: r + 2, g: 1, y: 1 } });
     yerlestir("kitaplik", 44.6 * KARO, (r + 3) * KARO, 52, { engel: { c: 44, r: r + 2, g: 2, y: 1 } });
+    okumaKosesi.push({ c: 44, r: r + 3 }, { c: 37, r: r + 3 }, { c: 45, r: r + 3 });
   }
 
   // Kurul masası (onay masası), arkasında kurulun boş koltuğu
@@ -514,6 +538,11 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       sunucuKimlikleri,
       arsivOnu,
       arsivKimligi,
+      panoOnu,
+      beyazTahtaOnu,
+      beyazTahtaKimligi,
+      okumaKosesi,
+      okumaKimligi,
       adaylar: [
         { c: 41, r: R - 4 },
         { c: 44, r: R - 4 },

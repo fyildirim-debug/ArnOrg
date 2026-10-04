@@ -1,6 +1,7 @@
 // Ofis: ajanların yaşadığı canlı 2D çalışma ortamı. Sahne React dışında (src/ofis) çalışır;
-// bu bileşen motoru kurar, depo ve olay akışını ona iletir, çekmece ve başlık katmanlarını çizer.
-import { AJAN_DURUM_ADLARI, type AjanDurumu } from "@arnorg/ortak";
+// bu bileşen projenin motorunu bellekten alıp sahneye takar, depo ve olay akışını ona iletir, çekmece ve
+// başlık katmanlarını çizer. Ekrandan çıkınca motor yok edilmez, ayrılır: geri gelince ofis aynı hâldedir.
+import type { AjanDurumu } from "@arnorg/ortak";
 import { useEffect, useId, useRef, useState } from "react";
 import { hataMetni } from "../api/istek";
 import { AjanAyrinti } from "../bilesenler/ajan/AjanAyrinti";
@@ -8,25 +9,29 @@ import { MesajFormu } from "../bilesenler/ajan/AjanEylemleri";
 import { Cekmece } from "../bilesenler/Cekmece";
 import { HataKutu } from "../bilesenler/Durumlar";
 import { Simge } from "../bilesenler/Simge";
+import { useSozluk } from "../dil";
 import { git } from "../durum/arayuz";
 import { ofisOlayDinle } from "../durum/olaylar";
 import { projeVerisiniYukle, useVeri, type VeriDurumu } from "../durum/veri";
-import { OfisMotoru, type AkisSatiri } from "../ofis/motor";
-import { gorselleriIsit, varliklariYukle, type Varliklar } from "../ofis/varliklar";
+import { ofisMotoru } from "../ofis/bellek";
+import type { AkisSatiri, OfisMotoru } from "../ofis/motor";
+import { gorselleriIsit, varliklariYukle, yukluVarliklar, type Varliklar } from "../ofis/varliklar";
+import { saat } from "../yardimcilar/bicim";
 import { useMedya } from "../yardimcilar/kancalar";
 
 const AKIS_SINIRI = 5;
 const SAYAC_SIRASI: AjanDurumu[] = ["calisiyor", "karar_bekliyor", "bosta", "duraklatildi", "hata", "kapali"];
 
-const saatBicimi = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
-
 export function Ofis() {
+  const s = useSozluk();
+  const so = s.ofis;
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const proje = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId));
   const ajanlar = useVeri((d) => d.ajanlar);
   const yukleme = useVeri((d) => d.projeYukleme);
   const projeHatasi = useVeri((d) => d.projeHatasi);
-  const [varliklar, setVarliklar] = useState<Varliklar | null>(null);
+  // Varlıklar bir kez yüklenir; ekran yeniden açılınca boş bir kare bile çizilmeden hazırdır
+  const [varliklar, setVarliklar] = useState<Varliklar | null>(() => yukluVarliklar());
   const [varlikHatasi, setVarlikHatasi] = useState<string | null>(null);
   const [deneme, setDeneme] = useState(0);
   const [seciliId, setSeciliId] = useState<string | null>(null);
@@ -54,16 +59,16 @@ export function Ofis() {
     };
   }, [deneme]);
 
-  // Motor: proje başına bir kez kurulur; depo değişiklikleri ve canlı olaylar doğrudan iletilir
+  // Motor: proje başına bir kez kurulur ve bellekte kalır; ekran açıkken takılı durur. Depo değişiklikleri ve
+  // canlı olaylar doğrudan iletilir.
   useEffect(() => {
     const alan = alanRef.current;
     const ekran = ekranRef.current;
     if (!varliklar || !aktifProjeId || !alan || !ekran) return;
-    const motor = new OfisMotoru({
+    const motor = ofisMotoru(aktifProjeId, varliklar);
+    motor.bagla({
       alan,
       ekran,
-      varliklar,
-      projeId: aktifProjeId,
       ustPay: () => (basRef.current?.offsetHeight ?? 56) + 6,
       cagrilar: {
         ajanSec: (id) => setSeciliId(id),
@@ -72,6 +77,7 @@ export function Ofis() {
         ozet: setOzet,
       },
     });
+    setAkis(motor.sonAkislar().slice(0, AKIS_SINIRI));
     motorRef.current = motor;
     // Başlık (akış satırları) büyüyüp küçülünce sahne yeniden sığsın
     let sonYukseklik = basRef.current?.offsetHeight ?? 0;
@@ -115,7 +121,7 @@ export function Ofis() {
       basGozlemci.disconnect();
       depoBirak();
       olayBirak();
-      motor.yokEt();
+      motor.ayir();
       motorRef.current = null;
       setAkis([]);
       setSeciliId(null);
@@ -128,21 +134,21 @@ export function Ofis() {
   const gosterilenAkis = akis.slice(0, dar ? 3 : AKIS_SINIRI);
 
   return (
-    <section className="ofis" aria-label="Ofis sahnesi" aria-describedby={ozetId}>
+    <section className="ofis" aria-label={so.sahneEtiketi} aria-describedby={ozetId}>
       <p className="gizli" id={ozetId}>
         {ozet}
       </p>
-      <div className="ofis-alan" ref={alanRef} tabIndex={0} role="group" aria-label="Ofis haritası. Yakınlaştırmak için + ve -, sığdırmak için 0, kaydırmak için ok tuşları" />
+      <div className="ofis-alan" ref={alanRef} tabIndex={0} role="group" aria-label={so.haritaEtiketi} />
       <div className="ofis-ekran" ref={ekranRef}>
         <div className="ofis-bas" ref={basRef}>
           <div className="ofis-baslik" data-kamera-disi>
-            <h1>Ofis</h1>
+            <h1>{so.baslik}</h1>
             <p className="ofis-proje">{proje?.ad ?? ""}</p>
-            <ul className="ofis-sayac" aria-label="Durumlara göre çalışanlar">
+            <ul className="ofis-sayac" aria-label={so.sayacEtiketi}>
               {SAYAC_SIRASI.filter((d) => sayac.get(d)).map((d) => (
                 <li key={d} data-durum={d}>
                   <i aria-hidden="true" />
-                  <b>{sayac.get(d)}</b> {AJAN_DURUM_ADLARI[d].toLocaleLowerCase("tr-TR")}
+                  <b>{sayac.get(d)}</b> {s.genel.ajanDurumu[d].toLocaleLowerCase(so.yerel)}
                 </li>
               ))}
             </ul>
@@ -150,47 +156,47 @@ export function Ofis() {
           <div className="ofis-akis" data-kamera-disi>
             <h2>
               <i aria-hidden="true" />
-              Ofiste şimdi
+              {so.akisBaslik}
             </h2>
-            <ol aria-label="Son sahneler" style={{ minHeight: `${(dar ? 3 : AKIS_SINIRI) * 1.125}rem` }}>
+            <ol aria-label={so.akisEtiketi} style={{ minHeight: `${(dar ? 3 : AKIS_SINIRI) * 1.125}rem` }}>
               {gosterilenAkis.length ? (
-                gosterilenAkis.map((s) => (
-                  <li key={s.id} data-tur={s.tur}>
-                    <time>{saatBicimi.format(s.zaman)}</time>
-                    <span className="tek-satir">{s.metin}</span>
+                gosterilenAkis.map((a) => (
+                  <li key={a.id} data-tur={a.tur}>
+                    <time dateTime={new Date(a.zaman).toISOString()}>{saat(new Date(a.zaman).toISOString())}</time>
+                    <span className="tek-satir">{a.metin}</span>
                   </li>
                 ))
               ) : (
-                <li className="ofis-akis-bos">Sakin. Biri konuşunca, iş teslim edince ya da kapıdan girince burada görünür.</li>
+                <li className="ofis-akis-bos">{so.akisBos}</li>
               )}
             </ol>
           </div>
         </div>
 
-        <div className="ofis-kontrol" data-kamera-disi role="group" aria-label="Yakınlaştırma">
-          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.yakinlastir(1.3)} aria-label="Yakınlaştır" title="Yakınlaştır (+)">
+        <div className="ofis-kontrol" data-kamera-disi role="group" aria-label={so.yakinlastirmaEtiketi}>
+          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.yakinlastir(1.3)} aria-label={so.yakinlastir} title={so.yakinlastirIpucu}>
             <Simge ad="arti" />
           </button>
-          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.yakinlastir(1 / 1.3)} aria-label="Uzaklaştır" title="Uzaklaştır (-)">
+          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.yakinlastir(1 / 1.3)} aria-label={so.uzaklastir} title={so.uzaklastirIpucu}>
             <Simge ad="eksi" />
           </button>
-          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.sigdir()} aria-label="Ofisi sığdır" title="Sığdır (0)">
+          <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.sigdir()} aria-label={so.sigdir} title={so.sigdirIpucu}>
             <Simge ad="sigdir" />
           </button>
         </div>
 
         {varlikHatasi ? (
           <div className="ofis-hata" data-kamera-disi>
-            <HataKutu baslik="Ofis çizilemedi" metin={varlikHatasi} yeniden={() => setDeneme((n) => n + 1)} />
+            <HataKutu baslik={so.cizilemedi} metin={varlikHatasi} yeniden={() => setDeneme((n) => n + 1)} />
           </div>
         ) : yukleme === "hata" && !ajanlar.length ? (
           <div className="ofis-hata" data-kamera-disi>
-            <HataKutu metin={projeHatasi ?? "Proje verisi alınamadı."} yeniden={() => void projeVerisiniYukle()} />
+            <HataKutu metin={projeHatasi ?? so.projeVerisiAlinamadi} yeniden={() => void projeVerisiniYukle()} />
           </div>
         ) : !varliklar || (yukleme === "yukleniyor" && !ajanlar.length) ? (
           <div className="ofis-yukleniyor" role="status">
             <span className="doner" aria-hidden="true" />
-            Ofis hazırlanıyor
+            {so.hazirlaniyor}
           </div>
         ) : null}
       </div>

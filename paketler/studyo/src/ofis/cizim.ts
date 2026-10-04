@@ -1,14 +1,13 @@
 // Sahnenin durağan katmanları: zemin ve duvarlar (SVG), eşyalar, pano tahtası, kurul masası ışıkları, sunucu ışıkları.
+// Yazılar o anki dilde çizilir; dil değişince motor metinleri yeniler (sicakAdi, zeminSvg, panoYazilari).
+import { sozluk } from "../dil";
 import { varlikAdresi, type Varliklar } from "./varliklar";
 import { KARO, type EsyaYeri, type KaroAlani, type Oda, type SicakNokta, type Yerlesim } from "./yerlesim";
 
-const SICAK_ADLARI: Record<SicakNokta, string> = {
-  kurul: "Kurul masası: onaylara git",
-  pano: "Pano: görev panosuna git",
-  sunucu: "Sunucu odası: koda git",
-  arsiv: "Arşiv: notlara git",
-  toplanti: "Toplantı odası: #toplanti kanalına git",
-};
+/** Sıcak noktanın erişilebilir adı */
+export function sicakAdi(s: SicakNokta): string {
+  return sozluk().ofis.sicak[s];
+}
 
 function kacis(metin: string): string {
   return metin.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -29,6 +28,8 @@ const ZEMIN_SINIFI: Record<Oda["zemin"], string> = {
 
 /** Zemin, duvarlar, levhalar, ışık havuzları ve eşya gölgeleri */
 export function zeminSvg(y: Yerlesim): string {
+  const so = sozluk().ofis;
+  const buyuk = (m: string) => m.toLocaleUpperCase(so.yerel);
   const W = y.genislik;
   const H = y.yukseklik;
   const p: string[] = [];
@@ -106,8 +107,9 @@ export function zeminSvg(y: Yerlesim): string {
     const a = alanPx(o.alan);
     // Levha: oda adının duvara asılı yazısı, ortalanmış
     const ox = a.x + a.g / 2;
-    p.push(`<text x="${ox}" y="27" class="of-levha" text-anchor="middle">${kacis(o.ad.toLocaleUpperCase("tr-TR"))}</text>`);
-    p.push(`<text x="${ox}" y="43" class="of-levha-alt" text-anchor="middle">${kacis(o.alt)}</text>`);
+    const ad = so.odalar[o.kimlik];
+    p.push(`<text x="${ox}" y="27" class="of-levha" text-anchor="middle">${kacis(buyuk(ad.ad))}</text>`);
+    p.push(`<text x="${ox}" y="43" class="of-levha-alt" text-anchor="middle">${kacis(ad.alt)}</text>`);
   }
 
   // Duvarlar ve kapı kasaları
@@ -121,14 +123,15 @@ export function zeminSvg(y: Yerlesim): string {
   for (const o of y.odalar) {
     if (o.levha || !o.etiket) continue;
     const { x: lx, y: ly } = o.etiket;
-    p.push(`<text x="${lx}" y="${ly}" class="of-zemin-yazi">${kacis(o.ad.toLocaleUpperCase("tr-TR"))}</text>`);
-    p.push(`<text x="${lx + 1}" y="${ly + 14}" class="of-zemin-alt">${kacis(o.alt)}</text>`);
+    const ad = so.odalar[o.kimlik];
+    p.push(`<text x="${lx}" y="${ly}" class="of-zemin-yazi">${kacis(buyuk(ad.ad))}</text>`);
+    p.push(`<text x="${lx + 1}" y="${ly + 14}" class="of-zemin-alt">${kacis(ad.alt)}</text>`);
   }
   // Giriş yazısı ve dış basamak
   const kapi = y.noktalar.kapi;
   const kx = (kapi.c + 1) * KARO;
   p.push(`<path d="M${kx - 30} ${kapi.r * KARO + 27}h-14M${kx + 30} ${kapi.r * KARO + 27}h14" class="of-giris-ok"/>`);
-  p.push(`<text x="${kx}" y="${kapi.r * KARO + 30}" class="of-zemin-alt of-giris-yazi" text-anchor="middle">GİRİŞ</text>`);
+  p.push(`<text x="${kx}" y="${kapi.r * KARO + 30}" class="of-zemin-alt of-giris-yazi" text-anchor="middle">${kacis(so.giris)}</text>`);
   p.push("</svg>");
   return p.join("");
 }
@@ -149,8 +152,8 @@ export function esyaOgesi(e: EsyaYeri, v: Varliklar, etiket?: string, odaklanir 
     d.type = "button";
     d.className = "ofis-esya ofis-sicak";
     d.dataset.sicak = e.sicak;
-    d.setAttribute("aria-label", etiket ?? SICAK_ADLARI[e.sicak]);
-    d.title = etiket ?? SICAK_ADLARI[e.sicak];
+    d.setAttribute("aria-label", etiket ?? sicakAdi(e.sicak));
+    d.title = etiket ?? sicakAdi(e.sicak);
     if (!odaklanir) d.tabIndex = -1;
     kap = d;
   } else {
@@ -181,12 +184,25 @@ export interface PanoOgesi {
   notH: number;
 }
 
+/** Pano sütunları; adları sözlükte s.ofis.pano.sutunlar[kimlik] */
 export const PANO_SUTUNLARI = [
-  { ad: "Bekleyen", durumlar: ["bekleyen", "planlandi"] },
-  { ad: "Sürüyor", durumlar: ["calisiliyor"] },
-  { ad: "İnceleme", durumlar: ["inceleme"] },
-  { ad: "Tamam", durumlar: ["tamam"] },
+  { kimlik: "bekleyen", durumlar: ["bekleyen", "planlandi"] },
+  { kimlik: "suruyor", durumlar: ["calisiliyor"] },
+  { kimlik: "inceleme", durumlar: ["inceleme"] },
+  { kimlik: "tamam", durumlar: ["tamam"] },
 ] as const;
+
+/** Pano başlığı ve sütun adları (o anki dilde) */
+export function panoYazilari(p: PanoOgesi) {
+  const so = sozluk().ofis;
+  const ad = p.kok.querySelector(".ofis-pano-ad");
+  if (ad) ad.textContent = so.pano.ad;
+  p.kok.querySelectorAll<HTMLElement>(".ofis-pano-sutun b").forEach((b, i) => {
+    const s = PANO_SUTUNLARI[i];
+    if (s) b.textContent = so.pano.sutunlar[s.kimlik];
+  });
+  p.kok.title = sicakAdi("pano");
+}
 
 /** Ayaklı büyük tahta: sütun başlıkları; notları motor yerleştirir */
 export function panoOgesi(y: Yerlesim): PanoOgesi {
@@ -195,8 +211,8 @@ export function panoOgesi(y: Yerlesim): PanoOgesi {
   kok.type = "button";
   kok.className = "ofis-pano";
   kok.dataset.sicak = "pano";
-  kok.setAttribute("aria-label", SICAK_ADLARI.pano);
-  kok.title = SICAK_ADLARI.pano;
+  kok.setAttribute("aria-label", sicakAdi("pano"));
+  kok.title = sicakAdi("pano");
   kok.style.cssText = `left:${pn.x - pn.genislik / 2}px;top:${pn.y - pn.yukseklik}px;width:${pn.genislik}px;height:${pn.yukseklik}px;z-index:${Math.round(pn.y)}`;
   const yuz = document.createElement("span");
   yuz.className = "ofis-pano-yuz";
@@ -205,9 +221,10 @@ export function panoOgesi(y: Yerlesim): PanoOgesi {
   const yuzH = pn.yukseklik - 18;
   const sutunG = (yuzG - ic * 2) / PANO_SUTUNLARI.length;
   const sutunlar = PANO_SUTUNLARI.map((_, i) => ({ x: ic + i * sutunG, g: sutunG }));
+  const so = sozluk().ofis;
   yuz.innerHTML =
-    `<span class="ofis-pano-ad">PANO</span>` +
-    PANO_SUTUNLARI.map((s, i) => `<span class="ofis-pano-sutun" style="left:${sutunlar[i]!.x}px;width:${sutunG}px"><b>${s.ad}</b></span>`).join("");
+    `<span class="ofis-pano-ad">${kacis(so.pano.ad)}</span>` +
+    PANO_SUTUNLARI.map((s, i) => `<span class="ofis-pano-sutun" style="left:${sutunlar[i]!.x}px;width:${sutunG}px"><b>${kacis(so.pano.sutunlar[s.kimlik])}</b></span>`).join("");
   const notlar = document.createElement("span");
   notlar.className = "ofis-pano-notlar";
   yuz.appendChild(notlar);

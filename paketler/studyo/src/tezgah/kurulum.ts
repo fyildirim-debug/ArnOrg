@@ -1,5 +1,5 @@
 // VS Code tezgâhının kurulumu: servisler, çalışanlar, varsayılan ayarlar, dosya sistemi, eklentiler.
-// Bu modül Türkçe dil paketi yüklendikten sonra içe aktarılır (index.ts); tezgâh sayfa başına bir kez kurulur.
+// Bu modül (arayüz Türkçeyse) Türkçe dil paketi yüklendikten sonra içe aktarılır (index.ts); tezgâh sayfa başına bir kez kurulur.
 import "vscode/localExtensionHost";
 import "@codingame/monaco-vscode-all-language-default-extensions";
 import "@codingame/monaco-vscode-all-language-feature-default-extensions";
@@ -58,6 +58,8 @@ import getUserDataProfileServiceOverride from "@codingame/monaco-vscode-user-dat
 import getWorkbenchServiceOverride from "@codingame/monaco-vscode-workbench-service-override";
 import getWorkingCopyServiceOverride from "@codingame/monaco-vscode-working-copy-service-override";
 import getWorkspaceTrustOverride from "@codingame/monaco-vscode-workspace-trust-service-override";
+import type { Dil } from "@arnorg/ortak";
+import { sozluk } from "../dil";
 import { adresYolu, konumCoz, SEMA, type Konum } from "./adres";
 import { CALISMA_ALANI_DOSYASI, calismaAlaniIcerigi, calismaAlaniniIzle } from "./calismaAlani";
 import { ArnorgDosyaSistemi } from "./dosyaSistemi";
@@ -155,8 +157,9 @@ export interface TezgahDenetimi {
   ac(k: Konum, satir?: number): Promise<void>;
 }
 
-/** Tezgâhı verilen kabın gölge kökünde kurar */
-export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
+/** Tezgâhı verilen kabın gölge kökünde kurar; dil: açılış dili (çalışırken değişmez) */
+export async function kur(kap: HTMLElement, dil: Dil): Promise<TezgahDenetimi> {
+  const s = sozluk().kod;
   const golge = kap.shadowRoot ?? kap.attachShadow({ mode: "open" });
   const govde = document.createElement("div");
   govde.style.cssText = "width:100%;height:100%;";
@@ -196,7 +199,7 @@ export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
     initialColorTheme: { themeType: ColorScheme.DARK, colors: ILK_RENKLER },
     productConfiguration: {
       nameShort: "ArnOrg",
-      nameLong: "ArnOrg Kod",
+      nameLong: s.urunAdi,
       extensionsGallery: {
         serviceUrl: "https://open-vsx.org/vscode/gallery",
         resourceUrlTemplate: "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
@@ -247,7 +250,7 @@ export async function kur(kap: HTMLElement): Promise<TezgahDenetimi> {
         },
       }),
       ...getLocalizationServiceOverride({
-        availableLanguages: [{ locale: "tr", languageName: "Türkçe" }],
+        availableLanguages: [{ locale: dil, languageName: s.dilAdi }],
         async setLocale() {},
         async clearLocale() {},
       }),

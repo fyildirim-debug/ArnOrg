@@ -1,2 +1,131 @@
 // Kod zekâsı (Türkçe)
-export const kodZekasi = {};
+import { KOD_SEMBOL_TURU_ADLARI, type KodEslesmeTuru } from "@arnorg/ortak";
+import { sayi } from "../../yardimcilar/bicim";
+
+export const kodZekasi = {
+  baslik: "Kod zekâsı",
+  aciklama: "Anlamsal kod araması, semboller, depo haritası ve bağımlılık grafiği · ajanlar aynı dizinle çalışır",
+  calismaAlani: "Çalışma alanı",
+  anaRepo: "Ana repo",
+  yenidenDizinle: "Yeniden dizinle",
+  yenidenDizinleIpucu: "Değişen dosyaları yeniden okur",
+  bolumEtiketi: "Kod zekâsı bölümü",
+  sekmeler: { arama: "Arama", semboller: "Semboller", harita: "Harita", grafik: "Grafik" },
+  sembolTuru: KOD_SEMBOL_TURU_ADLARI,
+  eslesme: {
+    anlamsal: "anlamsal",
+    sozcuk: "anahtar sözcük",
+    sembol: "sembol adı",
+    karma: "birden çok yöntem",
+  } as Record<KodEslesmeTuru, string>,
+  ornekSorgular: ["hata nasıl yakalanıp kaydediliyor", "kimlik doğrulama ve oturum", "veritabanı bağlantısı nerede kuruluyor"],
+  modelKapali: "Kapalı",
+
+  // Dizin özeti ve ilerleme
+  sure: (sn: number) => {
+    if (sn < 90) return "1 dakikadan az";
+    if (sn < 3600) return `~${Math.round(sn / 60)} dk`;
+    return `~${Math.floor(sn / 3600)} sa ${Math.round((sn % 3600) / 60)} dk`;
+  },
+  taraniyor: (taranan: number, toplam: number) => `Dosyalar taranıyor${toplam ? ` · ${sayi(taranan)}/${sayi(toplam)}` : ""}`,
+  modelIndiriliyor: (yuzde: string) => `Anlamsal arama modeli indiriliyor · ${yuzde} (yalnız ilk kez)`,
+  kalan: (sure: string) => ` · kalan ${sure}`,
+  hizliOneri: " · Ayarlar → Kod zekâsı → Hızlı ile birkaç kat kısa sürer",
+  gomuluyor: (gomulen: number, toplam: number, sure: string, oneri: string) =>
+    `Anlamsal dizin kuruluyor · ${sayi(gomulen)}/${sayi(toplam)} parça${sure}; anahtar sözcük araması şimdiden çalışır${oneri}`,
+  ozetEtiketi: "Dizin özeti",
+  dosya: "Dosya",
+  sembol: "Sembol",
+  parca: "Parça",
+  anlamsal: "Anlamsal",
+  anlamsalIpucu: "Vektörü hesaplanmış parçalar",
+  model: "Model",
+  guncellendi: (ne: string) => `güncellendi ${ne}`,
+  henuzDizinlenmedi: "henüz dizinlenmedi",
+  dizinHatasi: "Dizin hatası",
+  sozcukAramasiSurer: "Anahtar sözcük araması çalışmaya devam eder.",
+  sifirdanDizinle: "Sıfırdan dizinle",
+
+  // Arama
+  aramaEtiketi: "Kod araması",
+  koddaAra: "Kodda ara",
+  aramaIpucu: "Ne arıyorsun? Türkçe ya da İngilizce sor: “sipariş durumu nerede değişiyor”",
+  yolSuzgeci: "Yol süzgeci",
+  yolIpucu: "Yol ya da glob: src/sunucu, **/*.tsx",
+  benzeyenYerler: "koduna en çok benzeyen yerler",
+  aramayaDon: "Aramaya dön",
+  aranamadi: "Aranamadı",
+  araniyor: "Aranıyor…",
+  sonucSayisi: (n: number, ms: number) => `${sayi(n)} sonuç · ${sayi(ms)} ms`,
+  sonucYok: "Sonuç yok",
+  dizinHazirDegil: "Anlamsal dizin henüz hazır değil; anahtar sözcükle bulundu.",
+  anlamsalKapali: "Anlamsal arama kapalı (Ayarlar → Kod zekâsı); anahtar sözcükle bulundu.",
+  eslesenYok: "Eşleşen kod yok",
+  eslesenYokAyrinti: "Başka sözcüklerle deneyin, yol süzgecini kaldırın ya da Semboller sekmesinde adıyla arayın.",
+  aramaAciklama: "Doğal dille sorun: anlamsal arama, anahtar sözcük ve sembol adları birleşir. Sonuca tıklayınca dosya Kod ekranında o satırda açılır.",
+  koddaAc: "Kod ekranında aç",
+  yontem: "Bu sonucu bulan yöntem",
+  puan: (p: string) => `Puan ${p}`,
+  benzerleriBul: "Bu koda benzeyen yerleri bul",
+  benzerleri: "Benzerleri",
+  satirdaAc: (yol: string, satir: number) => `${yol} ${satir}. satırda aç`,
+
+  // Semboller
+  sembollerEtiketi: "Semboller",
+  sembolAra: "Sembol ara",
+  sembolIpucu: "Ad ya da başı: siparis, Depo, useAuth",
+  sembolTuruEtiketi: "Sembol türü",
+  tumTurler: "Tüm türler",
+  sembolSayisi: (n: number, fazla: boolean) => (fazla ? "200+ sembol" : `${sayi(n)} sembol`),
+  oneCikanlar: " · öne çıkanlar",
+  sembollerYukleniyor: "Semboller yükleniyor",
+  disaAcik: "dışa açık",
+  sembolYok: "Sembol bulunamadı",
+  sembolYokAyrinti: "Adın bir kısmıyla ya da Arama sekmesinde doğal dille deneyin.",
+
+  // Harita ve dosya paneli
+  haritaYukleniyor: "Harita yükleniyor",
+  dizinBos: "Dizin boş",
+  dizinBosAyrinti: "Dizinleme bitince dosyalar burada görünür.",
+  dosyaSatir: (dosya: number, satir: number) => `${sayi(dosya)} dosya · ${sayi(satir)} satır`,
+  iceAktaranSayisi: "Bu dosyayı içe aktaran dosya sayısı",
+  klasorAgaci: "Klasör ağacı",
+  tumunuKapat: "Tümünü kapat",
+  dosyaAyrintisi: "Dosya ayrıntısı",
+  dosyaSecin: "Bir dosya seçin: sembolleri, içe aktardıkları ve onu kullananlar burada görünür.",
+  dilSatir: (dil: string, satir: number) => `${dil} · ${sayi(satir)} satır`,
+  koddaAcKisa: "Kod'da aç",
+  oneCikanSemboller: "Öne çıkan semboller",
+  turSatir: (tur: string, satir: number) => `${tur} · satır ${satir}`,
+  satir: (n: number) => `satır ${n}`,
+  bagimliliklarYukleniyor: "Bağımlılıklar…",
+  iceAktardiklari: (n: number) => `İçe aktardıkları · ${n}`,
+  bulunamadi: "bulunamadı",
+  disPaket: "dış paket",
+  iceAktarmaYok: "İçe aktarma yok.",
+  onuKullananlar: (n: number) => `Onu kullananlar · ${n}`,
+  iceAktaranYok: "Bu dosyayı içe aktaran yok.",
+
+  // Grafik
+  kok: "kök",
+  grafikEtiketi: "Modül bağımlılık grafiği",
+  grafikDuzeyi: "Grafik düzeyi",
+  klasorler: "Klasörler",
+  dosyalar: "Dosyalar",
+  sigdir: "Sığdır",
+  grafikBilgi: (dugum: number, baglanti: number, kirpilan: number) =>
+    `${sayi(dugum)} düğüm · ${sayi(baglanti)} bağlantı${kirpilan ? ` · ${sayi(kirpilan)} düğüm sığmadı` : ""} · sürükle, tekerlekle yakınlaştır`,
+  grafikHazirlaniyor: "Grafik hazırlanıyor",
+  bagimlilikYok: "Bağımlılık yok",
+  bagimlilikYokAyrinti: "Çözülebilen içe aktarma bulunamadı ya da dizin henüz boş.",
+  grafikResmi: (n: number) => `${sayi(n)} düğümlü bağımlılık grafiği`,
+  dugumBilgi: (id: string, dosya: number, satir: number) => `${id} · ${sayi(dosya)} dosya · ${sayi(satir)} satır`,
+  dugumAyrintisi: "Düğüm ayrıntısı",
+  dugumSecin:
+    "Bir düğüme tıklayın: neleri kullandığı ve kimlerin onu kullandığı burada görünür. Düğüm boyu satır sayısını, çizgi kalınlığı içe aktarma sayısını gösterir.",
+  kokKlasor: "Kök klasör",
+  karisik: "karışık",
+  dugumOzeti: (dil: string, dosya: number, satir: number) => `${dil} · ${sayi(dosya)} dosya · ${sayi(satir)} satır`,
+  kullandiklari: (n: number) => `Kullandıkları · ${n}`,
+  yok: "Yok.",
+};

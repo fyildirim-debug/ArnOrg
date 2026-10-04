@@ -12,6 +12,7 @@ import { URI } from "@codingame/monaco-vscode-api/vscode/vs/base/common/uri";
 import { EditorResourceAccessor, EditorsOrder, SideBySideEditor } from "@codingame/monaco-vscode-api/vscode/vs/workbench/common/editor";
 import { olaylariDinle } from "../api/canli";
 import { api } from "../api/uclar";
+import { sozluk } from "../dil";
 import { useVeri } from "../durum/veri";
 import { ajanIzleri } from "./ajanIzleri";
 import { GIT_SEMASI, konumCoz, SEMA } from "./adres";
@@ -28,9 +29,10 @@ interface Kok {
 }
 
 export function kokAdi(a: CalismaAlani, ajanlar: Ajan[]): string {
-  if (a.ana) return `${a.dal || "main"} · ana repo`;
+  const s = sozluk().kod;
+  if (a.ana) return s.anaRepo(a.dal || "main");
   const ajan = ajanlar.find((x) => x.id === a.ajanId);
-  return `${ajan?.ad ?? "Ajan"} · ${a.dal}`;
+  return s.ajanAlani(ajan?.ad ?? s.ajan, a.dal);
 }
 
 function kokler(pid: string | null, alanlar: CalismaAlani[]): Kok[] {

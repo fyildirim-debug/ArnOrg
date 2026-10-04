@@ -21,6 +21,7 @@ import {
   type IStat,
 } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
 import { olaylariDinle } from "../api/canli";
+import { sozluk } from "../dil";
 import { ApiHatasi } from "../api/istek";
 import { ajanIzleri } from "./ajanIzleri";
 import { adresYolu, konumCoz, SEMA, type Konum } from "./adres";
@@ -28,7 +29,7 @@ import { kodApi } from "./kodApi";
 
 function konum(adres: URI): Konum {
   const k = konumCoz(adres.path);
-  if (!k) throw createFileSystemProviderError(`Geçersiz ArnOrg adresi: ${adres.toString()}`, FileSystemProviderErrorCode.FileNotFound);
+  if (!k) throw createFileSystemProviderError(sozluk().kod.gecersizAdres(adres.toString()), FileSystemProviderErrorCode.FileNotFound);
   return k;
 }
 
@@ -46,7 +47,7 @@ function hataCevir(h: unknown): Error {
     case 409:
       return createFileSystemProviderError(
         h.message,
-        /zaten var/i.test(h.message) ? FileSystemProviderErrorCode.FileExists : FileSystemProviderErrorCode.NoPermissions,
+        /zaten var|already exists/i.test(h.message) ? FileSystemProviderErrorCode.FileExists : FileSystemProviderErrorCode.NoPermissions,
       );
     case 403:
       return createFileSystemProviderError(h.message, FileSystemProviderErrorCode.NoPermissions);
@@ -55,9 +56,9 @@ function hataCevir(h: unknown): Error {
     case 400:
       return createFileSystemProviderError(
         h.message,
-        /klasör değil/i.test(h.message)
+        /klasör değil|not a (?:directory|folder)/i.test(h.message)
           ? FileSystemProviderErrorCode.FileNotADirectory
-          : /klasör/i.test(h.message)
+          : /klasör|directory|folder/i.test(h.message)
             ? FileSystemProviderErrorCode.FileIsADirectory
             : FileSystemProviderErrorCode.Unknown,
       );
@@ -108,7 +109,7 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
   }
 
   private async sorgula<T>(yol: string, tur: string, is: () => Promise<T>): Promise<T> {
-    if (this.yokMu(yol)) throw createFileSystemProviderError(`Bulunamadı: ${yol}`, FileSystemProviderErrorCode.FileNotFound);
+    if (this.yokMu(yol)) throw createFileSystemProviderError(sozluk().kod.bulunamadi(yol), FileSystemProviderErrorCode.FileNotFound);
     try {
       return await this.tekIstek(`${tur}:${yol}`, is);
     } catch (h) {
@@ -228,7 +229,7 @@ export class ArnorgDosyaSistemi extends Disposable implements IFileSystemProvide
     const a = konum(kaynak);
     const b = konum(hedef);
     if (a.projeId !== b.projeId || a.alan !== b.alan) {
-      throw createFileSystemProviderError("Çalışma alanları arasında taşıma yapılamaz; dosyayı kopyalayıp yapıştırın.", FileSystemProviderErrorCode.NoPermissions);
+      throw createFileSystemProviderError(sozluk().kod.alanlarArasiTasima, FileSystemProviderErrorCode.NoPermissions);
     }
     this.yoklar.delete(adresYolu(b));
     await sar(() => kodApi.tasi(a.projeId, a.alan, a.yol, b.yol, s.overwrite));
