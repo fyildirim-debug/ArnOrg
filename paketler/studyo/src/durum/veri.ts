@@ -2,6 +2,9 @@
 import type {
   Ajan,
   AkisOgesi,
+  Anayasa,
+  Ayarlar,
+  KurulBildirimi,
   DenetimKaydi,
   Gorev,
   HesapDurumu,
@@ -64,6 +67,14 @@ export interface VeriDurumu {
   akisYukleme: Record<string, Yukleme>;
   canli: CanliOlay[];
   roller: Rol[];
+  /** Çekirdek ayarları (ilk kurulum sihirbazı kurulumTamam'a bakar) */
+  ayarlar: Ayarlar | null;
+  /** Kanal → yanıt hazırlayan ajanlar ("yazıyor" göstergesi) */
+  yaziyorlar: Record<string, { ajanId: string; ad: string }[]>;
+  /** Önemli anlarda kurula açılır pencereler (onay, öneri, istek, yetki, teslim); en yeni sonda */
+  kurulBildirimleri: KurulBildirimi[];
+  /** Etkin projenin ana yasası (yüklenince) */
+  anayasa: Anayasa | null;
 }
 
 const AKTIF_PROJE = "arnorg.aktifProje";
@@ -91,6 +102,8 @@ const projeVerisiBos = {
   akislar: {},
   akisYukleme: {},
   canli: [],
+  yaziyorlar: {},
+  anayasa: null,
 } satisfies Partial<VeriDurumu>;
 
 export const useVeri = create<VeriDurumu>()(() => ({
@@ -101,6 +114,8 @@ export const useVeri = create<VeriDurumu>()(() => ({
   projelerYukleme: "bos",
   aktifProjeId: kayitliProje(),
   roller: [],
+  ayarlar: null,
+  kurulBildirimleri: [],
   ...projeVerisiBos,
 }));
 
@@ -154,6 +169,50 @@ export async function sagligiYukle() {
     // Sağlık bilgisi isteğe bağlı; Ayarlar ekranı kendi hatasını gösterir
   }
   void hesabiYukle();
+}
+
+/** Çekirdek ayarları; ilk kurulum sihirbazı ve Ayarlar kullanır */
+export async function ayarlariYukle(): Promise<Ayarlar | null> {
+  try {
+    const ayarlar = await api.ayarlar();
+    ayarla({ ayarlar });
+    return ayarlar;
+  } catch {
+    return null;
+  }
+}
+
+/** Ayarları kaydeder ve depodaki kopyayı günceller */
+export async function ayarlariKaydet(degisiklik: Partial<Ayarlar>): Promise<Ayarlar> {
+  const ayarlar = await api.ayarlariKaydet(degisiklik);
+  ayarla({ ayarlar });
+  return ayarlar;
+}
+
+/** Etkin projenin ana yasası */
+export async function anayasayiYukle(): Promise<Anayasa | null> {
+  const pid = al().aktifProjeId;
+  if (!pid) return null;
+  const anayasa = await api.anayasa(pid);
+  if (al().aktifProjeId === pid) ayarla({ anayasa });
+  return anayasa;
+}
+
+/** Kurula açılır pencere kuyruğu: aynı kimlik bir kez; en çok 6 açık pencere */
+export function kurulBildirimiEkle(b: KurulBildirimi) {
+  ayarla((d) => (d.kurulBildirimleri.some((x) => x.id === b.id) ? {} : { kurulBildirimleri: [...d.kurulBildirimleri, b].slice(-6) }));
+}
+
+export function kurulBildirimiKapat(id: string) {
+  ayarla((d) => ({ kurulBildirimleri: d.kurulBildirimleri.filter((b) => b.id !== id) }));
+}
+
+/** Kanal "yazıyor" göstergesi */
+export function yaziyorUygula(kanal: string, ajanId: string, ad: string, yaziyor: boolean) {
+  ayarla((d) => {
+    const liste = (d.yaziyorlar[kanal] ?? []).filter((x) => x.ajanId !== ajanId);
+    return { yaziyorlar: { ...d.yaziyorlar, [kanal]: yaziyor ? [...liste, { ajanId, ad }] : liste } };
+  });
 }
 
 /** Claude girişi ve abonelik kullanımı; tazele=true Claude Code'a yeniden sorar */

@@ -1,6 +1,27 @@
 // docs/API.md'deki her uç nokta için tipli işlevler
 import type {
   Ajan,
+  AjanZekasi,
+  Anayasa,
+  AnayasaMaddesi,
+  Beceri,
+  BeceriIcerigi,
+  DizinListesi,
+  EsitlemeSonucu,
+  GitKurulumu,
+  GithubDali,
+  GithubDeposu,
+  GithubHesabi,
+  GithubKurulumu,
+  KlonlaIstegi,
+  KuralDurumu,
+  KureselKural,
+  KurulumDurumu,
+  KurulumIslemi,
+  ProjeDallari,
+  ProjeGuncelleIstegi,
+  Soz,
+  ZekaDurumu,
   AjanBaslatIstegi,
   AjanGuncelleIstegi,
   AjanIseAlIstegi,
@@ -155,6 +176,59 @@ export const api = {
   // Terminal
   terminalAc: (pid: string, i: TerminalAcIstegi) => istek<{ id: string }>(`${proje(pid)}/terminaller`, { method: "POST", govde: i }),
   terminalKapat: (tid: string) => istek<Tamam>(`/api/terminaller/${k(tid)}`, { method: "DELETE" }),
+
+  // Kurulum: Claude Code, git, GitHub CLI; uzun işlemler "kurulum.islem" olayıyla akar
+  kurulum: (tazele = false) => istek<KurulumDurumu>(`/api/kurulum${tazele ? "?tazele=1" : ""}`),
+  kurulumIslemleri: () => istek<KurulumIslemi[]>("/api/kurulum/islemler"),
+  kurulumIslemi: (id: string) => istek<KurulumIslemi>(`/api/kurulum/islemler/${k(id)}`),
+  kurulumGirdi: (id: string, metin: string) => istek<KurulumIslemi>(`/api/kurulum/islemler/${k(id)}/girdi`, { method: "POST", govde: { metin } }),
+  kurulumIptal: (id: string) => istek<KurulumIslemi>(`/api/kurulum/islemler/${k(id)}`, { method: "DELETE" }),
+  claudeGiris: () => istek<KurulumIslemi>("/api/kurulum/claude/giris", { method: "POST" }),
+  claudeKur: () => istek<KurulumIslemi>("/api/kurulum/claude/kur", { method: "POST" }),
+  ghKur: () => istek<KurulumIslemi>("/api/kurulum/gh/kur", { method: "POST" }),
+  ghGiris: () => istek<KurulumIslemi>("/api/kurulum/gh/giris", { method: "POST" }),
+  gitYardimcisi: () => istek<GithubKurulumu>("/api/kurulum/gh/git-yardimcisi", { method: "POST" }),
+  gitKur: () => istek<KurulumIslemi>("/api/kurulum/git/kur", { method: "POST" }),
+  gitKimligi: (ad: string, eposta: string) => istek<GitKurulumu>("/api/kurulum/git/kimlik", { method: "PUT", govde: { ad, eposta } }),
+
+  // GitHub
+  githubHesabi: () => istek<GithubHesabi>("/api/github/hesap"),
+  githubDepolari: (q?: string, sinyal?: AbortSignal) => istek<GithubDeposu[]>(`/api/github/depolar${sorgu({ q })}`, { sinyal }),
+  githubDallari: (depo: string) => istek<GithubDali[]>(`/api/github/dallar${sorgu({ depo })}`),
+  klonla: (i: KlonlaIstegi) => istek<KurulumIslemi>("/api/github/klonla", { method: "POST", govde: i }),
+
+  // Dizin gezgini (tarayıcıdan klasör seçimi; masaüstünde sistemin seçicisi kullanılır)
+  dizinler: (yol?: string) => istek<DizinListesi>(`/api/dizinler${sorgu({ yol })}`),
+  dizinOlustur: (ust: string, ad: string) => istek<{ yol: string }>("/api/dizinler", { method: "POST", govde: { ust, ad } }),
+
+  // Proje ayarları, dallar, uzak depo, hazırlık
+  projeGuncelle: (pid: string, i: ProjeGuncelleIstegi) => istek<ProjeOzeti>(proje(pid), { method: "PATCH", govde: i }),
+  projeDallari: (pid: string) => istek<ProjeDallari>(`${proje(pid)}/dallar`),
+  esitle: (pid: string, gonder = false) => istek<EsitlemeSonucu>(`${proje(pid)}/esitle`, { method: "POST", govde: { gonder } }),
+  githubDeposuAc: (pid: string, i: { ozel: boolean; sahip?: string }) => istek<ProjeOzeti>(`${proje(pid)}/github`, { method: "POST", govde: i }),
+  hazirlik: (pid: string, islem: "baslat" | "atla") => istek<ProjeOzeti>(`${proje(pid)}/hazirlik`, { method: "POST", govde: { islem } }),
+
+  // Ana yasa
+  anayasa: (pid: string) => istek<Anayasa>(`${proje(pid)}/anayasa`),
+  anayasaKaydet: (pid: string, maddeler: Omit<AnayasaMaddesi, "no">[]) => istek<Anayasa>(`${proje(pid)}/anayasa`, { method: "PUT", govde: { maddeler } }),
+
+  // Ajan zekâsı: kişisel hafıza, sözler, beceriler
+  ajanZekasi: (aid: string) => istek<AjanZekasi>(`${ajan(aid)}/zeka`),
+  hafizaAktar: (aid: string, kime: string, p: { sozler?: boolean; not?: string } = {}) =>
+    istek<{ mesaj: string }>(`${ajan(aid)}/aktar`, { method: "POST", govde: { kime, ...p } }),
+  istenCikarDevrederek: (aid: string, devralan?: string) => istek<Tamam>(`${ajan(aid)}${sorgu({ devralan })}`, { method: "DELETE" }),
+  sozler: (pid: string, durum?: "acik" | "tutuldu" | "iptal") => istek<Soz[]>(`${proje(pid)}/sozler${sorgu({ durum })}`),
+  beceriler: (pid: string) => istek<Beceri[]>(`${proje(pid)}/beceriler`),
+  beceri: (pid: string, ad: string) => istek<BeceriIcerigi>(`${proje(pid)}/beceriler/${k(ad)}`),
+
+  // Global zekâ
+  zeka: () => istek<ZekaDurumu>("/api/zeka"),
+  zekaKuralEkle: (metin: string, kapsam: string[] = []) => istek<KureselKural>("/api/zeka/kurallar", { method: "POST", govde: { metin, kapsam } }),
+  zekaKuralGuncelle: (id: string, i: { metin?: string; kapsam?: string[]; durum?: KuralDurumu }) =>
+    istek<KureselKural>(`/api/zeka/kurallar/${k(id)}`, { method: "PATCH", govde: i }),
+  zekaGeriBildirim: (id: string, sonuc: "ise_yaradi" | "yanlis" | "ihlal", not?: string) =>
+    istek<KureselKural>(`/api/zeka/kurallar/${k(id)}/geri-bildirim`, { method: "POST", govde: { sonuc, not } }),
+  zekaKuralSil: (id: string) => istek<Tamam>(`/api/zeka/kurallar/${k(id)}`, { method: "DELETE" }),
 
   // Kullanım ve rapor
   kullanim: (pid: string) => istek<KullanimOzeti>(`${proje(pid)}/kullanim`),

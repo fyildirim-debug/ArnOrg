@@ -7,6 +7,8 @@ import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import { kodDurumuUygula } from "./kodZekasi";
+import { islemUygula, kurulumDurumuUygula } from "./kurulum";
+import { zekaOlayiUygula } from "./zeka";
 import {
   ajanBul,
   ajanKaldir,
@@ -15,12 +17,14 @@ import {
   canliEkle,
   denetimdenCanli,
   gorevUygula,
+  kurulBildirimiEkle,
   mesajUygula,
   onayUygula,
   projeUygula,
   projeVerisiniYukle,
   projeleriYukle,
   useVeri,
+  yaziyorUygula,
   type VeriDurumu,
 } from "./veri";
 
@@ -236,6 +240,53 @@ function depoyaUygula(olay: SunucuOlayi) {
     case "bildirim":
       bildir(olay.seviye, olay.metin);
       return;
+
+    case "kurulum.islem":
+      islemUygula(olay.islem);
+      return;
+
+    case "kurulum.durum":
+      kurulumDurumuUygula(olay.durum);
+      return;
+
+    case "kanal.yaziyor":
+      if (olay.projeId === pid) yaziyorUygula(olay.kanal, olay.ajanId, olay.ad, olay.yaziyor);
+      return;
+
+    case "kurul.bildirimi":
+      // Önemli an: hangi ekranda olursa olsun açılır pencere (ve pencere arkadaysa masaüstü bildirimi)
+      if (olay.projeId === pid || !pid) {
+        kurulBildirimiEkle(olay.bildirim);
+        masaustuBildirimi(olay.bildirim);
+      }
+      return;
+
+    case "anayasa.guncellendi":
+      if (olay.projeId === pid) useVeri.setState({ anayasa: olay.anayasa });
+      return;
+
+    case "soz.guncellendi":
+      // Ajan zekâsı ekranları kendi verisini tazeler
+      return;
+
+    case "zeka.guncellendi":
+      zekaOlayiUygula(olay.kural, olay.gunluk);
+      return;
+  }
+}
+
+/** Pencere arka plandaysa işletim sisteminin bildirimi; izin daha önce verildiyse */
+function masaustuBildirimi(b: { id: string; baslik: string; metin: string; ajanAd: string }) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (!document.hidden && document.hasFocus()) return;
+    const n = new Notification(`${b.ajanAd} · ${b.baslik}`, { body: kisalt(b.metin, 180), tag: b.id });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch {
+    // bildirim desteklenmiyor
   }
 }
 
