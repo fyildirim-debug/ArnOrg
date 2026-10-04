@@ -284,6 +284,27 @@ export interface GorevGuncelleIstegi {
 
 /** Kullanıcının (yönetim kurulu) gönderen kimliği */
 export const KURUL = "kurul";
+/** ArnOrg'un kendi mesajlarının gönderen kimliği */
+export const ARNORG_GONDEREN = "arnorg";
+
+/**
+ * ArnOrg'un açtığı kanallar. Kimlikleri sabittir (dil değişse de proje verisi bozulmaz);
+ * İngilizce arayüzde ve İngilizce konuşan ajanlarda görünen adlarıyla anılır.
+ *  genel: şirketin ana kanalı · yonetim: kurul ile CEO'nun bire bir sohbeti · toplanti: toplantılar
+ */
+export const SISTEM_KANALLARI = ["genel", "yonetim", "toplanti"] as const;
+const KANAL_ADLARI_EN: Record<string, string> = { genel: "general", yonetim: "ceo", toplanti: "meetings" };
+
+/** Kanalın arayüzde görünen adı (# olmadan) */
+export function kanalGorunenAdi(kanal: string, dil: Dil): string {
+  return dil === "en" ? (KANAL_ADLARI_EN[kanal] ?? kanal) : kanal;
+}
+
+/** Görünen adı kanal kimliğine çevirir: "#general" → "genel"; bilinmeyen ad olduğu gibi kalır */
+export function kanalKimligi(ad: string): string {
+  const temiz = ad.trim().replace(/^#/, "").toLowerCase();
+  return Object.entries(KANAL_ADLARI_EN).find(([, en]) => en === temiz)?.[0] ?? temiz;
+}
 
 export interface Kanal {
   ad: string;
@@ -369,7 +390,7 @@ export type OnayDurumu = "bekliyor" | "onaylandi" | "reddedildi" | "zaman_asimi"
 export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
   arac: "Araç çağrısı",
   ise_alim: "İşe alım",
-  birlestirme: "main'e birleştirme",
+  birlestirme: "Birleştirme",
   genel: "Karar",
 };
 
@@ -807,7 +828,7 @@ export const AD_HARITALARI_EN = {
   ajanDurumu: { kapali: "Off", bosta: "Idle", calisiyor: "Working", karar_bekliyor: "Awaiting decision", duraklatildi: "Paused", hata: "Error" } as Record<AjanDurumu, string>,
   gorevDurumu: { bekleyen: "Backlog", planlandi: "Planned", calisiliyor: "In progress", inceleme: "In review", tamam: "Done", iptal: "Cancelled" } as Record<GorevDurumu, string>,
   karar: { izin: "Allowed", ret: "Denied", sor: "Ask for approval", degisti: "Input changed" } as Record<Karar, string>,
-  onayTuru: { arac: "Tool call", ise_alim: "Hiring", birlestirme: "Merge to main", genel: "Decision" } as Record<OnayTuru, string>,
+  onayTuru: { arac: "Tool call", ise_alim: "Hiring", birlestirme: "Merge", genel: "Decision" } as Record<OnayTuru, string>,
   hafizaTuru: { olgu: "Fact", karar: "Decision", tercih: "Board preference", ogrenilen: "Lesson", uzmanlik: "Expertise", ozet: "Summary" } as Record<HafizaTuru, string>,
 };
 
