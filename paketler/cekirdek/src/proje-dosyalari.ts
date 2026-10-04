@@ -134,8 +134,8 @@ function notKoku(kok: string): string {
 /** Göreli not yolunu doğrular; dizin dışına çıkışı engeller */
 export function notYoluCoz(kok: string, goreli: string): string {
   const temiz = goreli.replace(/\\/g, "/").replace(/^\/+/, "");
-  if (!temiz || temiz.split("/").some((p) => p === ".." || p === "")) throw new ArnorgHatasi("Geçersiz not yolu.");
-  if (!/\.(md|markdown|txt)$/i.test(temiz)) throw new ArnorgHatasi("Notlar .md, .markdown ya da .txt olmalı.");
+  if (!temiz || temiz.split("/").some((p) => p === ".." || p === "")) throw new ArnorgHatasi(iki("Geçersiz not yolu.", "Invalid note path."));
+  if (!/\.(md|markdown|txt)$/i.test(temiz)) throw new ArnorgHatasi(iki("Notlar .md, .markdown ya da .txt olmalı.", "Notes must be .md, .markdown or .txt files."));
   return path.join(notKoku(kok), ...temiz.split("/"));
 }
 
@@ -164,7 +164,7 @@ export function notlariListele(kok: string): NotDosyasi[] {
 
 export function notOku(kok: string, goreli: string): NotIcerigi {
   const dosya = notYoluCoz(kok, goreli);
-  if (!fs.existsSync(dosya)) throw new ArnorgHatasi("Not bulunamadı.", 404);
+  if (!fs.existsSync(dosya)) throw new ArnorgHatasi(iki("Not bulunamadı.", "Note not found."), 404);
   return { yol: goreli, icerik: fs.readFileSync(dosya, "utf8") };
 }
 

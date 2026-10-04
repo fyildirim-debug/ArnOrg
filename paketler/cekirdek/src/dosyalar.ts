@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AramaSonucu, DosyaDugumu, DosyaIcerigi } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 import { degisiklikler } from "./git.js";
 import { ArnorgHatasi } from "./yardimci.js";
 
@@ -32,10 +33,10 @@ export function dilBul(dosya: string): string {
 /** Göreli yolu doğrular ve kökün içinde kalan mutlak yola çevirir */
 export function guvenliYol(kok: string, goreli: string): string {
   const temiz = goreli.replace(/\\/g, "/").replace(/^\/+/, "");
-  if (temiz.split("/").some((p) => p === "..")) throw new ArnorgHatasi("Geçersiz dosya yolu.");
+  if (temiz.split("/").some((p) => p === "..")) throw new ArnorgHatasi(iki("Geçersiz dosya yolu.", "Invalid file path."));
   const tam = path.resolve(kok, temiz);
   const fark = path.relative(path.resolve(kok), tam);
-  if (fark.startsWith("..") || path.isAbsolute(fark)) throw new ArnorgHatasi("Yol çalışma alanının dışında.");
+  if (fark.startsWith("..") || path.isAbsolute(fark)) throw new ArnorgHatasi(iki("Yol çalışma alanının dışında.", "The path is outside the workspace."));
   return tam;
 }
 
@@ -79,18 +80,18 @@ export function dosyaOku(kok: string, goreli: string, duzenleyen: string | null)
   try {
     bilgi = fs.statSync(tam);
   } catch {
-    throw new ArnorgHatasi("Dosya bulunamadı.", 404);
+    throw new ArnorgHatasi(iki("Dosya bulunamadı.", "File not found."), 404);
   }
-  if (!bilgi.isFile()) throw new ArnorgHatasi("Bu bir dosya değil.");
-  if (bilgi.size > BUYUK_DOSYA) throw new ArnorgHatasi("Dosya 2 MB'tan büyük; editörde açılamaz.", 413);
+  if (!bilgi.isFile()) throw new ArnorgHatasi(iki("Bu bir dosya değil.", "This is not a file."));
+  if (bilgi.size > BUYUK_DOSYA) throw new ArnorgHatasi(iki("Dosya 2 MB'tan büyük; editörde açılamaz.", "The file is larger than 2 MB; it can't be opened in the editor."), 413);
   const tampon = fs.readFileSync(tam);
-  if (ikiliMi(tampon)) throw new ArnorgHatasi("İkili dosya editörde açılamaz.", 415);
+  if (ikiliMi(tampon)) throw new ArnorgHatasi(iki("İkili dosya editörde açılamaz.", "Binary files can't be opened in the editor."), 415);
   return { yol: goreli, icerik: tampon.toString("utf8"), dil: dilBul(tam), saltOkunur: Boolean(duzenleyen), duzenleyenAjanId: duzenleyen };
 }
 
 export function dosyaYaz(kok: string, goreli: string, icerik: string): string {
   const tam = guvenliYol(kok, goreli);
-  if (Buffer.byteLength(icerik, "utf8") > BUYUK_DOSYA) throw new ArnorgHatasi("İçerik 2 MB'tan büyük.", 413);
+  if (Buffer.byteLength(icerik, "utf8") > BUYUK_DOSYA) throw new ArnorgHatasi(iki("İçerik 2 MB'tan büyük.", "The content is larger than 2 MB."), 413);
   // Var olan dosyanın satır sonu biçimi korunur
   let yazilacak = icerik;
   try {
@@ -106,7 +107,7 @@ export function dosyaYaz(kok: string, goreli: string, icerik: string): string {
 /** Proje içinde metin araması (büyük/küçük harf duyarsız, düz metin) */
 export function ara(kok: string, sorgu: string, sinir = 500): AramaSonucu[] {
   const q = sorgu.trim();
-  if (q.length < 2) throw new ArnorgHatasi("Arama en az 2 karakter olmalı.");
+  if (q.length < 2) throw new ArnorgHatasi(iki("Arama en az 2 karakter olmalı.", "Search needs at least 2 characters."));
   const kucuk = q.toLocaleLowerCase("tr");
   const sonuc: AramaSonucu[] = [];
   const dolas = (dizin: string, goreli: string) => {

@@ -1,6 +1,7 @@
 // Kod editörünün terminalleri (node-pty; Windows'ta ConPTY)
 import os from "node:os";
 import { spawn, type IPty } from "@lydell/node-pty";
+import { iki } from "./dil.js";
 import { temizOrtam } from "./ortam.js";
 import { ArnorgHatasi, kimlik } from "./yardimci.js";
 
@@ -26,7 +27,7 @@ export class TerminalYoneticisi {
   private terminaller = new Map<string, Terminal>();
 
   ac(projeId: string, cwd: string, sutun = 100, satir = 30): string {
-    if (this.terminaller.size >= 32) throw new ArnorgHatasi("Çok fazla açık terminal var; bazılarını kapatın.", 429);
+    if (this.terminaller.size >= 32) throw new ArnorgHatasi(iki("Çok fazla açık terminal var; bazılarını kapatın.", "Too many terminals are open; close some of them."), 429);
     const { komut, argumanlar } = kabuk();
     const pty = spawn(komut, argumanlar, {
       name: "xterm-256color",
@@ -51,7 +52,7 @@ export class TerminalYoneticisi {
 
   bagla(id: string, veriDinleyici: (veri: string) => void, kapanisDinleyici: () => void): () => void {
     const t = this.terminaller.get(id);
-    if (!t) throw new ArnorgHatasi("Terminal bulunamadı.", 404);
+    if (!t) throw new ArnorgHatasi(iki("Terminal bulunamadı.", "Terminal not found."), 404);
     if (t.tampon) veriDinleyici(t.tampon);
     t.dinleyiciler.add(veriDinleyici);
     t.kapanis.add(kapanisDinleyici);

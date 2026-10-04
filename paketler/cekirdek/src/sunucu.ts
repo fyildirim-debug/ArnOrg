@@ -11,6 +11,7 @@ import {
   ARNORG_SURUMU,
   KOD_SEMBOL_TURU_ADLARI,
   KURUL,
+  kanalAciklamasi,
   type HafizaTuru,
   type IstemciOlayi,
   type KodSembolTuru,
@@ -20,7 +21,7 @@ import {
   type TerminalIstemciMesaji,
 } from "@arnorg/ortak";
 import { z, ZodError } from "zod";
-import { iki } from "./dil.js";
+import { dil, iki } from "./dil.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { fsUclariniKur } from "./fs-api.js";
@@ -49,7 +50,7 @@ const gorevDurumu = z.enum(["bekleyen", "planlandi", "calisiliyor", "inceleme", 
 const hafizaTuru = z.enum(["olgu", "karar", "tercih", "ogrenilen", "uzmanlik", "ozet"]);
 
 /** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>) */
-const karakterSemasi = z.string().regex(/^(k\d{2}|u-[a-z0-9-]{4,64})$/, "Geçersiz karakter kimliği.");
+const karakterSemasi = z.string().regex(/^(k\d{2}|u-[a-z0-9-]{4,64})$/, { error: () => iki("Geçersiz karakter kimliği.", "Invalid character id.") });
 
 const semalar = {
   hafizaYaz: z.object({
@@ -182,7 +183,7 @@ function sdkSurumu(): string {
   } catch {
     // bulunamadı
   }
-  return "bilinmiyor";
+  return iki("bilinmiyor", "unknown");
 }
 
 export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> {
@@ -203,7 +204,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.addHook("onRequest", async (istek, yanit) => {
     const yol = istek.url.split("?")[0] ?? "";
     if (!yol.startsWith("/api/") && !yol.startsWith("/ws")) return;
-    if (!hostIzinli(istek.headers.host)) return yanit.code(403).send({ hata: "İzin verilmeyen Host başlığı." });
+    if (!hostIzinli(istek.headers.host)) return yanit.code(403).send({ hata: iki("İzin verilmeyen Host başlığı.", "Host header not allowed.") });
     const koken = istek.headers.origin;
     if (koken) {
       let kokenHost = "";
@@ -212,24 +213,26 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
       } catch {
         // geçersiz origin
       }
-      if (kokenHost.toLowerCase() !== String(istek.headers.host).toLowerCase()) return yanit.code(403).send({ hata: "İzin verilmeyen kaynak (Origin)." });
+      if (kokenHost.toLowerCase() !== String(istek.headers.host).toLowerCase()) return yanit.code(403).send({ hata: iki("İzin verilmeyen kaynak (Origin).", "Origin not allowed.") });
     }
     const baslik = istek.headers.authorization;
     const sorgu = (istek.query as Record<string, string | undefined>)?.anahtar;
     const verilen = baslik?.startsWith("Bearer ") ? baslik.slice(7) : sorgu;
-    if (!verilen || !anahtarEsit(verilen, s.erisimAnahtari)) return yanit.code(401).send({ hata: "Erişim anahtarı gerekli ya da hatalı." });
+    if (!verilen || !anahtarEsit(verilen, s.erisimAnahtari)) return yanit.code(401).send({ hata: iki("Erişim anahtarı gerekli ya da hatalı.", "The access key is missing or wrong.") });
   });
 
   app.setErrorHandler((hata, _istek, yanit) => {
     if (hata instanceof ArnorgHatasi) return yanit.code(hata.durumKodu).send({ hata: hata.message });
     if (hata instanceof ZodError) {
       const ilk = hata.issues[0];
-      return yanit.code(400).send({ hata: `Geçersiz istek: ${ilk ? `${ilk.path.join(".") || "gövde"} — ${ilk.message}` : "doğrulama hatası"}` });
+      return yanit.code(400).send({
+        hata: iki(`Geçersiz istek: ${ilk ? `${ilk.path.join(".") || "gövde"} — ${ilk.message}` : "doğrulama hatası"}`, `Invalid request: ${ilk ? `${ilk.path.join(".") || "body"} — ${ilk.message}` : "validation error"}`),
+      });
     }
     const kod = (hata as { statusCode?: number }).statusCode;
     if (kod && kod < 500) return yanit.code(kod).send({ hata: (hata as Error).message });
     console.error("[arnorg] iç hata:", hata);
-    return yanit.code(500).send({ hata: `İç hata: ${(hata as Error).message}` });
+    return yanit.code(500).send({ hata: iki(`İç hata: ${(hata as Error).message}`, `Internal error: ${(hata as Error).message}`) });
   });
 
   const govde = <T>(sema: z.ZodType<T>, istek: FastifyRequest): T => sema.parse(istek.body ?? {});
@@ -404,7 +407,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   // ---------------- kanallar ----------------
   app.get("/api/projeler/:pid/kanallar", async (i) => {
     sirket.proje(param(i, "pid"));
-    return sirket.depo.kanallar(param(i, "pid"));
+    // Sistem kanallarının açıklaması geçerli dilde; diğerlerinde kayıtlı açıklama
+    return sirket.depo.kanallar(param(i, "pid")).map((k) => ({ ...k, aciklama: kanalAciklamasi(k.ad, k.aciklama, dil()) }));
   });
   app.get("/api/projeler/:pid/kanallar/:kanal/mesajlar", async (i) => {
     sirket.proje(param(i, "pid"));
@@ -431,7 +435,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     sirket.proje(pid);
     const q = sorgu(i, "q")?.trim();
     const tur = sorgu(i, "tur") as HafizaTuru | undefined;
-    if (tur && !HAFIZA_TURLERI.includes(tur)) throw new ArnorgHatasi("Geçersiz hafıza türü.");
+    if (tur && !HAFIZA_TURLERI.includes(tur)) throw new ArnorgHatasi(iki("Geçersiz hafıza türü.", "Invalid memory type."));
     if (q) return sirket.hafiza.ara(pid, q, tur, 50);
     return sirket.depo.hafizaKayitlari(pid, { tur, eskilerDahil: sorgu(i, "eskiler") === "1", sinir: 500 });
   });
@@ -484,8 +488,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   };
   const kodYolu = (i: FastifyRequest, gerekli: boolean) => {
     const yol = sorgu(i, "yol")?.trim() ?? "";
-    if (gerekli && !yol) throw new ArnorgHatasi("Dosya yolu (yol) gerekli.");
-    if (yol.length > 1000) throw new ArnorgHatasi("Yol çok uzun.");
+    if (gerekli && !yol) throw new ArnorgHatasi(iki("Dosya yolu (yol) gerekli.", "A file path (yol) is required."));
+    if (yol.length > 1000) throw new ArnorgHatasi(iki("Yol çok uzun.", "The path is too long."));
     return yol;
   };
   app.get("/api/kod-zekasi/modeller", async () => sirket.kodZekasi.modeller());
@@ -507,14 +511,14 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/kod-zekasi/ara", async (i) => {
     const { pid, alan } = kodAlani(i);
     const q = sorgu(i, "q")?.trim() ?? "";
-    if (!q) throw new ArnorgHatasi("Arama metni (q) gerekli.");
-    if (q.length > 2000) throw new ArnorgHatasi("Arama metni çok uzun.");
+    if (!q) throw new ArnorgHatasi(iki("Arama metni (q) gerekli.", "Search text (q) is required."));
+    if (q.length > 2000) throw new ArnorgHatasi(iki("Arama metni çok uzun.", "The search text is too long."));
     return sirket.kodZekasi.ara(pid, alan, q, { sinir: Math.min(sayi(sorgu(i, "sinir"), 20), 50), yol: kodYolu(i, false) || undefined });
   });
   app.get("/api/projeler/:pid/kod-zekasi/semboller", async (i) => {
     const { pid, alan } = kodAlani(i);
     const tur = sorgu(i, "tur") as KodSembolTuru | undefined;
-    if (tur && !(tur in KOD_SEMBOL_TURU_ADLARI)) throw new ArnorgHatasi("Geçersiz sembol türü.");
+    if (tur && !(tur in KOD_SEMBOL_TURU_ADLARI)) throw new ArnorgHatasi(iki("Geçersiz sembol türü.", "Invalid symbol kind."));
     return sirket.kodZekasi.semboller(pid, alan, (sorgu(i, "q") ?? "").slice(0, 200), { tur, sinir: Math.min(sayi(sorgu(i, "sinir"), 100), 500) });
   });
   app.get("/api/projeler/:pid/kod-zekasi/harita", async (i) => {
@@ -555,7 +559,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/onaylar", async (i) => {
     sirket.proje(param(i, "pid"));
     const durum = sorgu(i, "durum") as OnayDurumu | undefined;
-    if (durum && !["bekliyor", "onaylandi", "reddedildi", "zaman_asimi"].includes(durum)) throw new ArnorgHatasi("Geçersiz durum.");
+    if (durum && !["bekliyor", "onaylandi", "reddedildi", "zaman_asimi"].includes(durum)) throw new ArnorgHatasi(iki("Geçersiz durum.", "Invalid status."));
     return sirket.depo.onaylar(param(i, "pid"), durum);
   });
   app.post("/api/onaylar/:oid", async (i) => {
@@ -585,13 +589,15 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const kok = sirket.alanYolu(pid, g.alan);
     const tam = path.resolve(kok, g.yol);
     const d = duzenleyen(tam);
-    if (d) throw new ArnorgHatasi(`${sirket.depo.ajan(d)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`, 409);
+    if (d) throw new ArnorgHatasi(iki(`${sirket.depo.ajan(d)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`, `${sirket.depo.ajan(d)?.ad ?? "An agent"} is editing this file. Pause the agent first.`), 409);
     sirket.kullaniciKilitleri.set(tam, Date.now() + 30_000);
     dosyaYaz(kok, g.yol, g.icerik);
     // Dosya bir ajanın çalışma alanındaysa ajana not düşülür
     const alanAjan = g.alan !== "ana" ? sirket.depo.ajan(g.alan) : null;
     if (alanAjan && (alanAjan.durum === "calisiyor" || alanAjan.durum === "bosta")) {
-      void sirket.ajanaMesaj(alanAjan.id, `Yönetim kurulu ${g.yol} dosyasını düzenledi. Bu dosyaya dokunmadan önce yeniden oku.`, "next", { tur: "sistem" }).catch(() => undefined);
+      void sirket
+        .ajanaMesaj(alanAjan.id, iki(`Yönetim kurulu ${g.yol} dosyasını düzenledi. Bu dosyaya dokunmadan önce yeniden oku.`, `The board edited ${g.yol}. Re-read it before you touch it.`), "next", { tur: "sistem" })
+        .catch(() => undefined);
     }
     sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: pid, alan: g.alan, yol: g.yol.replace(/\\/g, "/"), ajanId: null });
     return tamam;
@@ -611,10 +617,12 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const g = z.object({ alan: z.string(), yol: z.string().optional() }).parse(i.body ?? {});
     const kok = sirket.alanYolu(param(i, "pid"), g.alan);
     const hedef = g.yol ? path.resolve(kok, g.yol) : kok;
-    if (!hedef.startsWith(path.resolve(kok))) throw new ArnorgHatasi("Geçersiz yol.");
+    if (!hedef.startsWith(path.resolve(kok))) throw new ArnorgHatasi(iki("Geçersiz yol.", "Invalid path."));
     const editor = sirket.yapilandirma.ayarlar.disEditor || "code";
     const cocuk = spawn(editor, [hedef], { detached: true, stdio: "ignore", windowsHide: true, shell: process.platform === "win32", env: temizOrtam() });
-    cocuk.on("error", () => sirket.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `"${editor}" çalıştırılamadı. Ayarlar'dan dış editör komutunu değiştirin.` }));
+    cocuk.on("error", () =>
+      sirket.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`"${editor}" çalıştırılamadı. Ayarlar'dan dış editör komutunu değiştirin.`, `Could not run "${editor}". Change the external editor command in Settings.`) }),
+    );
     cocuk.unref();
     return tamam;
   });
@@ -669,10 +677,10 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
         (veri) => {
           if (soket.readyState === soket.OPEN) soket.send(veri);
         },
-        () => soket.close(1000, "Terminal kapandı"),
+        () => soket.close(1000, iki("Terminal kapandı", "Terminal closed")),
       );
     } catch {
-      soket.close(4404, "Terminal bulunamadı");
+      soket.close(4404, iki("Terminal bulunamadı", "Terminal not found"));
       return;
     }
     soket.on("message", (ham: Buffer) => {
@@ -707,15 +715,20 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
       if (istek.method === "GET" && !dosyaIstegi && !yol.startsWith("/api/") && !yol.startsWith("/ws")) {
         return yanit.header("Cache-Control", "no-cache").sendFile("index.html");
       }
-      return yanit.code(404).send({ hata: "Bulunamadı." });
+      return yanit.code(404).send({ hata: iki("Bulunamadı.", "Not found.") });
     });
   } else {
     app.get("/", async (_i, yanit) =>
       yanit
         .type("text/html; charset=utf-8")
-        .send("<!doctype html><meta charset=utf-8><title>ArnOrg</title><body style='background:#0a0a0b;color:#f2f0ec;font-family:monospace;padding:40px'>ArnOrg çekirdeği çalışıyor. Stüdyo derlemesi bulunamadı: <code>npm run build -w @arnorg/studyo</code></body>"),
+        .send(
+          iki(
+            "<!doctype html><meta charset=utf-8><title>ArnOrg</title><body style='background:#0a0a0b;color:#f2f0ec;font-family:monospace;padding:40px'>ArnOrg çekirdeği çalışıyor. Stüdyo derlemesi bulunamadı: <code>npm run build -w @arnorg/studyo</code></body>",
+            "<!doctype html><meta charset=utf-8><title>ArnOrg</title><body style='background:#0a0a0b;color:#f2f0ec;font-family:monospace;padding:40px'>The ArnOrg core is running. No Studio build was found: <code>npm run build -w @arnorg/studyo</code></body>",
+          ),
+        ),
     );
-    app.setNotFoundHandler((_i, yanit) => yanit.code(404).send({ hata: "Bulunamadı." }));
+    app.setNotFoundHandler((_i, yanit) => yanit.code(404).send({ hata: iki("Bulunamadı.", "Not found.") }));
   }
 
   void bulunamadi;

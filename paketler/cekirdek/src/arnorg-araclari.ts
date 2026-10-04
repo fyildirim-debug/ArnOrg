@@ -1,6 +1,6 @@
 // Ajanların ArnOrg ile konuştuğu süreç içi MCP araçları (mcp__arnorg__*)
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalKimligi, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
+import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalGorunenAdi, kanalKimligi, rolMetni, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
@@ -9,8 +9,8 @@ import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { maddeleriDenetle } from "./anayasa.js";
-import { iki } from "./dil.js";
-import { rolBul } from "./roller.js";
+import { dil, iki } from "./dil.js";
+import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { kisalt } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
@@ -48,7 +48,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
   const yonetici = () => Boolean(rolBul(ben().rol)?.yonetici);
   const ajanBul = (ad: string) => {
     const a = sirket.depo.ajanAdla(ben().projeId, ad.replace(/^@/, "").trim());
-    if (!a) throw new Error(`"${ad}" adında çalışan yok. Ekibi ekip_listele ile gör.`);
+    if (!a) throw new Error(iki(`"${ad}" adında çalışan yok. Ekibi ekip_listele ile gör.`, `No employee named "${ad}". See the team with ekip_listele.`));
     return a;
   };
 
@@ -57,11 +57,14 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
   const araclar = [
     tool(
       "mesaj_gonder",
-      "Ekibe ya da bir çalışana mesaj gönderir. Metinde @Ad ile anılan ya da alici olarak verilen çalışan uyarılır. Kurula rapor için kanal 'genel' kullan.",
+      iki(
+        "Ekibe ya da bir çalışana mesaj gönderir. Metinde @Ad ile anılan ya da alici olarak verilen çalışan uyarılır. Kurula rapor için kanal 'genel' kullan.",
+        "Sends a message to the team or to an employee. Employees @mentioned in the text or given as alici are notified. For reports to the board use kanal 'general'.",
+      ),
       {
-        metin: z.string().min(1).describe("Mesaj metni"),
-        kanal: z.string().optional().describe("Kanal adı (varsayılan: muhendislik; CEO için genel)"),
-        alici: z.string().optional().describe("Doğrudan uyarılacak çalışanın adı"),
+        metin: z.string().min(1).describe(iki("Mesaj metni", "Message text")),
+        kanal: z.string().optional().describe(iki("Kanal adı (varsayılan: muhendislik; CEO için genel)", "Channel name (default: engineering; general for the CEO)")),
+        alici: z.string().optional().describe(iki("Doğrudan uyarılacak çalışanın adı", "Name of the employee to notify directly")),
       },
       (a) =>
         guvenli(async () => {
@@ -74,36 +77,41 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           }
           const m = await sirket.mesajGonder(ben().projeId, kanal, ajanId, govde);
           const uyarilanlar = m.anilanlar.map((id) => sirket.depo.ajan(id)?.ad).filter(Boolean);
-          return metin(`Mesaj #${m.kanal} kanalına bırakıldı.${uyarilanlar.length ? ` Uyarılan: ${uyarilanlar.join(", ")}.` : ""}`);
+          return metin(
+            iki(
+              `Mesaj #${m.kanal} kanalına bırakıldı.${uyarilanlar.length ? ` Uyarılan: ${uyarilanlar.join(", ")}.` : ""}`,
+              `Message posted to #${kanalGorunenAdi(m.kanal, "en")}.${uyarilanlar.length ? ` Notified: ${uyarilanlar.join(", ")}.` : ""}`,
+            ),
+          );
         }),
     ),
     tool(
       "kanal_oku",
-      "Bir kanalın son mesajlarını okur.",
+      iki("Bir kanalın son mesajlarını okur.", "Reads the latest messages in a channel."),
       { kanal: z.string().default("genel"), sinir: z.number().int().min(1).max(100).default(30) },
       (a) =>
         guvenli(() => {
           const mesajlar = sirket.depo.mesajlar(ben().projeId, kanalKimligi(a.kanal), a.sinir);
-          if (!mesajlar.length) return metin(`#${a.kanal} kanalında mesaj yok.`);
+          if (!mesajlar.length) return metin(iki(`#${a.kanal} kanalında mesaj yok.`, `No messages in #${kanalGorunenAdi(kanalKimligi(a.kanal), "en")}.`));
           return metin(mesajlar.map((m) => `[${m.zaman.slice(11, 16)}] ${m.gonderenAd}: ${m.metin}`).join("\n"));
         }),
     ),
     tool(
       "gorevleri_listele",
-      "Projenin görevlerini listeler.",
+      iki("Projenin görevlerini listeler.", "Lists the project's tasks."),
       { durum: durumSemasi.optional(), sadece_benim: z.boolean().default(false) },
       (a) =>
         guvenli(() => {
           let liste = sirket.depo.gorevler(ben().projeId);
           if (a.durum) liste = liste.filter((g) => g.durum === a.durum);
           if (a.sadece_benim) liste = liste.filter((g) => g.atananId === ajanId);
-          if (!liste.length) return metin("Görev yok.");
+          if (!liste.length) return metin(iki("Görev yok.", "No tasks."));
           return metin(
             liste
               .map((g) => {
-                const kim = g.atananId ? sirket.depo.ajan(g.atananId)?.ad ?? "?" : "atanmadı";
+                const kim = g.atananId ? sirket.depo.ajan(g.atananId)?.ad ?? "?" : iki("atanmadı", "unassigned");
                 const bag = g.bagimliliklar.map((b) => sirket.depo.gorev(b)?.kod).filter(Boolean);
-                return `${g.kod} [${g.durum}] ${g.baslik} · ${kim}${bag.length ? ` · bağlı: ${bag.join(", ")}` : ""}`;
+                return `${g.kod} [${g.durum}] ${g.baslik} · ${kim}${bag.length ? ` · ${iki("bağlı", "depends on")}: ${bag.join(", ")}` : ""}`;
               })
               .join("\n"),
           );
@@ -111,24 +119,27 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "gorev_detay",
-      "Bir görevin açıklamasını ve kabul ölçütünü gösterir.",
-      { gorev: z.string().describe("Görev kodu, ör. T-12") },
+      iki("Bir görevin açıklamasını ve kabul ölçütünü gösterir.", "Shows a task's description and acceptance criteria."),
+      { gorev: z.string().describe(iki("Görev kodu, ör. T-12", "Task code, e.g. T-12")) },
       (a) =>
         guvenli(() => {
           const g = sirket.depo.gorevKoduyla(ben().projeId, a.gorev);
-          if (!g) return hata("Görev bulunamadı.");
-          return metin(sirket.gorevMetni(g) + `\nDurum: ${g.durum}`);
+          if (!g) return hata(iki("Görev bulunamadı.", "Task not found."));
+          return metin(sirket.gorevMetni(g) + `\n${iki("Durum", "Status")}: ${g.durum}`);
         }),
     ),
     tool(
       "gorev_ac",
-      "Yeni görev açar. Atanan verilir ve baslat=true ise görev 'calisiliyor' olur ve çalışan hemen başlar.",
+      iki(
+        "Yeni görev açar. Atanan verilir ve baslat=true ise görev 'calisiliyor' olur ve çalışan hemen başlar.",
+        "Opens a new task. If atanan is given and baslat=true, the task becomes 'calisiliyor' (in progress) and the employee starts right away.",
+      ),
       {
         baslik: z.string().min(3),
         aciklama: z.string().default(""),
         kabul_olcutu: z.string().default(""),
-        atanan: z.string().optional().describe("Çalışan adı"),
-        bagimliliklar: z.array(z.string()).default([]).describe("Görev kodları, ör. [\"T-3\"]"),
+        atanan: z.string().optional().describe(iki("Çalışan adı", "Employee name")),
+        bagimliliklar: z.array(z.string()).default([]).describe(iki("Görev kodları, ör. [\"T-3\"]", "Task codes, e.g. [\"T-3\"]")),
         etiket: z.string().default(""),
         baslat: z.boolean().default(false),
       },
@@ -151,71 +162,84 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           if (a.baslat && atanan) {
             try {
               await sirket.gorevGuncelle(g.id, { durum: "calisiliyor" }, ajanId);
-              return metin(`${g.kod} açıldı ve ${atanan.ad} başladı.`);
+              return metin(iki(`${g.kod} açıldı ve ${atanan.ad} başladı.`, `${g.kod} opened and ${atanan.ad} started.`));
             } catch (h) {
-              return metin(`${g.kod} açıldı ama başlatılamadı: ${(h as Error).message}`);
+              return metin(iki(`${g.kod} açıldı ama başlatılamadı: ${(h as Error).message}`, `${g.kod} opened but could not be started: ${(h as Error).message}`));
             }
           }
-          return metin(`${g.kod} açıldı (${atanan ? `${atanan.ad}'e atandı, planlandı` : "atanmadı"}).`);
+          return metin(iki(`${g.kod} açıldı (${atanan ? `${atanan.ad}'e atandı, planlandı` : "atanmadı"}).`, `${g.kod} opened (${atanan ? `assigned to ${atanan.ad}, planned` : "unassigned"}).`));
         }),
     ),
     tool(
       "gorev_guncelle",
-      "Görevin durumunu, atanan kişisini ya da açıklamasını günceller. İş bitince durum 'inceleme' yapılır; not alanına ne yapıldığını yaz.",
+      iki(
+        "Görevin durumunu, atanan kişisini ya da açıklamasını günceller. İş bitince durum 'inceleme' yapılır; not alanına ne yapıldığını yaz.",
+        "Updates a task's status, assignee or description. When the work is done, set durum to 'inceleme' (review); write what you did in not.",
+      ),
       {
-        gorev: z.string().describe("Görev kodu, ör. T-12"),
+        gorev: z.string().describe(iki("Görev kodu, ör. T-12", "Task code, e.g. T-12")),
         durum: durumSemasi.optional(),
         atanan: z.string().optional(),
-        not: z.string().optional().describe("Kanala düşülecek kısa not"),
+        not: z.string().optional().describe(iki("Kanala düşülecek kısa not", "A short note to post to the channel")),
       },
       (a) =>
         guvenli(async () => {
           const g = sirket.depo.gorevKoduyla(ben().projeId, a.gorev);
-          if (!g) return hata("Görev bulunamadı.");
+          if (!g) return hata(iki("Görev bulunamadı.", "Task not found."));
           if (!yonetici() && g.atananId && g.atananId !== ajanId && a.atanan === undefined && a.durum && a.durum !== "calisiliyor" && rolBul(ben().rol)?.kimlik !== "inceleme") {
-            return hata("Başkasına atanmış görevin durumunu yalnız yöneticiler ve kod inceleyici değiştirebilir.");
+            return hata(iki("Başkasına atanmış görevin durumunu yalnız yöneticiler ve kod inceleyici değiştirebilir.", "Only managers and the code reviewer can change the status of a task assigned to someone else."));
           }
           const atanan = a.atanan ? ajanBul(a.atanan) : null;
           const yeni = await sirket.gorevGuncelle(g.id, { durum: a.durum, atananId: atanan?.id }, ajanId);
           if (a.not) await sirket.mesajGonder(ben().projeId, "muhendislik", ajanId, `${yeni.kod} → ${yeni.durum}: ${a.not}`);
-          return metin(`${yeni.kod} güncellendi: ${yeni.durum}${yeni.atananId ? ` · ${sirket.depo.ajan(yeni.atananId)?.ad}` : ""}.`);
+          const kim = yeni.atananId ? ` · ${sirket.depo.ajan(yeni.atananId)?.ad}` : "";
+          return metin(iki(`${yeni.kod} güncellendi: ${yeni.durum}${kim}.`, `${yeni.kod} updated: ${yeni.durum}${kim}.`));
         }),
     ),
     tool(
       "ekip_listele",
-      "Ekibi, rollerini, durumlarını ve bugünkü kullanımlarını listeler. Rol kataloğunu da gösterir.",
+      iki("Ekibi, rollerini, durumlarını ve bugünkü kullanımlarını listeler. Rol kataloğunu da gösterir.", "Lists the team with their roles, status and today's usage. Also shows the role catalog."),
       {},
       () =>
         guvenli(() => {
           const ekip = sirket.depo
             .ajanlar(ben().projeId)
             .map((x) => {
-              const kullanim = `bugün ${tokenMetni(x.bugunToken)} token`;
-              return `${x.ad} · ${x.rolAdi} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
+              const kullanim = iki(`bugün ${tokenMetni(x.bugunToken)} token`, `today ${tokenMetni(x.bugunToken)} tokens`);
+              return `${x.ad} · ${rolAdiDilde(x)} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
             })
             .join("\n");
-          return metin(`Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`);
+          return metin(
+            iki(
+              `Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`,
+              `Team:\n${ekip}\n\nRoles you can hire: every role except ceo — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`,
+            ),
+          );
         }),
     ),
     tool(
       "ise_al_teklif",
-      "Yeni çalışan için yönetim kuruluna gerekçeli işe alım teklifi verir (yalnız yöneticiler). Kurul onaylarsa çalışan ekibe katılır ve sana haber verilir.",
+      iki(
+        "Yeni çalışan için yönetim kuruluna gerekçeli işe alım teklifi verir (yalnız yöneticiler). Kurul onaylarsa çalışan ekibe katılır ve sana haber verilir.",
+        "Proposes hiring a new employee to the board, with reasons (managers only). If the board approves, the employee joins the team and you are told.",
+      ),
       {
-        ad: z.string().min(2).max(40).describe("Türkçe bir ad, ör. Deniz"),
-        rol: z.string().describe("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci"),
+        ad: z.string().min(2).max(40).describe(iki("Türkçe bir ad, ör. Deniz", "A first name, e.g. Ada")),
+        rol: z.string().describe(iki("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci", "Role id: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci")),
         gerekce: z.string().min(10),
-        model: z.string().optional().describe("opus, sonnet ya da haiku; boşsa rolün varsayılanı"),
-        yonetici: z.string().optional().describe("Bağlanacağı çalışanın adı"),
+        model: z.string().optional().describe(iki("opus, sonnet ya da haiku; boşsa rolün varsayılanı", "opus, sonnet or haiku; the role's default if empty")),
+        yonetici: z.string().optional().describe(iki("Bağlanacağı çalışanın adı", "Name of the employee they will report to")),
         talimat_eki: z.string().optional(),
       },
       (a) =>
         guvenli(() => {
-          if (!yonetici()) return hata("İşe alım teklifini yalnız CEO ve CTO verebilir.");
+          if (!yonetici()) return hata(iki("İşe alım teklifini yalnız CEO ve CTO verebilir.", "Only the CEO and CTO can propose a hire."));
           const rol = rolBul(a.rol);
-          if (!rol || rol.kimlik === "ceo") return hata("Geçersiz rol.");
-          if (sirket.depo.ajanAdla(ben().projeId, a.ad)) return hata(`${a.ad} adında bir çalışan zaten var; başka bir ad seç.`);
+          if (!rol || rol.kimlik === "ceo") return hata(iki("Geçersiz rol.", "Invalid role."));
+          if (sirket.depo.ajanAdla(ben().projeId, a.ad)) return hata(iki(`${a.ad} adında bir çalışan zaten var; başka bir ad seç.`, `There is already an employee named ${a.ad}; pick another name.`));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "ise_alim" && (o.veri as { ad?: string })?.ad?.toLowerCase() === a.ad.toLowerCase());
-          if (bekleyen) return metin(`${a.ad} için teklif zaten kurulda bekliyor.`);
+          if (bekleyen) return metin(iki(`${a.ad} için teklif zaten kurulda bekliyor.`, `A proposal for ${a.ad} is already waiting for the board.`));
+          const rolAdi = rolMetni(rol, dil()).ad;
           const veri = {
             ad: a.ad,
             rol: rol.kimlik,
@@ -226,51 +250,59 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           sirket.teklifAc(
             ben(),
             "ise_alim",
-            `İşe alım: ${a.ad} · ${rol.ad}`,
-            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel} · Yönetici: ${veri.yoneticiAd}`,
+            iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
+            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
             veri,
           );
-          return metin(`Teklif yönetim kuruluna sunuldu: ${a.ad} (${rol.ad}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`);
+          return metin(
+            iki(
+              `Teklif yönetim kuruluna sunuldu: ${a.ad} (${rolAdi}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`,
+              `The proposal went to the board: ${a.ad} (${rolAdi}). You will be told the decision; carry on with other work meanwhile.`,
+            ),
+          );
         }),
     ),
     tool(
       "notlari_listele",
-      "Proje notlarını (.arnorg/notlar) listeler.",
+      iki("Proje notlarını (.arnorg/notlar) listeler.", "Lists the project notes (.arnorg/notlar)."),
       {},
       () =>
         guvenli(() => {
           const n = notlariListele(proje().yol);
-          return metin(n.length ? n.map((x) => `${x.yol} — ${x.baslik}`).join("\n") : "Not yok.");
+          return metin(n.length ? n.map((x) => `${x.yol} — ${x.baslik}`).join("\n") : iki("Not yok.", "No notes."));
         }),
     ),
     tool(
       "not_oku",
-      "Bir proje notunu okur.",
-      { yol: z.string().describe("notlar/ köküne göre yol, ör. kararlar/ADR-002-veritabani.md") },
+      iki("Bir proje notunu okur.", "Reads a project note."),
+      { yol: z.string().describe(iki("notlar/ köküne göre yol, ör. kararlar/ADR-002-veritabani.md", "Path relative to notlar/, e.g. kararlar/ADR-002-database.md")) },
       (a) => guvenli(() => metin(notOku(proje().yol, a.yol).icerik)),
     ),
     tool(
       "not_yaz",
-      "Proje notu yazar ya da günceller (.arnorg/notlar altında). Kararlar için kararlar/ADR-<no>-<konu>.md kullan.",
+      iki("Proje notu yazar ya da günceller (.arnorg/notlar altında). Kararlar için kararlar/ADR-<no>-<konu>.md kullan.", "Writes or updates a project note (under .arnorg/notlar). Use kararlar/ADR-<no>-<topic>.md for decisions."),
       { yol: z.string(), icerik: z.string().min(1) },
       (a) =>
         guvenli(() => {
           const n = notYaz(proje().yol, a.yol, a.icerik);
           sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: ben().projeId, alan: "ana", yol: `.arnorg/notlar/${n.yol}`, ajanId });
-          return metin(`Not kaydedildi: ${n.yol}`);
+          return metin(iki(`Not kaydedildi: ${n.yol}`, `Note saved: ${n.yol}`));
         }),
     ),
     tool(
       "hafiza_kaydet",
-      "Bu projenin kalıcı hafızasına kayıt yazar. Türler: tercih (kurulun isteği, üslup, yasak), karar (alınan karar ve gerekçesi), ogrenilen (hata ve çözümü, püf noktası), olgu (projeye dair doğru bilgi: sürüm, yapı, komut), uzmanlik (kim neyi biliyor), ozet (biten iş, devir notu). Aynı tür ve başlıkta kayıt varsa güncellenir. Bilgi değiştiyse eski kaydın kimliğini yerine_gecen ile ver.",
+      iki(
+        "Bu projenin kalıcı hafızasına kayıt yazar. Türler: tercih (kurulun isteği, üslup, yasak), karar (alınan karar ve gerekçesi), ogrenilen (hata ve çözümü, püf noktası), olgu (projeye dair doğru bilgi: sürüm, yapı, komut), uzmanlik (kim neyi biliyor), ozet (biten iş, devir notu). Aynı tür ve başlıkta kayıt varsa güncellenir. Bilgi değiştiyse eski kaydın kimliğini yerine_gecen ile ver.",
+        "Writes a record to this project's lasting memory. Types: tercih (what the board wants: style, prohibitions), karar (a decision and its reason), ogrenilen (an error and its fix, a tip), olgu (a true fact about the project: version, structure, command), uzmanlik (who knows what), ozet (finished work, handover note). A record with the same type and title is updated. If the information changed, give the old record's id in yerine_gecen.",
+      ),
       {
         tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]),
-        baslik: z.string().min(3).max(160).describe("Kısa, aranabilir başlık; ör. 'Veritabanı: SQLite'"),
-        metin: z.string().min(5).max(4000).describe("Ne, neden, nasıl; tek paragraf yeterli"),
+        baslik: z.string().min(3).max(160).describe(iki("Kısa, aranabilir başlık; ör. 'Veritabanı: SQLite'", "Short, searchable title, e.g. 'Database: SQLite'")),
+        metin: z.string().min(5).max(4000).describe(iki("Ne, neden, nasıl; tek paragraf yeterli", "What, why, how; one paragraph is enough")),
         etiketler: z.array(z.string()).max(8).optional(),
-        onem: z.number().int().min(1).max(5).optional().describe("5 her oturumda hatırlanmalı, 1 ayrıntı; varsayılan 3"),
-        gorev: z.string().optional().describe("İlgili görev kodu, ör. T-4"),
-        yerine_gecen: z.string().optional().describe("Bu kaydın yerine geçtiği eski kaydın kimliği (bağlamdaki kimlik ilk 8 karakteri yeterli)"),
+        onem: z.number().int().min(1).max(5).optional().describe(iki("5 her oturumda hatırlanmalı, 1 ayrıntı; varsayılan 3", "5 must be remembered every session, 1 is a detail; default 3")),
+        gorev: z.string().optional().describe(iki("İlgili görev kodu, ör. T-4", "Related task code, e.g. T-4")),
+        yerine_gecen: z.string().optional().describe(iki("Bu kaydın yerine geçtiği eski kaydın kimliği (bağlamdaki kimlik ilk 8 karakteri yeterli)", "Id of the old record this one replaces (the first 8 characters of the id shown in context are enough)")),
       },
       (a) =>
         guvenli(() => {
@@ -279,16 +311,16 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           let eski: string | null = null;
           if (a.yerine_gecen) {
             const aday = sirket.depo.hafizaKayitlari(pid, { eskilerDahil: true, sinir: 5000 }).filter((k) => k.id.startsWith(a.yerine_gecen!));
-            if (aday.length !== 1) return hata("Yerine geçilecek kayıt bulunamadı ya da kimlik belirsiz; hafiza_ara ile kimliği bul.");
+            if (aday.length !== 1) return hata(iki("Yerine geçilecek kayıt bulunamadı ya da kimlik belirsiz; hafiza_ara ile kimliği bul.", "The record to replace was not found or the id is ambiguous; find the id with hafiza_ara."));
             eski = aday[0]!.id;
           }
           const k = sirket.hafizaYaz(pid, { tur: a.tur, baslik: a.baslik, metin: a.metin, etiketler: a.etiketler, onem: a.onem, gorevId, yerineGectigi: eski }, ajanId);
-          return metin(`Hafızaya yazıldı (${k.tur}, kimlik ${k.id.slice(0, 8)}): ${k.baslik}`);
+          return metin(iki(`Hafızaya yazıldı (${k.tur}, kimlik ${k.id.slice(0, 8)}): ${k.baslik}`, `Saved to memory (${k.tur}, id ${k.id.slice(0, 8)}): ${k.baslik}`));
         }),
     ),
     tool(
       "hafiza_ara",
-      "Bu projenin hafızasında ve notlarında arar. Bir şeyi bilmiyorsan, karar vermeden ya da işe başlamadan önce kullan.",
+      iki("Bu projenin hafızasında ve notlarında arar. Bir şeyi bilmiyorsan, karar vermeden ya da işe başlamadan önce kullan.", "Searches this project's memory and notes. Use it when you don't know something, before deciding or starting work."),
       { sorgu: z.string().min(2), tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]).optional() },
       (a) =>
         guvenli(() => {
@@ -298,33 +330,39 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           const parcalar: string[] = [];
           if (kayitlar.length)
             parcalar.push(
-              "Hafıza:",
-              ...kayitlar.map((k) => `- [${k.tur}] ${k.baslik} (${k.kaynakAd}, ${k.guncelleme.slice(0, 10)}, kimlik ${k.id.slice(0, 8)}): ${kisalt(k.metin, 500)}`),
+              iki("Hafıza:", "Memory:"),
+              ...kayitlar.map((k) => `- [${k.tur}] ${k.baslik} (${k.kaynakAd}, ${k.guncelleme.slice(0, 10)}, ${iki("kimlik", "id")} ${k.id.slice(0, 8)}): ${kisalt(k.metin, 500)}`),
             );
-          if (notlar.length) parcalar.push("Notlar:", ...notlar.map((x) => `- ${x.yol}:${x.satir}: ${x.metin}`));
+          if (notlar.length) parcalar.push(iki("Notlar:", "Notes:"), ...notlar.map((x) => `- ${x.yol}:${x.satir}: ${x.metin}`));
           if (sorular.length)
-            parcalar.push("Daha önce sorulup yanıtlananlar:", ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd} (${x.olusturma.slice(0, 10)}): ${kisalt(x.soru, 200)} | Yanıt: ${kisalt(x.yanit ?? "", 400)}`));
-          return metin(parcalar.length ? parcalar.join("\n") : "Eşleşme yok. Bilen biri varsa ajana_sor ile sor.");
+            parcalar.push(
+              iki("Daha önce sorulup yanıtlananlar:", "Asked and answered before:"),
+              ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd} (${x.olusturma.slice(0, 10)}): ${kisalt(x.soru, 200)} | ${iki("Yanıt", "Answer")}: ${kisalt(x.yanit ?? "", 400)}`),
+            );
+          return metin(parcalar.length ? parcalar.join("\n") : iki("Eşleşme yok. Bilen biri varsa ajana_sor ile sor.", "No matches. If someone knows, ask with ajana_sor."));
         }),
     ),
     tool(
       "hafiza_listele",
-      "Hafızadaki geçerli kayıtları türe göre listeler.",
+      iki("Hafızadaki geçerli kayıtları türe göre listeler.", "Lists the current memory records of a type."),
       { tur: z.enum(["tercih", "karar", "ogrenilen", "olgu", "uzmanlik", "ozet"]) },
       (a) =>
         guvenli(() => {
           const k = sirket.depo.hafizaKayitlari(ben().projeId, { tur: a.tur, sinir: 60 });
-          return metin(k.length ? k.map((x) => `- ${x.baslik} (kimlik ${x.id.slice(0, 8)}, ${x.kaynakAd}): ${kisalt(x.metin, 300)}`).join("\n") : "Bu türde kayıt yok.");
+          return metin(k.length ? k.map((x) => `- ${x.baslik} (${iki("kimlik", "id")} ${x.id.slice(0, 8)}, ${x.kaynakAd}): ${kisalt(x.metin, 300)}`).join("\n") : iki("Bu türde kayıt yok.", "No records of this type."));
         }),
     ),
     tool(
       "hafiza_bakim",
-      "Hafızada birbirini tekrar eden kayıt çiftlerini listeler. Tekrar eden bilgi her oturumun bağlamını şişirir; çiftleri hafiza_birlestir ile tek kayda indir.",
+      iki(
+        "Hafızada birbirini tekrar eden kayıt çiftlerini listeler. Tekrar eden bilgi her oturumun bağlamını şişirir; çiftleri hafiza_birlestir ile tek kayda indir.",
+        "Lists pairs of memory records that repeat each other. Repeated information bloats every session's context; merge each pair into one record with hafiza_birlestir.",
+      ),
       {},
       () =>
         guvenli(() => {
           const c = sirket.hafiza.benzerler(ben().projeId).slice(0, 12);
-          if (!c.length) return metin("Tekrar eden kayıt yok.");
+          if (!c.length) return metin(iki("Tekrar eden kayıt yok.", "No duplicate records."));
           return metin(
             c
               .map((x) => `- %${Math.round(x.benzerlik * 100)} [${x.a.tur}] ${x.a.id.slice(0, 8)} "${x.a.baslik}" (${x.a.kaynakAd}) ↔ ${x.b.id.slice(0, 8)} "${x.b.baslik}" (${x.b.kaynakAd})\n  A: ${kisalt(x.a.metin, 220)}\n  B: ${kisalt(x.b.metin, 220)}`)
@@ -334,8 +372,11 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "hafiza_birlestir",
-      "İki kaydı tek kayda indirir: tutulan kalır (metin verilirse birleşik metinle güncellenir), eskiyen onun yerine geçmiş sayılır ve artık hatırlatılmaz. Kimliklerin ilk 8 karakteri yeterli.",
-      { tutulan: z.string().min(4), eskiyen: z.string().min(4), metin: z.string().min(5).max(4000).optional().describe("İkisinin bilgisini birleştiren yeni metin") },
+      iki(
+        "İki kaydı tek kayda indirir: tutulan kalır (metin verilirse birleşik metinle güncellenir), eskiyen onun yerine geçmiş sayılır ve artık hatırlatılmaz. Kimliklerin ilk 8 karakteri yeterli.",
+        "Merges two records into one: tutulan stays (updated with the merged text if metin is given), eskiyen counts as replaced by it and is no longer recalled. The first 8 characters of the ids are enough.",
+      ),
+      { tutulan: z.string().min(4), eskiyen: z.string().min(4), metin: z.string().min(5).max(4000).optional().describe(iki("İkisinin bilgisini birleştiren yeni metin", "New text combining what both say")) },
       (a) =>
         guvenli(() => {
           const pid = ben().projeId;
@@ -346,116 +387,154 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           };
           const t = bul(a.tutulan);
           const e = bul(a.eskiyen);
-          if (!t || !e) return hata("Kayıt bulunamadı ya da kimlik belirsiz; hafiza_bakim ile kimlikleri gör.");
+          if (!t || !e) return hata(iki("Kayıt bulunamadı ya da kimlik belirsiz; hafiza_bakim ile kimlikleri gör.", "Record not found or the id is ambiguous; see the ids with hafiza_bakim."));
           const k = sirket.hafiza.birlestir(t.id, e.id, a.metin);
-          return metin(`Birleştirildi: "${k.baslik}" kaldı, "${e.baslik}" eskidi.`);
+          return metin(iki(`Birleştirildi: "${k.baslik}" kaldı, "${e.baslik}" eskidi.`, `Merged: "${k.baslik}" stays, "${e.baslik}" is retired.`));
         }),
     ),
     tool(
       "defter_yaz",
-      "Kendi defterini baştan yazar: açık işlerin, verdiğin sözler, sıradaki adımın, dikkat ettiğin şeyler. Her oturumda sana geri verilir; kısa maddeler kullan, eskiyenleri çıkar.",
+      iki(
+        "Kendi defterini baştan yazar: açık işlerin, verdiğin sözler, sıradaki adımın, dikkat ettiğin şeyler. Her oturumda sana geri verilir; kısa maddeler kullan, eskiyenleri çıkar.",
+        "Rewrites your journal from scratch: your open work, the promises you made, your next step, things to watch out for. It is given back to you every session; use short bullet points and drop stale ones.",
+      ),
       { icerik: z.string().min(5).max(6000) },
       (a) =>
         guvenli(() => {
           sirket.defterYaz(ajanId, a.icerik);
-          return metin("Defterin güncellendi.");
+          return metin(iki("Defterin güncellendi.", "Your journal was updated."));
         }),
     ),
     tool(
       "defter_oku",
-      "Bir çalışanın defterini okur (boşsa kendi defterin). Başkasının işine dokunmadan önce ya da devir alırken kullan.",
+      iki("Bir çalışanın defterini okur (boşsa kendi defterin). Başkasının işine dokunmadan önce ya da devir alırken kullan.", "Reads an employee's journal (yours if empty). Use it before touching someone else's work or when taking over."),
       { ajan: z.string().optional() },
       (a) =>
         guvenli(() => {
           const hedef = a.ajan ? ajanBul(a.ajan) : ben();
           const icerik = sirket.hafiza.defter(hedef);
-          return metin(icerik ? `${hedef.ad} defteri:\n${icerik}` : `${hedef.ad} henüz defter yazmamış.`);
+          return metin(icerik ? iki(`${hedef.ad} defteri:\n${icerik}`, `${hedef.ad}'s journal:\n${icerik}`) : iki(`${hedef.ad} henüz defter yazmamış.`, `${hedef.ad} has not written a journal yet.`));
         }),
     ),
     tool(
       "ajana_sor",
-      "Bir çalışana soru sorar ve yanıtını bekler (varsayılan 10, en çok 30 dakika). Uzmanlık, karar gerekçesi ya da onun işine dair bilgi için kullan; kısa ve net sor. Kimin bildiğini bilmiyorsan ajan alanını boş bırak: ArnOrg hafızaya, görevlere, geçmiş yanıtlara ve rollere bakıp uzmanı seçer. Aynı soru yakın zamanda yanıtlandıysa o yanıt hemen döner. Yanıt gelmezse varsayılan ve güvenli yolla devam et.",
+      iki(
+        "Bir çalışana soru sorar ve yanıtını bekler (varsayılan 10, en çok 30 dakika). Uzmanlık, karar gerekçesi ya da onun işine dair bilgi için kullan; kısa ve net sor. Kimin bildiğini bilmiyorsan ajan alanını boş bırak: ArnOrg hafızaya, görevlere, geçmiş yanıtlara ve rollere bakıp uzmanı seçer. Aynı soru yakın zamanda yanıtlandıysa o yanıt hemen döner. Yanıt gelmezse varsayılan ve güvenli yolla devam et.",
+        "Asks an employee a question and waits for the answer (default 10, at most 30 minutes). Use it for expertise, the reason behind a decision or details of their work; ask briefly and clearly. If you don't know who knows, leave ajan empty: ArnOrg picks the expert from memory, tasks, past answers and roles. If the same question was answered recently, that answer comes back right away. If no answer comes, carry on the default, safe way.",
+      ),
       {
-        ajan: z.string().optional().describe("Çalışan adı; boşsa ArnOrg uzmanı seçer"),
+        ajan: z.string().optional().describe(iki("Çalışan adı; boşsa ArnOrg uzmanı seçer", "Employee name; if empty, ArnOrg picks the expert")),
         soru: z.string().min(5).max(4000),
         bekle_dk: z.number().int().min(1).max(30).optional(),
-        yeniden: z.boolean().optional().describe("Önceki yanıt yetmediyse true: aynı soru yine de sorulur"),
+        yeniden: z.boolean().optional().describe(iki("Önceki yanıt yetmediyse true: aynı soru yine de sorulur", "true if the earlier answer was not enough: the question is asked again anyway")),
       },
       (a) =>
         guvenli(async () => {
           const s = await sirket.ajanaSor(ajanId, a.ajan ?? null, a.soru, a.bekle_dk ?? 10, { yeniden: a.yeniden });
           if (s.onceki)
             return metin(
-              `Bu soru ${s.olusturma.slice(0, 10)} tarihinde ${s.soranAd} tarafından ${s.soruluAd}'a soruldu ve şöyle yanıtlandı:\nSoru: ${kisalt(s.soru, 400)}\nYanıt: ${s.yanit}\n\nYeterli değilse ajana_sor'u yeniden: true ile çağır.`,
+              iki(
+                `Bu soru ${s.olusturma.slice(0, 10)} tarihinde ${s.soranAd} tarafından ${s.soruluAd}'a soruldu ve şöyle yanıtlandı:\nSoru: ${kisalt(s.soru, 400)}\nYanıt: ${s.yanit}\n\nYeterli değilse ajana_sor'u yeniden: true ile çağır.`,
+                `${s.soranAd} asked ${s.soruluAd} this question on ${s.olusturma.slice(0, 10)}, and the answer was:\nQuestion: ${kisalt(s.soru, 400)}\nAnswer: ${s.yanit}\n\nIf that is not enough, call ajana_sor again with yeniden: true.`,
+              ),
             );
-          const yol = s.yonlendirme ? `ArnOrg soruyu ${s.soruluAd}'a yönlendirdi (${s.yonlendirme}).\n` : "";
-          if (s.durum === "yanitlandi") return metin(`${yol}${s.soruluAd} yanıtladı:\n${s.yanit}\n\nYanıt ekibin de bilmesi gereken kalıcı bir bilgiyse hafiza_kaydet ile kaydet.`);
-          return metin(`${yol}${s.soruluAd} süre içinde yanıt vermedi. Bildiğin kadarıyla ve güvenli yolla devam et; gerekirse mesaj_gonder ile not bırak.`);
+          const yol = s.yonlendirme ? iki(`ArnOrg soruyu ${s.soruluAd}'a yönlendirdi (${s.yonlendirme}).\n`, `ArnOrg routed the question to ${s.soruluAd} (${s.yonlendirme}).\n`) : "";
+          if (s.durum === "yanitlandi")
+            return metin(
+              iki(
+                `${yol}${s.soruluAd} yanıtladı:\n${s.yanit}\n\nYanıt ekibin de bilmesi gereken kalıcı bir bilgiyse hafiza_kaydet ile kaydet.`,
+                `${yol}${s.soruluAd} answered:\n${s.yanit}\n\nIf the answer is lasting knowledge the team should have too, save it with hafiza_kaydet.`,
+              ),
+            );
+          return metin(
+            iki(
+              `${yol}${s.soruluAd} süre içinde yanıt vermedi. Bildiğin kadarıyla ve güvenli yolla devam et; gerekirse mesaj_gonder ile not bırak.`,
+              `${yol}${s.soruluAd} did not answer in time. Carry on as best you know, the safe way; leave a note with mesaj_gonder if needed.`,
+            ),
+          );
         }),
     ),
     tool(
       "toplanti_yap",
-      "Birden çok çalışanın görüşü gereken bir konuda toplantı yapar: gündemi verirsin, katılımcıların görüşü paralel toplanır (en çok bekle_dk dakika), konuşma #toplanti kanalına yazılır, özet hafızaya düşer. Katılımcı vermezsen ArnOrg konuya en yakın en çok üç çalışanı seçer. Kararı sen verirsin.",
+      iki(
+        "Birden çok çalışanın görüşü gereken bir konuda toplantı yapar: gündemi verirsin, katılımcıların görüşü paralel toplanır (en çok bekle_dk dakika), konuşma #toplanti kanalına yazılır, özet hafızaya düşer. Katılımcı vermezsen ArnOrg konuya en yakın en çok üç çalışanı seçer. Kararı sen verirsin.",
+        "Holds a meeting on a topic that needs several employees' views: you give the agenda, the participants' views are gathered in parallel (at most bekle_dk minutes), the conversation is posted to #meetings and a summary goes to memory. If you give no participants, ArnOrg picks up to three employees closest to the topic. You make the decision.",
+      ),
       {
-        gundem: z.string().min(10).max(3000).describe("Karar verilecek konu ve seçenekler"),
-        katilimcilar: z.array(z.string()).max(6).optional().describe("Çalışan adları; boşsa ArnOrg seçer"),
+        gundem: z.string().min(10).max(3000).describe(iki("Karar verilecek konu ve seçenekler", "The topic to decide and the options")),
+        katilimcilar: z.array(z.string()).max(6).optional().describe(iki("Çalışan adları; boşsa ArnOrg seçer", "Employee names; if empty, ArnOrg picks")),
         bekle_dk: z.number().int().min(1).max(30).optional(),
       },
       (a) =>
         guvenli(async () => {
           const t = await sirket.toplantiYap(ajanId, a.gundem, a.katilimcilar ?? null, a.bekle_dk ?? 8);
-          const satirlar = t.gorusler.map(
-            (g) =>
+          const satirlar = t.gorusler.map((g) =>
+            iki(
               `- ${g.ad} (${g.rolAdi}${g.neden ? `; seçilme nedeni: ${g.neden}` : ""}): ${g.gorus ?? (g.durum === "zaman_asimi" ? "süre içinde yanıt vermedi" : `katılamadı: ${g.hata ?? ""}`)}`,
+              `- ${g.ad} (${g.rolAdi}${g.neden ? `; picked because: ${g.neden}` : ""}): ${g.gorus ?? (g.durum === "zaman_asimi" ? "did not answer in time" : `could not take part: ${g.hata ?? ""}`)}`,
+            ),
           );
           return metin(
-            `Toplantı tamam. Görüşler:\n${satirlar.join("\n")}\n\nŞimdi kararı ver: hafiza_kaydet ile tur: karar olarak kaydet (gerekçesiyle), gerekiyorsa not_yaz ile ADR yaz ve kararı mesaj_gonder ile #toplanti kanalına bildir.`,
+            iki(
+              `Toplantı tamam. Görüşler:\n${satirlar.join("\n")}\n\nŞimdi kararı ver: hafiza_kaydet ile tur: karar olarak kaydet (gerekçesiyle), gerekiyorsa not_yaz ile ADR yaz ve kararı mesaj_gonder ile #toplanti kanalına bildir.`,
+              `Meeting done. Views:\n${satirlar.join("\n")}\n\nNow decide: save the decision with hafiza_kaydet as tur: karar (with the reason), write an ADR with not_yaz if needed and announce the decision in #meetings with mesaj_gonder.`,
+            ),
           );
         }),
     ),
     tool(
       "soruyu_yanitla",
-      "Sana sorulan bir soruyu yanıtlar. Yanıt soran çalışana hemen iletilir.",
+      iki("Sana sorulan bir soruyu yanıtlar. Yanıt soran çalışana hemen iletilir.", "Answers a question you were asked. The answer goes to the asker right away."),
       { soru_id: z.string(), yanit: z.string().min(1).max(6000) },
       (a) =>
         guvenli(() => {
           const s = sirket.soruYanitla(ajanId, a.soru_id, a.yanit);
-          return metin(`Yanıtın ${s.soranAd}'a iletildi.`);
+          return metin(iki(`Yanıtın ${s.soranAd}'a iletildi.`, `Your answer was sent to ${s.soranAd}.`));
         }),
     ),
     tool(
       "rapor_hazirla",
-      "Dönem durum raporu hazırlar (tamamlanan, süren, tıkanan görevler; token ve abonelik kullanımı; denetim; bekleyen onaylar) ve notlara raporlar/<tarih>.md olarak kaydeder. Yalnız CEO ve CTO.",
-      { gun: z.number().int().min(1).max(90).default(7).describe("Kaç günlük dönem") },
+      iki(
+        "Dönem durum raporu hazırlar (tamamlanan, süren, tıkanan görevler; token ve abonelik kullanımı; denetim; bekleyen onaylar) ve notlara raporlar/<tarih>.md olarak kaydeder. Yalnız CEO ve CTO.",
+        "Prepares a period status report (done, in-progress and blocked tasks; token and subscription usage; audit; pending approvals) and saves it to the notes as raporlar/<date>.md. CEO and CTO only.",
+      ),
+      { gun: z.number().int().min(1).max(90).default(7).describe(iki("Kaç günlük dönem", "Length of the period in days")) },
       (a) =>
         guvenli(() => {
-          if (!yonetici()) return hata("Raporu yalnız CEO ve CTO hazırlayabilir.");
+          if (!yonetici()) return hata(iki("Raporu yalnız CEO ve CTO hazırlayabilir.", "Only the CEO and CTO can prepare the report."));
           const r = raporOlustur(sirket, ben().projeId, a.gun);
           notYaz(proje().yol, r.yol, r.markdown);
           sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: ben().projeId, alan: "ana", yol: `.arnorg/notlar/${r.yol}`, ajanId });
-          return metin(`Rapor kaydedildi: ${r.yol}. Kurula #genel'de kısa bir özet yaz.\n\n${r.markdown}`);
+          return metin(iki(`Rapor kaydedildi: ${r.yol}. Kurula #genel'de kısa bir özet yaz.\n\n${r.markdown}`, `Report saved: ${r.yol}. Write a short summary for the board in #general.\n\n${r.markdown}`));
         }),
     ),
     tool(
       "kurula_sor",
-      "Yönetim kuruluna soru sorar ve yanıtı bekler (en çok onay süresi kadar). Yanıt gelmezse varsayılan davranışla devam et.",
+      iki(
+        "Yönetim kuruluna soru sorar ve yanıtı bekler (en çok onay süresi kadar). Yanıt gelmezse varsayılan davranışla devam et.",
+        "Asks the board a question and waits for the answer (at most the approval timeout). If no answer comes, carry on with the default behavior.",
+      ),
       { soru: z.string().min(5), secenekler: z.array(z.string()).default([]) },
       (a) =>
         guvenli(async () => {
-          const ayrinti = a.secenekler.length ? `${a.soru}\n\nSeçenekler:\n${a.secenekler.map((s, i) => `${i + 1}. ${s}`).join("\n")}` : a.soru;
-          const k = await sirket.kararBekle(ben(), "genel", `${ben().ad} soruyor: ${kisalt(a.soru, 80)}`, ayrinti, { soru: a.soru, secenekler: a.secenekler });
-          if (k.not === "Süre doldu") return metin("Kurul süre içinde yanıt vermedi. Varsayılan ve güvenli olan yolla devam et.");
-          return metin(`Kurul ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`);
+          const ayrinti = a.secenekler.length ? `${a.soru}\n\n${iki("Seçenekler", "Options")}:\n${a.secenekler.map((s, i) => `${i + 1}. ${s}`).join("\n")}` : a.soru;
+          const k = await sirket.kararBekle(ben(), "genel", iki(`${ben().ad} soruyor: ${kisalt(a.soru, 80)}`, `${ben().ad} asks: ${kisalt(a.soru, 80)}`), ayrinti, { soru: a.soru, secenekler: a.secenekler });
+          // Süre dolması metinden değil kararın kendisinden anlaşılır (not, onayın açıldığı dilde yazılır)
+          if (k.zamanAsimi) return metin(iki("Kurul süre içinde yanıt vermedi. Varsayılan ve güvenli olan yolla devam et.", "The board did not answer in time. Carry on the default, safe way."));
+          return metin(iki(`Kurul ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`, `The board ${k.izin ? "approved" : "rejected"}.${k.not ? ` Answer: ${k.not}` : ""}`));
         }),
     ),
     // ---------------- kod zekâsı (ajanın kendi çalışma alanında) ----------------
     tool(
       "kod_ara",
-      "Kod tabanında arar: anlamsal (gömme) + anahtar sözcük + sembol adı. Türkçe ya da İngilizce doğal dille (\"ajanlar arası soru nasıl yönlendiriliyor\") ya da tanımlayıcıyla sorabilirsin. Sonuçlar dosya:başlangıç-bitiş, sembol ve satır numaralı kısa kesittir; kendi çalışma alanında arar. Yeri kesin bilmiyorsan Grep yerine bunu kullan.",
+      iki(
+        "Kod tabanında arar: anlamsal (gömme) + anahtar sözcük + sembol adı. Türkçe ya da İngilizce doğal dille (\"ajanlar arası soru nasıl yönlendiriliyor\") ya da tanımlayıcıyla sorabilirsin. Sonuçlar dosya:başlangıç-bitiş, sembol ve satır numaralı kısa kesittir; kendi çalışma alanında arar. Yeri kesin bilmiyorsan Grep yerine bunu kullan.",
+        "Searches the codebase: semantic (embeddings) + keyword + symbol name. Ask in plain English or Turkish (\"how are questions between agents routed\") or with an identifier. Results are file:start-end, the symbol and a short line-numbered excerpt; it searches your own workspace. Use this instead of Grep when you don't know exactly where to look.",
+      ),
       {
-        sorgu: z.string().min(2).max(2000).describe("Ne arıyorsun: doğal dil ya da tanımlayıcı"),
-        sinir: z.number().int().min(1).max(30).optional().describe("Sonuç sayısı (varsayılan 8)"),
-        yol: z.string().max(500).optional().describe("Yalnız bu klasör ya da glob altında (ör. paketler/cekirdek ya da **/*.tsx)"),
+        sorgu: z.string().min(2).max(2000).describe(iki("Ne arıyorsun: doğal dil ya da tanımlayıcı", "What you are looking for: plain language or an identifier")),
+        sinir: z.number().int().min(1).max(30).optional().describe(iki("Sonuç sayısı (varsayılan 8)", "Number of results (default 8)")),
+        yol: z.string().max(500).optional().describe(iki("Yalnız bu klasör ya da glob altında (ör. paketler/cekirdek ya da **/*.tsx)", "Only under this folder or glob (e.g. src/server or **/*.tsx)")),
       },
       (a) =>
         guvenli(async () => {
@@ -465,10 +544,20 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "sembol_bul",
-      "Tanım yerlerini bulur: fonksiyon, sınıf, metot, arayüz, tür, sabit, başlık… Tam ad ve önek eşleşmesi önce gelir; türü, dışa açıklığı ve imzayı gösterir.",
+      iki(
+        "Tanım yerlerini bulur: fonksiyon, sınıf, metot, arayüz, tür, sabit, başlık… Tam ad ve önek eşleşmesi önce gelir; türü, dışa açıklığı ve imzayı gösterir.",
+        "Finds definitions: functions, classes, methods, interfaces, types, constants, headings… Exact and prefix matches come first; shows the kind, whether it is exported and the signature.",
+      ),
       {
-        ad: z.string().min(1).max(200).describe("Sembol adı ya da başı (ör. ajanaSor, Depo, hafiza)"),
-        tur: sembolTuruSemasi.optional().describe("Yalnız bu tür"),
+        ad: z.string().min(1).max(200).describe(iki("Sembol adı ya da başı (ör. ajanaSor, Depo, hafiza)", "Symbol name or its beginning (e.g. handleRequest, Store, parse)")),
+        tur: sembolTuruSemasi
+          .optional()
+          .describe(
+            iki(
+              "Yalnız bu tür",
+              "Only this kind: fonksiyon (function), metod (method), sinif (class), arayuz (interface), tur (type), enum, sabit (constant), degisken (variable), yapi (struct), modul (module), baslik (heading), secici (selector), tablo (table)",
+            ),
+          ),
         sinir: z.number().int().min(1).max(50).optional(),
       },
       (a) =>
@@ -480,8 +569,11 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "kod_haritasi",
-      "Deponun kısa haritası (~4000 karakter): klasörler, dosyalar (satır sayısıyla) ve en önemli sembolleri; çok kullanılan dosyalar önce. Projeyi ya da bir klasörü tanımak için ilk adım.",
-      { yol: z.string().max(500).optional().describe("Yalnız bu klasör (ör. paketler/studyo/src)") },
+      iki(
+        "Deponun kısa haritası (~4000 karakter): klasörler, dosyalar (satır sayısıyla) ve en önemli sembolleri; çok kullanılan dosyalar önce. Projeyi ya da bir klasörü tanımak için ilk adım.",
+        "A short map of the repository (~4000 characters): folders, files (with line counts) and their most important symbols; most-used files first. The first step to get to know the project or a folder.",
+      ),
+      { yol: z.string().max(500).optional().describe(iki("Yalnız bu klasör (ör. paketler/studyo/src)", "Only this folder (e.g. src/components)")) },
       (a) =>
         guvenli(async () => {
           const alan = sirket.ajanAlani(ben());
@@ -492,8 +584,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "bagimliliklar",
-      "Bir dosyanın içe aktardıkları ve onu içe aktaran dosyalar. Bir değişikliğin kimi etkileyeceğini görmek için.",
-      { dosya: z.string().min(1).max(500).describe("Çalışma alanı köküne göre yol (ör. src/depo.ts)") },
+      iki("Bir dosyanın içe aktardıkları ve onu içe aktaran dosyalar. Bir değişikliğin kimi etkileyeceğini görmek için.", "What a file imports and which files import it. To see who a change will affect."),
+      { dosya: z.string().min(1).max(500).describe(iki("Çalışma alanı köküne göre yol (ör. src/depo.ts)", "Path relative to the workspace root (e.g. src/store.ts)")) },
       (a) =>
         guvenli(async () => {
           const b = await sirket.kodZekasi.bagimliliklar(ben().projeId, sirket.ajanAlani(ben()), a.dosya);
@@ -502,50 +594,59 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "benzer_kod",
-      "Verilen satırı içeren koda en çok benzeyen yerleri bulur: tekrar eden kodu birleştirmeden ya da bir kalıbın diğer örneklerini düzeltmeden önce kullan.",
+      iki(
+        "Verilen satırı içeren koda en çok benzeyen yerleri bulur: tekrar eden kodu birleştirmeden ya da bir kalıbın diğer örneklerini düzeltmeden önce kullan.",
+        "Finds the places most similar to the code containing the given line: use it before merging duplicated code or fixing other instances of a pattern.",
+      ),
       {
-        dosya: z.string().min(1).max(500).describe("Çalışma alanı köküne göre yol"),
-        satir: z.number().int().min(1).describe("Bu satırı içeren kod parçası"),
+        dosya: z.string().min(1).max(500).describe(iki("Çalışma alanı köküne göre yol", "Path relative to the workspace root")),
+        satir: z.number().int().min(1).describe(iki("Bu satırı içeren kod parçası", "The code chunk containing this line")),
         sinir: z.number().int().min(1).max(20).optional(),
       },
       (a) =>
         guvenli(async () => {
           const y = await sirket.kodZekasi.benzer(ben().projeId, sirket.ajanAlani(ben()), a.dosya, a.satir, a.sinir ?? 6);
-          return metin(aramaMetni(y, { baslik: `${a.dosya}:${a.satir} koduna benzeyen ${y.sonuclar.length} yer` }));
+          return metin(aramaMetni(y, { baslik: iki(`${a.dosya}:${a.satir} koduna benzeyen ${y.sonuclar.length} yer`, `${y.sonuclar.length} places similar to ${a.dosya}:${a.satir}`) }));
         }),
     ),
     tool(
       "calisma_farki",
-      "Bir çalışanın çalışma alanındaki değişiklikleri ana dala göre gösterir (git diff). İnceleme için.",
-      { ajan: z.string().describe("Çalışan adı"), yol: z.string().optional().describe("Yalnız bu dosya") },
+      iki("Bir çalışanın çalışma alanındaki değişiklikleri ana dala göre gösterir (git diff). İnceleme için.", "Shows the changes in an employee's workspace against the main branch (git diff). For review."),
+      { ajan: z.string().describe(iki("Çalışan adı", "Employee name")), yol: z.string().optional().describe(iki("Yalnız bu dosya", "Only this file")) },
       (a) =>
         guvenli(async () => {
-          if (!inceleyebilir()) return hata("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.");
+          if (!inceleyebilir()) return hata(iki("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.", "This tool is for managers and the code review, test and security roles."));
           const hedef = ajanBul(a.ajan);
-          if (!hedef.calismaAlani) return hata(`${hedef.ad} için çalışma alanı yok.`);
+          if (!hedef.calismaAlani) return hata(iki(`${hedef.ad} için çalışma alanı yok.`, `${hedef.ad} has no workspace.`));
           const f = await fark(hedef.calismaAlani, proje().varsayilanDal, a.yol);
-          const ozet = f.sayilar.map((x) => `${x.yol} +${x.eklenen} -${x.silinen}`).join("\n") || "Değişiklik yok.";
-          const govde = f.fark.length > 60_000 ? f.fark.slice(0, 60_000) + "\n… (kısaltıldı; dosya bazında yol ile isteyin)" : f.fark;
-          return metin(`Dal: ${hedef.dal} · temel: ${proje().varsayilanDal}\n\nDosyalar:\n${ozet}\n\n${govde}`);
+          const ozet = f.sayilar.map((x) => `${x.yol} +${x.eklenen} -${x.silinen}`).join("\n") || iki("Değişiklik yok.", "No changes.");
+          const govde = f.fark.length > 60_000 ? f.fark.slice(0, 60_000) + iki("\n… (kısaltıldı; dosya bazında yol ile isteyin)", "\n… (truncated; ask per file with yol)") : f.fark;
+          return metin(iki(`Dal: ${hedef.dal} · temel: ${proje().varsayilanDal}\n\nDosyalar:\n${ozet}\n\n${govde}`, `Branch: ${hedef.dal} · base: ${proje().varsayilanDal}\n\nFiles:\n${ozet}\n\n${govde}`));
         }),
     ),
     tool(
       "calisma_dosyasi",
-      "Bir çalışanın çalışma alanından dosya okur.",
-      { ajan: z.string(), yol: z.string().describe("Çalışma alanı köküne göre yol") },
+      iki("Bir çalışanın çalışma alanından dosya okur.", "Reads a file from an employee's workspace."),
+      { ajan: z.string(), yol: z.string().describe(iki("Çalışma alanı köküne göre yol", "Path relative to the workspace root")) },
       (a) =>
         guvenli(() => {
-          if (!inceleyebilir()) return hata("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.");
+          if (!inceleyebilir()) return hata(iki("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.", "This tool is for managers and the code review, test and security roles."));
           const hedef = ajanBul(a.ajan);
-          if (!hedef.calismaAlani) return hata(`${hedef.ad} için çalışma alanı yok.`);
+          if (!hedef.calismaAlani) return hata(iki(`${hedef.ad} için çalışma alanı yok.`, `${hedef.ad} has no workspace.`));
           const d = dosyaOku(hedef.calismaAlani, a.yol, null);
-          return metin(d.icerik.length > 80_000 ? d.icerik.slice(0, 80_000) + "\n… (kısaltıldı)" : d.icerik);
+          return metin(d.icerik.length > 80_000 ? d.icerik.slice(0, 80_000) + iki("\n… (kısaltıldı)", "\n… (truncated)") : d.icerik);
         }),
     ),
     tool(
       "birlestirme_iste",
-      "Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.",
-      { ozet: z.string().min(10).describe("Neler değişti, testler"), ajan: z.string().optional().describe("Dalı birleştirilecek çalışanın adı") },
+      iki(
+        "Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.",
+        "Asks the board to approve merging an employee's branch into the main branch. As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.",
+      ),
+      {
+        ozet: z.string().min(10).describe(iki("Neler değişti, testler", "What changed, tests")),
+        ajan: z.string().optional().describe(iki("Dalı birleştirilecek çalışanın adı", "Name of the employee whose branch will be merged")),
+      },
       (a) =>
         guvenli(() => {
           let sahip = a.ajan ? ajanBul(a.ajan) : ben();
@@ -559,18 +660,30 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             if (tekil.length !== 1) {
               return hata(
                 tekil.length
-                  ? `Birden çok aday var; ajan alanına birini yaz: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`
-                  : "Kendi çalışma dalın yok ve incelemede dalı olan görev yok; ajan alanına çalışan adını yaz.",
+                  ? iki(
+                      `Birden çok aday var; ajan alanına birini yaz: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`,
+                      `There are several candidates; put one of them in ajan: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`,
+                    )
+                  : iki(
+                      "Kendi çalışma dalın yok ve incelemede dalı olan görev yok; ajan alanına çalışan adını yaz.",
+                      "You have no working branch and no task in review has a branch; put an employee's name in ajan.",
+                    ),
               );
             }
             sahip = tekil[0]!.ajan!;
           }
-          if (!sahip.dal) return hata(`${sahip.ad} için çalışma dalı yok.`);
-          if (sahip.id !== ajanId && !yonetici() && rolBul(ben().rol)?.kimlik !== "inceleme") return hata("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.");
+          if (!sahip.dal) return hata(iki(`${sahip.ad} için çalışma dalı yok.`, `${sahip.ad} has no working branch.`));
+          if (sahip.id !== ajanId && !yonetici() && rolBul(ben().rol)?.kimlik !== "inceleme")
+            return hata(iki("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.", "Only the code reviewer and managers can request a merge for someone else's branch."));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "birlestirme" && (o.veri as { dal?: string })?.dal === sahip.dal);
-          if (bekleyen) return metin(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`);
+          if (bekleyen) return metin(iki(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`, `A merge request for ${sahip.dal} is already waiting for the board.`));
           const onay = sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${proje().varsayilanDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId });
-          return metin(`${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`);
+          return metin(
+            iki(
+              `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`,
+              `The merge of ${sahip.ad}'s branch ${sahip.dal} went to the board for approval (approval ${onay.id.slice(0, 8)}). You will be told the result.`,
+            ),
+          );
         }),
     ),
     // ---------------- kendi zekâsı: kişisel hafıza, sözler, beceriler, geçmiş, aktarım ----------------

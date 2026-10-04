@@ -20,6 +20,7 @@ import type {
   KodZekasiModeli,
   SunucuOlayi,
 } from "@arnorg/ortak";
+import { iki } from "../dil.js";
 import { git, repoMu } from "../git.js";
 import { dosyaListesi, yolSuzgeci } from "../kod-arama.js";
 import { varsayilanKurallar } from "../politika.js";
@@ -94,7 +95,7 @@ const nefes = () => new Promise<void>((coz) => setImmediate(coz));
 
 function zamanAsimi<T>(is: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((coz, reddet) => {
-    const z = setTimeout(() => reddet(new Error("zaman aşımı")), ms);
+    const z = setTimeout(() => reddet(new Error(iki("zaman aşımı", "timed out"))), ms);
     is.then(
       (d) => {
         clearTimeout(z);
@@ -463,7 +464,14 @@ export class KodZekasi {
     const { p, a } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
     const temiz = this.goreliYol(projeId, alan, yol);
     const parca = p.depo.satirdakiParcalar(alan, temiz, Math.max(1, Math.floor(satir)))[0];
-    if (!parca) throw new ArnorgHatasi(`${temiz}:${satir} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts) ve dosya dizinlenmiş olmalı.`, 404);
+    if (!parca)
+      throw new ArnorgHatasi(
+        iki(
+          `${temiz}:${satir} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts) ve dosya dizinlenmiş olmalı.`,
+          `${temiz}:${satir} is not in the index. The path must be relative to the workspace root (e.g. src/app.ts) and the file must be indexed.`,
+        ),
+        404,
+      );
     const kendisi = (x: ParcaKaydi) => x.yol === parca.yol && x.bas <= parca.bit && x.bit >= parca.bas;
     const n = Math.min(Math.max(1, Math.floor(sinir)), 30);
     // Parçanın en sık tanımlayıcı parçaları: anahtar sözcük yedeği ve kesit seçimi için
@@ -519,7 +527,8 @@ export class KodZekasi {
   async bagimliliklar(projeId: string, alan: string, yol: string): Promise<KodBagimliliklari> {
     const { p } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
     const temiz = this.goreliYol(projeId, alan, yol);
-    if (!p.depo.dosya(alan, temiz)) throw new ArnorgHatasi(`${temiz} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts).`, 404);
+    if (!p.depo.dosya(alan, temiz))
+      throw new ArnorgHatasi(iki(`${temiz} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts).`, `${temiz} is not in the index. The path must be relative to the workspace root (e.g. src/app.ts).`), 404);
     const iceAktaranlar = p.depo.iceAktaranlar(alan, temiz);
     // Go içe aktarmaları klasöre çözülür
     if (temiz.endsWith(".go")) iceAktaranlar.push(...p.depo.iceAktaranlar(alan, path.posix.dirname(temiz)).filter((i) => i.yol !== temiz && path.posix.dirname(i.yol) !== path.posix.dirname(temiz)));
@@ -564,7 +573,7 @@ export class KodZekasi {
   private proje(projeId: string): ProjeKaydi {
     let p = this.projelerHaritasi.get(projeId);
     if (p) return p;
-    if (!/^[\w-]+$/.test(projeId)) throw new ArnorgHatasi("Geçersiz proje kimliği.", 400);
+    if (!/^[\w-]+$/.test(projeId)) throw new ArnorgHatasi(iki("Geçersiz proje kimliği.", "Invalid project id."), 400);
     p = { id: projeId, depo: new KodDeposu(this.dizinDosyasi(projeId)), kuyruk: [], suren: null, alanlar: new Map(), matrisler: new Map(), surum: 0 };
     this.projelerHaritasi.set(projeId, p);
     return p;
@@ -702,7 +711,7 @@ export class KodZekasi {
     }
     if (!fs.existsSync(kok)) {
       a.durum.durum = "hata";
-      a.durum.hata = `Çalışma alanı klasörü bulunamadı: ${kok}`;
+      a.durum.hata = iki(`Çalışma alanı klasörü bulunamadı: ${kok}`, `Workspace folder not found: ${kok}`);
       this.yayinla(p.id, a);
       return;
     }

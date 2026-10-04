@@ -1,5 +1,6 @@
 // Rol kataloğu: işe alımda ajanın talimatı, modeli ve araç sınırları buradan gelir
-import type { Rol } from "@arnorg/ortak";
+import { rolMetni, type Ajan, type Rol } from "@arnorg/ortak";
+import { dil } from "./dil.js";
 
 export const ROLLER: Rol[] = [
   {
@@ -216,4 +217,10 @@ export const ROLLER: Rol[] = [
 
 export function rolBul(kimlik: string): Rol | null {
   return ROLLER.find((r) => r.kimlik === kimlik) ?? null;
+}
+
+/** Çalışanın rol adı geçerli dilde; katalogda olmayan rolde kayıtlı ad (kayıtlı rolAdi işe alındığı dildedir) */
+export function rolAdiDilde(ajan: Pick<Ajan, "rol" | "rolAdi">): string {
+  const r = rolBul(ajan.rol);
+  return r ? rolMetni(r, dil()).ad : ajan.rolAdi;
 }

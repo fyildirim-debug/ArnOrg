@@ -5,6 +5,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import type { MetinAramaEslesmesi, MetinAramaSonucu } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 import { YOK_SAYILAN } from "./dosyalar.js";
 import { git, repoMu } from "./git.js";
 import { ArnorgHatasi } from "./yardimci.js";
@@ -184,7 +185,7 @@ export function desenDerle(desen: string, s: { regex?: boolean; harfDuyarli?: bo
     try {
       return new RegExp(s.tamSozcuk ? `\\b(?:${kaynak})\\b` : kaynak, bayrak);
     } catch (h) {
-      throw new ArnorgHatasi(`Geçersiz düzenli ifade: ${(h as Error).message}`);
+      throw new ArnorgHatasi(iki(`Geçersiz düzenli ifade: ${(h as Error).message}`, `Invalid regular expression: ${(h as Error).message}`));
     }
   }
 }
@@ -249,7 +250,7 @@ export function dosyadaAra(metin: string, duzenli: RegExp, sinir: number): Metin
 
 /** Çalışma alanında metin araması; dosyalar sıralı taranır, sınır dolunca durur */
 export async function metinAra(kok: string, s: AramaSecenekleri): Promise<MetinAramaSonucu> {
-  if (!s.desen) throw new ArnorgHatasi("Arama deseni boş olamaz.");
+  if (!s.desen) throw new ArnorgHatasi(iki("Arama deseni boş olamaz.", "The search pattern cannot be empty."));
   const duzenli = desenDerle(s.desen, s);
   const sinir = Math.min(Math.max(1, Math.floor(s.sinir ?? 2000)), 20_000);
   const enBuyuk = s.enBuyukBoyut && s.enBuyukBoyut > 0 ? s.enBuyukBoyut : 4 * 1024 * 1024;

@@ -2,7 +2,7 @@
 // Kayıtlar veritabanında aranır, repo içinde .arnorg/hafiza altında okunur biçimde ve geri yüklenebilir JSON olarak tutulur.
 import fs from "node:fs";
 import path from "node:path";
-import { HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru, type HafizaYazIstegi, type Proje } from "@arnorg/ortak";
+import { AD_HARITALARI_EN, HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type HafizaBenzerCifti, type HafizaKaydi, type HafizaTuru, type HafizaYazIstegi, type Proje } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
 import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
@@ -43,9 +43,9 @@ function ciftAnahtari(a: string, b: string): string {
 }
 
 function denetle(istek: HafizaYazIstegi): void {
-  if (!HAFIZA_TURLERI.includes(istek.tur)) throw new ArnorgHatasi("Geçersiz hafıza türü.");
-  if (!istek.baslik?.trim() || istek.baslik.trim().length > 160) throw new ArnorgHatasi("Başlık 1–160 karakter olmalı.");
-  if (!istek.metin?.trim() || istek.metin.length > 8000) throw new ArnorgHatasi("Metin 1–8000 karakter olmalı.");
+  if (!HAFIZA_TURLERI.includes(istek.tur)) throw new ArnorgHatasi(iki("Geçersiz hafıza türü.", "Invalid memory type."));
+  if (!istek.baslik?.trim() || istek.baslik.trim().length > 160) throw new ArnorgHatasi(iki("Başlık 1–160 karakter olmalı.", "The title must be 1–160 characters."));
+  if (!istek.metin?.trim() || istek.metin.length > 8000) throw new ArnorgHatasi(iki("Metin 1–8000 karakter olmalı.", "The text must be 1–8000 characters."));
 }
 
 export class ProjeHafizasi {
@@ -84,7 +84,7 @@ export class ProjeHafizasi {
       });
       if (istek.yerineGectigi) {
         const eski = this.depo.hafizaKaydi(istek.yerineGectigi);
-        if (!eski || eski.projeId !== projeId) throw new ArnorgHatasi("Yerine geçilecek kayıt bulunamadı.", 404);
+        if (!eski || eski.projeId !== projeId) throw new ArnorgHatasi(iki("Yerine geçilecek kayıt bulunamadı.", "The record to replace was not found."), 404);
         const eskimis = this.depo.hafizaGuncelle(eski.id, { yerineGecen: kayit.id });
         if (eskimis) this.olaylar.yayinla({ tur: "hafiza.yeni", kayit: eskimis });
       }
@@ -96,7 +96,7 @@ export class ProjeHafizasi {
 
   guncelle(id: string, alanlar: Partial<Pick<HafizaKaydi, "tur" | "baslik" | "metin" | "etiketler" | "onem">>): HafizaKaydi {
     const eski = this.depo.hafizaKaydi(id);
-    if (!eski) throw new ArnorgHatasi("Hafıza kaydı bulunamadı.", 404);
+    if (!eski) throw new ArnorgHatasi(iki("Hafıza kaydı bulunamadı.", "Memory record not found."), 404);
     denetle({ tur: alanlar.tur ?? eski.tur, baslik: alanlar.baslik ?? eski.baslik, metin: alanlar.metin ?? eski.metin });
     const kayit = this.depo.hafizaGuncelle(id, alanlar)!;
     this.olaylar.yayinla({ tur: "hafiza.yeni", kayit });
@@ -106,7 +106,7 @@ export class ProjeHafizasi {
 
   sil(id: string): void {
     const eski = this.depo.hafizaKaydi(id);
-    if (!eski) throw new ArnorgHatasi("Hafıza kaydı bulunamadı.", 404);
+    if (!eski) throw new ArnorgHatasi(iki("Hafıza kaydı bulunamadı.", "Memory record not found."), 404);
     this.depo.hafizaSil(id);
     this.olaylar.yayinla({ tur: "hafiza.silindi", projeId: eski.projeId, id });
     this.yansitPlanla(eski.projeId);
@@ -154,11 +154,11 @@ export class ProjeHafizasi {
   birlestir(tutulanId: string, eskiyenId: string, metin?: string): HafizaKaydi {
     const tutulan = this.depo.hafizaKaydi(tutulanId);
     const eskiyen = this.depo.hafizaKaydi(eskiyenId);
-    if (!tutulan || !eskiyen || tutulan.projeId !== eskiyen.projeId) throw new ArnorgHatasi("Birleştirilecek kayıtlar bulunamadı.", 404);
-    if (tutulan.id === eskiyen.id) throw new ArnorgHatasi("Kayıt kendisiyle birleştirilemez.");
-    if (tutulan.yerineGecen) throw new ArnorgHatasi("Tutulacak kayıt zaten eskimiş.", 409);
+    if (!tutulan || !eskiyen || tutulan.projeId !== eskiyen.projeId) throw new ArnorgHatasi(iki("Birleştirilecek kayıtlar bulunamadı.", "The records to merge were not found."), 404);
+    if (tutulan.id === eskiyen.id) throw new ArnorgHatasi(iki("Kayıt kendisiyle birleştirilemez.", "A record cannot be merged with itself."));
+    if (tutulan.yerineGecen) throw new ArnorgHatasi(iki("Tutulacak kayıt zaten eskimiş.", "The record to keep is already retired."), 409);
     const yeniMetin = metin?.trim();
-    if (yeniMetin !== undefined && (!yeniMetin || yeniMetin.length > 8000)) throw new ArnorgHatasi("Metin 1–8000 karakter olmalı.");
+    if (yeniMetin !== undefined && (!yeniMetin || yeniMetin.length > 8000)) throw new ArnorgHatasi(iki("Metin 1–8000 karakter olmalı.", "The text must be 1–8000 characters."));
     const etiketler = [...new Set([...tutulan.etiketler, ...eskiyen.etiketler])].slice(0, 12);
     const kayit = this.depo.hafizaGuncelle(tutulan.id, { metin: yeniMetin ?? tutulan.metin, etiketler, onem: Math.max(tutulan.onem, eskiyen.onem) })!;
     const eskimis = this.depo.hafizaGuncelle(eskiyen.id, { yerineGecen: tutulan.id })!;
@@ -176,12 +176,12 @@ export class ProjeHafizasi {
 
   defterYaz(ajan: Ajan, icerik: string): void {
     const temiz = icerik.trim();
-    if (temiz.length > 6000) throw new ArnorgHatasi("Defter en çok 6000 karakter olabilir; eskiyen maddeleri çıkar.");
+    if (temiz.length > 6000) throw new ArnorgHatasi(iki("Defter en çok 6000 karakter olabilir; eskiyen maddeleri çıkar.", "A journal can be at most 6000 characters; drop the stale entries."));
     this.depo.defterYaz(ajan.id, ajan.projeId, temiz);
     try {
       const dosya = defterYolu(this.proje(ajan.projeId), ajan.ad);
       fs.mkdirSync(path.dirname(dosya), { recursive: true });
-      fs.writeFileSync(dosya, `# ${ajan.ad} · defter\n\n${temiz}\n`, "utf8");
+      fs.writeFileSync(dosya, `# ${ajan.ad} · ${iki("defter", "journal")}\n\n${temiz}\n`, "utf8");
       this.degisti(ajan.projeId);
     } catch {
       // Repo yazılamıyorsa veritabanı yeterli
@@ -206,7 +206,7 @@ export class ProjeHafizasi {
       if (!kayitlar.length) continue;
       satirlar.push("", `### ${baglamBasligi(tur)}`);
       for (const k of kayitlar) {
-        const satir = `- ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 220)} (${k.kaynakAd}, kimlik ${k.id.slice(0, 8)})`;
+        const satir = `- ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 220)} (${k.kaynakAd}, ${iki("kimlik", "id")} ${k.id.slice(0, 8)})`;
         toplam += satir.length;
         if (toplam > karakterSiniri) break;
         satirlar.push(satir);
@@ -231,7 +231,10 @@ export class ProjeHafizasi {
       .filter((k) => !haric?.has(k.id))
       .slice(0, sinir);
     if (!kayitlar.length) return "";
-    return ["İlgili hafıza:", ...kayitlar.map((k) => `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 200)}`)].join("\n");
+    return [
+      iki("İlgili hafıza:", "Related memory:"),
+      ...kayitlar.map((k) => `- [${iki(HAFIZA_TURU_ADLARI[k.tur], AD_HARITALARI_EN.hafizaTuru[k.tur])}] ${k.baslik}: ${kisalt(k.metin.replace(/\s+/g, " "), 200)}`),
+    ].join("\n");
   }
 
   // ---------------- repo yansıması ----------------
@@ -272,9 +275,12 @@ export class ProjeHafizasi {
     const hepsi = this.depo.hafizaKayitlari(projeId, { eskilerDahil: true, sinir: 5000 });
     const gecerli = hepsi.filter((k) => !k.yerineGecen);
     const md: string[] = [
-      "# Proje hafızası",
+      iki("# Proje hafızası", "# Project memory"),
       "",
-      "ArnOrg bu dosyayı kendisi yazar. Kayıtları Stüdyo'nun Hafıza ekranından ya da ajan araçlarıyla değiştirin; elle yapılan değişiklik bir sonraki yazımda kaybolur.",
+      iki(
+        "ArnOrg bu dosyayı kendisi yazar. Kayıtları Stüdyo'nun Hafıza ekranından ya da ajan araçlarıyla değiştirin; elle yapılan değişiklik bir sonraki yazımda kaybolur.",
+        "ArnOrg writes this file itself. Change records from Studio's Memory screen or with the agent tools; manual edits are lost on the next write.",
+      ),
     ];
     for (const tur of HAFIZA_TURLERI) {
       const liste = gecerli.filter((k) => k.tur === tur);

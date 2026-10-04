@@ -14,6 +14,7 @@ import type { Depo } from "./depo.js";
 import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
 import { arnorgYolu } from "./proje-dosyalari.js";
+import { rolAdiDilde } from "./roller.js";
 import { anlamliSozcukler, aramaMetni, ArnorgHatasi, jsonOku, kisalt, sadelestir, simdi } from "./yardimci.js";
 
 export const KISISEL_SINIR = 2200;
@@ -293,7 +294,7 @@ export class AjanZekasiYoneticisi {
     if (veren.projeId !== alan.projeId) throw new ArnorgHatasi(iki("Aktarım yalnız aynı projede yapılır.", "Transfers only work within the same project."));
     const kisisel = this.kisisel(veren);
     const parcalar = [
-      iki(`## Devir: ${veren.ad} (${veren.rolAdi}) → ${alan.ad}, ${simdi().slice(0, 10)}`, `## Handover: ${veren.ad} (${veren.rolAdi}) → ${alan.ad}, ${simdi().slice(0, 10)}`),
+      iki(`## Devir: ${veren.ad} (${rolAdiDilde(veren)}) → ${alan.ad}, ${simdi().slice(0, 10)}`, `## Handover: ${veren.ad} (${rolAdiDilde(veren)}) → ${alan.ad}, ${simdi().slice(0, 10)}`),
       secenek.not?.trim() ? `${iki("Not", "Note")}: ${secenek.not.trim()}` : "",
       kisisel.length ? `${iki(`${veren.ad}'in kişisel hafızası`, `${veren.ad}'s personal memory`)}:\n${kisisel.map((m) => `- ${m}`).join("\n")}` : "",
       secenek.defter.trim() ? `${iki(`${veren.ad}'in defteri`, `${veren.ad}'s journal`)}:\n${kisalt(secenek.defter.trim(), 2500)}` : "",
@@ -342,9 +343,9 @@ export class AjanZekasiYoneticisi {
     const ad = (id: string | null) => (id ? (ekip.find((a) => a.id === id)?.ad ?? "?") : "?");
     const satirlar: string[] = [];
     const yonetici = ajan.yoneticiId ? ekip.find((a) => a.id === ajan.yoneticiId) : null;
-    satirlar.push(`- ${iki("Yöneticin", "Your manager")}: ${yonetici ? `${yonetici.ad} (${yonetici.rolAdi})` : iki("Yönetim kurulu", "the board")}`);
+    satirlar.push(`- ${iki("Yöneticin", "Your manager")}: ${yonetici ? `${yonetici.ad} (${rolAdiDilde(yonetici)})` : iki("Yönetim kurulu", "the board")}`);
     const bagli = ekip.filter((a) => a.yoneticiId === ajan.id);
-    if (bagli.length) satirlar.push(`- ${iki("Sana bağlı", "Reporting to you")}: ${bagli.map((a) => `${a.ad} (${a.rolAdi})`).join(", ")}`);
+    if (bagli.length) satirlar.push(`- ${iki("Sana bağlı", "Reporting to you")}: ${bagli.map((a) => `${a.ad} (${rolAdiDilde(a)})`).join(", ")}`);
     const gorevler = this.depo.gorevler(ajan.projeId);
     const benim = gorevler.filter((g) => g.atananId === ajan.id && g.durum !== "tamam" && g.durum !== "iptal");
     for (const g of benim) {

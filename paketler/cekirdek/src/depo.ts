@@ -30,6 +30,7 @@ import type {
   ZekaGunlukTuru,
 } from "@arnorg/ortak";
 import { VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 
 /** Uzak depo adresinden GitHub "sahip/ad": https://github.com/a/b(.git), git@github.com:a/b(.git), ssh://git@github.com/a/b */
@@ -295,10 +296,11 @@ export class Depo {
     this.db
       .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .run(id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam");
+    // Kanal açıklaması proje açıldığı andaki dilde yazılır (API sistem kanallarını geçerli dilde gösterir)
     for (const [ad, aciklama] of [
-      ["genel", "Şirket geneli: brief, rapor, duyuru"],
-      ["yonetim", "Yönetim kurulu ile CEO'nun bire bir sohbeti"],
-      ["muhendislik", "Teknik konuşmalar ve kararlar"],
+      ["genel", iki("Şirket geneli: brief, rapor, duyuru", "Company-wide: brief, reports, announcements")],
+      ["yonetim", iki("Yönetim kurulu ile CEO'nun bire bir sohbeti", "One-on-one between the board and the CEO")],
+      ["muhendislik", iki("Teknik konuşmalar ve kararlar", "Technical discussions and decisions")],
     ] as const) {
       this.kanalEkle(id, ad, aciklama);
     }
@@ -324,7 +326,7 @@ export class Depo {
     }
     if (atamalar.length) this.db.prepare(`UPDATE projeler SET ${atamalar.join(", ")} WHERE id = ?`).run(...degerler, id);
     const p = this.proje(id);
-    if (!p) throw new Error("Proje bulunamadı");
+    if (!p) throw new Error(iki("Proje bulunamadı", "Project not found"));
     return p;
   }
 
@@ -673,11 +675,9 @@ export class Depo {
     return this.onay(id)!;
   }
 
-  /** Uygulama kapanırken bekleyen araç onayları anlamını yitirir */
-  bekleyenAracOnaylariniKapat(): void {
-    this.db
-      .prepare("UPDATE onaylar SET durum = 'zaman_asimi', sonuclanma = ?, not_metni = 'Uygulama yeniden başladı' WHERE durum = 'bekliyor' AND tur = 'arac'")
-      .run(simdi());
+  /** Uygulama kapanırken bekleyen araç onayları anlamını yitirir; not o anki dilde yazılır */
+  bekleyenAracOnaylariniKapat(not = "Uygulama yeniden başladı"): void {
+    this.db.prepare("UPDATE onaylar SET durum = 'zaman_asimi', sonuclanma = ?, not_metni = ? WHERE durum = 'bekliyor' AND tur = 'arac'").run(simdi(), not);
   }
 
   // ---------------- akış ----------------

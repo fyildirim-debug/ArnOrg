@@ -5,6 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { parentPort } from "node:worker_threads";
 
+/** Hata metinlerinin dili (çekirdeğin geçerli dili her mesajla gelir; iş parçacığı dil.ts'i içe aktarmaz) */
+type Dil = "tr" | "en";
+
 interface YukleMesaji {
   tur: "yukle";
   model: string;
@@ -13,12 +16,14 @@ interface YukleMesaji {
   izlek: number;
   /** Önbellekte bulunması gereken dosyalar; biri eksikse model indirilecek demektir */
   dosyalar: string[];
+  dil?: Dil;
 }
 
 interface GomMesaji {
   tur: "gom";
   id: number;
   metinler: string[];
+  dil?: Dil;
 }
 
 interface Tensor {
@@ -30,6 +35,12 @@ type Cikarici = (metinler: string[], secenek: { pooling: "mean"; normalize: bool
 
 const ust = parentPort;
 let cikarici: Cikarici | null = null;
+let dil: Dil = "tr";
+
+/** Geçerli dildeki metin (dil.ts'teki iki() gibi) */
+function iki(tr: string, en: string): string {
+  return dil === "en" ? en : tr;
+}
 
 function hataMetni(h: unknown): string {
   return h instanceof Error ? h.message : String(h);
@@ -60,13 +71,13 @@ async function yukle(m: YukleMesaji): Promise<void> {
     cikarici = p as unknown as Cikarici;
     ust?.postMessage({ tur: "hazir", boyut: null });
   } catch (h) {
-    ust?.postMessage({ tur: "hata", mesaj: `Model yüklenemedi: ${hataMetni(h)}` });
+    ust?.postMessage({ tur: "hata", mesaj: iki(`Model yüklenemedi: ${hataMetni(h)}`, `Could not load the model: ${hataMetni(h)}`) });
   }
 }
 
 async function gom(m: GomMesaji): Promise<void> {
   try {
-    if (!cikarici) throw new Error("Model yüklenmedi.");
+    if (!cikarici) throw new Error(iki("Model yüklenmedi.", "The model is not loaded."));
     const t = await cikarici(m.metinler, { pooling: "mean", normalize: true });
     const vektorler = Float32Array.from(t.data);
     ust?.postMessage({ tur: "sonuc", id: m.id, vektorler, boyut: t.dims[t.dims.length - 1] }, [vektorler.buffer]);
@@ -76,6 +87,7 @@ async function gom(m: GomMesaji): Promise<void> {
 }
 
 ust?.on("message", (m: YukleMesaji | GomMesaji) => {
+  if (m.dil) dil = m.dil;
   if (m.tur === "yukle") void yukle(m);
   else if (m.tur === "gom") void gom(m);
 });

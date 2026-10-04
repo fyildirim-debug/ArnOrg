@@ -1,6 +1,7 @@
 // Gözetmen: tıkanma koruması (ilerlemeyen görevi hatırlatma ve yükseltme) ve dönem raporu
-import { GOREV_DURUM_ADLARI, KARAR_ADLARI, ONAY_TURU_ADLARI, type Ajan, type Gorev, type Karar, type Rapor } from "@arnorg/ortak";
-import { rolBul } from "./roller.js";
+import { AD_HARITALARI_EN, GOREV_DURUM_ADLARI, KARAR_ADLARI, ONAY_TURU_ADLARI, type Ajan, type Gorev, type GorevDurumu, type Karar, type OnayTuru, type Rapor } from "@arnorg/ortak";
+import { iki } from "./dil.js";
+import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { bugun } from "./yardimci.js";
 
@@ -12,16 +13,23 @@ const GUN_MS = 86_400_000;
 // Dönem raporu
 // ===================================================================
 
-/** 1234567 → "1,2 milyon", 48200 → "48 bin" */
+/** 1234567 → "1,2 milyon", 48200 → "48 bin" (İngilizce: "1.2M", "48k"; Stüdyo ile aynı) */
 export function tokenMetni(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} milyon`;
-  if (n >= 1000) return `${Math.round(n / 1000).toLocaleString("tr-TR")} bin`;
+  const yerel = iki("tr-TR", "en-US");
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString(yerel, { maximumFractionDigits: 1 })}${iki(" milyon", "M")}`;
+  if (n >= 1000) return `${Math.round(n / 1000).toLocaleString(yerel)}${iki(" bin", "k")}`;
   return String(Math.round(n));
 }
+/** 04.10 (İngilizce: Oct 4) */
 const tarih = (iso: string) => {
   const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return iki(`${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`, d.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
 };
+/** Durum ve tür adları geçerli dilde, küçük harfle (Türkçe yerel kurallarıyla) */
+const kucuk = (metin: string) => metin.toLocaleLowerCase(iki("tr", "en"));
+const gorevDurumAdi = (d: GorevDurumu) => iki(GOREV_DURUM_ADLARI[d], AD_HARITALARI_EN.gorevDurumu[d]);
+const kararAdi = (k: Karar) => iki(KARAR_ADLARI[k], AD_HARITALARI_EN.karar[k]);
+const onayTuruAdi = (t: OnayTuru) => iki(ONAY_TURU_ADLARI[t], AD_HARITALARI_EN.onayTuru[t]);
 
 export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   const proje = sirket.proje(projeId);
@@ -30,7 +38,7 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   const baslangicGun = bugun(baslangicTarihi);
   const baslangicAni = new Date(baslangicTarihi.getFullYear(), baslangicTarihi.getMonth(), baslangicTarihi.getDate()).toISOString();
   const ajanlar = sirket.depo.ajanlar(projeId);
-  const ad = (id: string | null) => (id ? (ajanlar.find((a) => a.id === id)?.ad ?? "ayrılmış çalışan") : "atanmamış");
+  const ad = (id: string | null) => (id ? (ajanlar.find((a) => a.id === id)?.ad ?? iki("ayrılmış çalışan", "former employee")) : iki("atanmamış", "unassigned"));
   const gorevler = sirket.depo.gorevler(projeId);
   const kod = (id: string) => gorevler.find((g) => g.id === id)?.kod ?? "?";
   const satir = (g: Gorev, ek = "") => `- ${g.kod} ${g.baslik} · ${ad(g.atananId)}${ek}`;
@@ -41,7 +49,7 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   const acik = gorevler.filter((g) => g.durum === "bekleyen" || g.durum === "planlandi");
   const tikanan = acik.flatMap((g) => {
     const bitmemis = g.bagimliliklar.filter((b) => gorevler.find((x) => x.id === b)?.durum !== "tamam");
-    if (bitmemis.length) return [satir(g, ` · bekliyor: ${bitmemis.map(kod).join(", ")}`)];
+    if (bitmemis.length) return [satir(g, ` · ${iki("bekliyor", "waiting on")}: ${bitmemis.map(kod).join(", ")}`)];
     if (!g.atananId) return [satir(g)];
     return [];
   });
@@ -54,40 +62,53 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   const birlesenler = sonuclananlar.filter((o) => o.tur === "birlestirme" && o.durum === "onaylandi");
   const iseAlinanlar = sonuclananlar.filter((o) => o.tur === "ise_alim" && o.durum === "onaylandi");
 
-  const baslik = `Durum raporu · ${bugun()}`;
+  const baslik = iki(`Durum raporu · ${bugun()}`, `Status report · ${bugun()}`);
   const b: string[] = [];
   b.push(`# ${baslik}`, "");
-  b.push(`${proje.ad} · ${donem === 1 ? "bugün" : `son ${donem} gün (${baslangicGun} itibarıyla)`}`, "");
-  b.push("## Özet", "");
-  b.push(`- Tamamlanan görev: ${tamamlanan.length} · süren: ${suren.length} · incelemede: ${incelemede.length} · açık: ${acik.length}`);
-  b.push(`- Kullanım: ${tokenMetni(donemTokeni)} token (bugün ${tokenMetni(sirket.depo.projeTokeni(projeId, bugun()))})`);
+  b.push(`${proje.ad} · ${donem === 1 ? iki("bugün", "today") : iki(`son ${donem} gün (${baslangicGun} itibarıyla)`, `last ${donem} days (since ${baslangicGun})`)}`, "");
+  b.push(iki("## Özet", "## Summary"), "");
+  b.push(
+    iki(
+      `- Tamamlanan görev: ${tamamlanan.length} · süren: ${suren.length} · incelemede: ${incelemede.length} · açık: ${acik.length}`,
+      `- Tasks done: ${tamamlanan.length} · in progress: ${suren.length} · in review: ${incelemede.length} · open: ${acik.length}`,
+    ),
+  );
+  const bugunku = tokenMetni(sirket.depo.projeTokeni(projeId, bugun()));
+  b.push(iki(`- Kullanım: ${tokenMetni(donemTokeni)} token (bugün ${bugunku})`, `- Usage: ${tokenMetni(donemTokeni)} tokens (today ${bugunku})`));
   const pencereler = sirket.hesap.mevcut.pencereler.filter((p) => p.tur === "bes_saat" || p.tur === "haftalik");
-  if (pencereler.length) b.push(`- Abonelik: ${pencereler.map((p) => `${p.ad.toLocaleLowerCase("tr")} %${Math.round(p.yuzde ?? 0)}`).join(", ")}`);
-  const denetimOzeti = (Object.keys(KARAR_ADLARI) as Karar[]).filter((k) => denetim[k]).map((k) => `${KARAR_ADLARI[k].toLocaleLowerCase("tr")} ${denetim[k]}`);
-  b.push(`- Denetim: ${denetimOzeti.length ? denetimOzeti.join(", ") : "kayıt yok"}`);
-  b.push(`- Birleştirme: ${birlesenler.length} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`, "");
+  if (pencereler.length)
+    b.push(`${iki("- Abonelik", "- Subscription")}: ${pencereler.map((p) => iki(`${kucuk(p.ad)} %${Math.round(p.yuzde ?? 0)}`, `${kucuk(p.ad)} ${Math.round(p.yuzde ?? 0)}%`)).join(", ")}`);
+  const denetimOzeti = (Object.keys(KARAR_ADLARI) as Karar[]).filter((k) => denetim[k]).map((k) => `${kucuk(kararAdi(k))} ${denetim[k]}`);
+  b.push(`${iki("- Denetim", "- Audit")}: ${denetimOzeti.length ? denetimOzeti.join(", ") : iki("kayıt yok", "no records")}`);
+  b.push(
+    iki(
+      `- Birleştirme: ${birlesenler.length} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`,
+      `- Merges: ${birlesenler.length} · hires: ${iseAlinanlar.length} · pending approvals: ${bekleyenOnaylar.length}`,
+    ),
+    "",
+  );
 
   const bolum = (ad: string, satirlar: string[]) => {
     if (!satirlar.length) return;
     b.push(`## ${ad}`, "", ...satirlar, "");
   };
-  bolum("Tamamlananlar", tamamlanan.map((g) => satir(g, ` · ${tarih(g.guncelleme)}`)));
-  bolum("Sürenler", suren.map((g) => satir(g)));
-  bolum("İncelemede", incelemede.map((g) => satir(g)));
-  bolum("Tıkananlar", tikanan);
+  bolum(iki("Tamamlananlar", "Done"), tamamlanan.map((g) => satir(g, ` · ${tarih(g.guncelleme)}`)));
+  bolum(iki("Sürenler", "In progress"), suren.map((g) => satir(g)));
+  bolum(iki("İncelemede", "In review"), incelemede.map((g) => satir(g)));
+  bolum(iki("Tıkananlar", "Blocked"), tikanan);
   bolum(
-    "Bekleyen onaylar",
-    bekleyenOnaylar.map((o) => `- ${ONAY_TURU_ADLARI[o.tur]}: ${o.baslik}${o.ajanId ? ` · ${ad(o.ajanId)}` : ""}`),
+    iki("Bekleyen onaylar", "Pending approvals"),
+    bekleyenOnaylar.map((o) => `- ${onayTuruAdi(o.tur)}: ${o.baslik}${o.ajanId ? ` · ${ad(o.ajanId)}` : ""}`),
   );
-  bolum("Birleştirilenler", birlesenler.map((o) => `- ${o.baslik} · ${tarih(o.sonuclanma ?? o.olusturma)}`));
+  bolum(iki("Birleştirilenler", "Merged"), birlesenler.map((o) => `- ${o.baslik} · ${tarih(o.sonuclanma ?? o.olusturma)}`));
 
-  b.push("## Ekip", "", "| Çalışan | Rol | Durum | Dönem kullanımı |", "|---|---|---|---|");
+  b.push(iki("## Ekip", "## Team"), "", iki("| Çalışan | Rol | Durum | Dönem kullanımı |", "| Employee | Role | Status | Period usage |"), "|---|---|---|---|");
   for (const a of ajanlar) {
     const m = kullanimlar.find((x) => x.ajanId === a.id);
-    const kullanim = `${tokenMetni(m?.token ?? 0)} token`;
+    const kullanim = `${tokenMetni(m?.token ?? 0)} ${iki("token", "tokens")}`;
     const gorev = a.gorevId ? gorevler.find((g) => g.id === a.gorevId) : null;
-    const durum = gorev && gorev.durum !== "tamam" ? `${gorev.kod} ${GOREV_DURUM_ADLARI[gorev.durum].toLocaleLowerCase("tr")}` : "görevsiz";
-    b.push(`| ${a.ad} | ${a.rolAdi} | ${durum} | ${kullanim} |`);
+    const durum = gorev && gorev.durum !== "tamam" ? `${gorev.kod} ${kucuk(gorevDurumAdi(gorev.durum))}` : iki("görevsiz", "no task");
+    b.push(`| ${a.ad} | ${rolAdiDilde(a)} | ${durum} | ${kullanim} |`);
   }
   b.push("");
   return { baslik, yol: `raporlar/${bugun()}.md`, baslangic: baslangicAni, markdown: b.join("\n") };
@@ -180,7 +201,10 @@ export class Gozetmen {
             t.yukseltildi = true;
             await this.sirket.uyandir(
               yonetici.id,
-              `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor; ${sorumlu.ad} iki hatırlatmaya karşın görevi ilerletmedi. Durumu incele (ekip_listele, gorev_detay, kanal_oku): engeli kaldır, görevi böl ya da başka birine ata; çözemiyorsan kurula #genel'de yaz.`,
+              iki(
+                `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor; ${sorumlu.ad} iki hatırlatmaya karşın görevi ilerletmedi. Durumu incele (ekip_listele, gorev_detay, kanal_oku): engeli kaldır, görevi böl ya da başka birine ata; çözemiyorsan kurula #genel'de yaz.`,
+                `${g.kod} "${g.baslik}" has not moved for ${dk} minutes; ${sorumlu.ad} did not move it forward despite two reminders. Look into it (ekip_listele, gorev_detay, kanal_oku): remove the blocker, split the task or assign it to someone else; if you can't solve it, write to the board in #general.`,
+              ),
               null,
             );
             eylemler.push({ tur: "yukseltme", gorevKodu: g.kod, ajanAd: yonetici.ad });
@@ -188,7 +212,10 @@ export class Gozetmen {
           }
           if (!t.kurulaBildirildi) {
             t.kurulaBildirildi = true;
-            const metin = `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor (${GOREV_DURUM_ADLARI[g.durum].toLocaleLowerCase("tr")}, sorumlu ${sorumlu.ad}). Hatırlatma ve yükseltme sonuç vermedi; kurulun bakması gerekiyor.`;
+            const metin = iki(
+              `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor (${kucuk(gorevDurumAdi(g.durum))}, sorumlu ${sorumlu.ad}). Hatırlatma ve yükseltme sonuç vermedi; kurulun bakması gerekiyor.`,
+              `${g.kod} "${g.baslik}" has not moved for ${dk} minutes (${kucuk(gorevDurumAdi(g.durum))}, owner ${sorumlu.ad}). Reminders and escalation did not help; the board needs to take a look.`,
+            );
             this.sirket.kanalMesaji(proje.id, "genel", { id: "arnorg", ad: "ArnOrg" }, metin);
             this.sirket.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin, projeId: proje.id });
             eylemler.push({ tur: "kurul", gorevKodu: g.kod, ajanAd: sorumlu.ad });
@@ -216,8 +243,14 @@ export class Gozetmen {
 
   private hatirlatmaMetni(g: Gorev, dk: number): string {
     if (g.durum === "inceleme") {
-      return `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. calisma_farki ile değişiklikleri incele; uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz.`;
+      return iki(
+        `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. calisma_farki ile değişiklikleri incele; uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz.`,
+        `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review the changes with calisma_farki; if it is ready, submit it to the board with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner.`,
+      );
     }
-    return `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor görünüyor. İş bittiyse testleri çalıştırıp commit'le ve görevi 'inceleme' durumuna al; sürüyorsa kaldığın yerden devam et; tıkandıysan nedenini mesaj_gonder ile yöneticine yaz.`;
+    return iki(
+      `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor görünüyor. İş bittiyse testleri çalıştırıp commit'le ve görevi 'inceleme' durumuna al; sürüyorsa kaldığın yerden devam et; tıkandıysan nedenini mesaj_gonder ile yöneticine yaz.`,
+      `${g.kod} "${g.baslik}" seems not to have moved for ${dk} minutes. If the work is done, run the tests, commit and move the task to 'inceleme' (review); if it is ongoing, continue where you left off; if you are stuck, tell your manager why with mesaj_gonder.`,
+    );
   }
 }

@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { KodZekasiModelBilgisi, KodZekasiModeli } from "@arnorg/ortak";
+import { dil, iki } from "../dil.js";
 import { aramaMetni } from "../yardimci.js";
 import { onek, tanimlayiciParcala } from "./metin.js";
 
@@ -19,7 +20,9 @@ export interface ModelProfili {
   sorguOneki: string;
   belgeOneki: string;
   ad: string;
+  /** Ayarlar ekranındaki açıklama; İngilizcesi aciklamaEn (modelBilgileri geçerli dildekini verir) */
   aciklama: string;
+  aciklamaEn: string;
   indirmeMb: number;
   /** Önbellekte bulunması gereken dosyalar (indirildi mi denetimi) */
   dosyalar: string[];
@@ -37,6 +40,8 @@ export const MODELLER: Record<Exclude<KodZekasiModeli, "kapali">, ModelProfili> 
     belgeOneki: "title: none | text: ",
     ad: "EmbeddingGemma 300M",
     aciklama: "Çok dilli ve kodda güçlü; Türkçe soruyla İngilizce ya da Türkçe adlı kodu bulur. İlk dizinleme yavaştır (4 çekirdekte parça başına ~0,5 sn; çok kullanılan kod önce gömülür), sonra yalnız değişen parçalar gömülür.",
+    aciklamaEn:
+      "Multilingual and strong on code; finds code named in English or Turkish from a question in either language. The first indexing is slow (~0.5 s per chunk on 4 cores; frequently used code is embedded first), after that only changed chunks are embedded.",
     indirmeMb: 310,
     dosyalar: ["config.json", "tokenizer.json", "onnx/model_quantized.onnx", "onnx/model_quantized.onnx_data"],
     parti: 8,
@@ -50,6 +55,7 @@ export const MODELLER: Record<Exclude<KodZekasiModeli, "kapali">, ModelProfili> 
     belgeOneki: "passage: ",
     ad: "Multilingual E5 Small",
     aciklama: "Daha küçük ve birkaç kat hızlı; kod aramasında biraz daha zayıf. Büyük projelerde ilk dizinleme için uygun.",
+    aciklamaEn: "Smaller and several times faster; a little weaker at code search. Good for the first indexing of large projects.",
     indirmeMb: 130,
     dosyalar: ["config.json", "tokenizer.json", "onnx/model_quantized.onnx"],
     parti: 16,
@@ -98,7 +104,7 @@ export function modelBilgileri(veriDizini: string): KodZekasiModelBilgisi[] {
       secim: p.secim,
       kimlik: p.kimlik,
       ad: p.ad,
-      aciklama: p.aciklama,
+      aciklama: iki(p.aciklama, p.aciklamaEn),
       boyut: p.boyut,
       indirmeMb: p.indirmeMb,
       indirildi,
@@ -191,7 +197,7 @@ export function calisanYolu(): URL {
     const u = new URL(ad, import.meta.url);
     if (fs.existsSync(fileURLToPath(u))) return u;
   }
-  throw new Error("Gömme iş parçacığı dosyası bulunamadı (gomme-calisani.js).");
+  throw new Error(iki("Gömme iş parçacığı dosyası bulunamadı (gomme-calisani.js).", "Embedding worker file not found (gomme-calisani.js)."));
 }
 
 interface Is {
@@ -261,7 +267,7 @@ export class IsciGomucu implements Gomucu {
   }
 
   private baslat(): Promise<void> {
-    if (this.kapandi) return Promise.reject(new Error("Gömücü kapatıldı."));
+    if (this.kapandi) return Promise.reject(new Error(iki("Gömücü kapatıldı.", "The embedder was closed.")));
     if (this.hazirlik) return this.hazirlik;
     this.hazirlik = new Promise<void>((coz, reddet) => {
       let hazir = false;
@@ -283,7 +289,7 @@ export class IsciGomucu implements Gomucu {
           const s = this.suren;
           if (!s || s.id !== m.id) return;
           this.suren = null;
-          if (m.hata || !m.vektorler) s.is.reddet(new Error(m.hata ?? "Gömme sonucu boş."));
+          if (m.hata || !m.vektorler) s.is.reddet(new Error(m.hata ?? iki("Gömme sonucu boş.", "The embedding result is empty.")));
           else {
             const d = m.boyut ?? this.boyut;
             const liste: Float32Array[] = [];
@@ -294,7 +300,7 @@ export class IsciGomucu implements Gomucu {
         }
       });
       isci.on("error", (h) => {
-        const hata = new Error(`Gömme iş parçacığı hata verdi: ${h.message}`);
+        const hata = new Error(iki(`Gömme iş parçacığı hata verdi: ${h.message}`, `The embedding worker failed: ${h.message}`));
         if (!hazir) reddet(hata);
         this.yay({ tur: "hata", mesaj: hata.message });
         void this.durdur(hata);
@@ -303,12 +309,13 @@ export class IsciGomucu implements Gomucu {
         if (this.isci !== isci) return;
         this.isci = null;
         this.hazirlik = null;
-        const hata = new Error(`Gömme iş parçacığı kapandı (${kod}).`);
+        const hata = new Error(iki(`Gömme iş parçacığı kapandı (${kod}).`, `The embedding worker exited (${kod}).`));
         if (!hazir) reddet(hata);
         this.hepsiniReddet(hata);
       });
       const izlek = Math.max(1, Math.min(8, (os.availableParallelism?.() ?? os.cpus().length) - 1));
-      isci.postMessage({ tur: "yukle", model: this.profil.kimlik, dtype: this.profil.dtype, onbellek: this.onbellekDizini, izlek, dosyalar: this.profil.dosyalar });
+      // İş parçacığı kendi başına durur (dil.ts'i içe aktarmaz); hata metinlerinin dili mesajla gider
+      isci.postMessage({ tur: "yukle", model: this.profil.kimlik, dtype: this.profil.dtype, onbellek: this.onbellekDizini, izlek, dosyalar: this.profil.dosyalar, dil: dil() });
     });
     // Yükleme hatası bir kez yayılır; sonraki çağrılar yeniden dener
     this.hazirlik.catch(() => {
@@ -329,7 +336,7 @@ export class IsciGomucu implements Gomucu {
     const id = ++this.sayac;
     this.suren = { id, is };
     const onekli = is.metinler.map((m) => (is.sorgu ? this.profil.sorguOneki : this.profil.belgeOneki) + m.slice(0, EN_COK_GOMME_KARAKTERI));
-    this.isci.postMessage({ tur: "gom", id, metinler: onekli });
+    this.isci.postMessage({ tur: "gom", id, metinler: onekli, dil: dil() });
   }
 
   private bostaPlanla(): void {
@@ -345,7 +352,7 @@ export class IsciGomucu implements Gomucu {
     const isci = this.isci;
     this.isci = null;
     this.hazirlik = null;
-    this.hepsiniReddet(hata ?? new Error("Gömme iş parçacığı kapatıldı."));
+    this.hepsiniReddet(hata ?? new Error(iki("Gömme iş parçacığı kapatıldı.", "The embedding worker was stopped.")));
     if (isci) await isci.terminate().catch(() => undefined);
   }
 
@@ -363,7 +370,7 @@ export class IsciGomucu implements Gomucu {
 
   async kapat(): Promise<void> {
     this.kapandi = true;
-    await this.durdur(new Error("Gömücü kapatıldı."));
+    await this.durdur(new Error(iki("Gömücü kapatıldı.", "The embedder was closed.")));
   }
 }
 

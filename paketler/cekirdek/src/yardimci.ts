@@ -1,5 +1,6 @@
 // Küçük ortak yardımcılar
 import { randomUUID, randomBytes } from "node:crypto";
+import { iki } from "./dil.js";
 
 export function kimlik(): string {
   return randomUUID();
@@ -75,8 +76,9 @@ export class ArnorgHatasi extends Error {
   }
 }
 
-export function bulunamadi(ne: string): ArnorgHatasi {
-  return new ArnorgHatasi(`${ne} bulunamadı.`, 404);
+/** "Görev bulunamadı." / "Task not found." */
+export function bulunamadi(ne: string, en: string): ArnorgHatasi {
+  return new ArnorgHatasi(iki(`${ne} bulunamadı.`, `${en} not found.`), 404);
 }
 
 /** Sonu gelmeyen, beklenebilir kuyruk (ajan girdi akışı için) */

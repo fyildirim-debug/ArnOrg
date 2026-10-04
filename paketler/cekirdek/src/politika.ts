@@ -3,6 +3,7 @@
 import path from "node:path";
 import os from "node:os";
 import type { PolitikaKurali } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 
 export interface PolitikaBaglami {
   /** Ajanın çalışma dizini (worktree) */
@@ -26,13 +27,13 @@ const KOMUT_ARACLARI = new Set(["Bash", "PowerShell", "Monitor"]);
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const OKUMA_ARACLARI = new Set(["Read", "Grep", "Glob", "NotebookRead"]);
 
-/** Varsayılan kurallar; proje bazında düzenlenebilir */
+/** Varsayılan kurallar; proje bazında düzenlenebilir. Ad ve açıklama proje açıldığı andaki dilde yazılır */
 export function varsayilanKurallar(): PolitikaKurali[] {
   return [
     {
       id: "yikici-komut",
-      ad: "Yıkıcı komutlar",
-      aciklama: "Geri alınamaz komutlar: zorla push, sert sıfırlama, disk biçimlendirme, tablo silme.",
+      ad: iki("Yıkıcı komutlar", "Destructive commands"),
+      aciklama: iki("Geri alınamaz komutlar: zorla push, sert sıfırlama, disk biçimlendirme, tablo silme.", "Irreversible commands: force push, hard reset, disk formatting, dropping tables."),
       karar: "ret",
       hedef: "komut",
       araclar: [],
@@ -55,8 +56,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "alan-disi-silme",
-      ad: "Çalışma alanı dışını silme",
-      aciklama: "rm -r / Remove-Item -Recurse çalışma alanı dışını, kökü ya da ev dizinini hedefliyorsa.",
+      ad: iki("Çalışma alanı dışını silme", "Deleting outside the workspace"),
+      aciklama: iki("rm -r / Remove-Item -Recurse çalışma alanı dışını, kökü ya da ev dizinini hedefliyorsa.", "rm -r / Remove-Item -Recurse aimed outside the workspace, at the root or at the home directory."),
       karar: "ret",
       hedef: "komut",
       araclar: [],
@@ -65,8 +66,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "boru-ile-calistirma",
-      ad: "İndirip çalıştırma",
-      aciklama: "İnternetten indirilen betiği doğrudan kabuğa vermek.",
+      ad: iki("İndirip çalıştırma", "Download and run"),
+      aciklama: iki("İnternetten indirilen betiği doğrudan kabuğa vermek.", "Piping a script downloaded from the internet straight into a shell."),
       karar: "ret",
       hedef: "komut",
       araclar: [],
@@ -79,8 +80,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "gizli-dosya",
-      ad: "Gizli dosyalar",
-      aciklama: "Ortam dosyaları, özel anahtarlar ve kimlik bilgileri okunmaz ve yazılmaz.",
+      ad: iki("Gizli dosyalar", "Secret files"),
+      aciklama: iki("Ortam dosyaları, özel anahtarlar ve kimlik bilgileri okunmaz ve yazılmaz.", "Environment files, private keys and credentials are never read or written."),
       karar: "ret",
       hedef: "yol",
       araclar: [],
@@ -97,8 +98,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "alan-disi-yazma",
-      ad: "Çalışma alanı dışına yazma",
-      aciklama: "Dosya düzenleme araçları yalnız ajanın kendi çalışma alanına ve geçici dizine yazar.",
+      ad: iki("Çalışma alanı dışına yazma", "Writing outside the workspace"),
+      aciklama: iki("Dosya düzenleme araçları yalnız ajanın kendi çalışma alanına ve geçici dizine yazar.", "File editing tools write only to the agent's own workspace and the temp directory."),
       karar: "ret",
       hedef: "yol",
       araclar: [...YAZMA_ARACLARI],
@@ -107,8 +108,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "disari-gonderim",
-      ad: "Dışarı gönderim ve yayın",
-      aciklama: "Uzak depoya push, paket yayını, dağıtım ve altyapı değişikliği yönetim kurulu onayı ister.",
+      ad: iki("Dışarı gönderim ve yayın", "Pushing and publishing"),
+      aciklama: iki("Uzak depoya push, paket yayını, dağıtım ve altyapı değişikliği yönetim kurulu onayı ister.", "Pushing to a remote, publishing packages, deploying and changing infrastructure need the board's approval."),
       karar: "sor",
       hedef: "komut",
       araclar: [],
@@ -127,8 +128,8 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     },
     {
       id: "yonetici-yetkisi",
-      ad: "Yönetici yetkisi",
-      aciklama: "sudo, runas ve sistem geneli paket kurulumu onay ister.",
+      ad: iki("Yönetici yetkisi", "Admin privileges"),
+      aciklama: iki("sudo, runas ve sistem geneli paket kurulumu onay ister.", "sudo, runas and system-wide package installs need approval."),
       karar: "sor",
       hedef: "komut",
       araclar: [],
@@ -294,12 +295,13 @@ function alanDisiSilme(parca: string, b: PolitikaBaglami): string | null {
   if (!ozyinelemeli) return null;
   for (const ham of hedefler) {
     // Ev dizininin kendisi genişletmeden önce yakalanır (Windows'ta ~ C:\Users\… olur)
-    if (/^(~|\$HOME|\$\{HOME\}|\$env:USERPROFILE|%USERPROFILE%)[\\/]?\*?$/i.test(ham)) return `"${ham}" kök, ev dizini ya da tüm çalışma alanı.`;
+    const kokMu = () => iki(`"${ham}" kök, ev dizini ya da tüm çalışma alanı.`, `"${ham}" is the root, the home directory or the whole workspace.`);
+    if (/^(~|\$HOME|\$\{HOME\}|\$env:USERPROFILE|%USERPROFILE%)[\\/]?\*?$/i.test(ham)) return kokMu();
     const h = evGenislet(ham);
-    if (/^(\/|[a-z]:\\?|\*|\.\.?\/?\*?)$/i.test(h) || path.resolve(h) === path.resolve(os.homedir())) return `"${ham}" kök, ev dizini ya da tüm çalışma alanı.`;
+    if (/^(\/|[a-z]:\\?|\*|\.\.?\/?\*?)$/i.test(h) || path.resolve(h) === path.resolve(os.homedir())) return kokMu();
     if (h.includes("*") && !h.includes("/") && !h.includes("\\")) continue;
     const mutlak = (platform === "win32" ? path.win32 : path.posix).resolve(b.cwd, h);
-    if (!icinde(b.cwd, mutlak, platform) && !geciciDizinde(mutlak, platform)) return `"${ham}" çalışma alanının dışında.`;
+    if (!icinde(b.cwd, mutlak, platform) && !geciciDizinde(mutlak, platform)) return iki(`"${ham}" çalışma alanının dışında.`, `"${ham}" is outside the workspace.`);
   }
   return null;
 }

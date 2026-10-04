@@ -1,7 +1,9 @@
 // Depo haritası ve modül grafiği: klasör ağacı (dil, satır, öne çıkan semboller), içe aktarma grafiği ve
 // ajanlar için karakter sınırlı metin haritası (aider repo map gibi: önemli dosyalar ve sembolleri önce).
 import path from "node:path";
-import { KOD_SEMBOL_TURU_ADLARI, type KodGrafigi, type KodGrafikDugumu, type KodHaritaDugumu } from "@arnorg/ortak";
+import type { KodGrafigi, KodGrafikDugumu, KodHaritaDugumu } from "@arnorg/ortak";
+import { iki } from "../dil.js";
+import { sembolTuruAdi } from "./bicim.js";
 import type { DosyaKaydi, IceAktarmaKaydi, SembolKaydi } from "./depo.js";
 
 const posix = path.posix;
@@ -111,18 +113,21 @@ export function onemPuanlari(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKa
 export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], iceAktarmalar: IceAktarmaKaydi[], s: { yol?: string; sinir: number }): string {
   const kok = (s.yol ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
   const kapsam = dosyalar.filter((f) => !kok || f.yol === kok || f.yol.startsWith(`${kok}/`));
-  if (!kapsam.length) return kok ? `"${kok}" altında dizinlenmiş dosya yok.` : "Dizinde dosya yok.";
+  if (!kapsam.length) return kok ? iki(`"${kok}" altında dizinlenmiş dosya yok.`, `No indexed files under "${kok}".`) : iki("Dizinde dosya yok.", "No files in the index.");
   const onem = onemPuanlari(dosyalar, iceAktarmalar);
   const sembolle = gruplaYola(semboller);
   const sirali = [...kapsam].sort((a, b) => (onem.get(b.yol) ?? 0) - (onem.get(a.yol) ?? 0) || b.satir - a.satir);
   const satirlar = new Map<string, string>();
   const toplamSatir = kapsam.reduce((t, f) => t + f.satir, 0);
-  const baslik = `${kok || "Kök"}: ${kapsam.length} dosya, ${toplamSatir} satır. Önemli dosyalar önce; sembol türleri parantezde.`;
+  const baslik = iki(
+    `${kok || "Kök"}: ${kapsam.length} dosya, ${toplamSatir} satır. Önemli dosyalar önce; sembol türleri parantezde.`,
+    `${kok || "Root"}: ${kapsam.length} files, ${toplamSatir} lines. Important files first; symbol kinds in parentheses.`,
+  );
   let kullanilan = baslik.length + 80;
   const klasorBasliklari = new Set<string>();
   for (const f of sirali) {
     const ss = oneCikanlar(sembolle.get(f.yol) ?? [], 8);
-    const sembolMetni = ss.map((x) => `${x.ust && x.tur === "metod" ? `${x.ust}.` : ""}${x.ad}${x.tur === "metod" || x.tur === "fonksiyon" ? "()" : ` (${KOD_SEMBOL_TURU_ADLARI[x.tur]})`}`).join(", ");
+    const sembolMetni = ss.map((x) => `${x.ust && x.tur === "metod" ? `${x.ust}.` : ""}${x.ad}${x.tur === "metod" || x.tur === "fonksiyon" ? "()" : ` (${sembolTuruAdi(x.tur)})`}`).join(", ");
     const satir = `  ${posix.basename(f.yol)} [${f.satir}]${sembolMetni ? `: ${sembolMetni}` : ""}`;
     const klasor = posix.dirname(f.yol) === "." ? "./" : `${posix.dirname(f.yol)}/`;
     const ek = satir.length + 1 + (klasorBasliklari.has(klasor) ? 0 : klasor.length + 1);
@@ -140,7 +145,7 @@ export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], ic
   }
   const govde = [...gruplar].map(([k, l]) => `${k}\n${l.join("\n")}`).join("\n");
   const kalan = kapsam.length - satirlar.size;
-  return `${baslik}\n${govde}${kalan > 0 ? `\n(+${kalan} dosya daha; yol vererek daralt)` : ""}`;
+  return `${baslik}\n${govde}${kalan > 0 ? iki(`\n(+${kalan} dosya daha; yol vererek daralt)`, `\n(+${kalan} more files; narrow it down with yol)`) : ""}`;
 }
 
 /** Modül grafiği: dosya ya da klasör düzeyinde içe aktarma kenarları (ağırlık: içe aktarma sayısı) */

@@ -2,7 +2,12 @@
 // arnorg serve [--port 47820] [--host 127.0.0.1] [--veri <dizin>] [--studyo <dizin>] [--izinli-host <ad>]
 import os from "node:os";
 import path from "node:path";
+import { dilKaynagi, iki } from "./dil.js";
 import { baslat } from "./index.js";
+import { sistemDili } from "./yapilandirma.js";
+
+// Çekirdek açılana kadar terminal mesajları sistem dilinde (ARNORG_DIL ya da yerel ayar); açılınca ayardaki dil geçerli olur
+dilKaynagi(() => sistemDili());
 
 function varsayilanVeriDizini(): string {
   if (process.env.ARNORG_VERI) return process.env.ARNORG_VERI;
@@ -28,7 +33,12 @@ function argumanlariOku(argv: string[]) {
 async function ana(): Promise<void> {
   const a = argumanlariOku(process.argv.slice(2));
   if (a.komut !== "serve") {
-    console.log("Kullanım: arnorg serve [--port 47820] [--host 127.0.0.1] [--veri <dizin>] [--studyo <dizin>] [--izinli-host <ad>]");
+    console.log(
+      iki(
+        "Kullanım: arnorg serve [--port 47820] [--host 127.0.0.1] [--veri <dizin>] [--studyo <dizin>] [--izinli-host <ad>]",
+        "Usage: arnorg serve [--port 47820] [--host 127.0.0.1] [--veri <dir>] [--studyo <dir>] [--izinli-host <name>]",
+      ),
+    );
     process.exit(a.komut === "help" || a.komut === "--help" ? 0 : 1);
   }
   const sunucu = await baslat({
@@ -38,10 +48,10 @@ async function ana(): Promise<void> {
     studyoDizini: a.studyo,
     izinliHostlar: a.izinliHostlar,
   });
-  console.log(`ArnOrg hazır: ${sunucu.adres}/#anahtar=${sunucu.erisimAnahtari}`);
-  console.log(`Veri dizini: ${path.resolve(a.veri ?? varsayilanVeriDizini())}`);
+  console.log(`${iki("ArnOrg hazır", "ArnOrg is ready")}: ${sunucu.adres}/#anahtar=${sunucu.erisimAnahtari}`);
+  console.log(`${iki("Veri dizini", "Data directory")}: ${path.resolve(a.veri ?? varsayilanVeriDizini())}`);
   const kapat = async () => {
-    console.log("ArnOrg kapanıyor…");
+    console.log(iki("ArnOrg kapanıyor…", "ArnOrg is shutting down…"));
     await sunucu.kapat();
     process.exit(0);
   };
@@ -50,6 +60,6 @@ async function ana(): Promise<void> {
 }
 
 ana().catch((h) => {
-  console.error("ArnOrg başlatılamadı:", h instanceof Error ? h.message : h);
+  console.error(iki("ArnOrg başlatılamadı:", "ArnOrg could not start:"), h instanceof Error ? h.message : h);
   process.exit(1);
 });

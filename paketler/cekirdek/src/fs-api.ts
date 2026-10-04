@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { FsDurumu, FsGirdisi, FsTuru, GitBasvurusu, GitCommitSonucu, GitDegisikligi, GitDegisiklikTuru, GitDurumu } from "@arnorg/ortak";
 import { z } from "zod";
+import { iki } from "./dil.js";
 import { guvenliYol } from "./dosyalar.js";
 import * as gitIslemleri from "./git.js";
 import { dosyaListesi, metinAra } from "./kod-arama.js";
@@ -71,24 +72,31 @@ function hataKodu(h: unknown): string | undefined {
   return (h as NodeJS.ErrnoException)?.code;
 }
 
+// Stüdyo'nun dosya sistemi sağlayıcısı (tezgah/dosyaSistemi.ts) 409 ve 400 hatalarını metinden ayırır:
+// "zaten var" → FileExists, "klasör değil" → FileNotADirectory, "klasör" → FileIsADirectory.
+// İngilizce karşılıklar bu yüzden sabit kalıptadır: "Already exists", "Not a folder", "This is a folder".
+const bulunamadiHatasi = (yol: string) => new ArnorgHatasi(iki(`Bulunamadı: ${yol}`, `Not found: ${yol}`), 404);
+const zatenVarHatasi = (yol: string) => new ArnorgHatasi(iki(`Zaten var: ${yol}`, `Already exists: ${yol}`), 409);
+const klasorHatasi = (yol: string) => new ArnorgHatasi(iki(`Bu bir klasör: ${yol}`, `This is a folder: ${yol}`), 400);
+
 /** Düğüm hata kodunu API hatasına çevirir */
 function fsHatasi(h: unknown, yol: string): ArnorgHatasi {
   switch (hataKodu(h)) {
     case "ENOENT":
-      return new ArnorgHatasi(`Bulunamadı: ${yol}`, 404);
+      return bulunamadiHatasi(yol);
     case "EEXIST":
-      return new ArnorgHatasi(`Zaten var: ${yol}`, 409);
+      return zatenVarHatasi(yol);
     case "ENOTEMPTY":
-      return new ArnorgHatasi(`Klasör boş değil: ${yol}`, 409);
+      return new ArnorgHatasi(iki(`Klasör boş değil: ${yol}`, `Folder is not empty: ${yol}`), 409);
     case "EISDIR":
-      return new ArnorgHatasi(`Bu bir klasör: ${yol}`, 400);
+      return klasorHatasi(yol);
     case "ENOTDIR":
-      return new ArnorgHatasi(`Bu bir klasör değil: ${yol}`, 400);
+      return new ArnorgHatasi(iki(`Bu bir klasör değil: ${yol}`, `Not a folder: ${yol}`), 400);
     case "EACCES":
     case "EPERM":
-      return new ArnorgHatasi(`Erişim izni yok: ${yol}`, 403);
+      return new ArnorgHatasi(iki(`Erişim izni yok: ${yol}`, `Permission denied: ${yol}`), 403);
     default:
-      return h instanceof ArnorgHatasi ? h : new ArnorgHatasi(`Dosya işlemi başarısız: ${(h as Error).message}`, 500);
+      return h instanceof ArnorgHatasi ? h : new ArnorgHatasi(iki(`Dosya işlemi başarısız: ${(h as Error).message}`, `File operation failed: ${(h as Error).message}`), 500);
   }
 }
 
@@ -212,17 +220,17 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     const kok = sirket.alanYolu(pid, alan || "ana");
     const goreli = yol.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
     const tam = goreli ? guvenliYol(kok, goreli) : path.resolve(kok);
-    if (!gercekteIcinde(kok, tam)) throw new ArnorgHatasi("Çalışma alanının dışını gösteren bağlantı açılamaz.", 403);
+    if (!gercekteIcinde(kok, tam)) throw new ArnorgHatasi(iki("Çalışma alanının dışını gösteren bağlantı açılamaz.", "Links pointing outside the workspace can't be opened."), 403);
     return { kok, goreli, tam };
   };
   const sorgudanKonum = (i: FastifyRequest) => konum(param(i, "pid"), sorgu(i, "alan") ?? "ana", sorgu(i, "yol") ?? "");
   const yazilabilir = (goreli: string) => {
-    if (!goreli) throw new ArnorgHatasi("Çalışma alanının kökü değiştirilemez.", 403);
-    if (gitIcindeMi(goreli)) throw new ArnorgHatasi(".git içindeki dosyalar düzenleyiciden değiştirilemez.", 403);
+    if (!goreli) throw new ArnorgHatasi(iki("Çalışma alanının kökü değiştirilemez.", "The workspace root can't be changed."), 403);
+    if (gitIcindeMi(goreli)) throw new ArnorgHatasi(iki(".git içindeki dosyalar düzenleyiciden değiştirilemez.", "Files inside .git can't be changed from the editor."), 403);
   };
   const ajanKilidi = (tam: string) => {
     const d = duzenleyenAjan(sirket, tam);
-    if (d) throw new ArnorgHatasi(`${sirket.depo.ajan(d)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`, 409);
+    if (d) throw new ArnorgHatasi(iki(`${sirket.depo.ajan(d)?.ad ?? "Bir ajan"} bu dosyayı düzenliyor. Önce ajanı duraklatın.`, `${sirket.depo.ajan(d)?.ad ?? "An agent"} is editing this file. Pause the agent first.`), 409);
   };
   const degisti = (pid: string, alan: string, goreli: string) =>
     sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: pid, alan, yol: goreli, ajanId: null });
@@ -299,8 +307,8 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     } catch (h) {
       throw fsHatasi(h, goreli);
     }
-    if (s.isDirectory()) throw new ArnorgHatasi(`Bu bir klasör: ${goreli}`, 400);
-    if (s.size > ICERIK_SINIRI) throw new ArnorgHatasi("Dosya 50 MB'tan büyük; düzenleyicide açılamaz.", 413);
+    if (s.isDirectory()) throw klasorHatasi(goreli);
+    if (s.size > ICERIK_SINIRI) throw new ArnorgHatasi(iki("Dosya 50 MB'tan büyük; düzenleyicide açılamaz.", "The file is larger than 50 MB; it can't be opened in the editor."), 413);
     const tampon = await fsp.readFile(tam).catch((h: unknown) => {
       throw fsHatasi(h, goreli);
     });
@@ -316,14 +324,14 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     let var_ = false;
     try {
       const s = await fsp.stat(tam);
-      if (s.isDirectory()) throw new ArnorgHatasi(`Bu bir klasör: ${goreli}`, 400);
+      if (s.isDirectory()) throw klasorHatasi(goreli);
       var_ = true;
     } catch (h) {
       if (h instanceof ArnorgHatasi) throw h;
       if (hataKodu(h) !== "ENOENT") throw fsHatasi(h, goreli);
     }
-    if (!var_ && !evet(sorgu(i, "olustur"))) throw new ArnorgHatasi(`Bulunamadı: ${goreli}`, 404);
-    if (var_ && !evet(sorgu(i, "ustune"))) throw new ArnorgHatasi(`Zaten var: ${goreli}`, 409);
+    if (!var_ && !evet(sorgu(i, "olustur"))) throw bulunamadiHatasi(goreli);
+    if (var_ && !evet(sorgu(i, "ustune"))) throw zatenVarHatasi(goreli);
     ajanKilidi(tam);
     // Kaydedilen dosya bir süre ajanlara kilitlenir (denetim kapısı bu haritaya bakar)
     sirket.kullaniciKilitleri.set(tam, Date.now() + KULLANICI_KILIDI_MS);
@@ -336,7 +344,9 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     // Dosya bir ajanın çalışma alanındaysa ajana "yeniden oku" notu düşülür
     const alanAjan = alan !== "ana" ? sirket.depo.ajan(alan) : null;
     if (alanAjan && (alanAjan.durum === "calisiyor" || alanAjan.durum === "bosta")) {
-      void sirket.ajanaMesaj(alanAjan.id, `Yönetim kurulu ${goreli} dosyasını düzenledi. Bu dosyaya dokunmadan önce yeniden oku.`, "next", { tur: "sistem" }).catch(() => undefined);
+      void sirket
+        .ajanaMesaj(alanAjan.id, iki(`Yönetim kurulu ${goreli} dosyasını düzenledi. Bu dosyaya dokunmadan önce yeniden oku.`, `The board edited ${goreli}. Re-read it before you touch it.`), "next", { tur: "sistem" })
+        .catch(() => undefined);
     }
     degisti(pid, alan, goreli);
     return durum(kok, goreli, tam);
@@ -399,7 +409,7 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     // Yalnız büyük/küçük harf değişen ad (Windows ve macOS'ta aynı dosya)
     const ayni = process.platform !== "linux" && kaynak.tam.toLowerCase() === hedef.tam.toLowerCase();
     if (!ayni && fs.existsSync(hedef.tam)) {
-      if (!g.ustune) throw new ArnorgHatasi(`Zaten var: ${hedef.goreli}`, 409);
+      if (!g.ustune) throw zatenVarHatasi(hedef.goreli);
       ajanKilidi(hedef.tam);
       await fsp.rm(hedef.tam, { recursive: true, force: true });
     }
@@ -429,13 +439,13 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
 
   // ---------------- git ----------------
   const yalnizAna = (alan: string) => {
-    if (alan !== "ana") throw new ArnorgHatasi("Ajan çalışma alanları kaynak denetiminde salt okunurdur; git işlemleri yalnız ana repoda yapılır.", 403);
+    if (alan !== "ana") throw new ArnorgHatasi(iki("Ajan çalışma alanları kaynak denetiminde salt okunurdur; git işlemleri yalnız ana repoda yapılır.", "Agent workspaces are read-only in source control; git operations only run in the main repo."), 403);
   };
   const yollariDenetle = (kok: string, yollar: string[]) =>
     yollar.map((y) => {
       const goreli = y.replace(/\\/g, "/").replace(/^\/+/, "");
       guvenliYol(kok, goreli);
-      if (!goreli || gitIcindeMi(goreli)) throw new ArnorgHatasi(`Geçersiz yol: ${y}`);
+      if (!goreli || gitIcindeMi(goreli)) throw new ArnorgHatasi(iki(`Geçersiz yol: ${y}`, `Invalid path: ${y}`));
       return goreli;
     });
 
@@ -468,19 +478,19 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     const alan = sorgu(i, "alan") ?? "ana";
     const kok = sirket.alanYolu(p.id, alan);
     const goreli = (sorgu(i, "yol") ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
-    if (!goreli) throw new ArnorgHatasi("Yol gerekli.");
+    if (!goreli) throw new ArnorgHatasi(iki("Yol gerekli.", "A path is required."));
     guvenliYol(kok, goreli);
     const ref = (sorgu(i, "ref") ?? "HEAD") as GitBasvurusu;
     let nesne: string;
     if (ref === "indeks") nesne = `:${goreli}`;
     else if (ref === "temel") nesne = `${await temelBasvurusu(kok, p.varsayilanDal)}:${goreli}`;
     else if (ref === "HEAD") nesne = `HEAD:${goreli}`;
-    else throw new ArnorgHatasi("Geçersiz başvuru; HEAD, indeks ya da temel olmalı.");
+    else throw new ArnorgHatasi(iki("Geçersiz başvuru; HEAD, indeks ya da temel olmalı.", "Invalid reference; it must be HEAD, indeks or temel."));
     const tampon = await gitHam(kok, ["show", nesne]);
     if (!tampon) {
       // yoksa=bos: yeni dosyanın eski sürümü yoktur; 404 yerine 204 (satır içi fark her yeni dosyada sorar)
       if (sorgu(i, "yoksa") === "bos") return yanit.code(204).send();
-      throw new ArnorgHatasi(`Bu sürümde dosya yok: ${goreli}`, 404);
+      throw new ArnorgHatasi(iki(`Bu sürümde dosya yok: ${goreli}`, `The file does not exist in this version: ${goreli}`), 404);
     }
     return yanit.type("application/octet-stream").header("Cache-Control", "no-store").send(tampon);
   });
@@ -532,17 +542,17 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     yalnizAna(g.alan);
     const kok = sirket.alanYolu(param(i, "pid"), g.alan);
     const mesaj = g.mesaj.trim();
-    if (!mesaj) throw new ArnorgHatasi("Commit mesajı boş olamaz.");
+    if (!mesaj) throw new ArnorgHatasi(iki("Commit mesajı boş olamaz.", "The commit message cannot be empty."));
     if (g.tumu) await gitIslemleri.git(kok, ["add", "-A"]);
     // Aşamada değişiklik var mı: diff --cached --quiet değişiklik varsa 1 döner
     const bos = await execFileP("git", ["diff", "--cached", "--quiet"], { cwd: kok, windowsHide: true, env: temizOrtam({ GIT_TERMINAL_PROMPT: "0" }) }).then(
       () => true,
       (h: { code?: number }) => {
         if (h.code === 1) return false;
-        throw new ArnorgHatasi("git diff başarısız.", 500);
+        throw new ArnorgHatasi(iki("git diff başarısız.", "git diff failed."), 500);
       },
     );
-    if (bos && (await gitIslemleri.commitVarMi(kok))) throw new ArnorgHatasi("Commit'lenecek aşamaya alınmış değişiklik yok.", 409);
+    if (bos && (await gitIslemleri.commitVarMi(kok))) throw new ArnorgHatasi(iki("Commit'lenecek aşamaya alınmış değişiklik yok.", "There are no staged changes to commit."), 409);
     // Kimlik makinedeki git yapılandırmasından gelir; mesaja imza ya da Co-Authored-By eklenmez
     await gitIslemleri.git(kok, ["commit", "-q", "-m", mesaj]);
     const commit = (await gitIslemleri.git(kok, ["rev-parse", "HEAD"])).trim();

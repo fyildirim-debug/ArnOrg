@@ -9,6 +9,7 @@ import { AD_HARITALARI_EN, HAFIZA_TURU_ADLARI, type Ajan, type AjanSorusu, type 
 import type { Depo } from "./depo.js";
 import { dil, iki } from "./dil.js";
 import type { ProjeHafizasi } from "./hafiza.js";
+import { rolAdiDilde } from "./roller.js";
 import { anlamliSozcukler, aramaMetni, kisalt } from "./yardimci.js";
 
 export { anlamliSozcukler };
@@ -284,9 +285,9 @@ export function uzmanBul(depo: Depo, soran: Ajan, soru: string): UzmanSonucu | n
   const en = uzmanlariSirala(depo, soran, soru)[0];
   if (en && en.puan >= 1) return { ajan: en.ajan, neden: en.neden };
   const yonetici = soran.yoneticiId ? adaylar.find((a) => a.id === soran.yoneticiId) : undefined;
-  if (yonetici) return { ajan: yonetici, neden: "konuda belirgin bir uzman yok; yöneticin" };
+  if (yonetici) return { ajan: yonetici, neden: iki("konuda belirgin bir uzman yok; yöneticin", "no clear expert on the topic; your manager") };
   const ceo = adaylar.find((a) => a.rol === "ceo");
-  return ceo ? { ajan: ceo, neden: "konuda belirgin bir uzman yok; CEO" } : null;
+  return ceo ? { ajan: ceo, neden: iki("konuda belirgin bir uzman yok; CEO", "no clear expert on the topic; the CEO") } : null;
 }
 
 /** Konuya göre puanlanmış çalışanlar (en uygun önce); soran hariç, duraklatılmışlar hariç */
@@ -310,11 +311,11 @@ export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSo
     const kayitlar = depo.hafizaAra(soran.projeId, sozcukler.join(" "), 20).filter((k) => eslesir(k, sozcukler, Math.min(2, sozcukler.length)));
     kayitlar.forEach((k, i) => {
       const agirlik = ((20 - i) / 20) * (k.tur === "uzmanlik" ? 3 : k.tur === "ozet" ? 2 : 1);
-      if (k.kaynakAjanId) ver(k.kaynakAjanId, agirlik, `hafızada "${kisalt(k.baslik, 50)}" kaydı`);
+      if (k.kaynakAjanId) ver(k.kaynakAjanId, agirlik, iki(`hafızada "${kisalt(k.baslik, 50)}" kaydı`, `memory record "${kisalt(k.baslik, 50)}"`));
       // Uzmanlık kaydı başka birini anıyorsa (ör. CEO "veritabanını Deniz bilir" yazdıysa) anılana gider
       if (k.tur === "uzmanlik") {
         const m = kayitMetni(k);
-        for (const a of adaylar) if (a.id !== k.kaynakAjanId && sozcukGecer(m, aramaMetni(a.ad))) ver(a.id, agirlik + 1, `uzmanlık kaydı: "${kisalt(k.baslik, 50)}"`);
+        for (const a of adaylar) if (a.id !== k.kaynakAjanId && sozcukGecer(m, aramaMetni(a.ad))) ver(a.id, agirlik + 1, iki(`uzmanlık kaydı: "${kisalt(k.baslik, 50)}"`, `expertise record: "${kisalt(k.baslik, 50)}"`));
       }
     });
 
@@ -331,7 +332,7 @@ export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSo
     for (const s of depo.sorular(soran.projeId, { durum: "yanitlandi", sinir: 200 })) {
       const m = aramaMetni(s.soru);
       const ortak = sozcukler.filter((x) => m.includes(x)).length;
-      if (ortak >= 2) ver(s.soruluId, Math.min(ortak * 0.5, 2), "benzer bir soruyu yanıtlamıştı");
+      if (ortak >= 2) ver(s.soruluId, Math.min(ortak * 0.5, 2), iki("benzer bir soruyu yanıtlamıştı", "answered a similar question before"));
     }
   }
 
@@ -339,7 +340,7 @@ export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSo
   for (const a of adaylar) {
     const konular = ROL_KONULARI[a.rol] ?? [];
     const isabet = konular.filter((k) => soruMetni.includes(k)).length;
-    if (isabet) ver(a.id, Math.min(isabet * 1.2, 3), `rolü ${a.rolAdi}`);
+    if (isabet) ver(a.id, Math.min(isabet * 1.2, 3), iki(`rolü ${rolAdiDilde(a)}`, `role: ${rolAdiDilde(a)}`));
   }
 
   // CEO yalnız öncelik ve plan sorularında öne çıksın
@@ -347,7 +348,7 @@ export function uzmanlariSirala(depo: Depo, soran: Ajan, soru: string): (UzmanSo
 
   return [...puan.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([id, p]) => ({ ajan: adaylar.find((a) => a.id === id)!, puan: p, neden: (nedenler.get(id) ?? []).join(", ") || "konuya en yakın çalışan" }));
+    .map(([id, p]) => ({ ajan: adaylar.find((a) => a.id === id)!, puan: p, neden: (nedenler.get(id) ?? []).join(", ") || iki("konuya en yakın çalışan", "the employee closest to the topic") }));
 }
 
 /**

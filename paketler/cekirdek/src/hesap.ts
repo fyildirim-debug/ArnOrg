@@ -2,18 +2,32 @@
 // Bilgi önce açık bir ajan oturumundan, yoksa mesaj göndermeyen kısa bir Claude Code yoklamasından alınır (token harcanmaz).
 import { query, type AccountInfo, type SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import type { HesapDurumu, KullanimPenceresi, KullanimPenceresiTuru } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import type { Yapilandirma } from "./yapilandirma.js";
 import { simdi } from "./yardimci.js";
 
 const PLAN_ADLARI: Record<string, string> = { pro: "Pro", max: "Max", team: "Team", enterprise: "Enterprise" };
-const PENCERE_ADLARI: Record<Exclude<KullanimPenceresiTuru, "model">, string> = {
-  bes_saat: "5 saatlik pencere",
-  haftalik: "Haftalık",
-  haftalik_opus: "Haftalık · Opus",
-  haftalik_sonnet: "Haftalık · Sonnet",
+const PENCERE_ADLARI: Record<Exclude<KullanimPenceresiTuru, "model">, [string, string]> = {
+  bes_saat: ["5 saatlik pencere", "5-hour window"],
+  haftalik: ["Haftalık", "Weekly"],
+  haftalik_opus: ["Haftalık · Opus", "Weekly · Opus"],
+  haftalik_sonnet: ["Haftalık · Sonnet", "Weekly · Sonnet"],
 };
+/** Pencerenin geçerli dildeki adı. Model pencereleri "Haftalık · <model>" biçimindedir; Stüdyo model adını " · " sonrasından alır */
+function pencereAdi(tur: Exclude<KullanimPenceresiTuru, "model">): string {
+  return iki(PENCERE_ADLARI[tur][0], PENCERE_ADLARI[tur][1]);
+}
+function modelPenceresiAdi(model: string): string {
+  return iki(`Haftalık · ${model}`, `Weekly · ${model}`);
+}
+/** Kayıtlı pencerenin adını geçerli dile çevirir (dil değişince) */
+function adiYenile(p: KullanimPenceresi): KullanimPenceresi {
+  if (p.tur !== "model") return { ...p, ad: pencereAdi(p.tur) };
+  const model = p.ad.split(" · ").slice(1).join(" · ");
+  return model ? { ...p, ad: modelPenceresiAdi(model) } : p;
+}
 /** rate_limit_event türü → pencere türü */
 const OLAY_TURLERI: Record<string, Exclude<KullanimPenceresiTuru, "model">> = {
   five_hour: "bes_saat",
@@ -38,13 +52,13 @@ export function pencereleriCikar(k: SDKControlGetUsageResponse["rate_limits"]): 
   if (!k) return [];
   const liste: KullanimPenceresi[] = [];
   const ekle = (tur: Exclude<KullanimPenceresiTuru, "model">, p: { utilization: number | null; resets_at: string | null } | null | undefined) => {
-    if (p) liste.push({ tur, ad: PENCERE_ADLARI[tur], yuzde: p.utilization, sifirlanma: p.resets_at });
+    if (p) liste.push({ tur, ad: pencereAdi(tur), yuzde: p.utilization, sifirlanma: p.resets_at });
   };
   ekle("bes_saat", k.five_hour);
   ekle("haftalik", k.seven_day);
   ekle("haftalik_opus", k.seven_day_opus);
   ekle("haftalik_sonnet", k.seven_day_sonnet);
-  for (const m of k.model_scoped ?? []) liste.push({ tur: "model", ad: `Haftalık · ${m.display_name}`, yuzde: m.utilization, sifirlanma: m.resets_at });
+  for (const m of k.model_scoped ?? []) liste.push({ tur: "model", ad: modelPenceresiAdi(m.display_name), yuzde: m.utilization, sifirlanma: m.resets_at });
   return liste;
 }
 
@@ -131,9 +145,10 @@ export class HesapIzleyici {
     this.zamanlayici = null;
   }
 
-  /** Ayar değişince (giriş yöntemi, sınırlar) durum yeniden hesaplanır */
+  /** Ayar değişince (giriş yöntemi, sınırlar, dil) durum yeniden hesaplanır; pencere adları ve uyarı geçerli dilde yazılır */
   ayarlarDegisti(): void {
-    this.yayinla({ ...this.durum, sinir: this.sinirHesapla(this.durum.pencereler), uyari: this.uyariHesapla(this.durum) });
+    const pencereler = this.durum.pencereler.map(adiYenile);
+    this.yayinla({ ...this.durum, pencereler, sinir: this.sinirHesapla(pencereler), uyari: this.uyariHesapla(this.durum) });
     void this.tazele().catch(() => undefined);
   }
 
@@ -151,7 +166,7 @@ export class HesapIzleyici {
     if (!tur) return;
     const pencereler = [...this.durum.pencereler];
     const i = pencereler.findIndex((p) => p.tur === tur);
-    const eski = i >= 0 ? pencereler[i]! : { tur, ad: PENCERE_ADLARI[tur], yuzde: null, sifirlanma: null };
+    const eski = i >= 0 ? pencereler[i]! : { tur, ad: pencereAdi(tur), yuzde: null, sifirlanma: null };
     // Claude Code "rejected" dediyse pencere fiilen dolmuştur
     const yuzde = olay.durum === "rejected" ? 100 : (olay.yuzde ?? eski.yuzde);
     const yeni: KullanimPenceresi = { ...eski, yuzde, sifirlanma: olay.sifirlanma ?? eski.sifirlanma };
@@ -220,7 +235,7 @@ export class HesapIzleyici {
         env: ajanOrtami({ IS_SANDBOX: rootMu() ? "1" : undefined }),
       },
     });
-    const zaman = new Promise<never>((_, red) => setTimeout(() => red(new Error("Claude Code yanıt vermedi (60 sn).")), 60_000).unref());
+    const zaman = new Promise<never>((_, red) => setTimeout(() => red(new Error(iki("Claude Code yanıt vermedi (60 sn).", "Claude Code did not respond (60 s)."))), 60_000).unref());
     try {
       const [hesap, kullanim] = await Promise.race([
         Promise.all([q.accountInfo(), q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })]),
@@ -245,10 +260,16 @@ export class HesapIzleyici {
   private uyariHesapla(d: HesapDurumu): string | null {
     const apiAnahtari = (d.kaynak && API_KAYNAKLARI.has(d.kaynak)) || d.plan === "API";
     if (d.durum === "hazir" && apiAnahtari) {
-      return "ArnOrg yalnız Claude aboneliğiyle çalışır ama Claude Code bu makinede bir API anahtarıyla giriş yapmış. Terminalde `claude` açıp /login ile claude.ai hesabınızla (Pro, Max ya da Team) giriş yapın.";
+      return iki(
+        "ArnOrg yalnız Claude aboneliğiyle çalışır ama Claude Code bu makinede bir API anahtarıyla giriş yapmış. Terminalde `claude` açıp /login ile claude.ai hesabınızla (Pro, Max ya da Team) giriş yapın.",
+        "ArnOrg only works with a Claude subscription, but Claude Code on this machine is signed in with an API key. Open `claude` in a terminal and sign in with /login using your claude.ai account (Pro, Max or Team).",
+      );
     }
     if (d.durum === "hazir" && d.saglayici && d.saglayici !== "firstParty") {
-      return `Claude Code ${d.saglayici} sağlayıcısı üzerinden çalışıyor; ArnOrg yalnız Claude aboneliğiyle çalışır. /login ile claude.ai hesabınızla giriş yapın.`;
+      return iki(
+        `Claude Code ${d.saglayici} sağlayıcısı üzerinden çalışıyor; ArnOrg yalnız Claude aboneliğiyle çalışır. /login ile claude.ai hesabınızla giriş yapın.`,
+        `Claude Code is running through the ${d.saglayici} provider; ArnOrg only works with a Claude subscription. Sign in with /login using your claude.ai account.`,
+      );
     }
     return null;
   }

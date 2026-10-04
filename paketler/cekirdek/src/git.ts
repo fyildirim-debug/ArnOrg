@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { iki } from "./dil.js";
 import { temizOrtam } from "./ortam.js";
 import { ArnorgHatasi } from "./yardimci.js";
 
@@ -20,7 +21,8 @@ export async function git(dizin: string, argumanlar: string[], secenek: { izinVe
   } catch (h) {
     const hata = h as { code?: number; stderr?: string; stdout?: string; message: string };
     if (typeof hata.code === "number" && secenek.izinVerilenKodlar?.includes(hata.code)) return hata.stdout ?? "";
-    throw new ArnorgHatasi(`git ${argumanlar[0]} başarısız: ${(hata.stderr || hata.message).trim().slice(0, 400)}`, 500);
+    const ayrinti = (hata.stderr || hata.message).trim().slice(0, 400);
+    throw new ArnorgHatasi(iki(`git ${argumanlar[0]} başarısız: ${ayrinti}`, `git ${argumanlar[0]} failed: ${ayrinti}`), 500);
   }
 }
 
@@ -211,7 +213,7 @@ export async function gecerliDalMi(dizin: string, dal: string): Promise<boolean>
  * yoksa bulunulan yerden yeni dal açarak. Hiç commit yoksa HEAD yeni dalı gösterir.
  */
 export async function dalaGec(dizin: string, dal: string): Promise<void> {
-  if (!(await gecerliDalMi(dizin, dal))) throw new ArnorgHatasi(`Geçersiz dal adı: ${dal}`);
+  if (!(await gecerliDalMi(dizin, dal))) throw new ArnorgHatasi(iki(`Geçersiz dal adı: ${dal}`, `Invalid branch name: ${dal}`));
   if ((await mevcutDal(dizin)) === dal) return;
   if (!(await commitVarMi(dizin))) {
     await git(dizin, ["symbolic-ref", "HEAD", `refs/heads/${dal}`]);

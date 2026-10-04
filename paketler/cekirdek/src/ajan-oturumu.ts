@@ -13,6 +13,7 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
+import { iki } from "./dil.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
 
@@ -70,19 +71,20 @@ export interface OturumBaglami {
   bitti(hata: string | null): void;
 }
 
+// Ajanın o an ne yaptığı (isAciklamasi); metin çağrı anında geçerli dilde üretilir
 const ARAC_ACIKLAMA: Record<string, (g: Record<string, unknown>) => string> = {
-  Bash: (g) => `Komut: ${kisalt(String(g.command ?? ""), 60)}`,
-  PowerShell: (g) => `Komut: ${kisalt(String(g.command ?? ""), 60)}`,
-  Edit: (g) => `Düzenliyor: ${dosyaAdi(g.file_path)}`,
-  MultiEdit: (g) => `Düzenliyor: ${dosyaAdi(g.file_path)}`,
-  Write: (g) => `Yazıyor: ${dosyaAdi(g.file_path)}`,
-  Read: (g) => `Okuyor: ${dosyaAdi(g.file_path)}`,
-  Grep: (g) => `Arıyor: ${kisalt(String(g.pattern ?? ""), 40)}`,
-  Glob: (g) => `Dosya arıyor: ${kisalt(String(g.pattern ?? ""), 40)}`,
+  Bash: (g) => `${iki("Komut", "Command")}: ${kisalt(String(g.command ?? ""), 60)}`,
+  PowerShell: (g) => `${iki("Komut", "Command")}: ${kisalt(String(g.command ?? ""), 60)}`,
+  Edit: (g) => `${iki("Düzenliyor", "Editing")}: ${dosyaAdi(g.file_path)}`,
+  MultiEdit: (g) => `${iki("Düzenliyor", "Editing")}: ${dosyaAdi(g.file_path)}`,
+  Write: (g) => `${iki("Yazıyor", "Writing")}: ${dosyaAdi(g.file_path)}`,
+  Read: (g) => `${iki("Okuyor", "Reading")}: ${dosyaAdi(g.file_path)}`,
+  Grep: (g) => `${iki("Arıyor", "Searching")}: ${kisalt(String(g.pattern ?? ""), 40)}`,
+  Glob: (g) => `${iki("Dosya arıyor", "Finding files")}: ${kisalt(String(g.pattern ?? ""), 40)}`,
   WebFetch: (g) => `Web: ${kisalt(String(g.url ?? ""), 50)}`,
-  WebSearch: (g) => `Web araması: ${kisalt(String(g.query ?? ""), 40)}`,
-  Agent: (g) => `Alt ajan: ${kisalt(String(g.description ?? ""), 40)}`,
-  Task: (g) => `Alt ajan: ${kisalt(String(g.description ?? ""), 40)}`,
+  WebSearch: (g) => `${iki("Web araması", "Web search")}: ${kisalt(String(g.query ?? ""), 40)}`,
+  Agent: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
+  Task: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
 };
 
 function dosyaAdi(y: unknown): string {
@@ -97,7 +99,7 @@ function aracAciklamasi(arac: string, girdi: Record<string, unknown>): string {
 }
 
 function kaynakEtiketi(k: MesajKaynagi): string {
-  if (k.tur === "kurul") return "Yönetim kurulu";
+  if (k.tur === "kurul") return iki("Yönetim kurulu", "Board");
   if (k.tur === "ajan") return k.ad;
   return "ArnOrg";
 }
@@ -251,7 +253,7 @@ export class AjanOturumu {
     this.stderrSon = [];
     this.kapatiliyor = false;
     this.sorgu = this.sorguOlustur(ajan, ajan.oturumId);
-    this.durumYaz("calisiyor", "Oturum açılıyor");
+    this.durumYaz("calisiyor", iki("Oturum açılıyor", "Opening session"));
     void this.dongu(this.sorgu);
   }
 
@@ -259,16 +261,16 @@ export class AjanOturumu {
     if (!this.sorgu) return;
     try {
       await this.sorgu.interrupt();
-      this.akisYaz({ tur: "sistem", metin: "Yönetim kurulu turu kesti." });
+      this.akisYaz({ tur: "sistem", metin: iki("Yönetim kurulu turu kesti.", "The board interrupted the turn.") });
     } catch (h) {
-      this.akisYaz({ tur: "sistem", metin: `Kesme başarısız: ${(h as Error).message}`, hata: true });
+      this.akisYaz({ tur: "sistem", metin: iki(`Kesme başarısız: ${(h as Error).message}`, `Interrupt failed: ${(h as Error).message}`), hata: true });
     }
   }
 
   async modDegistir(mod: IzinModu): Promise<void> {
     if (!this.sorgu) return;
     await this.sorgu.setPermissionMode(mod as PermissionMode);
-    this.akisYaz({ tur: "sistem", metin: `İzin modu: ${mod}` });
+    this.akisYaz({ tur: "sistem", metin: `${iki("İzin modu", "Permission mode")}: ${mod}` });
   }
 
   async modelDegistir(model: string): Promise<void> {
@@ -317,12 +319,16 @@ export class AjanOturumu {
       if (this.devamDenemesi && /no conversation found|session.*not found|--resume/i.test(hata + stderr) && this.b.ajan().oturumId) {
         this.devamDenemesi = false;
         this.b.oturumKimligi("");
-        this.akisYaz({ tur: "sistem", metin: "Önceki oturum bulunamadı; yeni oturum açılıyor." });
-        this.baslatIcin("Önceki oturumun bulunamadı. ArnOrg notlarını ve görevlerini okuyarak kaldığın yerden devam et.", "next", { tur: "sistem" });
+        this.akisYaz({ tur: "sistem", metin: iki("Önceki oturum bulunamadı; yeni oturum açılıyor.", "The previous session was not found; opening a new one.") });
+        this.baslatIcin(
+          iki("Önceki oturumun bulunamadı. ArnOrg notlarını ve görevlerini okuyarak kaldığın yerden devam et.", "Your previous session was not found. Read your ArnOrg notes and tasks and continue where you left off."),
+          "next",
+          { tur: "sistem" },
+        );
         return;
       }
       const ozet = kisalt(`${hata}${stderr ? ` · ${stderr}` : ""}`, 400);
-      this.akisYaz({ tur: "sistem", metin: `Oturum hatayla kapandı: ${ozet}`, hata: true });
+      this.akisYaz({ tur: "sistem", metin: iki(`Oturum hatayla kapandı: ${ozet}`, `The session closed with an error: ${ozet}`), hata: true });
       this.durumYaz("hata", kisalt(hata, 120));
       this.b.bitti(ozet);
       return;
@@ -343,25 +349,26 @@ export class AjanOturumu {
           }
           const kaynak = (m as { apiKeySource?: string }).apiKeySource;
           if (kaynak) this.b.girisKaynagi(kaynak);
-          if (!this.initGoruldu) this.akisYaz({ tur: "sistem", metin: `Oturum açıldı · ${m.model} · ${m.permissionMode}` });
+          if (!this.initGoruldu) this.akisYaz({ tur: "sistem", metin: `${iki("Oturum açıldı", "Session opened")} · ${m.model} · ${m.permissionMode}` });
           this.initGoruldu = true;
-          this.durumYaz("calisiyor", "Çalışıyor");
+          this.durumYaz("calisiyor", iki("Çalışıyor", "Working"));
         } else if (m.subtype === "session_state_changed") {
           const st = (m as { state?: string }).state;
           if (st === "running") this.durumYaz("calisiyor");
-          else if (st === "requires_action") this.durumYaz("karar_bekliyor", "Karar bekliyor");
-          else if (st === "idle") this.durumYaz("bosta", "İş bekliyor");
+          else if (st === "requires_action") this.durumYaz("karar_bekliyor", iki("Karar bekliyor", "Awaiting decision"));
+          else if (st === "idle") this.durumYaz("bosta", iki("İş bekliyor", "Waiting for work"));
         } else if (m.subtype === "task_started") {
           const t = m as { description?: string; task_type?: string; is_backgrounded?: boolean };
-          this.akisYaz({ tur: "sistem", metin: `${t.is_backgrounded ? "Arka plan görevi" : "Alt görev"} başladı: ${t.description ?? t.task_type ?? ""}` });
+          const ne = t.description ?? t.task_type ?? "";
+          this.akisYaz({ tur: "sistem", metin: iki(`${t.is_backgrounded ? "Arka plan görevi" : "Alt görev"} başladı: ${ne}`, `${t.is_backgrounded ? "Background task" : "Subtask"} started: ${ne}`) });
         } else if (m.subtype === "task_notification") {
           const t = m as { status?: string; summary?: string };
-          this.akisYaz({ tur: "sistem", metin: `Görev ${t.status ?? "bitti"}: ${kisalt(t.summary ?? "", 200)}` });
+          this.akisYaz({ tur: "sistem", metin: iki(`Görev ${t.status ?? "bitti"}: ${kisalt(t.summary ?? "", 200)}`, `Task ${t.status ?? "done"}: ${kisalt(t.summary ?? "", 200)}`) });
         } else if (m.subtype === "compact_boundary") {
-          this.akisYaz({ tur: "sistem", metin: "Bağlam sıkıştırıldı." });
+          this.akisYaz({ tur: "sistem", metin: iki("Bağlam sıkıştırıldı.", "Context compacted.") });
         } else if (m.subtype === "api_retry") {
           const r = m as { attempt?: number; max_retries?: number };
-          this.akisYaz({ tur: "sistem", metin: `API yeniden deneniyor (${r.attempt ?? "?"}/${r.max_retries ?? "?"})` });
+          this.akisYaz({ tur: "sistem", metin: `${iki("API yeniden deneniyor", "Retrying the API")} (${r.attempt ?? "?"}/${r.max_retries ?? "?"})` });
         }
         return;
       }
@@ -409,12 +416,12 @@ export class AjanOturumu {
           m.subtype === "success"
             ? kisalt(String((m as { result?: string }).result ?? ""), 600)
             : m.subtype === "error_max_turns"
-              ? "Tur sınırına ulaşıldı."
-              : "Tur hatayla ya da kesilerek bitti.";
+              ? iki("Tur sınırına ulaşıldı.", "Turn limit reached.")
+              : iki("Tur hatayla ya da kesilerek bitti.", "The turn ended with an error or was interrupted.");
         this.akisYaz({ tur: "sonuc", metin, token: fark.token, hata: m.subtype !== "success" });
         this.devamDenemesi = true;
         // Tur bitti; kuyrukta mesaj varsa yeni tur bunu hemen günceller
-        this.durumYaz("bosta", "İş bekliyor");
+        this.durumYaz("bosta", iki("İş bekliyor", "Waiting for work"));
         return;
       }
       case "rate_limit_event": {

@@ -4,13 +4,16 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import type { CanUseTool, HookJSONOutput, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import {
+  AD_HARITALARI_EN,
   GOREV_DURUMLARI,
   GOREV_GECISLERI,
   ARNORG_GONDEREN,
   HAFIZA_TURU_ADLARI,
   ONAY_TURLERI,
   KURUL,
+  kanalGorunenAdi,
   kanalKimligi,
+  rolMetni,
   type Ajan,
   type AjanBaslatIstegi,
   type AjanDurumu,
@@ -87,7 +90,7 @@ import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
 import type { OlayYolu } from "./olaylar.js";
 import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./politika.js";
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
-import { rolBul } from "./roller.js";
+import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
 import { ArnorgHatasi, bugun, bulunamadi, emojiAyikla, kimlik, kisalt, sadelestir, simdi } from "./yardimci.js";
 
@@ -104,8 +107,15 @@ const KULLANICI_KILIDI_MS = 30_000;
 const HATIRLATMA_ARAC_ARALIGI = 25;
 const HATIRLATMA_SURE_MS = 30 * 60_000;
 
+/** Kurulun kararı; zamanAsimi: süre doldu (not metnine bakılmaz, not onayın açıldığı dilde yazılır) */
+export interface KurulKarari {
+  izin: boolean;
+  not: string | null;
+  zamanAsimi?: true;
+}
+
 interface BekleyenKarar {
-  coz: (sonuc: { izin: boolean; not: string | null }) => void;
+  coz: (sonuc: KurulKarari) => void;
   zamanlayici: NodeJS.Timeout;
 }
 
@@ -172,7 +182,7 @@ export class Sirket {
   ) {
     dilKaynagi(() => yapilandirma.ayarlar.dil);
     depo.ajanDurumlariniSifirla();
-    depo.bekleyenAracOnaylariniKapat();
+    depo.bekleyenAracOnaylariniKapat(iki("Uygulama yeniden başladı", "The app restarted"));
     depo.bekleyenSorulariKapat();
     this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     this.hatirlatici = new Hatirlatici(depo, this.hafiza);
@@ -270,8 +280,11 @@ export class Sirket {
   /** Abonelik penceresi ayardaki sınırı aştı ya da sıfırlandı */
   private async kullanimSiniriDegisti(sinir: HesapDurumu["sinir"]): Promise<void> {
     if (sinir) {
-      const sifirlanma = sinir.sifirlanma ? new Date(sinir.sifirlanma).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "pencere sıfırlanınca";
-      const metin = `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (sınır %${sinir.sinirYuzde}). Ajanlar durduruldu; ${sifirlanma} kaldıkları yerden sürecekler.`;
+      const saat = sinir.sifirlanma ? new Date(sinir.sifirlanma).toLocaleTimeString(iki("tr-TR", "en-US"), { hour: "2-digit", minute: "2-digit" }) : null;
+      const metin = iki(
+        `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (sınır %${sinir.sinirYuzde}). Ajanlar durduruldu; ${saat ?? "pencere sıfırlanınca"} kaldıkları yerden sürecekler.`,
+        `Subscription ${sinir.pencere.toLocaleLowerCase("en")} usage is at ${sinir.yuzde}% (limit ${sinir.sinirYuzde}%). Agents are paused; they will pick up where they left off ${saat ? `at ${saat}` : "when the window resets"}.`,
+      );
       for (const [id, o] of this.oturumlar) {
         const a = this.depo.ajan(id);
         if (!o.acik || !a) continue;
@@ -290,10 +303,10 @@ export class Sirket {
     for (const [id, mesajlar] of bekleyenler) {
       const a = this.depo.ajan(id);
       if (!a) continue;
-      const ek = mesajlar.length ? `\n\nBu sürede gelen mesajlar:\n${mesajlar.map((m) => `- ${m}`).join("\n")}` : "";
-      await this.uyandir(id, `Abonelik kullanım penceresi açıldı. Kaldığın yerden devam et.${ek}`, null);
+      const ek = mesajlar.length ? `\n\n${iki("Bu sürede gelen mesajlar", "Messages that came in meanwhile")}:\n${mesajlar.map((m) => `- ${m}`).join("\n")}` : "";
+      await this.uyandir(id, iki(`Abonelik kullanım penceresi açıldı. Kaldığın yerden devam et.${ek}`, `The subscription usage window is open again. Continue where you left off.${ek}`), null);
     }
-    if (bekleyenler.length) this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: "Abonelik penceresi açıldı; ajanlar kaldıkları yerden sürüyor." });
+    if (bekleyenler.length) this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Abonelik penceresi açıldı; ajanlar kaldıkları yerden sürüyor.", "The subscription window is open again; agents are picking up where they left off.") });
   }
 
   get claudeYolu(): string | null {
@@ -311,7 +324,7 @@ export class Sirket {
 
   proje(id: string): Proje {
     const p = this.depo.proje(id);
-    if (!p) throw bulunamadi("Proje");
+    if (!p) throw bulunamadi("Proje", "Project");
     return p;
   }
 
@@ -517,7 +530,7 @@ export class Sirket {
     for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
     this.kodZekasi.projeKaldir(id);
     this.depo.projeSil(id);
-    this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: "Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı." });
+    this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı.", "The project was removed from ArnOrg's list; its files were not touched.") });
   }
 
   // ===================================================================
@@ -526,7 +539,7 @@ export class Sirket {
 
   ajan(id: string): Ajan {
     const a = this.depo.ajan(id);
-    if (!a) throw bulunamadi("Ajan");
+    if (!a) throw bulunamadi("Ajan", "Agent");
     return a;
   }
 
@@ -538,19 +551,20 @@ export class Sirket {
   iseAl(projeId: string, istek: AjanIseAlIstegi, dosyaYaz = true): Ajan {
     const proje = this.proje(projeId);
     const ad = istek.ad?.trim();
-    if (!ad || ad.length > 40) throw new ArnorgHatasi("Ajan adı 1–40 karakter olmalı.");
-    if (!/^[\p{L}\p{N} ._-]+$/u.test(ad)) throw new ArnorgHatasi("Ajan adında yalnız harf, rakam, boşluk, nokta, tire ve alt çizgi olabilir.");
-    if (this.depo.ajanAdla(projeId, ad)) throw new ArnorgHatasi(`${ad} adında bir çalışan zaten var.`, 409);
+    if (!ad || ad.length > 40) throw new ArnorgHatasi(iki("Ajan adı 1–40 karakter olmalı.", "Agent names must be 1–40 characters."));
+    if (!/^[\p{L}\p{N} ._-]+$/u.test(ad)) throw new ArnorgHatasi(iki("Ajan adında yalnız harf, rakam, boşluk, nokta, tire ve alt çizgi olabilir.", "Agent names may only contain letters, digits, spaces, dots, hyphens and underscores."));
+    if (this.depo.ajanAdla(projeId, ad)) throw new ArnorgHatasi(iki(`${ad} adında bir çalışan zaten var.`, `There is already an employee named ${ad}.`), 409);
     const rol = rolBul(istek.rol);
-    if (!rol) throw new ArnorgHatasi("Bilinmeyen rol.");
+    if (!rol) throw new ArnorgHatasi(iki("Bilinmeyen rol.", "Unknown role."));
     const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
-    if (rol.kimlik === "ceo" && ceo) throw new ArnorgHatasi("Projede zaten bir CEO var.", 409);
+    if (rol.kimlik === "ceo" && ceo) throw new ArnorgHatasi(iki("Projede zaten bir CEO var.", "The project already has a CEO."), 409);
     const yoneticiId = istek.yoneticiId === undefined ? (rol.kimlik === "ceo" ? null : (ceo?.id ?? null)) : istek.yoneticiId;
     const ajan = this.depo.ajanEkle({
       projeId,
       ad,
       rol: rol.kimlik,
-      rolAdi: rol.ad,
+      // Kayıtlı rol adı işe alındığı dildedir (talimat ve metinler rolü kimliğinden geçerli dilde anar)
+      rolAdi: rolMetni(rol, dil()).ad,
       model: istek.model?.trim() || rol.varsayilanModel,
       yoneticiId,
       durum: "kapali",
@@ -603,7 +617,7 @@ export class Sirket {
     if (istek.model) alanlar.model = istek.model;
     if (istek.izinModu) alanlar.izinModu = istek.izinModu;
     if (istek.yoneticiId !== undefined) {
-      if (istek.yoneticiId === id) throw new ArnorgHatasi("Ajan kendi yöneticisi olamaz.");
+      if (istek.yoneticiId === id) throw new ArnorgHatasi(iki("Ajan kendi yöneticisi olamaz.", "An agent cannot be their own manager."));
       alanlar.yoneticiId = istek.yoneticiId;
     }
     if (istek.talimatEki !== undefined) alanlar.talimatEki = istek.talimatEki;
@@ -621,7 +635,7 @@ export class Sirket {
 
   ajanSil(id: string): void {
     const a = this.ajan(id);
-    if (a.rol === "ceo") throw new ArnorgHatasi("CEO işten çıkarılamaz.", 409);
+    if (a.rol === "ceo") throw new ArnorgHatasi(iki("CEO işten çıkarılamaz.", "The CEO cannot be dismissed."), 409);
     this.oturumlar.get(id)?.kapat();
     this.oturumlar.delete(id);
     for (const g of this.depo.gorevler(a.projeId)) {
@@ -648,7 +662,7 @@ export class Sirket {
     if (ajan.calismaAlani && fs.existsSync(ajan.calismaAlani)) return ajan.calismaAlani;
     if (!(await gitIslemleri.commitVarMi(proje.yol))) {
       await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
-      await gitIslemleri.git(proje.yol, ["commit", "--allow-empty", "-m", "ArnOrg: başlangıç"]);
+      await gitIslemleri.git(proje.yol, ["commit", "--allow-empty", "-m", iki("ArnOrg: başlangıç", "ArnOrg: initial commit")]);
     }
     const slug = sadelestir(ajan.ad);
     const hedef = path.join(this.yapilandirma.calismaKoku, `${sadelestir(proje.ad)}-${proje.id.slice(0, 8)}`, slug);
@@ -682,7 +696,7 @@ export class Sirket {
     const p = this.proje(projeId);
     if (!alan || alan === "ana") return p.yol;
     const a = this.depo.ajan(alan);
-    if (!a || a.projeId !== projeId || !a.calismaAlani) throw bulunamadi("Çalışma alanı");
+    if (!a || a.projeId !== projeId || !a.calismaAlani) throw bulunamadi("Çalışma alanı", "Workspace");
     return a.calismaAlani;
   }
 
@@ -794,7 +808,7 @@ export class Sirket {
       girisKaynagi: (k) => this.hesap.girisKaynagi(k),
       bitti: (hata) => {
         this.hatirlatici.oturumKapandi(id);
-        if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? "Ajan"}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
+        if (hata) this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${this.depo.ajan(id)?.ad ?? iki("Ajan", "Agent")}: ${kisalt(hata, 200)}`, projeId: ajan.projeId });
       },
     });
     this.oturumlar.set(ajan.id, oturum);
@@ -806,25 +820,29 @@ export class Sirket {
     let metin = istek.talimat?.trim() ?? "";
     if (istek.gorevId) {
       const g = this.depo.gorev(istek.gorevId);
-      if (!g || g.projeId !== a.projeId) throw bulunamadi("Görev");
+      if (!g || g.projeId !== a.projeId) throw bulunamadi("Görev", "Task");
       if (g.atananId !== id) this.depo.gorevGuncelle(g.id, { atananId: id });
       this.depo.ajanGuncelle(id, { gorevId: g.id });
-      metin = this.gorevMetni(g, null, await this.ilgiliKod(g)) + (metin ? `\n\nEk not: ${metin}` : "");
+      metin = this.gorevMetni(g, null, await this.ilgiliKod(g)) + (metin ? `\n\n${iki("Ek not", "Additional note")}: ${metin}` : "");
     }
     if (!metin) {
       const benim = this.depo.gorevler(a.projeId).filter((g) => g.atananId === id && (g.durum === "calisiliyor" || g.durum === "planlandi"));
+      const liste = benim.map((g) => `- ${g.kod} ${g.baslik} (${g.durum})`).join("\n");
       metin = benim.length
-        ? `Mesaine başla. Sana atanmış görevler:\n${benim.map((g) => `- ${g.kod} ${g.baslik} (${g.durum})`).join("\n")}\nÖnce notları ve görev ayrıntılarını oku, sonra sıradaki işe başla.`
+        ? iki(
+            `Mesaine başla. Sana atanmış görevler:\n${liste}\nÖnce notları ve görev ayrıntılarını oku, sonra sıradaki işe başla.`,
+            `Start your shift. Tasks assigned to you:\n${liste}\nFirst read the notes and the task details, then start on the next piece of work.`,
+          )
         : rolBul(a.rol)?.yonetici
-          ? "Mesaine başla. #genel kanalını, görevleri ve notları oku; durumu değerlendir ve gerekiyorsa plan yap."
-          : "Mesaine başla. Görevleri ve notları oku; sana atanmış iş yoksa yöneticine durumunu bildir.";
+          ? iki("Mesaine başla. #genel kanalını, görevleri ve notları oku; durumu değerlendir ve gerekiyorsa plan yap.", "Start your shift. Read #general, the tasks and the notes; assess the situation and make a plan if needed.")
+          : iki("Mesaine başla. Görevleri ve notları oku; sana atanmış iş yoksa yöneticine durumunu bildir.", "Start your shift. Read the tasks and the notes; if no work is assigned to you, tell your manager.");
     }
     await this.ajanaMesaj(id, metin, "next", { tur: "kurul" });
     return this.ajan(id);
   }
 
   async ajanaMesaj(id: string, metin: string, oncelik: MesajOnceligi = "next", kaynak: MesajKaynagi = { tur: "kurul" }): Promise<void> {
-    if (!metin.trim()) throw new ArnorgHatasi("Mesaj boş olamaz.");
+    if (!metin.trim()) throw new ArnorgHatasi(iki("Mesaj boş olamaz.", "The message cannot be empty."));
     const a = this.ajan(id);
     // Abonelik sınırında ajan uyandırılmaz; mesaj saklanır, pencere açılınca teslim edilir. Kurulun kendi mesajı geçer.
     const sinir = this.hesap.sinir;
@@ -832,22 +850,25 @@ export class Sirket {
       const kuyruk = this.sinirdaBekleyenler.get(id) ?? [];
       kuyruk.push(kisalt(metin, 1500));
       this.sinirdaBekleyenler.set(id, kuyruk);
-      throw new ArnorgHatasi(`Abonelik kullanımı sınırda (${sinir.pencere} %${sinir.yuzde}); ${a.ad} pencere açılınca uyanacak.`, 429);
+      throw new ArnorgHatasi(
+        iki(`Abonelik kullanımı sınırda (${sinir.pencere} %${sinir.yuzde}); ${a.ad} pencere açılınca uyanacak.`, `Subscription usage is at the limit (${sinir.pencere} ${sinir.yuzde}%); ${a.ad} will wake up when the window opens.`),
+        429,
+      );
     }
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
       oturum.gonder(metin, oncelik, kaynak);
       return;
     }
-    if (this.oturumlarKapali) throw new ArnorgHatasi("Oturumlar bu çalıştırmada kapalı.", 503);
+    if (this.oturumlarKapali) throw new ArnorgHatasi(iki("Oturumlar bu çalıştırmada kapalı.", "Sessions are disabled in this run."), 503);
     if (!this.claudeYolu && !this.sdkIkilisiVar()) {
-      throw new ArnorgHatasi("Claude Code bulunamadı. Ayarlar'dan Claude Code yolunu verin ya da Claude Code'u kurun.", 500);
+      throw new ArnorgHatasi(iki("Claude Code bulunamadı. Ayarlar'dan Claude Code yolunu verin ya da Claude Code'u kurun.", "Claude Code was not found. Set the Claude Code path in Settings or install Claude Code."), 500);
     }
     let cwd: string;
     try {
       cwd = await this.calismaAlaniHazirla(a);
     } catch (h) {
-      this.durumDegisti(id, "hata", `Çalışma alanı açılamadı: ${(h as Error).message}`);
+      this.durumDegisti(id, "hata", iki(`Çalışma alanı açılamadı: ${(h as Error).message}`, `Could not open the workspace: ${(h as Error).message}`));
       throw h;
     }
     this.oturumAl(this.ajan(id), cwd).baslat(metin, kaynak);
@@ -879,7 +900,7 @@ export class Sirket {
   }
 
   async ajanModel(id: string, model: string): Promise<Ajan> {
-    if (!model.trim()) throw new ArnorgHatasi("Model adı gerekli.");
+    if (!model.trim()) throw new ArnorgHatasi(iki("Model adı gerekli.", "A model name is required."));
     return this.ajanGuncelle(id, { model: model.trim() });
   }
 
@@ -929,7 +950,10 @@ export class Sirket {
         this.defterIzleri.set(ajanId, { arac: 0, yazildi: false });
         void this.sistemMesaji(
           ajanId,
-          "Turu kapatmadan defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kalıcı bir karar ya da öğrenilen varsa hafiza_kaydet ile kaydet. Sonra dur.",
+          iki(
+            "Turu kapatmadan defter_yaz ile defterini güncelle: ne yaptın, ne kaldı, kime ne söz verdin, sıradaki adım. Kalıcı bir karar ya da öğrenilen varsa hafiza_kaydet ile kaydet. Sonra dur.",
+            "Before you end the turn, update your journal with defter_yaz: what you did, what is left, what you promised to whom, the next step. If there is a lasting decision or lesson, save it with hafiza_kaydet. Then stop.",
+          ),
         ).catch(() => undefined);
       }
       this.bostaZamanlayicilari.set(
@@ -963,16 +987,16 @@ export class Sirket {
 
   politikaYaz(projeId: string, kurallar: PolitikaKurali[]): PolitikaKurali[] {
     this.proje(projeId);
-    if (!Array.isArray(kurallar)) throw new ArnorgHatasi("Kurallar dizi olmalı.");
+    if (!Array.isArray(kurallar)) throw new ArnorgHatasi(iki("Kurallar dizi olmalı.", "Rules must be an array."));
     for (const k of kurallar) {
       if (!k.id || !k.ad || !["izin", "ret", "sor"].includes(k.karar) || !["komut", "yol", "url", "arac"].includes(k.hedef)) {
-        throw new ArnorgHatasi(`Geçersiz kural: ${k.ad || k.id || "adsız"}`);
+        throw new ArnorgHatasi(iki(`Geçersiz kural: ${k.ad || k.id || "adsız"}`, `Invalid rule: ${k.ad || k.id || "unnamed"}`));
       }
       for (const d of k.desenler ?? []) {
         try {
           new RegExp(d, "i");
         } catch {
-          throw new ArnorgHatasi(`Geçersiz düzenli ifade (${k.ad}): ${d}`);
+          throw new ArnorgHatasi(iki(`Geçersiz düzenli ifade (${k.ad}): ${d}`, `Invalid regular expression (${k.ad}): ${d}`));
         }
       }
     }
@@ -1002,7 +1026,7 @@ export class Sirket {
   /** PreToolUse: her araç çağrısı buradan geçer */
   async kapi(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<HookJSONOutput> {
     const ajan = this.depo.ajan(ajanId);
-    if (!ajan) return this.ret("ArnOrg: ajan bulunamadı.");
+    if (!ajan) return this.ret(iki("ArnOrg: ajan bulunamadı.", "ArnOrg: agent not found."));
     if (arac.startsWith("mcp__arnorg__")) return {};
     const proje = this.proje(ajan.projeId);
     const cwd = ajan.calismaAlani ?? proje.yol;
@@ -1011,8 +1035,11 @@ export class Sirket {
     const sinir = this.hesap.sinir;
     if (sinir) {
       if (!this.sinirdaBekleyenler.has(ajanId)) this.sinirdaBekleyenler.set(ajanId, []);
-      const neden = `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (kurulun sınırı %${sinir.sinirYuzde}). Başka araç çağırma; ne yaptığını ve sıradaki adımı iki cümleyle yaz ve dur. Pencere açılınca ArnOrg seni uyandıracak.`;
-      this.denetimKaydet(ajan, arac, girdi, "ret", "Kullanım sınırı", neden, aracKimligi);
+      const neden = iki(
+        `Abonelik ${sinir.pencere.toLocaleLowerCase("tr")} kullanımı %${sinir.yuzde} (kurulun sınırı %${sinir.sinirYuzde}). Başka araç çağırma; ne yaptığını ve sıradaki adımı iki cümleyle yaz ve dur. Pencere açılınca ArnOrg seni uyandıracak.`,
+        `Subscription ${sinir.pencere.toLocaleLowerCase("en")} usage is at ${sinir.yuzde}% (the board's limit is ${sinir.sinirYuzde}%). Don't call any more tools; write what you did and your next step in two sentences, then stop. ArnOrg will wake you when the window opens.`,
+      );
+      this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kullanım sınırı", "Usage limit"), neden, aracKimligi);
       return this.ret(neden);
     }
 
@@ -1021,8 +1048,8 @@ export class Sirket {
       const hedef = typeof girdi.file_path === "string" ? path.resolve(cwd, girdi.file_path) : null;
       const kilit = hedef ? this.kullaniciKilitleri.get(hedef) : undefined;
       if (hedef && kilit && kilit > Date.now()) {
-        const neden = "Bu dosyayı şu an yönetim kurulu düzenliyor. Birkaç saniye sonra dosyayı yeniden oku ve sonra düzenle.";
-        this.denetimKaydet(ajan, arac, girdi, "ret", "Kurul kilidi", neden, aracKimligi);
+        const neden = iki("Bu dosyayı şu an yönetim kurulu düzenliyor. Birkaç saniye sonra dosyayı yeniden oku ve sonra düzenle.", "The board is editing this file right now. Re-read the file in a few seconds, then edit it.");
+        this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kurul kilidi", "Board lock"), neden, aracKimligi);
         return this.ret(neden);
       }
     }
@@ -1030,15 +1057,15 @@ export class Sirket {
     const sonuc = degerlendir([...anayasaPolitikasi(this.anayasa(proje.id)), ...this.politika(proje.id)], arac, girdi, { cwd, projeKoku: proje.yol, rol: ajan.rol });
     if (sonuc.karar === "ret") {
       this.denetimKaydet(ajan, arac, girdi, "ret", sonuc.kural, sonuc.neden, aracKimligi);
-      return this.ret(`ArnOrg politikası reddetti. ${sonuc.neden ?? ""} Gerekliyse kurula_sor ile gerekçeli izin iste.`);
+      return this.ret(iki(`ArnOrg politikası reddetti. ${sonuc.neden ?? ""} Gerekliyse kurula_sor ile gerekçeli izin iste.`, `ArnOrg policy denied this. ${sonuc.neden ?? ""} If it is needed, ask the board for permission with reasons using kurula_sor.`));
     }
     if (sonuc.karar === "sor") {
       this.denetimKaydet(ajan, arac, girdi, "sor", sonuc.kural, sonuc.neden, aracKimligi);
       const k = await this.kararBekle(ajan, "arac", `${ajan.ad} · ${arac}`, girdiOzeti(arac, girdi), { arac, girdi, kural: sonuc.kural, aracKimligi });
-      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", "Yönetim kurulu", k.not, aracKimligi);
-      if (!k.izin) return this.ret(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`);
+      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi);
+      if (!k.izin) return this.ret(iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`));
       this.yazmaKaydet(ajanId, cwd, arac, girdi);
-      return this.imzasiz(ajan, arac, girdi, aracKimligi) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Yönetim kurulu onayladı" } };
+      return this.imzasiz(ajan, arac, girdi, aracKimligi) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki("Yönetim kurulu onayladı", "The board approved") } };
     }
     this.yazmaKaydet(ajanId, cwd, arac, girdi);
     const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi);
@@ -1051,8 +1078,8 @@ export class Sirket {
   private imzasiz(ajan: Ajan, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): HookJSONOutput | null {
     const yeni = imzaAyikla(arac, girdi);
     if (!yeni) return null;
-    const neden = "Commit mesajındaki Claude imzası çıkarıldı.";
-    this.denetimKaydet(ajan, arac, yeni, "degisti", "İmzasız commit", neden, aracKimligi);
+    const neden = iki("Commit mesajındaki Claude imzası çıkarıldı.", "The Claude signature was removed from the commit message.");
+    this.denetimKaydet(ajan, arac, yeni, "degisti", iki("İmzasız commit", "Unsigned commit"), neden, aracKimligi);
     return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: `ArnOrg: ${neden}`, updatedInput: yeni } };
   }
 
@@ -1098,18 +1125,18 @@ export class Sirket {
   /** Claude Code'un izin sorduğu çağrı (bypass dışı modlar, plan onayı) */
   private async izinSor(ajanId: string, arac: string, girdi: Record<string, unknown>, aracKimligi?: string): Promise<PermissionResult> {
     const ajan = this.depo.ajan(ajanId);
-    if (!ajan) return { behavior: "deny", message: "Ajan bulunamadı." };
+    if (!ajan) return { behavior: "deny", message: iki("Ajan bulunamadı.", "Agent not found.") };
     if (arac.startsWith("mcp__arnorg__")) return { behavior: "allow", updatedInput: girdi };
     const planMi = arac === "ExitPlanMode";
-    const baslik = planMi ? `${ajan.ad} · Plan onayı` : `${ajan.ad} · ${arac} izni istiyor`;
+    const baslik = planMi ? iki(`${ajan.ad} · Plan onayı`, `${ajan.ad} · Plan approval`) : iki(`${ajan.ad} · ${arac} izni istiyor`, `${ajan.ad} · requests ${arac}`);
     const ayrinti = planMi ? String(girdi.plan ?? "") : girdiOzeti(arac, girdi);
-    const k = await this.kararBekle(ajan, "arac", baslik, ayrinti, { arac, girdi, kural: "Claude Code izin sorusu", aracKimligi });
-    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", "Yönetim kurulu", k.not, aracKimligi);
-    return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: `Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}` };
+    const k = await this.kararBekle(ajan, "arac", baslik, ayrinti, { arac, girdi, kural: iki("Claude Code izin sorusu", "Claude Code permission prompt"), aracKimligi });
+    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi);
+    return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`) };
   }
 
   /** Onay açar ve kurulun kararını bekler; süre dolarsa ret */
-  kararBekle(ajan: Ajan | null, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown, projeId?: string): Promise<{ izin: boolean; not: string | null }> {
+  kararBekle(ajan: Ajan | null, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown, projeId?: string): Promise<KurulKarari> {
     const sure = this.yapilandirma.ayarlar.onaySuresiSn;
     const onay = this.depo.onayEkle({
       projeId: ajan?.projeId ?? projeId!,
@@ -1128,17 +1155,18 @@ export class Sirket {
     return new Promise((coz) => {
       const zamanlayici = setTimeout(() => {
         this.bekleyenKararlar.delete(onay.id);
-        const son = this.depo.onaySonuclandir(onay.id, "zaman_asimi", "Süre doldu");
+        const not = iki("Süre doldu", "Timed out");
+        const son = this.depo.onaySonuclandir(onay.id, "zaman_asimi", not);
         this.olaylar.yayinla({ tur: "onay.sonuc", onay: son });
         this.projeYayinla(son.projeId);
-        coz({ izin: false, not: "Süre doldu" });
+        coz({ izin: false, not, zamanAsimi: true });
       }, sure * 1000);
       this.bekleyenKararlar.set(onay.id, {
         zamanlayici,
         coz: (s) => {
           clearTimeout(zamanlayici);
           this.bekleyenKararlar.delete(onay.id);
-          if (ajan && this.depo.ajan(ajan.id)?.durum === "karar_bekliyor") this.durumDegisti(ajan.id, "calisiyor", "Devam ediyor");
+          if (ajan && this.depo.ajan(ajan.id)?.durum === "karar_bekliyor") this.durumDegisti(ajan.id, "calisiyor", iki("Devam ediyor", "Continuing"));
           coz(s);
         },
       });
@@ -1171,7 +1199,7 @@ export class Sirket {
   /** Kurulun onay kararı */
   async onayKarari(onayId: string, karar: "onayla" | "reddet", not?: string, otomatik = false): Promise<Onay> {
     const onay = this.depo.onay(onayId);
-    if (!onay) throw bulunamadi("Onay");
+    if (!onay) throw bulunamadi("Onay", "Approval");
     if (onay.durum !== "bekliyor") throw new ArnorgHatasi(iki("Bu onay zaten sonuçlanmış.", "This approval has already been decided."), 409);
     const izin = karar === "onayla";
     const temizNot = not?.trim() || (otomatik ? iki("Otomatik onay", "Auto-approved") : null);
@@ -1186,7 +1214,7 @@ export class Sirket {
       else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot);
       else if (onay.tur === "anayasa") await this.anayasaSonucu(onay, izin, temizNot, onaylayan);
       else if (onay.tur === "isten_cikarma") await this.istenCikarmaSonucu(onay, izin, temizNot, onaylayan);
-      else if (onay.tur === "teslim") await this.teslimSonucu(onay, izin, temizNot);
+      else if (onay.tur === "teslim") await this.teslimSonucu(onay, izin, temizNot, !not?.trim() && otomatik);
     } catch (h) {
       this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId });
     }
@@ -1198,19 +1226,27 @@ export class Sirket {
     const veri = onay.veri as AjanIseAlIstegi & { yoneticiAd?: string | null };
     const teklifEden = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
     if (!izin) {
-      if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım teklifin reddedildi: ${veri.ad} (${veri.rol}).${not ? ` Kurulun notu: ${not}` : ""}`);
+      if (teklifEden) await this.sistemMesaji(teklifEden.id, iki(`İşe alım teklifin reddedildi: ${veri.ad} (${veri.rol}).${not ? ` Kurulun notu: ${not}` : ""}`, `Your hiring proposal was rejected: ${veri.ad} (${veri.rol}).${not ? ` The board's note: ${not}` : ""}`));
       return;
     }
     let yoneticiId = veri.yoneticiId ?? null;
     if (veri.yoneticiAd) yoneticiId = this.depo.ajanAdla(onay.projeId, veri.yoneticiAd)?.id ?? yoneticiId;
     const yeni = this.iseAl(onay.projeId, { ...veri, yoneticiId: yoneticiId ?? teklifEden?.id ?? null });
-    this.kanalMesaji(onay.projeId, "genel", { id: "arnorg", ad: "ArnOrg" }, `${yeni.ad} (${yeni.rolAdi}) ekibe katıldı.`);
+    const rolAdi = rolAdiDilde(yeni);
+    this.kanalMesaji(onay.projeId, "genel", { id: "arnorg", ad: "ArnOrg" }, iki(`${yeni.ad} (${rolAdi}) ekibe katıldı.`, `${yeni.ad} (${rolAdi}) joined the team.`));
     this.hafiza.yaz(
       onay.projeId,
-      { tur: "uzmanlik", baslik: `${yeni.ad} · ${yeni.rolAdi}`, metin: kisalt(onay.ayrinti.split("\n\n")[0] ?? onay.ayrinti, 600), etiketler: [yeni.rol], onem: 3 },
+      { tur: "uzmanlik", baslik: `${yeni.ad} · ${rolAdi}`, metin: kisalt(onay.ayrinti.split("\n\n")[0] ?? onay.ayrinti, 600), etiketler: [yeni.rol], onem: 3 },
       { ajan: null, ad: "ArnOrg" },
     );
-    if (teklifEden) await this.sistemMesaji(teklifEden.id, `İşe alım onaylandı: ${yeni.ad} (${yeni.rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`);
+    if (teklifEden)
+      await this.sistemMesaji(
+        teklifEden.id,
+        iki(
+          `İşe alım onaylandı: ${yeni.ad} (${rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`,
+          `Hire approved: ${yeni.ad} (${rolAdi}) is on the team.${not ? ` The board's note: ${not}` : ""} They start working once you assign them a task and move it to 'calisiliyor'.`,
+        ),
+      );
   }
 
   private async anayasaSonucu(onay: Onay, izin: boolean, not: string | null, onaylayan: string): Promise<void> {
@@ -1251,8 +1287,8 @@ export class Sirket {
     this.duyur(
       a.projeId,
       iki(
-        `${a.ad} (${a.rolAdi}) ekipten ayrıldı${aktarilan ? `; açık işleri ve bildikleri ${aktarilan.ad}'e devredildi` : ""}.`,
-        `${a.ad} (${a.rolAdi}) left the team${aktarilan ? `; open work and knowledge were handed over to ${aktarilan.ad}` : ""}.`,
+        `${a.ad} (${rolAdiDilde(a)}) ekipten ayrıldı${aktarilan ? `; açık işleri ve bildikleri ${aktarilan.ad}'e devredildi` : ""}.`,
+        `${a.ad} (${rolAdiDilde(a)}) left the team${aktarilan ? `; open work and knowledge were handed over to ${aktarilan.ad}` : ""}.`,
       ),
     );
     return { devralan: aktarilan };
@@ -1272,12 +1308,14 @@ export class Sirket {
     }
   }
 
-  private async teslimSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
+  /** otomatikNot: not, kurulun yazdığı değil otomatik onayın notu (duyuruda gösterilmez) */
+  private async teslimSonucu(onay: Onay, izin: boolean, not: string | null, otomatikNot = false): Promise<void> {
     const veri = onay.veri as { baslik?: string; ozet?: string };
     const oneren = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
     const baslik = veri.baslik ?? onay.baslik;
     if (izin) {
-      this.duyur(onay.projeId, iki(`Kurul teslimi kabul etti: ${baslik}.${not && not !== "Otomatik onay" ? ` Not: ${not}` : ""}`, `The board accepted the delivery: ${baslik}.${not && not !== "Auto-approved" ? ` Note: ${not}` : ""}`));
+      const kurulNotu = otomatikNot ? null : not;
+      this.duyur(onay.projeId, iki(`Kurul teslimi kabul etti: ${baslik}.${kurulNotu ? ` Not: ${kurulNotu}` : ""}`, `The board accepted the delivery: ${baslik}.${kurulNotu ? ` Note: ${kurulNotu}` : ""}`));
       this.hafiza.yaz(onay.projeId, { tur: "ozet", baslik: iki(`Teslim: ${kisalt(baslik, 100)}`, `Delivery: ${kisalt(baslik, 100)}`), metin: kisalt(veri.ozet ?? onay.ayrinti, 800), etiketler: ["teslim"], onem: 3 }, { ajan: oneren, ad: "ArnOrg" });
       if (oneren) await this.sistemMesaji(oneren.id, iki(`Kurul teslimi kabul etti: ${baslik}.${not ? ` Not: ${not}` : ""} Sıradaki hedefi planla ya da kurula ne yapılacağını sor.`, `The board accepted the delivery: ${baslik}.${not ? ` Note: ${not}` : ""} Plan the next goal or ask the board what comes next.`));
       return;
@@ -1323,17 +1361,17 @@ export class Sirket {
     const sahip = this.depo.ajan(veri.ajanId);
     const isteyen = veri.isteyenId ? this.depo.ajan(veri.isteyenId) : sahip;
     if (!izin) {
-      if (isteyen) await this.sistemMesaji(isteyen.id, `${veri.dal} birleştirmesi reddedildi.${not ? ` Not: ${not}` : ""}`);
+      if (isteyen) await this.sistemMesaji(isteyen.id, iki(`${veri.dal} birleştirmesi reddedildi.${not ? ` Not: ${not}` : ""}`, `The merge of ${veri.dal} was rejected.${not ? ` Note: ${not}` : ""}`));
       return;
     }
     const proje = this.proje(onay.projeId);
     const mevcut = await gitIslemleri.mevcutDal(proje.yol);
-    if (mevcut !== proje.varsayilanDal) throw new ArnorgHatasi(`Ana repo ${proje.varsayilanDal} dalında değil (${mevcut}). Birleştirme yapılmadı.`, 409);
+    if (mevcut !== proje.varsayilanDal) throw new ArnorgHatasi(iki(`Ana repo ${proje.varsayilanDal} dalında değil (${mevcut}). Birleştirme yapılmadı.`, `The main repo is not on ${proje.varsayilanDal} (${mevcut}). Nothing was merged.`), 409);
     // ArnOrg'un kendi kayıtları (.arnorg) birleştirmeyi engellemesin
     await this.arnorgCommitle(proje.id).catch(() => false);
     const kirli = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
-    if (kirli) throw new ArnorgHatasi("Ana repoda commit'lenmemiş değişiklik var; birleştirme yapılmadı.", 409);
-    const sonuc = await gitIslemleri.birlestir(proje.yol, veri.dal, `ArnOrg: ${veri.dal} birleştirildi\n\n${veri.ozet}`);
+    if (kirli) throw new ArnorgHatasi(iki("Ana repoda commit'lenmemiş değişiklik var; birleştirme yapılmadı.", "The main repo has uncommitted changes; nothing was merged."), 409);
+    const sonuc = await gitIslemleri.birlestir(proje.yol, veri.dal, iki(`ArnOrg: ${veri.dal} birleştirildi\n\n${veri.ozet}`, `ArnOrg: merged ${veri.dal}\n\n${veri.ozet}`));
     if (sonuc.basarili) {
       for (const g of this.depo.gorevler(proje.id)) {
         if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
@@ -1357,7 +1395,10 @@ export class Sirket {
     } else if (sahip) {
       await this.sistemMesaji(
         sahip.id,
-        `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${proje.varsayilanDal}'i al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
+        iki(
+          `${veri.dal} dalı ${proje.varsayilanDal} ile çakıştı ve birleştirilemedi. Dalına ${proje.varsayilanDal}'i al (git merge ${proje.varsayilanDal}), çakışmaları çöz, testleri çalıştır, commit'le ve yeniden birlestirme_iste.`,
+          `Branch ${veri.dal} conflicts with ${proje.varsayilanDal} and could not be merged. Bring ${proje.varsayilanDal} into your branch (git merge ${proje.varsayilanDal}), resolve the conflicts, run the tests, commit and call birlestirme_iste again.`,
+        ),
       );
     }
   }
@@ -1378,7 +1419,7 @@ export class Sirket {
       const y = await Promise.race([arama, new Promise<null>((coz) => setTimeout(() => coz(null), 1500).unref())]);
       if (!y) return "";
       const liste = konumListesi({ ...y, sonuclar: y.sonuclar.filter((r) => r.puan >= 0.25) }, 5);
-      return liste ? `İlgili kod (kod zekâsı önerisi; kod_ara ve Read ile doğrula):\n${liste}` : "";
+      return liste ? iki(`İlgili kod (kod zekâsı önerisi; kod_ara ve Read ile doğrula):\n${liste}`, `Related code (code intelligence suggestion; verify with kod_ara and Read):\n${liste}`) : "";
     } catch {
       return "";
     }
@@ -1394,8 +1435,9 @@ export class Sirket {
       .filter(Boolean)
       .map((b) => `${b!.kod} ${b!.baslik} (${b!.durum})`);
     const bagli = this.depo.hafizaKayitlari(g.projeId, { sinir: 500 }).filter((k) => k.gorevId === g.id);
+    const turAdi = (k: HafizaKaydi) => iki(HAFIZA_TURU_ADLARI[k.tur], AD_HARITALARI_EN.hafizaTuru[k.tur]);
     const bagliMetin = bagli.length
-      ? ["\nBu görevle ilgili hafıza:", ...bagli.slice(0, 6).map((k) => `- [${HAFIZA_TURU_ADLARI[k.tur]}] ${k.baslik}: ${kisalt(k.metin, 260)} (${k.kaynakAd})`)].join("\n")
+      ? [iki("\nBu görevle ilgili hafıza:", "\nMemory related to this task:"), ...bagli.slice(0, 6).map((k) => `- [${turAdi(k)}] ${k.baslik}: ${kisalt(k.metin, 260)} (${k.kaynakAd})`)].join("\n")
       : "";
     const ilgili = this.hafiza.ilgili(g.projeId, `${g.baslik} ${g.aciklama} ${g.etiket}`, 5, new Set(bagli.map((k) => k.id)));
     const kodDeseni = new RegExp(`\\b${g.kod}\\b`);
@@ -1405,33 +1447,42 @@ export class Sirket {
       .slice(0, 3);
     const onceki = oncekiSahipId && oncekiSahipId !== g.atananId ? this.depo.ajan(oncekiSahipId) : null;
     const defter = onceki ? this.hafiza.defter(onceki) : "";
+    const devir = onceki
+      ? iki(
+          `\nDevir: bu görevde daha önce ${onceki.ad} (${rolAdiDilde(onceki)}) çalıştı${onceki.dal ? `, dalı ${onceki.dal}` : ""}. Kaldığı yerden sür; belirsiz bir şey olursa ajana_sor ile ona sor.${defter ? `\n${onceki.ad} defterinden:\n${kisalt(defter, 1500)}` : ""}`,
+          `\nHandover: ${onceki.ad} (${rolAdiDilde(onceki)}) worked on this task before${onceki.dal ? `, on branch ${onceki.dal}` : ""}. Continue where they left off; if anything is unclear, ask them with ajana_sor.${defter ? `\nFrom ${onceki.ad}'s journal:\n${kisalt(defter, 1500)}` : ""}`,
+        )
+      : "";
     return [
-      `Görev ${g.kod}: ${g.baslik}`,
+      iki(`Görev ${g.kod}: ${g.baslik}`, `Task ${g.kod}: ${g.baslik}`),
       g.aciklama ? `\n${g.aciklama}` : "",
-      g.kabulOlcutu ? `\nKabul ölçütü:\n${g.kabulOlcutu}` : "",
-      bagimli.length ? `\nBağımlı olduğu görevler: ${bagimli.join(", ")}` : "",
-      onceki
-        ? `\nDevir: bu görevde daha önce ${onceki.ad} (${onceki.rolAdi}) çalıştı${onceki.dal ? `, dalı ${onceki.dal}` : ""}. Kaldığı yerden sür; belirsiz bir şey olursa ajana_sor ile ona sor.${defter ? `\n${onceki.ad} defterinden:\n${kisalt(defter, 1500)}` : ""}`
-        : "",
+      g.kabulOlcutu ? `\n${iki("Kabul ölçütü", "Acceptance criteria")}:\n${g.kabulOlcutu}` : "",
+      bagimli.length ? `\n${iki("Bağımlı olduğu görevler", "Depends on")}: ${bagimli.join(", ")}` : "",
+      devir,
       bagliMetin,
       ilgili ? `\n${ilgili}` : "",
-      sorular.length ? ["\nBu görev hakkında sorulup yanıtlananlar:", ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd}: ${kisalt(x.soru, 160)} | ${kisalt(x.yanit ?? "", 260)}`)].join("\n") : "",
+      sorular.length
+        ? [iki("\nBu görev hakkında sorulup yanıtlananlar:", "\nAsked and answered about this task:"), ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd}: ${kisalt(x.soru, 160)} | ${kisalt(x.yanit ?? "", 260)}`)].join("\n")
+        : "",
       ilgiliKod ? `\n${ilgiliKod}` : "",
-      "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
+      iki(
+        "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
+        "\nRead the relevant notes before you start. When the work is done, run the tests, commit, move the task to 'inceleme' (review) with gorev_guncelle and briefly write what you did.",
+      ),
     ].join("\n");
   }
 
   gorevOlustur(projeId: string, istek: GorevOlusturIstegi, olusturanId: string | null = null): Gorev {
     this.proje(projeId);
     const baslik = istek.baslik?.trim();
-    if (!baslik) throw new ArnorgHatasi("Görev başlığı gerekli.");
+    if (!baslik) throw new ArnorgHatasi(iki("Görev başlığı gerekli.", "A task title is required."));
     if (istek.atananId) {
       const a = this.depo.ajan(istek.atananId);
-      if (!a || a.projeId !== projeId) throw bulunamadi("Atanan ajan");
+      if (!a || a.projeId !== projeId) throw bulunamadi("Atanan ajan", "Assigned agent");
     }
     const bagimliliklar = (istek.bagimliliklar ?? []).map((b) => {
       const g = this.depo.gorevKoduyla(projeId, b);
-      if (!g) throw new ArnorgHatasi(`Bağımlı görev bulunamadı: ${b}`);
+      if (!g) throw new ArnorgHatasi(iki(`Bağımlı görev bulunamadı: ${b}`, `Dependency not found: ${b}`));
       return g.id;
     });
     const durum = istek.durum && istek.durum !== "calisiliyor" ? istek.durum : "bekleyen";
@@ -1453,29 +1504,30 @@ export class Sirket {
 
   async gorevGuncelle(id: string, istek: GorevGuncelleIstegi, kaynakAjanId: string | null = null): Promise<Gorev> {
     const eski = this.depo.gorev(id);
-    if (!eski) throw bulunamadi("Görev");
+    if (!eski) throw bulunamadi("Görev", "Task");
     if (istek.atananId) {
       const a = this.depo.ajan(istek.atananId);
-      if (!a || a.projeId !== eski.projeId) throw bulunamadi("Atanan ajan");
+      if (!a || a.projeId !== eski.projeId) throw bulunamadi("Atanan ajan", "Assigned agent");
     }
     let bagimliliklar: string[] | undefined;
     if (istek.bagimliliklar) {
       bagimliliklar = istek.bagimliliklar.map((b) => {
         const g = this.depo.gorevKoduyla(eski.projeId, b);
-        if (!g) throw new ArnorgHatasi(`Bağımlı görev bulunamadı: ${b}`);
-        if (g.id === id) throw new ArnorgHatasi("Görev kendine bağımlı olamaz.");
+        if (!g) throw new ArnorgHatasi(iki(`Bağımlı görev bulunamadı: ${b}`, `Dependency not found: ${b}`));
+        if (g.id === id) throw new ArnorgHatasi(iki("Görev kendine bağımlı olamaz.", "A task cannot depend on itself."));
         return g.id;
       });
     }
     const yeniDurum = istek.durum;
     if (yeniDurum && yeniDurum !== eski.durum) {
       if (!GOREV_GECISLERI[eski.durum].includes(yeniDurum)) {
-        throw new ArnorgHatasi(`${eski.kod}: ${eski.durum} → ${yeniDurum} geçişine izin yok.`, 409);
+        throw new ArnorgHatasi(iki(`${eski.kod}: ${eski.durum} → ${yeniDurum} geçişine izin yok.`, `${eski.kod}: moving from ${eski.durum} to ${yeniDurum} is not allowed.`), 409);
       }
       if (yeniDurum === "calisiliyor") {
         const bitmemis = (bagimliliklar ?? eski.bagimliliklar).map((b) => this.depo.gorev(b)).filter((g) => g && g.durum !== "tamam");
-        if (bitmemis.length) throw new ArnorgHatasi(`${eski.kod} başlayamaz; bitmemiş bağımlılık: ${bitmemis.map((g) => g!.kod).join(", ")}`, 409);
-        if (!(istek.atananId ?? eski.atananId)) throw new ArnorgHatasi(`${eski.kod} başlamadan önce bir çalışana atanmalı.`, 409);
+        const kodlar = bitmemis.map((g) => g!.kod).join(", ");
+        if (bitmemis.length) throw new ArnorgHatasi(iki(`${eski.kod} başlayamaz; bitmemiş bağımlılık: ${kodlar}`, `${eski.kod} cannot start; unfinished dependencies: ${kodlar}`), 409);
+        if (!(istek.atananId ?? eski.atananId)) throw new ArnorgHatasi(iki(`${eski.kod} başlamadan önce bir çalışana atanmalı.`, `${eski.kod} must be assigned to an employee before it starts.`), 409);
       }
     }
     const gorev = this.depo.gorevGuncelle(id, {
@@ -1494,7 +1546,7 @@ export class Sirket {
     const atamaDegisti = istek.atananId !== undefined && istek.atananId !== eski.atananId;
     if (gorev.durum === "calisiliyor" && gorev.atananId && (durumDegisti || atamaDegisti) && gorev.atananId !== kaynakAjanId) {
       await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null).catch((h) =>
-        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${gorev.kod} başlatılamadı: ${(h as Error).message}`, projeId: gorev.projeId }),
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${gorev.kod} başlatılamadı: ${(h as Error).message}`, `${gorev.kod} could not be started: ${(h as Error).message}`), projeId: gorev.projeId }),
       );
     }
     if (durumDegisti && gorev.durum === "inceleme") await this.incelemeyeBildir(gorev).catch(() => undefined);
@@ -1520,7 +1572,7 @@ export class Sirket {
     }
     const oturum = this.oturumlar.get(g.atananId);
     const gorevMetni = this.gorevMetni(g, oncekiSahipId, await this.ilgiliKod(g));
-    const metin = oturum?.acik ? `Yeni görev atandı.\n\n${gorevMetni}` : gorevMetni;
+    const metin = oturum?.acik ? `${iki("Yeni görev atandı.", "New task assigned.")}\n\n${gorevMetni}` : gorevMetni;
     await this.ajanaMesaj(g.atananId, metin, "next", { tur: "sistem" });
   }
 
@@ -1531,8 +1583,15 @@ export class Sirket {
     const inceleyici = ajanlar.find((a) => a.rol === "inceleme" && a.id !== g.atananId);
     const hedef = inceleyici ?? ajanlar.find((a) => a.rol === "ceo");
     if (!hedef) return;
-    const dal = sahip?.dal ? ` Dal: ${sahip.dal}.` : "";
-    await this.uyandir(hedef.id, `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? "calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa birlestirme_iste ile kurul onayına sun, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz." : "calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir."}`, null);
+    const dal = sahip?.dal ? iki(` Dal: ${sahip.dal}.`, ` Branch: ${sahip.dal}.`) : "";
+    await this.uyandir(
+      hedef.id,
+      iki(
+        `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? "calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa birlestirme_iste ile kurul onayına sun, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz." : "calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir."}`,
+        `${g.kod} "${g.baslik}" is ready for review (${sahip?.ad ?? "unassigned"}).${dal} ${inceleyici ? "Read the changes with calisma_farki and the files with calisma_dosyasi; if all is well, submit it for the board's approval with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner." : "Review the changes with calisma_farki (read files with calisma_dosyasi if needed); if it is ready, submit it to the board with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner. If reviews come up often, consider hiring a code reviewer."}`,
+      ),
+      null,
+    );
   }
 
   private async gorevBitti(g: Gorev): Promise<void> {
@@ -1549,7 +1608,11 @@ export class Sirket {
       {
         tur: "ozet",
         baslik: `${g.kod} ${g.baslik}`,
-        metin: [`${sahip?.ad ?? "Ekip"} tamamladı.`, g.kabulOlcutu ? `Kabul ölçütü: ${kisalt(g.kabulOlcutu, 300)}` : "", g.aciklama ? kisalt(g.aciklama, 300) : ""]
+        metin: [
+          iki(`${sahip?.ad ?? "Ekip"} tamamladı.`, `Completed by ${sahip?.ad ?? "the team"}.`),
+          g.kabulOlcutu ? `${iki("Kabul ölçütü", "Acceptance criteria")}: ${kisalt(g.kabulOlcutu, 300)}` : "",
+          g.aciklama ? kisalt(g.aciklama, 300) : "",
+        ]
           .filter(Boolean)
           .join(" "),
         gorevId: g.id,
@@ -1599,7 +1662,10 @@ export class Sirket {
         this.olaylar.yayinla({
           tur: "bildirim",
           seviye: "uyari",
-          metin: `${alici.ad} son 10 dakikada çok sık uyandırıldı; ${gonderen.ad}'in mesajı kanalda bırakıldı, ajan uyandırılmadı.`,
+          metin: iki(
+            `${alici.ad} son 10 dakikada çok sık uyandırıldı; ${gonderen.ad}'in mesajı kanalda bırakıldı, ajan uyandırılmadı.`,
+            `${alici.ad} was woken too often in the last 10 minutes; ${gonderen.ad}'s message was left in the channel and the agent was not woken.`,
+          ),
           projeId: alici.projeId,
         });
         return false;
@@ -1612,7 +1678,7 @@ export class Sirket {
       await this.ajanaMesaj(aliciId, metin, "next", kaynak);
       return true;
     } catch (h) {
-      this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: `${alici.ad} uyandırılamadı: ${(h as Error).message}`, projeId: alici.projeId });
+      this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${alici.ad} uyandırılamadı: ${(h as Error).message}`, `Could not wake ${alici.ad}: ${(h as Error).message}`), projeId: alici.projeId });
       return false;
     }
   }
@@ -1678,7 +1744,7 @@ export class Sirket {
     const gonderenAjan = gonderenId === KURUL ? null : this.depo.ajan(gonderenId);
     const govde = (gonderenAjan ? emojiAyikla(metin) : metin).trim();
     if (!govde) throw new ArnorgHatasi(iki("Mesaj boş olamaz.", "The message cannot be empty."));
-    if (gonderenId !== KURUL && !gonderenAjan) throw bulunamadi("Gönderen");
+    if (gonderenId !== KURUL && !gonderenAjan) throw bulunamadi("Gönderen", "Sender");
     const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
     if (temizKanal === "yonetim" && gonderenAjan && gonderenAjan.id !== ceo?.id) {
       throw new ArnorgHatasi(iki("#yonetim kanalı kurul ile CEO arasındadır; kurula iletilecek şeyi yöneticine ya da #genel kanalına yaz.", "#ceo is between the board and the CEO; send things for the board to your manager or #general."), 403);
@@ -1698,7 +1764,7 @@ export class Sirket {
         if (temizKanal !== "genel") this.duyur(projeId, iki(`Kurul ilk talimatını verdi; ${ceo.ad} (CEO) işe başlıyor.`, `The board gave its first instructions; ${ceo.ad} (CEO) is getting started.`));
       }
     }
-    const etiket = `#${temizKanal} · ${gonderenAjan?.ad ?? kurulAdi}: ${govde}`;
+    const etiket = `#${kanalGorunenAdi(temizKanal, dil())} · ${gonderenAjan?.ad ?? kurulAdi}: ${govde}`;
     for (const a of alicilar) {
       this.yaziyorBaslat(a, temizKanal);
       const uyandi = gonderenAjan
@@ -1740,8 +1806,8 @@ export class Sirket {
   hafizaYaz(projeId: string, istek: HafizaYazIstegi, ajanId: string | null): HafizaKaydi {
     this.proje(projeId);
     const ajan = ajanId ? this.ajan(ajanId) : null;
-    if (ajan && ajan.projeId !== projeId) throw new ArnorgHatasi("Ajan bu projede değil.", 403);
-    return this.hafiza.yaz(projeId, istek, { ajan, ad: ajan ? undefined : "Yönetim kurulu" });
+    if (ajan && ajan.projeId !== projeId) throw new ArnorgHatasi(iki("Ajan bu projede değil.", "The agent is not in this project."), 403);
+    return this.hafiza.yaz(projeId, istek, { ajan, ad: ajan ? undefined : iki("Yönetim kurulu", "Board") });
   }
 
   defterYaz(ajanId: string, icerik: string): void {
@@ -1760,19 +1826,19 @@ export class Sirket {
   async ajanaSor(soranId: string, hedefAd: string | null, soru: string, bekleDk = 10, secenek: { yeniden?: boolean } = {}): Promise<SoruSonucu> {
     const soran = this.ajan(soranId);
     const metin = soru.trim();
-    if (metin.length < 5 || metin.length > 4000) throw new ArnorgHatasi("Soru 5–4000 karakter olmalı.");
+    if (metin.length < 5 || metin.length > 4000) throw new ArnorgHatasi(iki("Soru 5–4000 karakter olmalı.", "A question must be 5–4000 characters."));
     const ad = hedefAd?.replace(/^@/, "").trim() ?? "";
     const secim = ad ? { ajan: this.depo.ajanAdla(soran.projeId, ad), neden: undefined } : uzmanBul(this.depo, soran, metin);
     const hedef = secim?.ajan;
     const yonlendirme = secim?.neden;
-    if (!hedef) throw new ArnorgHatasi(ad ? `"${ad}" adında çalışan yok.` : "Projede soracak başka çalışan yok.", 404);
-    if (hedef.id === soran.id) throw new ArnorgHatasi("Kendine soru soramazsın.");
+    if (!hedef) throw new ArnorgHatasi(ad ? iki(`"${ad}" adında çalışan yok.`, `No employee named "${ad}".`) : iki("Projede soracak başka çalışan yok.", "There is no one else in the project to ask."), 404);
+    if (hedef.id === soran.id) throw new ArnorgHatasi(iki("Kendine soru soramazsın.", "You cannot ask yourself a question."));
     if (!secenek.yeniden) {
       const onceki = oncekiYanit(this.depo, soran.projeId, metin);
       if (onceki) return { ...onceki, onceki: true };
     }
     const karsilikli = this.depo.sorular(soran.projeId, { soruluId: soran.id, durum: "bekliyor" }).some((s) => s.soranId === hedef.id);
-    if (karsilikli) throw new ArnorgHatasi(`${hedef.ad} şu an senden yanıt bekliyor; önce onun sorusunu soruyu_yanitla ile yanıtla.`, 409);
+    if (karsilikli) throw new ArnorgHatasi(iki(`${hedef.ad} şu an senden yanıt bekliyor; önce onun sorusunu soruyu_yanitla ile yanıtla.`, `${hedef.ad} is waiting for an answer from you right now; answer their question with soruyu_yanitla first.`), 409);
     const kayit = this.depo.soruEkle({ projeId: soran.projeId, soranId: soran.id, soranAd: soran.ad, soruluId: hedef.id, soruluAd: hedef.ad, soru: metin });
     this.olaylar.yayinla({ tur: "soru.guncellendi", soru: kayit });
     const sure = Math.min(Math.max(bekleDk, 1), 30) * 60_000;
@@ -1788,7 +1854,10 @@ export class Sirket {
     });
     const uyandi = await this.uyandir(
       hedef.id,
-      `${soran.ad} sana soruyor (soru ${kayit.id})${yonlendirme ? ` — ArnOrg soruyu sana yönlendirdi: ${yonlendirme}` : ""}:\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Yanıttan sonra üzerinde çalıştığın bir görev varsa ona dön; yoksa yeni iş açma, dur.`,
+      iki(
+        `${soran.ad} sana soruyor (soru ${kayit.id})${yonlendirme ? ` — ArnOrg soruyu sana yönlendirdi: ${yonlendirme}` : ""}:\n${metin}\n\nYanıtını mcp__arnorg__soruyu_yanitla ile ver (soru_id: ${kayit.id}). Bilmiyorsan bildiğin kadarını ve kimin bilebileceğini yaz. Yanıttan sonra üzerinde çalıştığın bir görev varsa ona dön; yoksa yeni iş açma, dur.`,
+        `${soran.ad} asks you (question ${kayit.id})${yonlendirme ? ` — ArnOrg routed the question to you: ${yonlendirme}` : ""}:\n${metin}\n\nAnswer with mcp__arnorg__soruyu_yanitla (soru_id: ${kayit.id}). If you don't know, write what you do know and who might know. After answering, go back to the task you were working on, if any; otherwise don't open new work, stop.`,
+      ),
       soran,
     );
     if (!uyandi) {
@@ -1813,13 +1882,13 @@ export class Sirket {
     const cagiran = this.ajan(cagiranId);
     const pid = cagiran.projeId;
     const metin = gundem.trim();
-    if (metin.length < 10 || metin.length > 3000) throw new ArnorgHatasi("Gündem 10–3000 karakter olmalı.");
+    if (metin.length < 10 || metin.length > 3000) throw new ArnorgHatasi(iki("Gündem 10–3000 karakter olmalı.", "The agenda must be 10–3000 characters."));
     let katilimcilar: { ajan: Ajan; neden: string | null }[] = [];
     if (katilimciAdlari?.length) {
       for (const ham of katilimciAdlari) {
         const ad = ham.replace(/^@/, "").trim();
         const a = this.depo.ajanAdla(pid, ad);
-        if (!a) throw new ArnorgHatasi(`"${ad}" adında çalışan yok.`, 404);
+        if (!a) throw new ArnorgHatasi(iki(`"${ad}" adında çalışan yok.`, `No employee named "${ad}".`), 404);
         if (a.id !== cagiran.id && !katilimcilar.some((k) => k.ajan.id === a.id)) katilimcilar.push({ ajan: a, neden: null });
       }
     } else {
@@ -1829,24 +1898,30 @@ export class Sirket {
         .map((x) => ({ ajan: x.ajan, neden: x.neden }));
       if (!katilimcilar.length) {
         const yedek = this.depo.ajanlar(pid).filter((a) => a.id !== cagiran.id && a.durum !== "duraklatildi" && (a.rol === "cto" || a.id === cagiran.yoneticiId));
-        katilimcilar = yedek.slice(0, 2).map((a) => ({ ajan: a, neden: "konuda belirgin bir uzman yok" }));
+        katilimcilar = yedek.slice(0, 2).map((a) => ({ ajan: a, neden: iki("konuda belirgin bir uzman yok", "no clear expert on the topic") }));
       }
     }
     katilimcilar = katilimcilar.slice(0, 6);
-    if (!katilimcilar.length) throw new ArnorgHatasi("Toplantıya çağrılacak çalışan bulunamadı; katilimcilar alanında ad ver.", 404);
+    if (!katilimcilar.length) throw new ArnorgHatasi(iki("Toplantıya çağrılacak çalışan bulunamadı; katilimcilar alanında ad ver.", "No employee found to invite to the meeting; give names in katilimcilar."), 404);
 
-    this.depo.kanalEkle(pid, "toplanti", "Toplantılar: gündem, görüşler, karar");
+    this.depo.kanalEkle(pid, "toplanti", iki("Toplantılar: gündem, görüşler, karar", "Meetings: agenda, opinions, decision"));
+    // Biçim Stüdyo'nun Ofis ekranınca tanınır: duyuru "Toplantı: …\nKatılımcılar: @A" / "Meeting: …\nParticipants: @A",
+    // soru "Toplantı (Ada çağırdı): …" / "Meeting (called by Ada): …"
+    const anilanlar = katilimcilar.map((k) => `@${k.ajan.ad}`).join(" ");
     this.kanalMesaji(
       pid,
       "toplanti",
       { id: cagiran.id, ad: cagiran.ad },
-      `Toplantı: ${metin}\nKatılımcılar: ${katilimcilar.map((k) => `@${k.ajan.ad}`).join(" ")}`,
+      iki(`Toplantı: ${metin}\nKatılımcılar: ${anilanlar}`, `Meeting: ${metin}\nParticipants: ${anilanlar}`),
       katilimcilar.map((k) => k.ajan.id),
     );
-    const soru = `Toplantı (${cagiran.ad} çağırdı): ${metin}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk. Başkalarının görüşünü bekleme; karar ${cagiran.ad}'da.`;
+    const soru = iki(
+      `Toplantı (${cagiran.ad} çağırdı): ${metin}\n\nGörüşünü kısa ver: önerin, gerekçen, gördüğün risk. Başkalarının görüşünü bekleme; karar ${cagiran.ad}'da.`,
+      `Meeting (called by ${cagiran.ad}): ${metin}\n\nGive your view briefly: your proposal, your reasoning, the risks you see. Don't wait for the others' views; ${cagiran.ad} makes the decision.`,
+    );
     const gorusler = await Promise.all(
       katilimcilar.map(async ({ ajan, neden }): Promise<ToplantiGorusu> => {
-        const temel = { ajanId: ajan.id, ad: ajan.ad, rolAdi: ajan.rolAdi, neden };
+        const temel = { ajanId: ajan.id, ad: ajan.ad, rolAdi: rolAdiDilde(ajan), neden };
         try {
           const s = await this.ajanaSor(cagiran.id, ajan.ad, soru, bekleDk, { yeniden: true });
           if (s.durum === "yanitlandi" && s.yanit) {
@@ -1859,19 +1934,30 @@ export class Sirket {
         }
       }),
     );
-    const ozet = gorusler.map((g) => `${g.ad} (${g.rolAdi}): ${g.gorus ? kisalt(g.gorus, 400) : g.durum === "zaman_asimi" ? "süre içinde yanıt vermedi" : `katılamadı (${g.hata ?? ""})`}`).join("\n");
-    const kayit = this.hafiza.yaz(pid, { tur: "ozet", baslik: `Toplantı: ${kisalt(metin, 120)}`, metin: `Çağıran: ${cagiran.ad}\n${ozet}`, onem: 2 }, { ajan: cagiran });
+    const ozet = gorusler
+      .map((g) =>
+        iki(
+          `${g.ad} (${g.rolAdi}): ${g.gorus ? kisalt(g.gorus, 400) : g.durum === "zaman_asimi" ? "süre içinde yanıt vermedi" : `katılamadı (${g.hata ?? ""})`}`,
+          `${g.ad} (${g.rolAdi}): ${g.gorus ? kisalt(g.gorus, 400) : g.durum === "zaman_asimi" ? "did not answer in time" : `could not take part (${g.hata ?? ""})`}`,
+        ),
+      )
+      .join("\n");
+    const kayit = this.hafiza.yaz(
+      pid,
+      { tur: "ozet", baslik: iki(`Toplantı: ${kisalt(metin, 120)}`, `Meeting: ${kisalt(metin, 120)}`), metin: iki(`Çağıran: ${cagiran.ad}\n${ozet}`, `Called by: ${cagiran.ad}\n${ozet}`), onem: 2 },
+      { ajan: cagiran },
+    );
     return { gundem: metin, gorusler, kayitId: kayit.id };
   }
 
   soruYanitla(ajanId: string, soruId: string, yanit: string): AjanSorusu {
     const a = this.ajan(ajanId);
     const soru = this.depo.soru(soruId);
-    if (!soru || soru.projeId !== a.projeId) throw new ArnorgHatasi("Soru bulunamadı.", 404);
-    if (soru.soruluId !== a.id) throw new ArnorgHatasi(`Bu soru ${soru.soruluAd}'a soruldu.`, 403);
-    if (soru.durum !== "bekliyor") throw new ArnorgHatasi("Bu soru artık yanıt beklemiyor (süre dolmuş olabilir). Yanıtı mesaj_gonder ile ilet.", 409);
+    if (!soru || soru.projeId !== a.projeId) throw new ArnorgHatasi(iki("Soru bulunamadı.", "Question not found."), 404);
+    if (soru.soruluId !== a.id) throw new ArnorgHatasi(iki(`Bu soru ${soru.soruluAd}'a soruldu.`, `This question was asked to ${soru.soruluAd}.`), 403);
+    if (soru.durum !== "bekliyor") throw new ArnorgHatasi(iki("Bu soru artık yanıt beklemiyor (süre dolmuş olabilir). Yanıtı mesaj_gonder ile ilet.", "This question is no longer waiting for an answer (it may have timed out). Send your answer with mesaj_gonder."), 409);
     const metin = yanit.trim();
-    if (!metin) throw new ArnorgHatasi("Yanıt boş olamaz.");
+    if (!metin) throw new ArnorgHatasi(iki("Yanıt boş olamaz.", "The answer cannot be empty."));
     const son = this.depo.soruSonuclandir(soru.id, "yanitlandi", kisalt(metin, 6000))!;
     const b = this.bekleyenSorular.get(soru.id);
     if (b) {
@@ -1906,7 +1992,7 @@ export class Sirket {
     if (!durum) return false;
     await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
     await gitIslemleri.git(proje.yol, ["add", "-A", "--", ".arnorg"]);
-    await gitIslemleri.git(proje.yol, ["commit", "-m", "ArnOrg: ekip, hafıza ve not kayıtları", "--", ".arnorg"]);
+    await gitIslemleri.git(proje.yol, ["commit", "-m", iki("ArnOrg: ekip, hafıza ve not kayıtları", "ArnOrg: team, memory and note records"), "--", ".arnorg"]);
     return true;
   }
 
@@ -1943,7 +2029,7 @@ export class Sirket {
     for (const z of this.bostaZamanlayicilari.values()) clearTimeout(z);
     for (const b of this.bekleyenKararlar.values()) {
       clearTimeout(b.zamanlayici);
-      b.coz({ izin: false, not: "ArnOrg kapanıyor" });
+      b.coz({ izin: false, not: iki("ArnOrg kapanıyor", "ArnOrg is shutting down") });
     }
   }
 

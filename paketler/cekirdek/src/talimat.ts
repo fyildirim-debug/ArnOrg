@@ -4,6 +4,7 @@
 import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type Proje, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
+import { rolBul } from "./roller.js";
 import { kisalt } from "./yardimci.js";
 
 /** Ofis karakterinin kişiliği: yalnız üslubu ve yaklaşımı belirler */
@@ -66,8 +67,9 @@ export function talimatOlustur(b: TalimatBaglami): string {
   const yonetici = Boolean(rol?.yonetici);
   const kanal = (k: string) => `#${kanalGorunenAdi(k, b.dil)}`;
   const rolim = rolAdi(ajan, rol, b.dil);
-  const yoneticiMetni = b.yonetici ? `${b.yonetici.ad} (${rolAdi(b.yonetici, undefined, b.dil)})` : en ? "the board of directors" : "Yönetim kurulu";
-  const ekipListesi = b.ekip.map((a) => `- ${a.ad} (${a.rolAdi})`).join("\n") || (en ? "- No other employees yet." : "- Henüz başka çalışan yok.");
+  // Kayıtlı rolAdi işe alındığı dildedir; ekip ve yönetici talimatın dilinde anılır
+  const yoneticiMetni = b.yonetici ? `${b.yonetici.ad} (${rolAdi(b.yonetici, rolBul(b.yonetici.rol) ?? undefined, b.dil)})` : en ? "the board of directors" : "Yönetim kurulu";
+  const ekipListesi = b.ekip.map((a) => `- ${a.ad} (${rolAdi(a, rolBul(a.rol) ?? undefined, b.dil)})`).join("\n") || (en ? "- No other employees yet." : "- Henüz başka çalışan yok.");
   const beceriDizini = b.beceriler.slice(0, 15).map((x) => `- ${x.ad}: ${kisalt(x.aciklama, 140)}`);
 
   if (en) {
