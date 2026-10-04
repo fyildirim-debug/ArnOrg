@@ -45,6 +45,13 @@ A software company built from Claude Code agents. You open a project; the CEO ag
   - An **Auto-approve** checkbox approves for you, limited to the types you choose.
 - **Tested before it lands.** Approved merges go through a per-project queue and a quality gate: the branch is merged in a separate workspace and the project's test command runs. Only work that passes reaches your branch; the approval card shows the test output and the diff.
 - **Work within your limits.** A cap on how many agents work at once, a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts.
+- **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
+- **Briefings on demand.** **Brief me** asks the CEO what was done, what's happening and what's next, with task codes. A daily briefing arrives at the time you choose.
+- **Your own channels.** Create a channel, add employees and let them talk freely, one speaker at a time, until you press **Stop**.
+- **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks.
+- **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
+- **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code; new CEOs use Fable.
+- **Updates itself** from the public releases repository.
 - **Important moments reach you anywhere.** A pop-up appears on whichever screen you're on. When the window is in the background, you also get a desktop notification and the taskbar flashes.
 - **A team that changes over time.** The CEO can propose new hires or a dismissal later in the project. A dismissal needs your approval, and the person's work and knowledge pass to a successor.
 - **Delivery.** When the project is done, the CEO hands it over with test steps, the run command and the address. Your feedback goes back to the CEO as work.
@@ -110,13 +117,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.5                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.5.md and commit
-git tag -a v0.0.5 -m "ArnOrg 0.0.5"
-git push origin main v0.0.5            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.6                 # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.6.md and commit
+git tag -a v0.0.6 -m "ArnOrg 0.0.6"
+git push origin main v0.0.6            # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.5` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.6` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 The workflow publishes the release twice: in this repository, and in the public releases repository [`fyildirim-debug/ArnOrg-surumler`](https://github.com/fyildirim-debug/ArnOrg-surumler), where installed apps look for updates. For the second one the repository needs the `SURUM_DEPOSU_TOKENI` Actions secret: a fine-grained personal access token with **Contents: Read and write** on `ArnOrg-surumler` only. Without the secret the release is published here only and the workflow shows a warning.
 

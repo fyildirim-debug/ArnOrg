@@ -45,6 +45,13 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
   - **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
 - **Girmeden önce test.** Onaylanan birleştirmeler proje başına bir kuyruktan ve kalite kapısından geçer: dal ayrı bir çalışma alanında birleştirilir ve projenin test komutu koşar. Yalnız testleri geçen iş dalınıza girer; onay kartı test çıktısını ve farkı gösterir.
 - **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına tavan, görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer.
+- **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
+- **İstediğinizde brifing.** **Brifing ver**, CEO'ya ne yapıldığını, ne olduğunu ve sırada ne olduğunu görev kodlarıyla yazdırır. Her gün seçtiğiniz saatte de brifing gelir.
+- **Kendi kanallarınız.** Kanal kurun, çalışanları ekleyin ve siz **Durdur** diyene kadar sırayla, serbestçe konuşsunlar.
+- **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir.
+- **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
+- **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5); yeni CEO'lar Fable kullanır.
+- **Kendini günceller:** açık sürüm deposundan.
 - **Önemli anlar her ekranda.** Hangi ekranda olursanız olun açılır pencere gelir. Pencere arkadaysa masaüstü bildirimi de gelir ve görev çubuğu yanıp söner.
 - **Zamanla değişen ekip.** CEO projenin ilerleyen döneminde yeni işe alım ya da işten çıkarma önerebilir. İşten çıkarma sizin onayınızla olur; kişinin işleri ve bildikleri devralana geçer.
 - **Teslim.** Proje bitince CEO test adımları, çalıştırma komutu ve adresle teslim eder. Geri bildiriminiz CEO'ya iş olarak döner.
@@ -110,13 +117,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.5                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.5.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.5 -m "ArnOrg 0.0.5"
-git push origin main v0.0.5            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.6                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.6.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.6 -m "ArnOrg 0.0.6"
+git push origin main v0.0.6            # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.5` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.6` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 İş akışı sürümü iki yerde yayınlar: bu depoda ve kurulu uygulamaların güncelleme aradığı açık sürüm deposunda ([`fyildirim-debug/ArnOrg-surumler`](https://github.com/fyildirim-debug/ArnOrg-surumler)). İkincisi için depoda `SURUM_DEPOSU_TOKENI` Actions sırrı gerekir: yalnız `ArnOrg-surumler` üzerinde **Contents: Read and write** izni olan ince ayarlı (fine-grained) kişisel erişim belirteci. Sır yoksa sürüm yalnız bu depoda yayınlanır ve iş akışı uyarı verir.
 
