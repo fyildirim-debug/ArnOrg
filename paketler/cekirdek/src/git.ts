@@ -54,7 +54,10 @@ export function gercekYol(yol: string): string {
   try {
     return fs.realpathSync.native(mutlak);
   } catch {
-    return mutlak;
+    // Yol yoksa (ör. klasörü silinmiş worktree) var olan en yakın üst dizin çözülür, kalan ad eklenir: Windows'ta
+    // kısa (8.3) adla verilen yol, git'in kaydettiği uzun adla yine eşleşsin
+    const ust = path.dirname(mutlak);
+    return ust === mutlak ? mutlak : path.join(gercekYol(ust), path.basename(mutlak));
   }
 }
 

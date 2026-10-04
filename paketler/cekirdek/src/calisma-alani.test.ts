@@ -33,6 +33,19 @@ async function repoAc(ad: string): Promise<string> {
 
 const kayitliMi = async (repo: string, yol: string) => (await gitIslemleri.worktreeler(repo)).some((w) => gitIslemleri.ayniYol(w.yol, yol));
 
+describe("git: yol karşılaştırması", () => {
+  it("var olmayan yol da üst dizininin gerçek yoluyla çözülür (Windows'ta kısa ve uzun ad eşleşir)", () => {
+    const gercek = fs.mkdtempSync(path.join(gecici, "gercek-"));
+    const baglanti = path.join(gecici, "baglanti");
+    // Windows'ta klasör bağlantısı yönetici izni istemeyen "junction" ile açılır
+    fs.symlinkSync(gercek, baglanti, process.platform === "win32" ? "junction" : "dir");
+    const yok = path.join(baglanti, "silinmis", "alan");
+    expect(gitIslemleri.gercekYol(yok)).toBe(path.join(fs.realpathSync.native(gercek), "silinmis", "alan"));
+    expect(gitIslemleri.ayniYol(yok, path.join(gercek, "silinmis", "alan"))).toBe(true);
+    expect(gitIslemleri.ayniYol(yok, path.join(gercek, "silinmis", "baska"))).toBe(false);
+  });
+});
+
 describe("git: worktree yardımcıları", () => {
   it("temiz alanı kaldırır; dal ve commit'ler kalır, yok sayılan dosyalar engel olmaz", async () => {
     const repo = await repoAc("temiz");
