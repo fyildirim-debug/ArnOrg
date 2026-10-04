@@ -43,6 +43,8 @@ A software company built from Claude Code agents. You open a project; the CEO ag
   - Approval types: hiring, dismissal, merges to main, constitution changes, tool requests and deliveries.
   - Each one shows its reasoning and what happens if you approve.
   - An **Auto-approve** checkbox approves for you, limited to the types you choose.
+- **Tested before it lands.** Approved merges go through a per-project queue and a quality gate: the branch is merged in a separate workspace and the project's test command runs. Only work that passes reaches your branch; the approval card shows the test output and the diff.
+- **Work within your limits.** A cap on how many agents work at once, a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts.
 - **Important moments reach you anywhere.** A pop-up appears on whichever screen you're on. When the window is in the background, you also get a desktop notification and the taskbar flashes.
 - **A team that changes over time.** The CEO can propose new hires or a dismissal later in the project. A dismissal needs your approval, and the person's work and knowledge pass to a successor.
 - **Delivery.** When the project is done, the CEO hands it over with test steps, the run command and the address. Your feedback goes back to the CEO as work.
@@ -106,13 +108,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.4                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.4.md and commit
-git tag -a v0.0.4 -m "ArnOrg 0.0.4"
-git push origin main v0.0.4            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.5                 # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.5.md and commit
+git tag -a v0.0.5 -m "ArnOrg 0.0.5"
+git push origin main v0.0.5            # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.4` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.5` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 Development:
 

@@ -43,6 +43,8 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
   - Onay türleri: işe alım, işten çıkarma, main'e birleştirme, ana yasa değişikliği, araç izni ve teslim.
   - Her onay gerekçesini ve onaylanırsa ne olacağını gösterir.
   - **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
+- **Girmeden önce test.** Onaylanan birleştirmeler proje başına bir kuyruktan ve kalite kapısından geçer: dal ayrı bir çalışma alanında birleştirilir ve projenin test komutu koşar. Yalnız testleri geçen iş dalınıza girer; onay kartı test çıktısını ve farkı gösterir.
+- **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına tavan, görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer.
 - **Önemli anlar her ekranda.** Hangi ekranda olursanız olun açılır pencere gelir. Pencere arkadaysa masaüstü bildirimi de gelir ve görev çubuğu yanıp söner.
 - **Zamanla değişen ekip.** CEO projenin ilerleyen döneminde yeni işe alım ya da işten çıkarma önerebilir. İşten çıkarma sizin onayınızla olur; kişinin işleri ve bildikleri devralana geçer.
 - **Teslim.** Proje bitince CEO test adımları, çalıştırma komutu ve adresle teslim eder. Geri bildiriminiz CEO'ya iş olarak döner.
@@ -106,13 +108,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.4                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.4.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.4 -m "ArnOrg 0.0.4"
-git push origin main v0.0.4            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.5                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.5.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.5 -m "ArnOrg 0.0.5"
+git push origin main v0.0.5            # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.4` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.5` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 Geliştirme:
 
