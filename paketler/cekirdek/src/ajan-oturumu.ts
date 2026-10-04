@@ -16,6 +16,7 @@ import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arno
 import { iki } from "./dil.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
+import { zincirdekiSonraki } from "./model-katalogu.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
 
 /** Duraklatılmış oturumda kuyruktaki tur beklenirken en çok bu kadar beklenir, sonra oturum kapanır */
@@ -51,13 +52,13 @@ export function toplamFarki(onceki: Toplam, yeni: Toplam): Toplam {
 export const AJAN_TUR_TAVANI = 200;
 
 /**
- * Birincil model aşırı yüklü ya da erişilemezse geçilecek yedek model: opus → sonnet, sonnet → haiku; haiku ve
- * bilinmeyen modeller için yok. SDK yedeğin birincil modelle aynı olmasını kabul etmez (sorgu açılırken hata atar).
+ * Birincil model aşırı yüklü ya da erişilemezse geçilecek yedek model, model zincirinde bir sonraki: fable → opus,
+ * opus → sonnet, sonnet → haiku; haiku ve bilinmeyen modeller için yok. SDK yedeğin birincil modelle aynı olmasını
+ * kabul etmez (sorgu açılırken hata atar).
  */
 export function yedekModel(model: string): string | null {
-  const m = model.toLowerCase();
-  const yedek = m.includes("opus") ? "sonnet" : m.includes("sonnet") ? "haiku" : null;
-  return yedek && yedek !== m ? yedek : null;
+  const yedek = zincirdekiSonraki(model);
+  return yedek && yedek !== model.toLowerCase() ? yedek : null;
 }
 
 export type MesajKaynagi = { tur: "kurul" } | { tur: "ajan"; ad: string; id: string } | { tur: "sistem" };

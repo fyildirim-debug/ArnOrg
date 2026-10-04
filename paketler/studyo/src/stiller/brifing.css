@@ -1,0 +1,116 @@
+/* CEO brifingi ve model kataloğu: Karargâh sohbetindeki "Brifing ver" düğmesi, sohbetteki brifing mesajı, Ayarlar ›
+   Brifing ve model seçimindeki tam kimlik. FY dili: kart ve gölge yok; brifing defter düzeninde, bölüm adları küçük
+   ve büyük harfli etiket, satırlar kıl çizgiyle ayrılır. Tek vurgu "Kararınızı bekleyen"de: kurulun eylemi orada.
+   Bileşenler (BrifingDugmesi, BrifingAyari) bu dosyayı kendileri içe aktarır. */
+
+/* ---------- Düğme: sohbet şeridinin sağ ucunda, kanal adının yanında ---------- */
+.brifing-dugme {
+  flex: none;
+}
+.brifing-dugme svg {
+  color: var(--coral);
+}
+.brifing-dugme:disabled {
+  opacity: 1;
+  color: var(--muted);
+}
+.brifing-dugme .doner {
+  width: 0.625rem;
+  height: 0.625rem;
+  color: var(--coral);
+}
+
+/* ---------- Sohbette brifing ---------- */
+/* Gönderen satırındaki tür etiketi: onay türleri gibi küçük ve büyük harfli */
+.sohbet-brifing {
+  font-size: var(--t-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.brifing {
+  container: brifing / inline-size;
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.brifing-giris {
+  color: var(--bone);
+}
+.brifing-bolumler {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.brifing-bolum {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0.25rem;
+  padding: 0.5rem 0 0.5625rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.brifing-bolum:last-child {
+  border-bottom-color: var(--line);
+}
+.brifing-bolum dt {
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.brifing-bolum dd {
+  min-width: 0;
+  margin: 0;
+}
+.brifing-karar dt {
+  color: var(--coral-hi);
+}
+.brifing-bos {
+  color: var(--muted-2);
+}
+/* Bölüm adı maddelerin üstünde durur; sohbet yeterince genişse (geniş ekran, kenar çubuğu kapalı) adlar sol
+   sütuna geçer ve brifing defter gibi okunur. Dar sütunda sabit etiket sütunu maddeleri sıkıştırırdı. */
+@container brifing (min-width: 36rem) {
+  .brifing-bolum {
+    grid-template-columns: 9.5rem minmax(0, 1fr);
+    column-gap: var(--b-4);
+    row-gap: 0;
+  }
+  .brifing-bolum dt {
+    /* Etiket, gövdenin ilk satırıyla aynı hizada */
+    padding-top: 0.1875rem;
+  }
+}
+
+/* ---------- Ayarlar › Brifing ---------- */
+.brifing-ayar {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 44rem;
+}
+.brifing-ayar-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-4);
+}
+.brifing-saat {
+  /* Kendi genişliği: saat biçimi (24 saat ya da ÖÖ/ÖS) tarayıcının diline göre değişir, sabit genişlik keserdi */
+  flex: none;
+  width: auto;
+  font-variant-numeric: tabular-nums;
+}
+.brifing-saat::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+  cursor: pointer;
+}
+.brifing-saat::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* ---------- Model seçimi: seçili modelin tam kimliği ---------- */
+.model-kimlik {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}

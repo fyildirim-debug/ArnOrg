@@ -11,6 +11,7 @@ import { api } from "../api/uclar";
 import { sozluk, useDil, useSozluk, type Sozluk } from "../dil";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
 import { testiAc, useSohbet } from "../durum/sohbet";
+import { rolModeli, useModelKatalogu } from "../durum/modeller";
 import { ceoBul, onayUygula, useVeri } from "../durum/veri";
 import type { Varliklar } from "../ofis/varliklar";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
@@ -79,6 +80,8 @@ function useBaglam(): Baglam {
   const roller = useVeri((d) => d.roller);
   const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
   const testKomutu = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.testKomutu ?? null);
+  // İşe alım teklifindeki model sürümlü adıyla görünür; katalog gelince yeniden çizilir
+  useModelKatalogu();
   return { s, dil, ajanlar, gorevler, roller, anaDal, testKomutu };
 }
 
@@ -165,7 +168,7 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
 
       const model = dize(v.model);
       if (model) ekle({ k: "model", etiket: t.alan.model, deger: modelAdi(model) });
-      else if (rol) ekle({ k: "model", etiket: t.alan.model, deger: `${modelAdi(rol.varsayilanModel)} · ${t.rolVarsayilani}` });
+      else if (rol) ekle({ k: "model", etiket: t.alan.model, deger: `${modelAdi(rolModeli(rol.varsayilanModel))} · ${t.rolVarsayilani}` });
 
       // Yönetici: kimlik, ad ya da açıkça null (kurul); hiç yoksa sunucu teklif edeni bağlar
       let yonetici: Ajan | undefined;

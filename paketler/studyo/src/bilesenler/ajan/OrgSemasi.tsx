@@ -2,6 +2,7 @@
 import type { Ajan } from "@arnorg/ortak";
 import { useMemo } from "react";
 import { useSozluk } from "../../dil";
+import { useModelKatalogu } from "../../durum/modeller";
 import { AjanAvatar, DurumNoktasi, modelAdi } from "../Kisi";
 
 interface Dugum {
@@ -35,6 +36,8 @@ function agacKur(ajanlar: Ajan[]): Dugum[] {
 
 export function OrgSemasi({ ajanlar, secili, sec }: { ajanlar: Ajan[]; secili: string | null; sec: (id: string) => void }) {
   const s = useSozluk();
+  // İpucundaki model sürümlü adıyla; katalog gelince yeniden çizilir
+  useModelKatalogu();
   const agac = useMemo(() => agacKur(ajanlar), [ajanlar]);
   const dal = (d: Dugum) => (
     <li key={d.ajan.id}>

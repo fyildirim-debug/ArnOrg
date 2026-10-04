@@ -2,6 +2,7 @@
 import { sozluk, useSozluk } from "../dil";
 import { KURUL, type Ajan, type AjanDurumu } from "@arnorg/ortak";
 import { ajanaGit } from "../durum/arayuz";
+import { modelAdi, useModelKatalogu } from "../durum/modeller";
 import { ilkHarf } from "../yardimcilar/bicim";
 import { KarakterPortresi, useAjanKarakteri } from "./KarakterSecici";
 
@@ -46,6 +47,8 @@ export function AjanKisi({
   tiklanir?: boolean;
 }) {
   const s = useSozluk();
+  // Model kataloğu gelince alt satırdaki sürümlü ad yenilenir
+  useModelKatalogu();
   const icerik = (
     <>
       <AjanAvatar ajan={ajan} boyut={boyut} />
@@ -94,10 +97,13 @@ export function DurumNoktasi({ durum }: { durum: AjanDurumu }) {
   return <i className={`nokta nokta-${durum}`} title={s.genel.ajanDurumu[durum]} aria-hidden="true" />;
 }
 
-const MODEL_ADLARI: Record<string, string> = { opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
+/** Modelin sürümlü adı (Fable 5.1, Opus 5.5): çekirdeğin model kataloğundan (durum/modeller.ts) */
+export { modelAdi };
 
-export function modelAdi(model: string): string {
-  return MODEL_ADLARI[model] ?? model;
+/** Modelin sürümlü adı; katalog gelince yeniden çizilir */
+export function ModelAdi({ model }: { model: string }) {
+  useModelKatalogu();
+  return <>{modelAdi(model)}</>;
 }
 
 /** Seçilebilir izin modları; adları sözlükte (s.genel.izinModu) */

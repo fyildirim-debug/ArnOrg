@@ -14,6 +14,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
 import { CalismaDuzeni, calismaDuzeniGecersiz } from "../bilesenler/CalismaDuzeni";
+import { BrifingAyari } from "../bilesenler/BrifingAyari";
 import { api } from "../api/uclar";
 import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
 import { ClaudeKurulumu } from "../bilesenler/ClaudeKurulumu";
@@ -193,6 +194,7 @@ export function Ayarlar() {
                 </div>
               </div>
               <CalismaDuzeni taslak={taslak} degistir={degistir} />
+              <BrifingAyari taslak={taslak} degistir={degistir} />
 
               <h2 className="ara-baslik">{t.cekirdek.baslik}</h2>
               <div className="form-izgara">

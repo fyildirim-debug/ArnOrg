@@ -263,7 +263,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         ad: z.string().min(2).max(40).describe(iki("Türkçe bir ad, ör. Deniz", "A first name, e.g. Ada")),
         rol: z.string().describe(iki("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci", "Role id: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci")),
         gerekce: z.string().min(10),
-        model: z.string().optional().describe(iki("opus, sonnet ya da haiku; boşsa rolün varsayılanı", "opus, sonnet or haiku; the role's default if empty")),
+        model: z.string().optional().describe(iki("fable, opus, sonnet ya da haiku; boşsa rolün varsayılanı", "fable, opus, sonnet or haiku; the role's default if empty")),
         yonetici: z.string().optional().describe(iki("Bağlanacağı çalışanın adı", "Name of the employee they will report to")),
         talimat_eki: z.string().optional(),
       },
@@ -287,7 +287,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             ben(),
             "ise_alim",
             iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
-            `${a.gerekce}\n\nModel: ${a.model ?? rol.varsayilanModel} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
+            `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
             veri,
           );
           return metin(

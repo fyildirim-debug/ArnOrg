@@ -31,6 +31,7 @@ import type {
   AkisOgesi,
   AramaSonucu,
   Ayarlar,
+  BrifingYaniti,
   CalismaAlani,
   DenetimKaydi,
   DosyaDugumu,
@@ -61,6 +62,7 @@ import type {
   KullanimOzeti,
   Mesaj,
   ModelAdi,
+  ModelKatalogu,
   NotDosyasi,
   NotIcerigi,
   Onay,
@@ -89,6 +91,8 @@ export const api = {
   ayarlariKaydet: (a: Partial<Ayarlar>) => istek<Ayarlar>("/api/ayarlar", { method: "PUT", govde: a }),
   hesap: (tazele = false) => istek<HesapDurumu>(`/api/hesap${tazele ? "?tazele=1" : ""}`),
   roller: () => istek<Rol[]>("/api/roller"),
+  /** Claude Code'un sunduğu modeller, sürümlü adlarıyla */
+  modeller: () => istek<ModelKatalogu>("/api/modeller"),
 
   // Projeler
   projeler: () => istek<ProjeOzeti[]>("/api/projeler"),
@@ -225,6 +229,8 @@ export const api = {
   esitle: (pid: string, gonder = false) => istek<EsitlemeSonucu>(`${proje(pid)}/esitle`, { method: "POST", govde: { gonder } }),
   githubDeposuAc: (pid: string, i: { ozel: boolean; sahip?: string }) => istek<ProjeOzeti>(`${proje(pid)}/github`, { method: "POST", govde: i }),
   hazirlik: (pid: string, islem: "baslat" | "atla") => istek<ProjeOzeti>(`${proje(pid)}/hazirlik`, { method: "POST", govde: { islem } }),
+  /** CEO'dan brifing: CEO #yonetim'e kısa durum özeti yazar; önceki istek hazırlanıyorsa "hazirlaniyor" */
+  brifingIste: (pid: string) => istek<BrifingYaniti>(`${proje(pid)}/brifing`, { method: "POST" }),
 
   // Ana yasa
   anayasa: (pid: string) => istek<Anayasa>(`${proje(pid)}/anayasa`),

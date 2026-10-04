@@ -7,7 +7,8 @@ export const ROLLER: Rol[] = [
     kimlik: "ceo",
     ad: "CEO",
     aciklama: "Brief'i hedefe çevirir, görevleri açar, kadro önerir, ekibi yönetir ve kurula rapor verir. Kod yazmaz.",
-    varsayilanModel: "opus",
+    // En güçlü model; hesabın kataloğunda yoksa işe alımda zincirde bir sonrakine (opus) düşülür (model-katalogu.ts)
+    varsayilanModel: "fable",
     yonetici: true,
     talimat: [
       "Sen bu yazılım şirketinin CEO'susun. Yalnız yönetim kuruluna (kullanıcı) bağlısın.",

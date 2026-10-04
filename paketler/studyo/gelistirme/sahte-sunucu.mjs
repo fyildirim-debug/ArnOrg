@@ -19,6 +19,7 @@ import { kur as surum004Kazanim } from "./surum-004-kazanim.mjs";
 import { kur as surum004Kalite } from "./surum-004-kalite.mjs";
 import { kur as surum004Tavan } from "./surum-004-tavan.mjs";
 import { kur as surum005Kanallar } from "./surum-005-kanallar.mjs";
+import { kur as surum005Brifing } from "./surum-005-brifing.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2140,6 +2141,8 @@ surum004Kalite({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(
 surum004Tavan({ rota, db, yay, ajanBul, akisEkle, projeYay, onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f), Hata });
 // 0.0.5: kurulun kanalları, üyeler ve serbest konuşma (surum-005-kanallar.mjs)
 surum005Kanallar({ rota, rotalar, db, yay, mesajEkle, ajanBul, projeGerekli, Hata });
+// 0.0.5: CEO brifingi, günlük brifing ayarı, sürümlü model kataloğu (surum-005-brifing.mjs)
+surum005Brifing({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, Hata, simdi, yeniKimlik });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

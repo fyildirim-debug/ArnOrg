@@ -7,6 +7,7 @@ import { kisalt } from "../yardimcilar/bicim";
 import { bildir, useArayuz } from "./arayuz";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import { kodDurumuUygula } from "./kodZekasi";
+import { modelKataloguUygula } from "./modeller";
 import { islemUygula, kurulumDurumuUygula } from "./kurulum";
 import { zekaOlayiUygula } from "./zeka";
 import {
@@ -65,6 +66,10 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "hesap.guncellendi":
       useVeri.setState({ hesap: olay.hesap });
+      return;
+
+    case "modeller.guncellendi":
+      modelKataloguUygula(olay.katalog);
       return;
 
     case "ajan.guncellendi":

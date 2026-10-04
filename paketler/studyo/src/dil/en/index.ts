@@ -23,6 +23,8 @@ import { kurulum } from "./kurulum";
 import { zeka } from "./zeka";
 import { sohbet } from "./sohbet";
 import { kalite } from "./kalite";
+import { brifing } from "./brifing";
+import { modeller } from "./modeller";
 
 export const en: Sozluk = {
   genel,
@@ -48,4 +50,6 @@ export const en: Sozluk = {
   zeka,
   sohbet,
   kalite,
+  brifing,
+  modeller,
 };

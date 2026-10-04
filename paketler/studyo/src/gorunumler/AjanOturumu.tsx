@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MesajFormu, OturumDugmeleri } from "../bilesenler/ajan/AjanEylemleri";
 import { TranskriptSatir, useTranskript } from "../bilesenler/ajan/Transkript";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
-import { AjanAvatar, AjanDurum, izinModuAdi, modelAdi } from "../bilesenler/Kisi";
+import { AjanAvatar, AjanDurum, izinModuAdi, ModelAdi } from "../bilesenler/Kisi";
 import { Simge } from "../bilesenler/Simge";
 import { useSozluk } from "../dil";
 import { git, useArayuz } from "../durum/arayuz";
@@ -110,7 +110,7 @@ function Oturum({ ajanId }: { ajanId: string }) {
         <div className="oturum-kim">
           <h1>{ajan.ad}</h1>
           <span>
-            {ajan.rolAdi} · {modelAdi(ajan.model)} · {izinModuAdi(ajan.izinModu)}
+            {ajan.rolAdi} · <ModelAdi model={ajan.model} /> · {izinModuAdi(ajan.izinModu)}
           </span>
         </div>
         <AjanDurum durum={ajan.durum} />

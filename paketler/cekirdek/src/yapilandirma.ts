@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Ayarlar, Dil } from "@arnorg/ortak";
+import { gunlukBrifingAyari, VARSAYILAN_GUNLUK_BRIFING } from "./brifing.js";
 import { rastgeleAnahtar } from "./yardimci.js";
 
 /** Sistem dili: Türkçe yerel ayarda "tr", diğerlerinde "en". ARNORG_DIL (tr/en) her şeyin önüne geçer */
@@ -31,12 +32,15 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   ghYolu: null,
   projeKoku: null,
   kurulumTamam: false,
+  gunlukBrifing: { ...VARSAYILAN_GUNLUK_BRIFING },
 };
 
 /** Yalnız bilinen ayarlar: eski sürümlerden kalan alanlar (ör. kaldırılan API girişi ve dolar bütçesi) okunmaz, açılışta dosyadan silinir */
 function ayikla(a: Ayarlar): Ayarlar {
   const temiz: Record<string, unknown> = {};
   for (const k of Object.keys(VARSAYILAN_AYARLAR)) temiz[k] = (a as unknown as Record<string, unknown>)[k];
+  // Elle bozulmuş günlük brifing ayarı varsayılana döner (her açılışta yeni nesne)
+  temiz.gunlukBrifing = gunlukBrifingAyari(temiz.gunlukBrifing);
   return temiz as unknown as Ayarlar;
 }
 
@@ -96,6 +100,7 @@ export class Yapilandirma {
     if (degisiklik.ghYolu !== undefined) temiz.ghYolu = degisiklik.ghYolu ? String(degisiklik.ghYolu) : null;
     if (degisiklik.projeKoku !== undefined) temiz.projeKoku = degisiklik.projeKoku?.trim() ? path.resolve(degisiklik.projeKoku.trim()) : null;
     if (typeof degisiklik.kurulumTamam === "boolean") temiz.kurulumTamam = degisiklik.kurulumTamam;
+    if (degisiklik.gunlukBrifing && typeof degisiklik.gunlukBrifing === "object") temiz.gunlukBrifing = gunlukBrifingAyari(degisiklik.gunlukBrifing, this.mevcut.gunlukBrifing);
     this.mevcut = { ...this.mevcut, ...temiz };
     fs.writeFileSync(this.ayarlarDosyasi, JSON.stringify(this.mevcut, null, 2), "utf8");
     return this.ayarlar;

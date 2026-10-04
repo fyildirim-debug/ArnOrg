@@ -64,6 +64,9 @@ import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type Siradak
 import { GorevTavani } from "./gorev-tavani.js";
 import { MesaiyeDonus } from "./mesaiye-donus.js";
 import { OzelKanallar } from "./ozel-kanallar.js";
+import type { BrifingKaynagi, BrifingYaniti } from "@arnorg/ortak";
+import { Brifing } from "./brifing.js";
+import { ModelKataloguIzleyici, sdkModelOkuyucu } from "./model-katalogu.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
 export { kisilikMetni } from "./talimat.js";
@@ -193,6 +196,10 @@ export class Sirket {
   readonly mesai: MesaiyeDonus;
   /** Kurulun kurduğu kanallar ve üyelerinin serbest konuşması (ozel-kanallar.ts, kanal-konusmasi.ts) */
   readonly kanallar: OzelKanallar;
+  /** CEO brifingi: kurulun düğmesi ve her gün seçilen saatte otomatik brifing (brifing.ts) */
+  readonly brifing: Brifing;
+  /** Claude Code'un sunduğu modeller, sürümlü adlarıyla; rolün varsayılan modeli buna göre seçilir (model-katalogu.ts) */
+  readonly modelKatalogu: ModelKataloguIzleyici;
 
   constructor(
     readonly depo: Depo,
@@ -290,6 +297,36 @@ export class Sirket {
       akisNotu: (id, metin) => this.akisEkle(id, { id: kimlik(), ajanId: id, zaman: simdi(), tur: "sistem", metin }),
     });
     olaylar.dinle((o) => this.gorevTavani.olay(o));
+    // Model kataloğu: testlerde ve oturumsuz kipte Claude Code açılmaz; liste önbellekten ya da sabit yedekten gelir
+    this.modelKatalogu = new ModelKataloguIzleyici({
+      depo,
+      olaylar,
+      okuyucu: oturumlarKapali ? null : sdkModelOkuyucu({ cwd: yapilandirma.veriDizini, claudeYolu: () => this.claudeYolu }),
+    });
+    this.brifing = new Brifing({
+      depo,
+      olaylar,
+      gunluk: () => this.yapilandirma.ayarlar.gunlukBrifing,
+      hesap: () => this.hesap.mevcut,
+      // CEO kurul kaynağıyla uyanır (eşzamanlı tavandan muaf); #yonetim'de "yazıyor" görünür
+      uyandir: async (ceo, metin) => {
+        this.yaziyorBaslat(ceo, "yonetim");
+        try {
+          await this.ajanaMesaj(ceo.id, metin, "next", { tur: "kurul" });
+        } catch (h) {
+          this.yaziyorBitir(ceo.id);
+          throw h;
+        }
+        if (!calisanMi(this.depo.ajan(ceo.id)?.durum)) this.yaziyorBitir(ceo.id);
+      },
+      erisilebilir: (p) => fs.existsSync(p.yol),
+      hata: (p, h) =>
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: iki(`Günlük brifing istenemedi (${p.ad}): ${h.message}`, `Could not ask for the daily briefing (${p.ad}): ${h.message}`), projeId: p.id }),
+    });
+    if (!oturumlarKapali) {
+      this.modelKatalogu.baslat();
+      this.brifing.baslat();
+    }
     // Yarım kalan ajanlar açılıştan ~30 sn sonra eşzamanlı tavana uyarak uyandırılır
     if (!oturumlarKapali) this.mesai.planla(() => void this.mesaiyeDon());
   }
@@ -672,7 +709,8 @@ export class Sirket {
       rol: rol.kimlik,
       // Kayıtlı rol adı işe alındığı dildedir (talimat ve metinler rolü kimliğinden geçerli dilde anar)
       rolAdi: rolMetni(rol, dil()).ad,
-      model: istek.model?.trim() || rol.varsayilanModel,
+      // Model verilmezse rolün varsayılanı; hesabın kataloğunda yoksa zincirde bir sonraki (CEO: fable yoksa opus)
+      model: istek.model?.trim() || this.modelKatalogu.rolModeli(rol.varsayilanModel),
       yoneticiId,
       durum: "kapali",
       isAciklamasi: "",
@@ -1604,6 +1642,11 @@ export class Sirket {
     return this.projeOzeti(projeId);
   }
 
+  /** CEO'dan brifing ister: Karargâh'taki düğme (kurul) ya da günlük zamanlayıcı; CEO yoksa 409 (brifing.ts) */
+  brifingIste(projeId: string, kaynak: BrifingKaynagi): Promise<BrifingYaniti> {
+    return this.brifing.iste(projeId, kaynak);
+  }
+
   private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
     const veri = onay.veri as { ajanId: string; dal: string; ozet: string; isteyenId?: string };
     const sahip = this.depo.ajan(veri.ajanId);
@@ -2404,6 +2447,8 @@ export class Sirket {
     this.hesap.durdur();
     this.kurulum.kapat();
     this.kuresel.durdur();
+    this.brifing.durdur();
+    this.modelKatalogu.durdur();
     for (const y of this.yaziyorlar.values()) clearTimeout(y.zamanlayici);
     if (this.esitlemeZamanlayici) clearInterval(this.esitlemeZamanlayici);
     this.kimlikYoklamasiniDurdur();

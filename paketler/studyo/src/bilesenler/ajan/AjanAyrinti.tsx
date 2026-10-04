@@ -5,17 +5,17 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { sozluk, useSozluk } from "../../dil";
 import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
+import { modelBilgisi, modelSecenegi, modelSecenekleri, useModelKatalogu } from "../../durum/modeller";
 import { ajanKaldir, ajanUygula, ceoBul, useVeri } from "../../durum/veri";
 import { ajanSekmesiSec, useZekaArayuz } from "../../durum/zeka";
 import { tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { KarakterSecici } from "../KarakterSecici";
-import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, modelAdi } from "../Kisi";
+import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, ModelAdi, modelAdi } from "../Kisi";
 import { Simge } from "../Simge";
 import { MesajFormu, OturumDugmeleri } from "./AjanEylemleri";
 import { AjanZekasiBolumu } from "./AjanZekasi";
 
-const MODELLER = ["opus", "sonnet", "haiku"];
 const IZIN_MODLARI = MODLAR as readonly IzinModu[];
 
 // Plan modundan çıkınca dönülecek mod; oturum boyunca bellekte tutulur
@@ -39,7 +39,7 @@ export function AjanAyrinti({ ajan, mesaj = true }: { ajan: Ajan; mesaj?: boolea
         <div className="kisi-metin">
           <b className="ajan-ayrinti-ad">{ajan.ad}</b>
           <small>
-            {ajan.rolAdi} · {modelAdi(ajan.model)}
+            {ajan.rolAdi} · <ModelAdi model={ajan.model} />
           </small>
         </div>
         <button type="button" className="dugme dugme-kucuk" onClick={() => ajanaGit(ajan.id)}>
@@ -131,7 +131,12 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const { suruyor, calistir } = useIslem();
   const [yoneticiId, setYoneticiId] = useState(ajan.yoneticiId ?? "");
   const [talimat, setTalimat] = useState(ajan.talimatEki);
-  const [ozelModel, setOzelModel] = useState(MODELLER.includes(ajan.model) ? "" : ajan.model);
+  // Seçenekler model kataloğundan, sürümlü ad ve kısa açıklamayla; listede olmayan model "Özel" ile girilir
+  const katalog = useModelKatalogu();
+  const modeller = modelSecenekleri(katalog);
+  const listede = modeller.some((m) => m.deger === ajan.model);
+  const kimlik = modelBilgisi(ajan.model, katalog)?.kimlik;
+  const [ozelModel, setOzelModel] = useState(listede ? "" : ajan.model);
 
   // Başka bir ajan seçilince ya da sunucudan güncelleme gelince alanları tazele
   useEffect(() => {
@@ -177,20 +182,21 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           <select
             id={`model-${ajan.id}`}
             className="secim"
-            value={MODELLER.includes(ajan.model) ? ajan.model : "ozel"}
+            value={listede ? ajan.model : "ozel"}
             disabled={suruyor !== null}
             onChange={(e) => {
               if (e.target.value !== "ozel") void modelDegistir(e.target.value);
               else setOzelModel(ajan.model);
             }}
           >
-            {MODELLER.map((m) => (
-              <option key={m} value={m}>
-                {modelAdi(m)}
+            {modeller.map((m) => (
+              <option key={m.deger} value={m.deger}>
+                {modelSecenegi(m, s)}
               </option>
             ))}
             <option value="ozel">{t.ozelModelSecenegi}</option>
           </select>
+          {kimlik && kimlik !== ajan.model ? <span className="alan-ipucu model-kimlik">{kimlik}</span> : null}
         </div>
         <div className="alan">
           <label htmlFor={`mod-${ajan.id}`}>{t.izinModu}</label>
@@ -209,7 +215,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           </select>
         </div>
       </div>
-      {!MODELLER.includes(ajan.model) || ozelModel ? (
+      {!listede || ozelModel ? (
         <div className="ayar-satir ayar-satir-tek">
           <input
             className="girdi"

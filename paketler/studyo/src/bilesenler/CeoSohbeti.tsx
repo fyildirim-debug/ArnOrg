@@ -1,7 +1,8 @@
 // Karargâh: CEO ile bire bir akan sohbet (#yonetim). Kurulun mesajı CEO'ya gider, CEO yanıtı buraya yazar.
 // Kurul sağda ve kâğıt tonunda, CEO solda; balon ve gölge yok, ayrım kıl çizgi ve tipografiyle.
 // Yeni mesajda alta iner; kullanıcı yukarı kaydırdıysa inmez ve "yeni mesaj" düğmesi çıkar. Hazırlık görüşmesi
-// bekliyorsa sohbetin üstünde kısa bir çağrı, sürüyorsa ince bir durum satırı durur.
+// bekliyorsa sohbetin üstünde kısa bir çağrı, sürüyorsa ince bir durum satırı durur. Başlıktaki "Brifing ver" CEO'dan
+// durum özeti ister; CEO'nun brifingi bölümleriyle (BrifingMesaji) çizilir.
 import { ARNORG_GONDEREN, kanalGorunenAdi, KURUL, type Ajan, type Mesaj, type ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useMemo, useState } from "react";
 import { api } from "../api/uclar";
@@ -10,9 +11,12 @@ import { ajanaGit, bildir } from "../durum/arayuz";
 import { useSohbet, yanitIstegiAlindi } from "../durum/sohbet";
 import { ceoBul, kanalMesajlariniYukle, kanalOkundu, mesajUygula, projeUygula, useVeri } from "../durum/veri";
 import { saat, tarih } from "../yardimcilar/bicim";
+import { brifingAyir } from "../yardimcilar/brifing";
 import { useIslem } from "../yardimcilar/kancalar";
 import { useAltaYapisik, useYeniGelenler } from "./altaYapis";
 import { AnmaliYazi } from "./AnmaliYazi";
+import { BrifingDugmesi } from "./BrifingDugmesi";
+import { BrifingMesaji } from "./BrifingMesaji";
 import { Bos, HataKutu, Iskelet } from "./Durumlar";
 import { AjanAvatar, AjanDurum } from "./Kisi";
 import { alintiyla, gunEtiketi, gunlereAyir } from "./mesajGruplari";
@@ -89,6 +93,7 @@ export function CeoSohbeti() {
         ) : null}
         {ceo ? <AjanDurum durum={ceo.durum} /> : null}
         <small className="sohbet-kanal">{c.kanal(kanalGorunenAdi(KANAL, dil))}</small>
+        {ceo && pid ? <BrifingDugmesi pid={pid} ceo={ceo} /> : null}
       </header>
 
       {proje && ceo ? <HazirlikCagrisi proje={proje} ceoAdi={ceo.ad} /> : null}
@@ -174,6 +179,8 @@ function SohbetMesaji({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: bo
   const kurul = mesaj.gonderenId === KURUL;
   const sistem = mesaj.gonderenId === ARNORG_GONDEREN;
   const ajan = kurul || sistem ? undefined : ajanlar.find((a) => a.id === mesaj.gonderenId);
+  // CEO'nun brifingi (dört bölümden en az üçü) bölümleriyle çizilir
+  const brifing = useMemo(() => (ajan?.rol === "ceo" ? brifingAyir(mesaj.metin) : null), [ajan?.rol, mesaj.metin]);
 
   if (sistem) {
     return (
@@ -205,12 +212,11 @@ function SohbetMesaji({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: bo
               <b>{mesaj.gonderenAd}</b>
             )}
             {ajan ? <span className="sohbet-rol">{ajan.rolAdi}</span> : null}
+            {brifing ? <span className="sohbet-brifing">{s.brifing.etiket}</span> : null}
             <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time>
           </p>
         ) : null}
-        <div className="sohbet-metin">
-          <MesajMetni metin={mesaj.metin} />
-        </div>
+        <div className="sohbet-metin">{brifing ? <BrifingMesaji brifing={brifing} /> : <MesajMetni metin={mesaj.metin} />}</div>
       </div>
     </li>
   );

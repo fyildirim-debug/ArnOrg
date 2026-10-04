@@ -4,12 +4,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { sozluk, useDil, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
+import { modelSecenegi, modelSecenekleri, rolModeli, useModeller, useModelKatalogu } from "../../durum/modeller";
 import { ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu, Yukleniyor } from "../Durumlar";
 import { KarakterSecici } from "../KarakterSecici";
-import { modelAdi } from "../Kisi";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
   const s = useSozluk();
@@ -27,6 +27,9 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [karakter, setKarakter] = useState<string | null>(null);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
+  // Model seçenekleri katalogdan; rolün modeli katalogda yoksa zincirde bir sonraki önerilir (CEO: Fable yoksa Opus)
+  const katalog = useModelKatalogu();
+  const modeller = modelSecenekleri(katalog);
 
   useEffect(() => {
     rolleriYukle()
@@ -34,13 +37,14 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
         const ilk = r.find((x) => !x.yonetici) ?? r[0];
         if (ilk) {
           setRol((o) => o || ilk.kimlik);
-          setModel((o) => o || ilk.varsayilanModel);
+          setModel((o) => o || rolModeli(ilk.varsayilanModel, useModeller.getState().katalog));
         }
       })
       .catch((e: unknown) => setRollerHata(e instanceof Error ? e.message : sozluk().ekip.iseAlim.rollerAlinamadi));
   }, []);
 
   const secilenRol = roller.find((r) => r.kimlik === rol);
+  const rolunModeli = secilenRol ? rolModeli(secilenRol.varsayilanModel, katalog) : null;
   const adHata = !ad.trim()
     ? t.adGerekli
     : ajanlar.some((a) => a.ad.toLocaleLowerCase("tr-TR") === ad.trim().toLocaleLowerCase("tr-TR"))
@@ -113,7 +117,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             onChange={(e) => {
               setRol(e.target.value);
               const r = roller.find((x) => x.kimlik === e.target.value);
-              if (r) setModel(r.varsayilanModel);
+              if (r) setModel(rolModeli(r.varsayilanModel, katalog));
             }}
           >
             {roller.map((r) => (
@@ -127,13 +131,13 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
         <div className="alan">
           <label htmlFor="ise-model">{t.model}</label>
           <select id="ise-model" className="secim" value={model} onChange={(e) => setModel(e.target.value)}>
-            {["opus", "sonnet", "haiku"].map((m) => (
-              <option key={m} value={m}>
-                {modelAdi(m)}
-                {secilenRol?.varsayilanModel === m ? t.rolOnerisi : ""}
+            {modeller.map((m) => (
+              <option key={m.deger} value={m.deger}>
+                {modelSecenegi(m, s)}
+                {rolunModeli === m.deger ? t.rolOnerisi : ""}
               </option>
             ))}
-            {model && !["opus", "sonnet", "haiku"].includes(model) ? <option value={model}>{model}</option> : null}
+            {model && !modeller.some((m) => m.deger === model) ? <option value={model}>{model}</option> : null}
           </select>
         </div>
         <div className="alan">

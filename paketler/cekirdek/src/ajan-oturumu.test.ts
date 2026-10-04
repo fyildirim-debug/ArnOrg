@@ -150,8 +150,11 @@ describe("ajan oturumu ve Claude Code kimlik sorunları", () => {
 });
 
 describe("tur tavanı, yedek model ve duraklatma", () => {
-  it("yedek model: opus → sonnet, sonnet → haiku; haiku ve bilinmeyen için yok", () => {
+  it("yedek model: fable → opus, opus → sonnet, sonnet → haiku; haiku ve bilinmeyen için yok", () => {
+    expect(yedekModel("fable")).toBe("opus");
+    expect(yedekModel("claude-fable-5-1")).toBe("opus");
     expect(yedekModel("opus")).toBe("sonnet");
+    expect(yedekModel("claude-opus-5-5")).toBe("sonnet");
     expect(yedekModel("claude-opus-4-5")).toBe("sonnet");
     expect(yedekModel("sonnet")).toBe("haiku");
     expect(yedekModel("claude-sonnet-4-5[1m]")).toBe("haiku");
@@ -183,6 +186,8 @@ describe("tur tavanı, yedek model ve duraklatma", () => {
       const s = sahte.secenekler.at(-1)!;
       return { model: s.model, yedek: s.fallbackModel, tur: s.maxTurns };
     };
+    expect(await acVeOku("fable")).toEqual({ model: "fable", yedek: "opus", tur: AJAN_TUR_TAVANI });
+    expect(await acVeOku("fable", "haiku")).toEqual({ model: "haiku", yedek: undefined, tur: 200 });
     expect(await acVeOku("opus")).toEqual({ model: "opus", yedek: "sonnet", tur: AJAN_TUR_TAVANI });
     expect(await acVeOku("sonnet")).toEqual({ model: "sonnet", yedek: "haiku", tur: 200 });
     expect(await acVeOku("haiku")).toEqual({ model: "haiku", yedek: undefined, tur: 200 });

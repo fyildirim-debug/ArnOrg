@@ -19,7 +19,7 @@ export const DIL_ADLARI: Record<Dil, string> = { tr: "Türkçe", en: "English" }
 export type IzinModu = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk" | "auto";
 
 /** Claude model takma adı ya da tam model kimliği */
-export type ModelAdi = "opus" | "sonnet" | "haiku" | (string & {});
+export type ModelAdi = "fable" | "opus" | "sonnet" | "haiku" | (string & {});
 
 export interface Saglik {
   surum: string;
@@ -68,6 +68,13 @@ export interface Ayarlar {
   projeKoku: string | null;
   /** İlk açılış hazırlığı (dil, Claude, GitHub, ilk proje) bitti ya da atlandı */
   kurulumTamam: boolean;
+
+  // ---- 0.0.5 · CEO brifingi ----
+  /**
+   * Günlük otomatik brifing: açıkken CEO her gün bu saatte (yerel saat) kurula #yonetim'de brifing verir. Uygulama o
+   * saatte kapalıysa açılınca aynı gün içinde bir kez verilir; son brifingden bu yana hiçbir şey olmadıysa atlanır.
+   */
+  gunlukBrifing: GunlukBrifingAyari;
 }
 
 // ---------------------------------------------------------------------------
@@ -1121,6 +1128,8 @@ export type SunucuOlayi =
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
   | { tur: "kullanim"; projeId: string; ajanId: string; bugunToken: number; toplamToken: number }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
+  /** Claude Code'un model listesi değişti (giriş, kurulum ya da plan değişince yeniden okunur) */
+  | { tur: "modeller.guncellendi"; katalog: ModelKatalogu }
   | { tur: "hafiza.yeni"; kayit: HafizaKaydi }
   | { tur: "hafiza.silindi"; projeId: string; id: string }
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
@@ -1512,4 +1521,57 @@ export interface KodZekasiModelBilgisi {
   indirildi: boolean;
   /** Diskteki boyut (MB); indirilmediyse 0 */
   diskMb: number;
+}
+
+// ---------------------------------------------------------------------------
+// CEO brifingi (0.0.5): kurul Karargâh'taki düğmeyle ya da her gün seçtiği saatte CEO'dan #yonetim'e kısa durum
+// özeti ister. Uç: POST /api/projeler/:pid/brifing; ayar: Ayarlar.gunlukBrifing (docs/API.md, "CEO brifingi")
+// ---------------------------------------------------------------------------
+
+/** Günlük otomatik brifing ayarı */
+export interface GunlukBrifingAyari {
+  acik: boolean;
+  /** Yerel saat, "HH:MM" (24 saat) */
+  saat: string;
+}
+
+/** Brifingi kim istedi: kurul (Karargâh'taki düğme) ya da günlük zamanlayıcı */
+export type BrifingKaynagi = "kurul" | "gunluk";
+
+/** POST /api/projeler/:pid/brifing yanıtı: istendi (CEO uyandırıldı) · hazirlaniyor (önceki istek hâlâ hazırlanıyor) */
+export interface BrifingYaniti {
+  durum: "istendi" | "hazirlaniyor";
+}
+
+/**
+ * Brifingin dört bölümünün başlığı. CEO brifingi bu başlıklarla yazar; Stüdyo brifing mesajını iki dilde de bunlardan
+ * tanır (mesaj yazıldığı dilde kalır, arayüz dili değişse de).
+ */
+export const BRIFING_BOLUMLERI: Record<Dil, readonly [string, string, string, string]> = {
+  tr: ["Yaptıklarımız", "Şu an", "Sıradaki", "Kararınızı bekleyen"],
+  en: ["What we did", "Right now", "Up next", "Awaiting your decision"],
+};
+
+// ---------------------------------------------------------------------------
+// Model kataloğu (0.0.5): Claude Code'un bu hesapta sunduğu modeller, sürümlü adlarıyla (GET /api/modeller)
+// ---------------------------------------------------------------------------
+
+export interface ModelBilgisi {
+  /** Ajana yazılan değer: takma ad (fable, opus, sonnet, haiku) ya da tam kimlik */
+  deger: ModelAdi;
+  /** Sürümlü görünen ad: "Fable 5.1", "Opus 5.5" */
+  ad: string;
+  /** Tam model kimliği: claude-opus-5-5; bilinmiyorsa null */
+  kimlik: string | null;
+  /** Claude Code'un kısa açıklaması (İngilizce): "Best for everyday, complex tasks"; Stüdyo bilinen modellerde kendi metnini gösterir */
+  aciklama: string;
+}
+
+export interface ModelKatalogu {
+  /** Seçilebilir modeller ("default" satırı çıkarılmış), Claude Code'un verdiği sırayla */
+  modeller: ModelBilgisi[];
+  /** claude: bu açılışta Claude Code'dan okundu · onbellek: son okunan liste · yedek: ArnOrg'un bildiği sabit liste */
+  kaynak: "claude" | "onbellek" | "yedek";
+  /** Listenin Claude Code'dan son okunduğu an; yedekte null */
+  guncelleme: Zaman | null;
 }

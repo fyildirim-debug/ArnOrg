@@ -159,6 +159,7 @@ const semalar = {
     ghYolu: z.string().max(1000).nullable().optional(),
     projeKoku: z.string().max(1000).nullable().optional(),
     kurulumTamam: z.boolean().optional(),
+    gunlukBrifing: z.object({ acik: z.boolean(), saat: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: () => iki("Saat SS:DD biçiminde olmalı.", "The time must be in HH:MM format.") }) }).optional(),
   }),
   politika: z.array(
     z.object({
@@ -280,6 +281,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   // Claude girişi ve abonelik kullanımı; ?tazele=1 Claude Code'a yeniden sorar
   app.get("/api/hesap", async (i) => (sorgu(i, "tazele") === "1" ? sirket.hesap.tazele() : sirket.hesap.mevcut));
   app.get("/api/roller", async () => ROLLER);
+  // Claude Code'un sunduğu modeller sürümlü adlarıyla; değişince "modeller.guncellendi" yayınlanır
+  app.get("/api/modeller", async () => sirket.modelKatalogu.mevcut);
 
   // ---------------- kurulum: Claude Code, git, GitHub CLI ----------------
   app.get("/api/kurulum", async (i) => sirket.kurulum.durum(sorgu(i, "tazele") === "1"));
@@ -326,6 +329,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const islem = z.object({ islem: z.enum(["baslat", "atla"]) }).parse(i.body ?? {}).islem;
     return islem === "baslat" ? sirket.hazirlikBaslat(pid) : sirket.projeGuncelle(pid, { hazirlik: "atlandi" });
   });
+  // CEO brifingi: CEO #yonetim'e kısa durum özeti yazar; önceki istek hazırlanıyorsa yeni uyandırma açılmaz
+  app.post("/api/projeler/:pid/brifing", async (i) => sirket.brifingIste(param(i, "pid"), "kurul"));
 
   // ---------------- ana yasa ----------------
   app.get("/api/projeler/:pid/anayasa", async (i) => {

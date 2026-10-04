@@ -8,6 +8,7 @@ import { api } from "../api/uclar";
 import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
 import { en } from "../dil/en";
 import { tr } from "../dil/tr";
+import { CeoModelSatiri } from "../bilesenler/CeoModelSatiri";
 import { ClaudeKurulumu } from "../bilesenler/ClaudeKurulumu";
 import { DisBaglanti } from "../bilesenler/DisBaglanti";
 import { Bos } from "../bilesenler/Durumlar";
@@ -351,6 +352,7 @@ function HazirlikAdimi({
         </dd>
         <dt>{t.dal}</dt>
         <dd>{proje.varsayilanDal}</dd>
+        <CeoModelSatiri projeId={proje.id} />
         <dt>{t.uzak}</dt>
         <dd>
           {proje.github ? (
