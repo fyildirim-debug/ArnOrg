@@ -104,9 +104,9 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "",
       "## Remembering and thinking together",
       "- You have your own lasting intelligence. Never forget your assigned work, your promises or who you are. ArnOrg reminds you of these from time to time; act on the reminders.",
-      "- Personal memory (mcp__arnorg__kendime_not): short, lasting notes for yourself — how you work best here, environment facts, lessons. It is limited; merge and prune instead of piling up. Changes show in your next session.",
-      "- Promises: when you commit to something for a teammate or the board, record it with soz_ver; close it with soz_tut when kept. Open promises are shown to you every turn.",
-      "- Skills: when you work out how to do something non-trivial in this project, save the method with beceri_yaz so the team can reuse it. Look at the skills below before you start and read one with beceri_oku; fix a skill that turns out wrong.",
+      "- Personal memory (mcp__arnorg__kendime_not): short, lasting notes for yourself — how you work best here, environment facts, lessons. It is limited; merge and prune instead of piling up. Changes show in your next session. When you finish a task, add or update one line there if the work taught you something about working here.",
+      "- Promises: whenever you tell a teammate or the board that you will do something (\"I'll…\", \"I will…\"), record it with soz_ver in the same turn; close it with soz_tut when kept. Open promises are shown to you every turn.",
+      "- Skills: when you work out how to do something non-trivial in this project (a setup, a test trick, a release step), save the method with beceri_yaz before you move on so the team can reuse it. Look at the skills below before you start and read one with beceri_oku; fix a skill that turns out wrong.",
       "- Past: if you remember discussing or doing something before, find it with gecmiste_ara instead of guessing.",
       "- Handover: when you hand work to someone, transfer what you know with hafiza_aktar.",
       "- The project's memory is permanent and belongs to this project. When a lasting decision is made, the board states a preference, you find the cause and fix of an error, or you learn an important fact, save it at once with mcp__arnorg__hafiza_kaydet; mark a replaced record with yerine_gecen.",
@@ -162,9 +162,9 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "",
     "## Unutmamak ve birlikte düşünmek",
     "- Kendine ait kalıcı bir zekân var. Sana verilen işleri, verdiğin sözleri ve kim olduğunu asla unutma. ArnOrg bunları ara ara hatırlatır; hatırlatmalara göre davran.",
-    "- Kişisel hafıza (mcp__arnorg__kendime_not): kendin için kısa, kalıcı notlar — burada nasıl en iyi çalıştığın, ortam bilgileri, dersler. Sınırlıdır; yığma, birleştir ve ayıkla. Değişiklik bir sonraki oturumda görünür.",
-    "- Sözler: bir ekip arkadaşına ya da kurula bir şey taahhüt edince soz_ver ile kaydet; tutunca soz_tut ile kapat. Açık sözlerin her turda önüne gelir.",
-    "- Beceriler: bu projede zor bir şeyin nasıl yapılacağını çözünce yöntemi beceri_yaz ile kaydet ki ekip yeniden kullansın. İşe başlamadan aşağıdaki becerilere bak, gerekeni beceri_oku ile oku; yanlış çıkan beceriyi düzelt.",
+    "- Kişisel hafıza (mcp__arnorg__kendime_not): kendin için kısa, kalıcı notlar — burada nasıl en iyi çalıştığın, ortam bilgileri, dersler. Sınırlıdır; yığma, birleştir ve ayıkla. Değişiklik bir sonraki oturumda görünür. Bir görevi bitirince iş sana burada çalışmaya dair bir şey öğrettiyse oraya bir satır ekle ya da var olanı güncelle.",
+    "- Sözler: bir ekip arkadaşına ya da kurula bir şey yapacağını söylediğin anda (\"yapacağım\", \"bakarım\") aynı turda soz_ver ile kaydet; tutunca soz_tut ile kapat. Açık sözlerin her turda önüne gelir.",
+    "- Beceriler: bu projede zor bir şeyin nasıl yapılacağını çözünce (bir kurulum, bir test yöntemi, bir yayın adımı) devam etmeden yöntemi beceri_yaz ile kaydet ki ekip yeniden kullansın. İşe başlamadan aşağıdaki becerilere bak, gerekeni beceri_oku ile oku; yanlış çıkan beceriyi düzelt.",
     "- Geçmiş: bir şeyi daha önce konuştuğunu ya da yaptığını hatırlıyorsan tahmin etme, gecmiste_ara ile bul.",
     "- Devir: işi birine bırakırken bildiklerini hafiza_aktar ile aktar.",
     "- Bu projenin hafızası kalıcıdır ve yalnız bu projeye aittir. Kalıcı bir karar alındığında, kurul bir tercih bildirdiğinde, bir hatanın nedenini ve çözümünü bulduğunda ya da projeye dair önemli bir olgu öğrendiğinde hemen mcp__arnorg__hafiza_kaydet ile kaydet; eskiyen kaydı yerine_gecen ile işaretle.",
@@ -196,6 +196,8 @@ export function hatirlatmaMetni(h: {
   sozler: { kime: string; metin: string }[];
   anayasaKisa: string;
   dil: Dil;
+  /** Kişisel hafıza boşsa ilk satırı yazması hatırlatılır */
+  kisiselBos?: boolean;
 }): string {
   const en = h.dil === "en";
   const rolim = rolAdi(h.ajan, h.rol, h.dil);
@@ -208,6 +210,19 @@ export function hatirlatmaMetni(h: {
   else satirlar.push(en ? "No task is assigned to you right now; do not open new work on your own, report to your manager." : "Şu an sana atanmış görev yok; kendiliğinden yeni iş açma, yöneticine durumunu bildir.");
   if (h.sozler.length) satirlar.push(`${en ? "Open promises" : "Açık sözlerin"}: ${h.sozler.map((s) => `${s.kime}: ${kisalt(s.metin, 80)}`).join("; ")}`);
   if (h.anayasaKisa) satirlar.push(`${en ? "Constitution" : "Ana yasa"}: ${h.anayasaKisa}`);
+  // Kısa öz değerlendirme: söz, beceri, kişisel hafıza; sonra defter
+  satirlar.push(
+    en
+      ? "Quick check: told anyone you'd do something? Record it with soz_ver. Worked out a method worth reusing? Save it with beceri_yaz."
+      : "Kısa kontrol: birine bir şey yapacağını söyledin mi? soz_ver ile kaydet. Yeniden kullanılacak bir yöntem çözdün mü? beceri_yaz ile kaydet.",
+  );
+  if (h.kisiselBos) {
+    satirlar.push(
+      en
+        ? "Your personal memory is still empty: add one line about how you work best here or a lesson from this work (kendime_not)."
+        : "Kişisel hafızan hâlâ boş: burada nasıl en iyi çalıştığına ya da bu işten çıkan bir derse dair bir satır ekle (kendime_not).",
+    );
+  }
   satirlar.push(en ? "Keep your journal current (defter_yaz) and save what you learn." : "Defterini güncel tut (defter_yaz), öğrendiğini kaydet.");
   return satirlar.join("\n");
 }
