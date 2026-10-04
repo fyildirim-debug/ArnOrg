@@ -1,9 +1,15 @@
 // Ofis motoru: React dışında çalışan canlı sahne. Karakterler, davranışlar, sahneler (üreteç işlevleri),
-// balonlar, kamera ve requestAnimationFrame döngüsü. React yalnız veri ve olay iletir; her karede
-// React durumu güncellenmez, konumlar doğrudan transform ile yazılır.
+// balonlar, efektler, kamera (takip ve canlı yayın) ve requestAnimationFrame döngüsü. React yalnız veri ve olay
+// iletir; her karede React durumu güncellenmez, konumlar doğrudan transform ile yazılır.
 //
 // Motor proje başına bir kez kurulur ve bellekte kalır (bellek.ts): Ofis ekranı açılınca bagla() ile sahneye
 // takılır, ekrandan çıkınca ayir() ile durur. Geri gelindiğinde kişiler, etkinlikleri ve kamera aynen sürer.
+//
+// Oyun gibi canlılık: yürürken adım ve sallanma, dururken nefes, masada yazma (monitör titrer), araç sonuçları
+// arasında düşünme noktaları, uzun boşlukta uyuklama, kanal mesajında kısa balon ve anılana ışık izi, görev
+// bitince kutlama, birleşmede sunucu odasında ışık, test laboratuvarında geçti/kaldı ışığı, kurul masasında onay
+// işareti, kahve buharı, bitki salınımı, yerel saate göre gün ışığı. Hareket azaltılınca süsler ve kamera dolaşması
+// kapanır; sekme gizliyken döngü durur; yavaş makinede 30 fps'e iner ve efekt bütçesi küçülür.
 import {
   kanalGorunenAdi,
   KURUL,
@@ -20,14 +26,35 @@ import {
 } from "@arnorg/ortak";
 import { karakterBul, karakterMetni, type KarakterTanimi, type OfisYeri } from "@arnorg/ortak/karakterler";
 import { sozluk, useDilDurumu } from "../dil";
-import { esyaOgesi, PANO_SUTUNLARI, panoOgesi, panoYazilari, sicakAdi, zeminSvg, type PanoOgesi } from "./cizim";
+import {
+  arastirmaEkraniOgesi,
+  buharOgesi,
+  esyaOgesi,
+  kapiOgesi,
+  kureOgesi,
+  PANO_SUTUNLARI,
+  panoOgesi,
+  panoYazilari,
+  sicakAdi,
+  sunumEkraniOgesi,
+  testPanosuOgesi,
+  zeminSvg,
+  type ArastirmaEkrani,
+  type PanoOgesi,
+  type SunumEkrani,
+  type TestPanosu,
+} from "./cizim";
+import { EfektHavuzu, efektButcesi, egriNoktasi, konfeti, yayKontrolu } from "./efektler";
 import { Kamera, kameraOku, kameraYaz, type KameraDurumu } from "./kamera";
 import { projeAtamalari } from "./karakterAtama";
 import { adayKarakteri, ozet } from "./karakterSecimi";
-import { aracYeri, yerDurumu, yerKarari, yerOlayi, yerVarisi, type YerDurumu } from "./etkinlikYeri";
+import { aracYeri, aramaMetni, komutMetni, komutTuru, testSonucu, yerDurumu, yerKarari, yerOlayi, yerVarisi, type YerDurumu, type YerTuru } from "./etkinlikYeri";
+import { gunIsigi, KareOlcer } from "./ortam";
+import { sonrakiCekim, yeniCekim, type Cekim, type YayinAdayi } from "./yayin";
 import { gerekenMasa, masaAtamasiOku, masaAtamasiYaz, masalariAta } from "./masaAtama";
 import { adlariBul, balonMetni, toplantiDuyurusu, toplantiSorusuMu } from "./metin";
 import { aracSimgesi, simgeSvg, type OfisSimgesi } from "./simgeler";
+import { sunumSec, teslimVerisi } from "./teslim";
 import { esyaOranlari, varlikAdresi, type KarakterVarligi, type Varliklar } from "./varliklar";
 import {
   KARAKTER_BOYU,
@@ -37,10 +64,12 @@ import {
   noktaKarosu,
   yerlesimKur,
   yurunebilirMi,
+  type Istasyon,
   type Karo,
   type Koltuk,
   type Masa,
   type Nokta,
+  type OdaKimligi,
   type SicakNokta,
   type Yerlesim,
 } from "./yerlesim";
@@ -52,13 +81,43 @@ import { enYakinAcik, rota, uzunluk, yakinBos } from "./yol";
 
 export type OfisHedefi = "onaylar" | "denetim" | "pano" | "kod" | "notlar" | "kanallar";
 
-export type AkisTuru = "mesaj" | "gorev" | "onay" | "hafiza" | "soru" | "giris" | "cikis" | "birlesme" | "kurul" | "toplanti" | "bildirim";
+export type AkisTuru =
+  | "mesaj"
+  | "gorev"
+  | "onay"
+  | "hafiza"
+  | "soru"
+  | "giris"
+  | "cikis"
+  | "birlesme"
+  | "kurul"
+  | "toplanti"
+  | "bildirim"
+  | "arastirma"
+  | "test"
+  | "teslim";
 
 export interface AkisSatiri {
   id: number;
   zaman: number;
   tur: AkisTuru;
   metin: string;
+  /** Olayın kişisi: şeritte satıra basınca kamera ona gider (ve takip eder) */
+  ajanId?: string;
+  /** Kişisi olmayan olayın yeri (kurul masası, sunucu odası, laboratuvar) */
+  nokta?: Nokta;
+}
+
+/** Kameranın kipi: ekranın düğmeleri bunu gösterir */
+export interface KameraModu {
+  /** Canlı yayın açık */
+  yayin: boolean;
+  /** Takip edilen kişi */
+  takip: { id: string; ad: string } | null;
+  /** Yayında şu an gösterilen kişinin adı */
+  yayinda: string | null;
+  /** Hareket azaltılmış: yayın kullanılamaz */
+  azHareket: boolean;
 }
 
 export interface MotorCagrilari {
@@ -66,6 +125,8 @@ export interface MotorCagrilari {
   git: (hedef: OfisHedefi, p?: { kanal?: string }) => void;
   akis: (satir: AkisSatiri) => void;
   ozet: (metin: string) => void;
+  /** Kamera kipi değişti (yayın, takip, yayındaki kişi) */
+  kamera?: (m: KameraModu) => void;
 }
 
 export interface MotorVerisi {
@@ -88,10 +149,25 @@ export interface MotorBaglantisi {
   cagrilar: MotorCagrilari;
   /** Sığdırırken üstte bırakılacak pay */
   ustPay: () => number;
+  /** Sığdırırken altta bırakılacak pay (olay şeridi) */
+  altPay?: () => number;
 }
 
 /** "Ofiste şimdi" geçmişi: ekran yeniden açılınca son satırlar geri gelir */
-const AKIS_GECMISI = 8;
+const AKIS_GECMISI = 12;
+/** Canlı yayın tercihi bu tarayıcıda saklanır */
+const YAYIN_ANAHTARI = "arnorg.ofis.yayin";
+
+/** Test laboratuvarının durumu */
+type LabDurumu = "bos" | "hazirlik" | "kosuyor" | "gecti" | "kaldi";
+/** Sonuç ışığının yanık kaldığı süre (ms); kalan iş kırmızıda daha uzun durur */
+const GECTI_SURESI = 14_000;
+const KALDI_SURESI = 26_000;
+/** Kısa konuşma balonu: ilk ~40 karakter, 4 sn */
+const KISA_BALON = 40;
+const KISA_BALON_SURESI = 4000;
+/** Boşta bu kadar kalan, durunca uyuklar */
+const UYUKLAMA = 90_000;
 
 // ---------------------------------------------------------------------------
 // İç tipler
@@ -191,7 +267,8 @@ interface Kisi {
   // davranış
   masa: Masa | null;
   is: Calisma | null;
-  kuyruk: { ad: string; gen: () => Senaryo; son?: () => void }[];
+  /** Bekleyen sahneler (en çok üç); öncelikli olan sıranın başına geçer ve taşmada düşmez */
+  kuyruk: { ad: string; gen: () => Senaryo; son?: () => void; oncelikli?: boolean }[];
   kaliciTur: KaliciTur;
   rezerv: number | null;
   etkinlik: string;
@@ -215,9 +292,44 @@ interface Kisi {
   /** Dururken yüzü: pano, raf, tahta ya da dolaba bakarken arkası döner (arkadan görünüşü varsa) */
   bakis: "on" | "arka";
   balonlar: Balon[];
-  bekleyenBalon: { metin: string; tip: BalonTipi; simge?: OfisSimgesi; ust?: string }[];
+  bekleyenBalon: { metin: string; tip: BalonTipi; simge?: OfisSimgesi; ust?: string; sure?: number }[];
+  // canlılık
+  /** Düşünme noktaları bu ana kadar; dusunceBaslar gelince başlar (araç sonucundan sonra model düşünürken) */
+  dusunceBitis: number;
+  dusunceBaslar: number;
+  dusunceEl: HTMLSpanElement;
+  /** Masada yazma (Edit, Write, model metni) bu ana kadar: monitör titrer, gövde hafifçe kıpırdar */
+  yazmaBitis: number;
+  /** Kutlama zıplamasının başladığı an */
+  ziplaBas: number;
+  /** Boşta kalmaya başladığı an (uyuklama için) ve son kımıldadığı an */
+  bostaBas: number;
+  sonHareket: number;
+  /** Kanala yazdığı kısa balon sürerken etkinliği */
+  kanalYazisi: { kanal: string; bitis: number } | null;
+  /** Konuşmaya yürüdü: varınca sözsüz konuşma göstergesi */
+  konusmaBitis: number;
+  /** Son araştırma sorgusu ve son test/derleme komutu (akış satırı) */
+  sonSorgu: string;
+  sonKomut: string;
   // yazılan son değerler (gereksiz DOM yazımını önler)
-  yaz: { tf: string; z: number; govde: string; kirp: string; ust: string; op: string; durum: string; etiket: string; isaret: string; ad: string; is: string; oturan: boolean; arka: boolean };
+  yaz: {
+    tf: string;
+    z: number;
+    govde: string;
+    kirp: string;
+    ust: string;
+    op: string;
+    durum: string;
+    etiket: string;
+    isaret: string;
+    ad: string;
+    is: string;
+    oturan: boolean;
+    arka: boolean;
+    dusunce: boolean;
+    konusma: boolean;
+  };
   sonEtiketZamani: number;
 }
 
@@ -235,6 +347,14 @@ interface Ucan {
   t0: number;
   sure: number;
   sonra: () => void;
+}
+
+/** Canlı yayın ve şerit için olay: yeri, kişisi ve doğduğu an */
+interface SahneOlayi {
+  anahtar: string;
+  nokta: Nokta;
+  ajanId?: string;
+  t: number;
 }
 
 const HIZ_EN_AZ = 96;
@@ -320,6 +440,8 @@ export class OfisMotoru {
   private ipucu: HTMLDivElement;
   private ipucuKisi: Kisi | null = null;
   private ipucuYazildi = 0;
+  /** İpucunun son ölçüleri: alanın ekran katmanına göre yeri, katmanın ve ipucunun boyu */
+  private ipucuOlcu = { dx: 0, dy: 0, eg: 0, eh: 0, g: 0, h: 0 };
   private t = 0;
   private sonKare = 0;
   private kare: number | null = null;
@@ -332,6 +454,7 @@ export class OfisMotoru {
   private akisGecmisi: AkisSatiri[] = [];
   private olcek = 1;
   private ters = 1;
+  private tersYazilan = "";
   private lod = "";
   private akisNo = 0;
   private azHareket: boolean;
@@ -344,6 +467,51 @@ export class OfisMotoru {
   private yerKarariZamani = 0;
   private yokEdildi = false;
 
+  // ---- Doğu kanadı ve canlılık ----
+  /** Efektler: kutlama kâğıtları, halkalar, ışık izleri, oda flaşları (süresi dolunca atılır) */
+  private efektler = new EfektHavuzu<Element>((e) => e.veri.remove());
+  /** Işık izlerinin çizildiği SVG katmanı (üst katmanda) */
+  private izKatmani: SVGSVGElement;
+  private arastirmaEkrani: ArastirmaEkrani | null = null;
+  private testPanosu: TestPanosu | null = null;
+  private sunumEkrani: SunumEkrani | null = null;
+  private kapiEl: HTMLElement | null = null;
+  private kurulIsareti: HTMLElement | null = null;
+  private geceKatmani: HTMLElement | null = null;
+  /** Laboratuvar: durum, son komut, ışığın sönme anı */
+  private lab: { durum: LabDurumu; komut: string; bitis: number; yazilan: string } = { durum: "bos", komut: "", bitis: 0, yazilan: "" };
+  /** Test ve derleme çağrıları: aracKimligi → kim, ne koştu (sonuç gelince ışık) */
+  private labCagrilari = new Map<string, { ajanId: string; komut: string; t: number }>();
+  /** Kütüphane ekranı: son sorgu */
+  private arastirma = { sorgu: "", t: -SONSUZ, yazilan: "" };
+  /** Stüdyo ekranı: teslim (onaydan ya da teslim_et çağrısından) */
+  private sunum: { baslik: string; adimlar: string[]; durum: string; yazilan: string } = { baslik: "", adimlar: [], durum: "bos", yazilan: "" };
+  /** Son teslim_et çağrısı (onayı gelmeden de ekranda görünsün; an: duvar saati) */
+  private sunumCagrisi: { baslik: string; adimlar: string[]; an: number } | null = null;
+  /** Son sunum sahnesi (teslim_et çağrısı ve teslim onayı birlikte gelir; sahne bir kez açılır) */
+  private sonSunum: { ajanId: string; t: number } | null = null;
+  /** Birleştirmelerin kalite kapısı durumu (onay kimliği → durum) */
+  private kaliteDurumu = new Map<string, string>();
+  /** Onaylanıp kalite kaydı beklenen birleştirmeler (gelmezse bu anda doğrudan birleşmiş sayılır) */
+  private birlesmeBekleyenler = new Map<string, number>();
+  /** Şeritteki bir yere kısa kamera gezintisi */
+  private gezinti: { x: number; y: number; bitis: number } | null = null;
+  /** Takip başlarken bir kez yakınlaşılan ölçek; kullanıcı yakınlaştırınca bırakılır */
+  private takipOlcek: number | null = null;
+  /** Kamera kipleri */
+  private yayinAcik = false;
+  private takipId: string | null = null;
+  private cekim: Cekim = yeniCekim();
+  private sahneOlaylari: SahneOlayi[] = [];
+  private kameraModuAnahtari = "";
+  private kayitBekliyor = false;
+  /** Döngünün güç durumu: düşük güçte 30 fps ve küçük efekt bütçesi */
+  private kareOlcer = new KareOlcer();
+  private kareAtla = false;
+  private birikenDt = 0;
+  private gunIsigiZamani = -SONSUZ;
+  private yarimSaniye = 0;
+
   constructor(kur: MotorKurulumu) {
     this.kur = kur;
     this.v = kur.varliklar;
@@ -351,7 +519,15 @@ export class OfisMotoru {
     this.kayitliMasalar = masaAtamasiOku(kur.projeId);
     this.azHareketSorgu = window.matchMedia("(prefers-reduced-motion: reduce)");
     this.azHareket = this.azHareketSorgu.matches;
-    const azDegisti = () => (this.azHareket = this.azHareketSorgu.matches);
+    const azDegisti = () => {
+      this.azHareket = this.azHareketSorgu.matches;
+      // Hareket azaltıldı: süsler hemen kalkar, kamera dolaşması durur
+      if (this.azHareket) {
+        this.efektler.temizle();
+        if (this.yayinAcik) this.yayinAc(false);
+      }
+      this.kameraModunuBildir();
+    };
     this.azHareketSorgu.addEventListener("change", azDegisti);
     this.kaldir.push(() => this.azHareketSorgu.removeEventListener("change", azDegisti));
 
@@ -364,7 +540,16 @@ export class OfisMotoru {
     this.nesneler.className = "ofis-nesneler";
     this.ustKatman = document.createElement("div");
     this.ustKatman.className = "ofis-ust-katman";
+    this.izKatmani = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.izKatmani.setAttribute("class", "ofis-iz-katmani");
+    this.izKatmani.setAttribute("aria-hidden", "true");
+    this.ustKatman.appendChild(this.izKatmani);
     this.dunya.append(this.zeminKap, this.nesneler, this.ustKatman);
+    try {
+      this.yayinAcik = localStorage.getItem(YAYIN_ANAHTARI) === "1" && !this.azHareket;
+    } catch {
+      // depolama kapalı: yayın kapalı başlar
+    }
 
     this.ipucu = document.createElement("div");
     this.ipucu.className = "ofis-ipucu";
@@ -418,7 +603,16 @@ export class OfisMotoru {
       genislik: this.yer.genislik,
       yukseklik: this.yer.yukseklik,
       ustPay: b.ustPay,
+      altPay: b.altPay,
       degisti: (o) => this.olcekDegisti(o),
+      kaydedilsin: () => this.kameraKaydetPlanla(),
+      // Kullanıcı kamerayı eline aldı: yayın durur; takip kaydırınca bırakılır, yakınlaştırınca sürer
+      elle: (tur) => {
+        if (this.yayinAcik) this.yayinAc(false);
+        this.gezinti = null;
+        if (tur === "kaydir" && this.takipId) this.takipEt(null);
+        else this.takipOlcek = null;
+      },
     });
     this.kamera.durumaGetir(this.kameraDurumu ?? kameraOku(this.kur.projeId));
     const gorunurluk = () => {
@@ -433,6 +627,9 @@ export class OfisMotoru {
     for (const bl of this.balonlar) bl.olcum = true;
     this.ozetAnahtari = "";
     this.ozetiGuncelle();
+    this.kameraModuAnahtari = "";
+    this.kameraModunuBildir();
+    this.gunIsigiZamani = -SONSUZ;
     this.basla();
   }
 
@@ -446,6 +643,9 @@ export class OfisMotoru {
       this.kamera = null;
     }
     clearTimeout(this.kameraKayitZamani);
+    this.kayitBekliyor = false;
+    // Yarım kalan süsler geri dönüşte eskimiş görünmesin
+    this.efektler.temizle();
     this.dur();
     for (const f of this.baglantiKaldir.splice(0)) f();
     this.ipucuGizle();
@@ -473,14 +673,31 @@ export class OfisMotoru {
     if (this.calisiyor || this.yokEdildi || !this.b || document.hidden) return;
     this.calisiyor = true;
     this.sonKare = performance.now();
+    this.birikenDt = 0;
     const dongu = (an: number) => {
       if (!this.calisiyor) return;
-      const dt = Math.min(64, Math.max(0, an - this.sonKare));
+      const ham = Math.max(0, an - this.sonKare);
       this.sonKare = an;
-      this.guncelle(dt);
+      if (this.kareOlcer.ekle(ham)) this.gucDegisti();
+      // Düşük güç: iki karede bir güncellenir (30 fps); geçen süre birikir, hareket hızı değişmez
+      this.birikenDt += ham;
+      this.kareAtla = this.kareOlcer.dusukGuc && !this.kareAtla;
+      if (!this.kareAtla) {
+        const dt = Math.min(64, this.birikenDt);
+        this.birikenDt = 0;
+        this.guncelle(dt);
+      }
       this.kare = requestAnimationFrame(dongu);
     };
     this.kare = requestAnimationFrame(dongu);
+  }
+
+  /** Güç durumu değişti: efekt bütçesi ve süs hareketleri (CSS) uyarlanır */
+  private gucDegisti() {
+    const dusuk = this.kareOlcer.dusukGuc;
+    if (dusuk) this.dunya.dataset.guc = "dusuk";
+    else delete this.dunya.dataset.guc;
+    this.efektler.butce = efektButcesi(this.kisiler.size, dusuk);
   }
 
   private dur() {
@@ -489,11 +706,18 @@ export class OfisMotoru {
     this.kare = null;
   }
 
+  /** Bütün ofisi sığdırır: yayın ve takip bırakılır */
   sigdir() {
+    if (this.yayinAcik) this.yayinAc(false);
+    if (this.takipId) this.takipEt(null);
+    this.gezinti = null;
     this.kamera?.sigdir();
   }
 
+  /** Yakınlaştırma düğmeleri: yayın durur; takip yeni yakınlıkla sürer */
   yakinlastir(carpan: number) {
+    if (this.yayinAcik) this.yayinAc(false);
+    this.takipOlcek = null;
     this.kamera?.yakinlastir(carpan);
   }
 
@@ -502,10 +726,152 @@ export class OfisMotoru {
     this.kamera?.ustDegisti();
   }
 
-  /** Kamera görünümü tarayıcıda saklanır (sayfa yeniden yüklenince aynı yer) */
+  // -------------------------------------------------------------------------
+  // Kamera kipleri: canlı yayın, takip, şeritten gezinti
+  // -------------------------------------------------------------------------
+
+  /** Şu anki kamera kipi (ekranın düğmeleri için) */
+  kameraModu(): KameraModu {
+    const takip = this.takipId ? this.kisiler.get(this.takipId) : undefined;
+    const yayinda = this.yayinAcik && this.cekim.hedef ? this.cekimKisisi()?.ajan.ad ?? null : null;
+    return { yayin: this.yayinAcik, takip: takip ? { id: takip.id, ad: takip.ajan.ad } : null, yayinda, azHareket: this.azHareket };
+  }
+
+  private kameraModunuBildir() {
+    const m = this.kameraModu();
+    const anahtar = `${m.yayin}|${m.takip?.id ?? ""}|${m.takip?.ad ?? ""}|${m.yayinda ?? ""}|${m.azHareket}`;
+    if (anahtar === this.kameraModuAnahtari || !this.b) return;
+    this.kameraModuAnahtari = anahtar;
+    this.b.cagrilar.kamera?.(m);
+  }
+
+  /** Canlı yayın: kamera çalışanlar ve olaylar arasında kendiliğinden dolaşır (hareket azaltıldıysa açılmaz) */
+  yayinAc(acik: boolean) {
+    const yeni = acik && !this.azHareket;
+    if (yeni !== this.yayinAcik) {
+      this.yayinAcik = yeni;
+      try {
+        localStorage.setItem(YAYIN_ANAHTARI, yeni ? "1" : "0");
+      } catch {
+        // depolama kapalı: tercih yalnız bu oturumda
+      }
+      if (yeni) {
+        this.takipId = null;
+        this.gezinti = null;
+        this.cekim = yeniCekim();
+      }
+    }
+    this.kameraModunuBildir();
+  }
+
+  /** Bir çalışanı takip et (null: bırak). Takip başlarken rahat bir yakınlığa gelinir. */
+  takipEt(ajanId: string | null) {
+    const k = ajanId ? this.kisiler.get(ajanId) : undefined;
+    this.takipId = k && !k.cikiyor ? k.id : null;
+    this.gezinti = null;
+    if (this.takipId) {
+      if (this.yayinAcik) this.yayinAc(false);
+      this.takipOlcek = this.kamera ? Math.max(this.kamera.olcek, this.yakinOlcek()) : null;
+    }
+    this.kameraModunuBildir();
+  }
+
+  /** Şeritteki satıra basıldı: kişisi varsa ona gidip takip eder, yoksa olayın yerine kısa bir gezinti */
+  olayaGit(satir: Pick<AkisSatiri, "ajanId" | "nokta">) {
+    const k = satir.ajanId ? this.kisiler.get(satir.ajanId) : undefined;
+    if (k && !k.cikiyor) {
+      this.takipEt(k.id);
+      return;
+    }
+    if (!satir.nokta) return;
+    if (this.yayinAcik) this.yayinAc(false);
+    this.takipId = null;
+    this.takipOlcek = null;
+    this.gezinti = { x: satir.nokta.x, y: satir.nokta.y - KARO, bitis: this.t + 2600 };
+    this.kameraModunuBildir();
+  }
+
+  /** Bir kişiyi yakından gösterirken rahat ölçek: sığdırmanın iki katı, 0.85-1.3 arası */
+  private yakinOlcek(): number {
+    const s = this.kamera?.sigdirOlcegi() ?? 0.6;
+    return Math.min(1.3, Math.max(0.85, s * 2));
+  }
+
+  private cekimKisisi(): Kisi | undefined {
+    const h = this.cekim.hedef;
+    if (!h) return undefined;
+    if (h.startsWith("olay:")) {
+      const o = this.sahneOlaylari.find((x) => `olay:${x.anahtar}` === h);
+      return o?.ajanId ? this.kisiler.get(o.ajanId) : undefined;
+    }
+    return this.kisiler.get(h);
+  }
+
+  /** Canlı yayının adayları: ilginçliğe göre puanlanan kişiler ve taze olaylar */
+  private yayinAdaylari(): YayinAdayi[] {
+    const adaylar: YayinAdayi[] = [];
+    for (const k of this.kisiler.values()) {
+      if (k.cikiyor || k.opaklik < 0.5 || k.ajan.durum === "kapali") continue;
+      let puan = k.ajan.durum === "calisiyor" ? 30 : k.ajan.durum === "karar_bekliyor" ? 26 : k.ajan.durum === "hata" ? 16 : k.ajan.durum === "bosta" ? 8 : 4;
+      if (k.is?.tur === "sahne") puan += 34;
+      if (k.yol) puan += 18;
+      if (this.t < k.konusmaBitis || k.balonlar.length) puan += 22;
+      if (k.ajan.durum === "calisiyor" && ["arastirma", "laboratuvar", "sunum", "tasarim", "kisi", "toplanti"].includes(k.yerDurumu.yer)) puan += 16;
+      if (this.uyukluyor(k)) puan = 6;
+      adaylar.push({ id: k.id, puan });
+    }
+    for (const o of this.sahneOlaylari) if (this.t - o.t < 6000) adaylar.push({ id: `olay:${o.anahtar}`, puan: 100, olay: o.t });
+    return adaylar;
+  }
+
+  /** Her karede kameranın kipine göre adımı: takip, yayın ya da şeritten gezinti */
+  private kameraAdimi(dt: number) {
+    const kam = this.kamera;
+    if (!kam) return;
+    const aninda = this.azHareket;
+    if (this.takipId) {
+      const k = this.kisiler.get(this.takipId);
+      if (!k || k.cikiyor) {
+        this.takipEt(null);
+        return;
+      }
+      if (this.takipOlcek !== null && Math.abs(kam.olcek - this.takipOlcek) < 0.004) this.takipOlcek = null;
+      kam.izle(k.x + k.ax, k.y + k.ay - k.boy * 0.45, this.takipOlcek, dt, 380, aninda);
+      return;
+    }
+    if (this.yayinAcik) {
+      const once = this.cekim;
+      this.cekim = sonrakiCekim(this.yayinAdaylari(), this.cekim, this.t);
+      if (this.cekim !== once) this.kameraModunuBildir();
+      const h = this.cekim.hedef;
+      if (!h) {
+        // Gösterilecek kimse yok: ofisin geneline geniş çekim
+        kam.izle(this.yer.genislik / 2, this.yer.yukseklik / 2, kam.sigdirOlcegi(), dt, 1600);
+        return;
+      }
+      if (h.startsWith("olay:")) {
+        const o = this.sahneOlaylari.find((x) => `olay:${x.anahtar}` === h);
+        if (o) kam.izle(o.nokta.x, o.nokta.y - KARO * 1.2, this.yakinOlcek(), dt, 700);
+        return;
+      }
+      const k = this.kisiler.get(h);
+      if (k) kam.izle(k.x + k.ax, k.y + k.ay - k.boy * 0.45, this.yakinOlcek(), dt, 1100);
+      return;
+    }
+    const g = this.gezinti;
+    if (g) {
+      kam.izle(g.x, g.y, Math.max(kam.olcek, this.yakinOlcek() * 0.9), dt, 360, aninda);
+      if (this.t >= g.bitis) this.gezinti = null;
+    }
+  }
+
+  /** Kamera görünümü tarayıcıda saklanır (sayfa yeniden yüklenince aynı yer); takip ve yayında her kare
+   * değişse de en çok yarım saniyede bir yazılır */
   private kameraKaydetPlanla() {
-    clearTimeout(this.kameraKayitZamani);
+    if (this.kayitBekliyor) return;
+    this.kayitBekliyor = true;
     this.kameraKayitZamani = setTimeout(() => {
+      this.kayitBekliyor = false;
       if (this.kamera) kameraYaz(this.kur.projeId, this.kamera.durum());
     }, 500);
   }
@@ -525,6 +891,7 @@ export class OfisMotoru {
     panoYazilari(this.pano);
     this.panoyuGuncelle();
     this.kurulIsiklariniGuncelle();
+    this.ekranlariYaz(true);
     for (const a of this.adaylar.values()) a.el.remove();
     this.adaylar.clear();
     this.adaylariGuncelle(true);
@@ -561,12 +928,20 @@ export class OfisMotoru {
       if (e.sicak) ilkSicak.add(e.sicak);
       const el = esyaOgesi(e, this.v, undefined, odak);
       el.dataset.kimlik = e.kimlik;
+      // Bitkiler çok hafif salınır; her biri kendi evresinde (kimliğinden)
+      if (e.esya === "bitki-buyuk" || e.esya === "bitki-kucuk") el.style.setProperty("--evre", `${-(ozet(e.kimlik) % 7000) / 1000}s`);
       this.nesneler.appendChild(el);
       this.durgun.push(el);
+      // Kahve makinesinin buharı
+      if (e.esya === "kahve") {
+        const buhar = buharOgesi(e);
+        this.nesneler.appendChild(buhar);
+        this.durgun.push(buhar);
+      }
     }
     // Ekran ışığı: monitör oturana bakar; ışık oturanın yüzüne düşer. Oturanın önünde, masanın arkasında
-    // (masa ve monitör kasası ışığın alt kısmını örter, ışık kasanın ardından taşar)
-    for (const m of y.masalar) {
+    // (masa ve monitör kasası ışığın alt kısmını örter, ışık kasanın ardından taşar). Kanat istasyonları da aynı.
+    for (const m of [...y.masalar, ...y.istasyonlar]) {
       const isik = document.createElement("div");
       isik.className = "ofis-monitor";
       isik.style.cssText = `left:${m.isik.x}px;top:${m.isik.y}px;width:${m.isik.g}px;height:${m.isik.h}px;z-index:${Math.round(m.oturma.y) + 1}`;
@@ -586,10 +961,50 @@ export class OfisMotoru {
       this.durgun.push(isik);
       this.sunucuIsiklari.push(isik);
     }
+    // Test cihazlarının ışıkları: laboratuvarın durumuna göre renk ve hız (CSS, data-lab)
+    for (const kimlik of y.noktalar.testCihazlari) {
+      const e = y.esyalar.find((x) => x.kimlik === kimlik)!;
+      const isik = document.createElement("div");
+      isik.className = "ofis-test-cihazi";
+      const h = e.yukseklik;
+      isik.style.cssText = `left:${e.x - e.genislik * 0.27}px;top:${e.y - h * 0.79}px;width:${e.genislik * 0.5}px;height:${h * 0.58}px;z-index:${Math.round(e.y) + 1}`;
+      isik.innerHTML = Array.from({ length: 6 }, (_, i) => `<i style="--i:${i}"></i>`).join("");
+      this.nesneler.appendChild(isik);
+      this.durgun.push(isik);
+    }
     // Pano
     this.pano = panoOgesi(y);
     this.nesneler.appendChild(this.pano.kok);
     this.durgun.push(this.pano.kok);
+    // Doğu kanadının ekranları, küre, giriş kapısı
+    const n = y.noktalar;
+    this.arastirmaEkrani = arastirmaEkraniOgesi(n.arastirmaEkrani);
+    this.testPanosu = testPanosuOgesi(n.testPanosu);
+    this.sunumEkrani = sunumEkraniOgesi(n.sunumEkrani);
+    const kure = kureOgesi(n.kure);
+    this.kapiEl = kapiOgesi(n.girisKapisi);
+    for (const el of [this.arastirmaEkrani.kok, this.testPanosu.kok, this.sunumEkrani.kok, kure, this.kapiEl]) {
+      this.nesneler.appendChild(el);
+      this.durgun.push(el);
+    }
+    this.lab.yazilan = "";
+    this.arastirma.yazilan = "";
+    this.sunum.yazilan = "";
+    // Gün ışığı: bütün sahnenin üstünde (etiketlerin altında) ince bir örtü; lambalar örtünün üstünde parlar
+    this.geceKatmani = document.createElement("div");
+    this.geceKatmani.className = "ofis-gece";
+    this.geceKatmani.setAttribute("aria-hidden", "true");
+    this.nesneler.appendChild(this.geceKatmani);
+    this.durgun.push(this.geceKatmani);
+    for (const e of y.esyalar) {
+      if (e.esya !== "lamba") continue;
+      const isik = document.createElement("div");
+      isik.className = "ofis-gece-isik";
+      isik.setAttribute("aria-hidden", "true");
+      isik.style.cssText = `left:${e.x - e.genislik * 0.25 - KARO * 3}px;top:${e.y - 6 - KARO * 1.8}px;width:${KARO * 6}px;height:${KARO * 3.6}px`;
+      this.nesneler.appendChild(isik);
+      this.durgun.push(isik);
+    }
     // Kurul masası: ışıklar ve zemin parıltısı
     const km = y.esyalar.find((e) => e.kimlik === y.noktalar.kurulMasasiKimligi)!;
     this.kurulZemin = document.createElement("div");
@@ -602,9 +1017,20 @@ export class OfisMotoru {
     this.kurulIsiklari.style.cssText = `left:${km.x}px;top:${km.y - km.yukseklik * 0.42}px;z-index:${Math.round(km.y) + 1}`;
     this.nesneler.appendChild(this.kurulIsiklari);
     this.durgun.push(this.kurulIsiklari);
+    // Onay bekleyen karar varken masanın üstünde süzülen işaret (oyundaki görev işareti)
+    this.kurulIsareti = document.createElement("div");
+    this.kurulIsareti.className = "ofis-kurul-isaret";
+    this.kurulIsareti.setAttribute("aria-hidden", "true");
+    this.kurulIsareti.style.cssText = `left:${km.x}px;top:${km.y - km.yukseklik - 34}px;z-index:${Math.round(km.y) + 2}`;
+    // Zemindeki halka kurulZemin'in içinde (masanın altında) yayılır
+    this.kurulIsareti.innerHTML = '<span class="ofis-kurul-isaret-ok"></span>';
+    this.nesneler.appendChild(this.kurulIsareti);
+    this.durgun.push(this.kurulIsareti);
 
     this.panoyuGuncelle();
     this.kurulIsiklariniGuncelle();
+    this.ekranlariYaz(true);
+    this.gunIsigiZamani = -SONSUZ;
   }
 
   /** Masa sayısı yetmezse yerleşimi büyütür; karakterler yerinde kalır, yürünemez yerdeyse en yakın açık karoya geçer */
@@ -685,7 +1111,7 @@ export class OfisMotoru {
       this.gorevDurumu.set(g.id, g.durum);
       if (sessiz) continue;
       if (once !== undefined && once !== g.durum) this.gorevGecti(g, once);
-      else if (once === undefined) this.akisa("gorev", so().akis.yeniGorev(g.kod, kisaMetin(g.baslik, 48)));
+      else if (once === undefined) this.akisa("gorev", so().akis.yeniGorev(g.kod, kisaMetin(g.baslik, 48)), { nokta: this.odaNoktasi("pano") });
     }
     this.panoyuGuncelle();
 
@@ -698,6 +1124,16 @@ export class OfisMotoru {
       if (once === undefined && o.durum === "bekliyor") this.onayYeni(o);
       else if (once === "bekliyor" && o.durum !== "bekliyor") this.onaySonuc(o);
     }
+    // Birleştirmelerin kalite kapısı: her adım onay.sonuc ile gelir (kuyrukta → hazırlık → test → birleşti/kaldı)
+    for (const o of v.onaylar) {
+      if (o.tur !== "birlestirme") continue;
+      const k = ((o.veri ?? null) as { kalite?: { durum?: string; komut?: string | null; testYok?: boolean; testsiz?: boolean } } | null)?.kalite;
+      if (!k?.durum) continue;
+      const once = this.kaliteDurumu.get(o.id);
+      this.kaliteDurumu.set(o.id, k.durum);
+      if (!sessiz && once !== k.durum) this.kaliteGecti(o, k.durum, k);
+    }
+    this.sunumuGuncelle();
     this.kurulIsiklariniGuncelle();
     this.adaylariGuncelle(sessiz);
     this.ozetiGuncelle();
@@ -784,7 +1220,12 @@ export class OfisMotoru {
     etiket.append(document.createElement("i"), adEl);
     const isEl = document.createElement("span");
     isEl.className = "ofis-is";
-    ust.append(isaretEl, etiket, isEl);
+    // Düşünme noktaları ve sözsüz konuşma göstergesi: başın üstünde küçük balon (CSS ile akar)
+    const dusunceEl = document.createElement("span");
+    dusunceEl.className = "ofis-dusunce";
+    dusunceEl.setAttribute("aria-hidden", "true");
+    dusunceEl.innerHTML = '<i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i>';
+    ust.append(dusunceEl, isaretEl, etiket, isEl);
     const eldeEl = document.createElement("div");
     eldeEl.className = "ofis-elde";
     eldeEl.hidden = true;
@@ -845,7 +1286,18 @@ export class OfisMotoru {
       bakis: "on",
       balonlar: [],
       bekleyenBalon: [],
-      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false, arka: false },
+      dusunceBitis: -SONSUZ,
+      dusunceBaslar: SONSUZ,
+      dusunceEl,
+      yazmaBitis: -SONSUZ,
+      ziplaBas: -SONSUZ,
+      bostaBas: a.durum === "bosta" ? this.t : SONSUZ,
+      sonHareket: this.t,
+      kanalYazisi: null,
+      konusmaBitis: -SONSUZ,
+      sonSorgu: "",
+      sonKomut: "",
+      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false, arka: false, dusunce: false, konusma: false },
       sonEtiketZamani: -SONSUZ,
     };
     this.gorselAyarla(k, karakter);
@@ -870,7 +1322,8 @@ export class OfisMotoru {
       k.y = kapi.y;
       k.opaklik = 0;
       k.hedefOpaklik = 1;
-      this.akisa("giris", so().akis.geldi(a.ad, a.rolAdi));
+      this.akisa("giris", so().akis.geldi(a.ad, a.rolAdi), { ajanId: k.id });
+      this.vurgula(karoAyak(this.yer.noktalar.kapiIci), { ajanId: k.id, anahtar: `giris:${k.id}` });
       this.sahneEkle(k, "giris", () => this.girisSahnesi(k));
       // Oturumu açık CEO karşılar; kapalıysa yeni gelen beklemeden işine bakar
       const ceo = this.ceo();
@@ -973,11 +1426,17 @@ export class OfisMotoru {
     const tur = this.kaliciTuru(yeni);
     if (sessiz) {
       // ekran kapalıyken oldu: akışa yazılmaz
-    } else if (yeni === "karar_bekliyor") this.akisa("onay", so().akis.kurulMasasinda(k.ajan.ad));
-    else if (eski === "karar_bekliyor" && yeni === "calisiyor") this.akisa("onay", so().akis.masasinaDondu(k.ajan.ad));
-    else if (yeni === "hata") this.akisa("bildirim", so().akis.oturumHatasi(k.ajan.ad));
+    } else if (yeni === "karar_bekliyor") this.akisa("onay", so().akis.kurulMasasinda(k.ajan.ad), { ajanId: k.id });
+    else if (eski === "karar_bekliyor" && yeni === "calisiyor") this.akisa("onay", so().akis.masasinaDondu(k.ajan.ad), { ajanId: k.id });
+    else if (yeni === "hata") this.akisa("bildirim", so().akis.oturumHatasi(k.ajan.ad), { ajanId: k.id });
     // İşe yeni başladı: henüz bir yere yerleşmedi, ilk işi onu beklemeden yerine götürür
     if (yeni === "calisiyor" && eski !== "calisiyor") k.yerDurumu = yerDurumu(this.t);
+    // Boşta kalma süresi uyuklamayı belirler; çalışmayan düşünmez
+    k.bostaBas = yeni === "bosta" ? (eski === "bosta" ? k.bostaBas : this.t) : SONSUZ;
+    if (yeni !== "calisiyor") {
+      k.dusunceBitis = -SONSUZ;
+      k.dusunceBaslar = SONSUZ;
+    }
     if (tur !== k.kaliciTur) {
       k.kaliciTur = tur;
       if (!k.is || k.is.tur === "kalici") this.kaliciBaslat(k);
@@ -993,7 +1452,8 @@ export class OfisMotoru {
       this.kisiKaldir(k);
       return;
     }
-    this.akisa("cikis", so().akis.ayrildi(k.ajan.ad));
+    this.akisa("cikis", so().akis.ayrildi(k.ajan.ad), { nokta: karoAyak(this.yer.noktalar.kapiIci) });
+    this.vurgula({ x: k.x, y: k.y }, { ajanId: k.id, anahtar: `cikis:${k.id}` });
     this.isiBitir(k);
     this.sahneBaslat(k, { ad: "cikis", gen: () => this.cikisSahnesi(k) });
   }
@@ -1010,6 +1470,7 @@ export class OfisMotoru {
     k.saatEl?.remove();
     if (this.ipucuKisi === k) this.ipucuGizle();
     this.kisiler.delete(k.id);
+    if (this.takipId === k.id) this.takipEt(null);
     this.masalariAta();
     this.ozetiGuncelle();
   }
@@ -1088,15 +1549,22 @@ export class OfisMotoru {
     k.is = { tur: "kalici", ad: tur, gen, kosul: null };
   }
 
-  private sahneEkle(k: Kisi, ad: string, gen: () => Senaryo, son?: () => void) {
+  private sahneEkle(k: Kisi, ad: string, gen: () => Senaryo, son?: () => void, oncelikli = false) {
     if (k.cikiyor) return;
     if (!k.is || k.is.tur === "kalici") {
       this.sahneBaslat(k, { ad, gen, son });
       return;
     }
-    // En çok üç bekleyen sahne; eskisi düşer
-    k.kuyruk.push({ ad, gen, son });
-    if (k.kuyruk.length > 3) k.kuyruk.shift();
+    // En çok üç bekleyen sahne; taşınca öncelikli olmayanların en eskisi düşer
+    if (oncelikli) {
+      // Önceki öncelikli sahnelerin ardına, sıradakilerin önüne
+      const i = k.kuyruk.findIndex((x) => !x.oncelikli);
+      k.kuyruk.splice(i < 0 ? k.kuyruk.length : i, 0, { ad, gen, son, oncelikli });
+    } else k.kuyruk.push({ ad, gen, son });
+    if (k.kuyruk.length > 3) {
+      const i = k.kuyruk.findIndex((x) => !x.oncelikli);
+      k.kuyruk.splice(i < 0 ? 0 : i, 1);
+    }
   }
 
   private sahneBaslat(k: Kisi, s: { ad: string; gen: () => Senaryo; son?: () => void }) {
@@ -1253,8 +1721,9 @@ export class OfisMotoru {
   }
 
   /**
-   * Çalışan: işine göre yerde durur (masası, görev panosu, arşiv, kurul masası, beyaz tahta, okuma köşesi,
-   * sunucu dolabı ya da bir iş arkadaşının yanı). Yer kararı etkinlikYeri.ts'te verilir; değişince oraya yürür.
+   * Çalışan: işine göre yerde durur (masası, görev panosu, arşiv, kurul masası, beyaz tahta, kütüphane, test
+   * laboratuvarı, stüdyo, sunucu dolabı ya da bir iş arkadaşının yanı). Yer kararı etkinlikYeri.ts'te verilir;
+   * değişince oraya yürür.
    */
   private *calismaDavranisi(k: Kisi): Senaryo {
     for (;;) {
@@ -1317,9 +1786,27 @@ export class OfisMotoru {
           bak(n.beyazTahtaKimligi);
         }
         return;
-      case "okuma":
-        yield* this.git(k, n.okumaKosesi[0]!, { adaylar: n.okumaKosesi });
-        bak(n.okumaKimligi);
+      case "arastirma":
+        // Okuma masasında boş koltuk varsa oturur; yoksa rafların ya da ekranın önünde ayakta
+        if (yield* this.koltukta(k, n.arastirmaKoltuklari)) return;
+        yield* this.git(k, n.arastirmaOnu[0]!, { adaylar: yakindan(n.arastirmaOnu) });
+        k.bakis = "arka";
+        return;
+      case "laboratuvar":
+        // Boş test istasyonunda oturur; yoksa test cihazlarının ya da panonun önünde
+        if (yield* this.koltukta(k, this.istasyonlar("laboratuvar"))) return;
+        yield* this.git(k, n.labOnu[0]!, { adaylar: n.labOnu });
+        k.bakis = "arka";
+        return;
+      case "sunum":
+        // Sahnede, ekranın yanında; kurula (izleyene) dönük
+        yield* this.git(k, n.sunumNoktasi);
+        k.yon = 1;
+        return;
+      case "tasarim":
+        if (yield* this.koltukta(k, this.istasyonlar("studyo"))) return;
+        yield* this.git(k, n.studyoOnu[0]!, { adaylar: n.studyoOnu });
+        bak("studyo-tahta");
         return;
       case "sunucu":
         yield* this.git(k, n.sunucuOnu[0]!, { adaylar: n.sunucuOnu });
@@ -1332,6 +1819,28 @@ export class OfisMotoru {
     if (k.masa) {
       if (k.oturan !== k.masa) yield* this.koltugaGit(k, k.masa);
     } else yield* this.git(k, n.kahve);
+  }
+
+  /** Kanat odasının istasyonları (test istasyonları ya da tasarım masası) */
+  private istasyonlar(oda: Istasyon["oda"]): Istasyon[] {
+    return this.yer.istasyonlar.filter((i) => i.oda === oda);
+  }
+
+  /**
+   * Listedeki boş koltuklardan en yakınına yürüyüp oturur (yola çıkmadan ayırır, iki kişi aynı koltuğa gitmesin).
+   * Oturduysa true; hepsi doluysa false. Yarıda kesilirse ayırma bırakılır.
+   */
+  private *koltukta(k: Kisi, liste: readonly Koltuk[]): Generator<Kosul, boolean, void> {
+    if (k.oturan && liste.includes(k.oturan)) return true;
+    const bos = [...liste].sort((a, b) => Math.abs(a.oturma.x - k.x) - Math.abs(b.oturma.x - k.x)).find((kt) => !this.koltukSahipleri.has(kt));
+    if (!bos) return false;
+    this.koltukSahipleri.set(bos, k.id);
+    try {
+      yield* this.koltugaGit(k, bos);
+    } finally {
+      if (k.oturan !== bos && this.koltukSahipleri.get(bos) === k.id) this.koltukSahipleri.delete(bos);
+    }
+    return k.oturan === bos;
   }
 
   private *masaDavranisi(k: Kisi): Senaryo {
@@ -1386,6 +1895,13 @@ export class OfisMotoru {
     if (k.oturan) yield this.bekle(rastgele(1200, 3600));
     let ilk = true;
     for (;;) {
+      // Uzun süredir boşta: kanepeye gidip uyuklar (uzun kalır; başında çizilmiş "z" işareti)
+      if (this.t - k.bostaBas > UYUKLAMA && Math.random() < 0.55) {
+        yield* this.git(k, sec(n.kanepeOnu) ?? n.kahve, { adaylar: [...n.kanepeOnu].sort(() => Math.random() - 0.5) });
+        k.yon = Math.random() < 0.5 ? 1 : -1;
+        yield this.bekle(rastgele(26000, 52000));
+        continue;
+      }
       // Karakterin kişiliği: zamanının bir kısmını sevdiği yerde geçirir
       if (kisilik && Math.random() < (ilk ? 0.5 : 0.4)) {
         ilk = false;
@@ -1436,10 +1952,10 @@ export class OfisMotoru {
       su: [n.su],
       kanepe: n.kanepeOnu,
       "masa-tenisi": n.kanepeOnu,
-      kitaplik: [...n.okumaKosesi, ...n.arsivOnu],
-      sunucu: n.sunucuOnu,
-      // Toplantı sürerken odaya girilmez
-      "beyaz-tahta": toplantiSuruyor ? n.dinlenme : n.beyazTahtaOnu,
+      kitaplik: [...n.okumaKosesi, ...n.arsivOnu, ...n.arastirmaOnu],
+      sunucu: [...n.sunucuOnu, ...n.labOnu],
+      // Toplantı sürerken odaya girilmez; stüdyonun taslak tahtası her zaman açık
+      "beyaz-tahta": toplantiSuruyor ? n.studyoOnu : [...n.beyazTahtaOnu, ...n.studyoOnu],
       bitki: n.dinlenme,
       pencere: n.dinlenme,
     };
@@ -1506,20 +2022,18 @@ export class OfisMotoru {
     }
   }
 
-  private *konusmaSahnesi(g: Kisi, a: Kisi, metin: string, digerleri: Kisi[]): Senaryo {
+  /**
+   * Anmalı mesajdan sonra yüz yüze: mesaj kısa balonla ve ışık iziyle çoktan gitti; yazan anılanın yanına yürür
+   * ve ikisi sözsüz konuşur (başlarında konuşma göstergesi). Metin bir daha yazılmaz.
+   */
+  private *konusmaSahnesi(g: Kisi, a: Kisi, digerleri: Kisi[]): Senaryo {
     g.etkinlik = so().etkinlik.konusuyor(a.ajan.ad);
     yield* this.yaninaGit(g, a);
-    this.isaretKoy(a, "unlem", 2800);
-    for (const d of digerleri) this.isaretKoy(d, "unlem", 2800);
-    const b = this.balon(g, metin, "konusma");
-    yield this.balonBitene(b);
-    yield this.bekle(300);
-  }
-
-  private *yerindeKonusma(g: Kisi, metin: string, kanal: string): Senaryo {
-    g.etkinlik = so().etkinlik.kanalaYaziyor(kanalAdi(kanal));
-    const b = this.balon(g, metin, "konusma", undefined, `#${kanalAdi(kanal)}`);
-    yield this.balonBitene(b);
+    const sure = 2600;
+    g.konusmaBitis = this.t + sure;
+    if (!a.cikiyor) a.konusmaBitis = this.t + sure;
+    for (const d of digerleri) this.isaretKoy(d, "unlem", 2000);
+    yield this.bekle(sure + 300);
   }
 
   private *belgeSahnesi(o: Kisi, r: Kisi, kod: string): Senaryo {
@@ -1540,8 +2054,36 @@ export class OfisMotoru {
     k.yon = -1;
     k.uzanma = this.t;
     this.sunucuAkisBitis = this.t + 4800;
+    // Vardığında dolapların ışıkları bir kez daha akar
+    this.odaFlasi("sunucu", "mercan");
     this.balon(k, so().balon.birlesti(kod), "bilgi", "dal");
     yield this.bekle(3800);
+  }
+
+  /** Teslim sunumu sahnesi; aynı kişiye bir dakikada bir */
+  private sunumaCagir(k: Kisi, baslik: string) {
+    if (k.cikiyor) return;
+    if (this.sonSunum && this.sonSunum.ajanId === k.id && this.t - this.sonSunum.t < 60_000) return;
+    this.sonSunum = { ajanId: k.id, t: this.t };
+    const t0 = this.t;
+    this.sahneEkle(k, "sunum", () => this.sunumSahnesi(k, baslik, t0), undefined, true);
+  }
+
+  /**
+   * Teslim sunumu: teslim eden stüdyonun sahnesine çıkar, ekranın yanında durur; balonda teslimin başlığı, ardından
+   * kısa bir sözsüz anlatım. Kişi o sırada uzun bir işteyse (toplantı) gecikmiş sunum oynatılmaz.
+   */
+  private *sunumSahnesi(k: Kisi, baslik: string, t0: number): Senaryo {
+    if (this.t - t0 > 90_000) return;
+    k.etkinlik = so().etkinlik.sunumda;
+    yield* this.git(k, this.yer.noktalar.sunumNoktasi);
+    // Ekran sağında: ona dönük, yüzü izleyene açık
+    k.yon = 1;
+    const b = this.balon(k, so().balon.teslim(kisaMetin(baslik, 48)), "bilgi", "ekran");
+    yield this.balonBitene(b);
+    const sure = 4200;
+    k.konusmaBitis = this.t + sure;
+    yield this.bekle(sure + 400);
   }
 
   private *arsivSahnesi(k: Kisi, baslik: string): Senaryo {
@@ -1615,7 +2157,7 @@ export class OfisMotoru {
         if (c) hedefler = [c];
       }
       if (!hedefler.length) {
-        this.akisa("kurul", so().akis.kurulKanala(kanalAdi(m.kanal), kisaMetin(metin, 56)));
+        this.akisa("kurul", so().akis.kurulKanala(kanalAdi(m.kanal), kisaMetin(metin, 56)), { nokta: this.odaNoktasi("kurul") });
         return;
       }
       // #toplanti: anılanlar toplantı odasına geçer, kurulun notu zarfla gelir
@@ -1624,7 +2166,7 @@ export class OfisMotoru {
       for (const h of hedefler) {
         this.zarfGonder({ x: km.x, y: km.y - km.yukseklik }, h, () => this.balon(h, metin, "kurul", undefined, so().balon.kurul));
       }
-      this.akisa("kurul", so().akis.kuruldan(hedefler.map((h) => h.ajan.ad).join(", "), kisaMetin(metin, 56)));
+      this.akisa("kurul", so().akis.kuruldan(hedefler.map((h) => h.ajan.ad).join(", "), kisaMetin(metin, 56)), { ajanId: hedefler[0]?.id });
       return;
     }
 
@@ -1637,10 +2179,10 @@ export class OfisMotoru {
       if (duyuru !== null) {
         const gundem = balonMetni(duyuru, 110);
         this.toplantiyaCagir([g, ...anilan], g, so().balon.toplanti(gundem), 120000);
-        this.akisa("toplanti", so().akis.toplanti(g.ajan.ad, kisaMetin(gundem, 48), anilan.map((a) => a.ajan.ad).join(", ")));
+        this.akisa("toplanti", so().akis.toplanti(g.ajan.ad, kisaMetin(gundem, 48), anilan.map((a) => a.ajan.ad).join(", ")), { ajanId: g.id });
       } else {
         this.toplantiyaCagir([g, ...anilan], g, metin);
-        this.akisa("toplanti", so().akis.toplantiMesaji(g.ajan.ad, kisaMetin(metin, 52)));
+        this.akisa("toplanti", so().akis.toplantiMesaji(g.ajan.ad, kisaMetin(metin, 52)), { ajanId: g.id });
       }
       return;
     }
@@ -1649,14 +2191,82 @@ export class OfisMotoru {
       const c = this.ceo();
       if (c && c !== g) alicilar = [c];
     }
+    // Hemen: yazanın başında mesajın ilk ~40 karakteri (4 sn), anılanlara doğru ışık izi
+    this.kisaBalon(g, balonMetni(m.metin, KISA_BALON), m.kanal);
+    alicilar.slice(0, 3).forEach((a, i) => this.isikIzi(g, a, i * 160));
     const [ilk, ...digerleri] = alicilar;
     if (ilk) {
-      this.sahneEkle(g, "konusma", () => this.konusmaSahnesi(g, ilk, metin, digerleri));
-      this.akisa("mesaj", so().akis.mesaj(g.ajan.ad, alicilar.map((a) => a.ajan.ad).join(", "), kisaMetin(metin, 52)));
+      // Ardından yüz yüze: yanına yürür, sözsüz konuşurlar
+      this.sahneEkle(g, "konusma", () => this.konusmaSahnesi(g, ilk, digerleri));
+      this.akisa("mesaj", so().akis.mesaj(g.ajan.ad, alicilar.map((a) => a.ajan.ad).join(", "), kisaMetin(metin, 52)), { ajanId: g.id });
     } else {
-      this.sahneEkle(g, "yazma", () => this.yerindeKonusma(g, metin, m.kanal));
-      this.akisa("mesaj", so().akis.kanalMesaji(g.ajan.ad, kanalAdi(m.kanal), kisaMetin(metin, 52)));
+      this.akisa("mesaj", so().akis.kanalMesaji(g.ajan.ad, kanalAdi(m.kanal), kisaMetin(metin, 52)), { ajanId: g.id });
     }
+  }
+
+  /** Kanala yazan: başında kısa balon (kanalın adıyla), monitörü kısa bir an titrer */
+  private kisaBalon(g: Kisi, metin: string, kanal: string) {
+    if (!metin) return;
+    g.kanalYazisi = { kanal, bitis: this.t + KISA_BALON_SURESI };
+    g.yazmaBitis = Math.max(g.yazmaBitis, this.t + 1400);
+    this.balon(g, metin, "kisa", undefined, `#${kanalAdi(kanal)}`, KISA_BALON_SURESI);
+  }
+
+  /**
+   * Işık izi: yazanın başından anılanın başına yay çizerek giden bir ışık; varınca anılanın başında ünlem.
+   * Uçlar her karede kişilerin o anki yerinden alınır. Hareket azaltıldıysa yalnız ünlem.
+   */
+  private isikIzi(g: Kisi, a: Kisi, gecikme = 0) {
+    if (this.azHareket) {
+      this.isaretKoy(a, "unlem", 2400);
+      return;
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const grup = document.createElementNS(ns, "g");
+    grup.setAttribute("class", "ofis-iz");
+    const cizgi = document.createElementNS(ns, "path");
+    const bas = document.createElementNS(ns, "circle");
+    bas.setAttribute("r", "3.4");
+    grup.append(cizgi, bas);
+    this.izKatmani.appendChild(grup);
+    const t0 = this.t + gecikme;
+    const ucus = 1050;
+    let vardi = false;
+    this.efektler.ekle({
+      tur: "iz",
+      simdi: this.t,
+      sure: gecikme + ucus + 650,
+      agirlik: 3,
+      veri: grup,
+      adim: () => {
+        const p = (this.t - t0) / ucus;
+        if (p < 0) {
+          grup.setAttribute("opacity", "0");
+          return;
+        }
+        const A = { x: g.x + g.ax, y: g.y + g.ay - g.boy * (1 - g.kirp) + 2 };
+        const B = { x: a.x + a.ax, y: a.y + a.ay - a.boy * (1 - a.kirp) + 2 };
+        const K = yayKontrolu(A, B);
+        const u = Math.min(1, p);
+        // Kuyruk: başın arkasında kısalan iz (son %45)
+        const kuyruk = Math.max(0, u - 0.45);
+        const parca = 14;
+        let d = "";
+        for (let i = 0; i <= parca; i++) {
+          const n = egriNoktasi(A, K, B, kuyruk + ((u - kuyruk) * i) / parca);
+          d += `${i ? "L" : "M"}${n.x.toFixed(1)} ${n.y.toFixed(1)}`;
+        }
+        cizgi.setAttribute("d", d);
+        const uc = egriNoktasi(A, K, B, u);
+        bas.setAttribute("cx", uc.x.toFixed(1));
+        bas.setAttribute("cy", uc.y.toFixed(1));
+        grup.setAttribute("opacity", p <= 1 ? "1" : Math.max(0, 1 - (p - 1) * (ucus / 650)).toFixed(2));
+        if (p >= 1 && !vardi) {
+          vardi = true;
+          if (this.kisiler.has(a.id)) this.isaretKoy(a, "unlem", 2400);
+        }
+      },
+    });
   }
 
   /** Toplantı odasına çağırır; enAz: toplantının en az sürmesi gereken süre (en çok 2 dk) */
@@ -1691,11 +2301,11 @@ export class OfisMotoru {
     this.gorulenHafiza.add(kayit.id);
     const k = kayit.kaynakAjanId ? this.kisiler.get(kayit.kaynakAjanId) : undefined;
     if (!k || k.cikiyor) {
-      this.akisa("hafiza", so().akis.notAldi(kayit.kaynakAd || so().kurulAd, kisaMetin(kayit.baslik, 48)));
+      this.akisa("hafiza", so().akis.notAldi(kayit.kaynakAd || so().kurulAd, kisaMetin(kayit.baslik, 48)), { nokta: this.odaNoktasi("arsiv") });
       return;
     }
     this.sahneEkle(k, "arsiv", () => this.arsivSahnesi(k, kayit.baslik));
-    this.akisa("hafiza", so().akis.notAldi(k.ajan.ad, kisaMetin(kayit.baslik, 48)));
+    this.akisa("hafiza", so().akis.notAldi(k.ajan.ad, kisaMetin(kayit.baslik, 48)), { ajanId: k.id });
   }
 
   soruGeldi(s: AjanSorusu) {
@@ -1712,7 +2322,7 @@ export class OfisMotoru {
       this.toplantiSorulari.delete(s.id);
       if (s.durum === "zaman_asimi") {
         if (sorulu) this.isaretKoy(sorulu, "omuz", 2200);
-        this.akisa("toplanti", so().akis.toplantiGorusYok(s.soruluAd));
+        this.akisa("toplanti", so().akis.toplantiGorusYok(s.soruluAd), { ajanId: sorulu?.id });
       }
       // Bütün görüşler geldiyse oda birkaç saniye sonra dağılır
       if (!this.toplantiSorulari.size && this.toplanti) this.toplanti.bitis = Math.min(this.toplanti.bitis, this.t + 9000);
@@ -1720,34 +2330,95 @@ export class OfisMotoru {
     }
     if (s.durum === "bekliyor") {
       if (soran && sorulu && !soran.cikiyor) this.sahneEkle(soran, "soru", () => this.soruSahnesi(soran, sorulu, balonMetni(s.soru, 110)));
-      this.akisa("soru", so().akis.soru(s.soranAd, s.soruluAd, kisaMetin(s.soru, 52)));
+      this.akisa("soru", so().akis.soru(s.soranAd, s.soruluAd, kisaMetin(s.soru, 52)), { ajanId: soran?.id });
     } else if (s.durum === "yanitlandi") {
       if (sorulu) {
         if (soran && !soran.oturan && Math.hypot(soran.x - sorulu.x, soran.y - sorulu.y) < KARO * 3) this.yuzlestir(sorulu, soran);
         this.balon(sorulu, balonMetni(s.yanit ?? so().balon.yanitladim, 110), "yanit");
         if (soran) this.isaretKoy(soran, "unlem", 2400);
       }
-      this.akisa("soru", so().akis.yanitladi(s.soruluAd, kisaMetin(s.yanit ?? "", 52)));
+      this.akisa("soru", so().akis.yanitladi(s.soruluAd, kisaMetin(s.yanit ?? "", 52)), { ajanId: sorulu?.id });
     } else {
       if (soran) {
         this.isaretKoy(soran, "omuz", 2200);
         this.balon(soran, so().balon.yanitGelmedi, "kisa");
       }
-      this.akisa("soru", so().akis.yanitVermedi(s.soranAd, s.soruluAd));
+      this.akisa("soru", so().akis.yanitVermedi(s.soranAd, s.soruluAd), { ajanId: soran?.id });
     }
   }
 
-  /** Araç çağrısı: masadaysa monitörde aracın simgesi; işine göre yer (etkinlikYeri.ts) */
+  /**
+   * Ajanın canlı akışı: araç çağrısı (yer, yazma, laboratuvar, kütüphane, teslim), araç sonucu (test ışığı; ardından
+   * düşünme), düşünce (düşünme noktaları), model metni (kısa yazma), tur sonu. Alt ajanların akışı sahneye düşmez.
+   */
   akisOgesi(projeId: string, oge: AkisOgesi) {
-    if (projeId !== this.kur.projeId || oge.tur !== "arac_cagrisi" || oge.ustAracKimligi) return;
+    if (projeId !== this.kur.projeId || oge.ustAracKimligi) return;
     const k = this.kisiler.get(oge.ajanId);
     if (!k || k.cikiyor) return;
+    switch (oge.tur) {
+      case "arac_cagrisi":
+        this.aracCagrisi(k, oge);
+        return;
+      case "arac_sonucu":
+        this.aracSonucu(k, oge);
+        return;
+      case "dusunce":
+        if (k.ajan.durum === "calisiyor") {
+          k.dusunceBitis = this.t + 4500;
+          k.dusunceBaslar = SONSUZ;
+        }
+        return;
+      case "asistan":
+        k.dusunceBitis = -SONSUZ;
+        k.dusunceBaslar = SONSUZ;
+        k.yazmaBitis = Math.max(k.yazmaBitis, this.t + 1600);
+        return;
+      case "sonuc":
+        k.dusunceBitis = -SONSUZ;
+        k.dusunceBaslar = SONSUZ;
+        return;
+      default:
+        return;
+    }
+  }
+
+  /** Araç çağrısı: masadaysa monitörde aracın simgesi; işine göre yer (etkinlikYeri.ts) ve kanat odalarının ekranları */
+  private aracCagrisi(k: Kisi, oge: AkisOgesi) {
+    // Araç çağırdı: düşünmesi biter, iş başında
+    k.dusunceBitis = -SONSUZ;
+    k.dusunceBaslar = SONSUZ;
     if (k.masa && k.oturan === k.masa) {
       k.aracSimge = { simge: aracSimgesi(oge.arac), bitis: this.t + 2800 };
       k.sonEtiketZamani = this.t;
     }
-    if (k.ajan.durum !== "calisiyor") return;
+    if (/^(?:Edit|Write|MultiEdit|NotebookEdit)$/.test(oge.arac ?? "")) k.yazmaBitis = this.t + 2600;
+    // Test ve derleme: laboratuvarın panosu koşar; sonucu gelince ışık yanar
+    const tur = komutTuru(oge.arac, oge.girdi);
+    if (tur && oge.aracKimligi) {
+      const komut = komutMetni(oge.girdi);
+      k.sonKomut = komut;
+      this.labCagrilari.set(oge.aracKimligi, { ajanId: k.id, komut, t: this.t });
+      this.labDurumu("kosuyor", komut);
+    }
     const y = aracYeri(oge.arac, oge.girdi);
+    // Araştırma: kütüphanenin ekranında sorgu yazılır
+    if (y?.yer === "arastirma") {
+      const sorgu = aramaMetni(oge.girdi);
+      if (sorgu) k.sonSorgu = sorgu;
+      this.arastirma = { ...this.arastirma, sorgu: sorgu || this.arastirma.sorgu, t: this.t };
+    }
+    // Teslim: stüdyonun ekranında başlık ve test adımları
+    if (y?.yer === "sunum") {
+      const v = teslimVerisi({ veri: oge.girdi });
+      if (v.baslik) {
+        this.sunumCagrisi = { baslik: v.baslik, adimlar: v.adimlar, an: Date.now() };
+        this.sunumuGuncelle();
+        this.akisa("teslim", so().akis.teslim(k.ajan.ad, kisaMetin(v.baslik, 44)), { ajanId: k.id });
+        this.vurgula(this.odaNoktasi("studyo"), { anahtar: `teslim-cagri:${oge.id}`, ajanId: k.id });
+        this.sunumaCagir(k, v.baslik);
+      }
+    }
+    if (k.ajan.durum !== "calisiyor") return;
     if (!y) return;
     if (y.yer === "toplanti") {
       // toplanti_yap: çağıran odaya geçer; katılımcılar #toplanti duyurusuyla gelir
@@ -1761,7 +2432,234 @@ export class OfisMotoru {
       kisi = h.id;
     }
     yerOlayi(k.yerDurumu, { yer: y.yer, kisi, esik: y.esik, kisa: y.kisa }, this.t);
-    yerKarari(k.yerDurumu, this.t);
+    this.yerKarariVer(k);
+  }
+
+  /** Araç sonucu: test ya da derleme çağrısıysa laboratuvarın ışığı; ardından model sonuca bakıp düşünür */
+  private aracSonucu(k: Kisi, oge: AkisOgesi) {
+    if (k.ajan.durum === "calisiyor") k.dusunceBaslar = this.t + 1300;
+    const c = oge.aracKimligi ? this.labCagrilari.get(oge.aracKimligi) : undefined;
+    if (!c || !oge.aracKimligi) return;
+    this.labCagrilari.delete(oge.aracKimligi);
+    const sonuc = testSonucu(oge.metin, oge.hata);
+    if (!sonuc) {
+      // Tanınmayan çıktı: koşu bitti, ışık söner
+      if (this.lab.durum === "kosuyor") this.labDurumu("bos", c.komut);
+      return;
+    }
+    this.labSonuc(sonuc, c.komut, k);
+  }
+
+  /** Yer kararı (zaman geçtikçe ya da yeni işle): kişi bir kanat odasına geçtiyse akışa yazılır */
+  private yerKarariVer(k: Kisi) {
+    const once = k.yerDurumu.yer;
+    if (!yerKarari(k.yerDurumu, this.t) || k.yerDurumu.yer === once) return;
+    this.yerDegisti(k, k.yerDurumu.yer);
+  }
+
+  private yerDegisti(k: Kisi, yer: YerTuru) {
+    const a = so().akis;
+    if (yer === "arastirma") this.akisa("arastirma", a.arastirma(k.ajan.ad, k.sonSorgu), { ajanId: k.id });
+    else if (yer === "laboratuvar") this.akisa("test", a.laboratuvar(k.ajan.ad, k.sonKomut || "test"), { ajanId: k.id });
+    else if (yer === "tasarim") this.akisa("teslim", a.tasarim(k.ajan.ad), { ajanId: k.id });
+  }
+
+  // -------------------------------------------------------------------------
+  // Kanat odaları: laboratuvar, kütüphane, stüdyo
+  // -------------------------------------------------------------------------
+
+  /** Laboratuvarın panosu: hazırlık ya da koşu (sonuç gelmezse iki dakikada söner) */
+  private labDurumu(durum: LabDurumu, komut: string) {
+    this.lab.durum = durum;
+    if (komut) this.lab.komut = komut;
+    this.lab.bitis = durum === "kosuyor" || durum === "hazirlik" ? this.t + 120_000 : 0;
+  }
+
+  /** Test ya da derleme bitti: pano yeşil ya da kırmızı yanar, oda bir an o renkte parlar, koşanın başında balon */
+  private labSonuc(sonuc: "gecti" | "kaldi", komut: string, k?: Kisi) {
+    this.lab.durum = sonuc;
+    if (komut) this.lab.komut = komut;
+    this.lab.bitis = this.t + (sonuc === "gecti" ? GECTI_SURESI : KALDI_SURESI);
+    this.odaFlasi("laboratuvar", sonuc === "gecti" ? "yesil" : "kirmizi");
+    if (k && !k.cikiyor) {
+      const b = so().balon;
+      this.balon(k, sonuc === "gecti" ? b.testGecti(komut) : b.testKaldi(komut), "bilgi", sonuc === "gecti" ? "onay" : "uyari");
+      this.akisa("test", sonuc === "gecti" ? so().akis.testGecti(k.ajan.ad, komut) : so().akis.testKaldi(k.ajan.ad, komut), { ajanId: k.id });
+    }
+    // Kalan test yayında gösterilir; her geçen koşu kamerayı oynatmasın
+    if (sonuc === "kaldi") this.vurgula(this.odaNoktasi("laboratuvar"), { anahtar: `test:${this.t}`, ajanId: k?.id });
+  }
+
+  /** Stüdyonun ekranı: en son hareket gören teslim (bekleyen, yeni karara bağlanan ya da onayı gelmemiş çağrı) */
+  private sunumuGuncelle() {
+    const s = sunumSec(this.onaylar, this.sunumCagrisi, Date.now());
+    if (!s) {
+      if (this.sunum.durum !== "bos") this.sunum = { ...this.sunum, baslik: "", adimlar: [], durum: "bos" };
+      return;
+    }
+    if (s.baslik !== this.sunum.baslik || s.durum !== this.sunum.durum || s.adimlar.join("\n") !== this.sunum.adimlar.join("\n")) {
+      this.sunum = { ...this.sunum, baslik: s.baslik, adimlar: s.adimlar, durum: s.durum };
+    }
+  }
+
+  /** Kanat ekranlarının yazıları ve durumları; yalnız değişince yazılır */
+  private ekranlariYaz(zorla = false) {
+    const e = so().ekran;
+    const ae = this.arastirmaEkrani;
+    if (ae) {
+      const aktif = !!this.arastirma.sorgu && this.t - this.arastirma.t < 60_000;
+      const anahtar = `${aktif ? this.arastirma.sorgu : ""}|${this.dil}`;
+      if (zorla || anahtar !== this.arastirma.yazilan) {
+        const yeniSorgu = aktif && anahtar.split("|")[0] !== this.arastirma.yazilan.split("|")[0];
+        this.arastirma.yazilan = anahtar;
+        ae.baslik.textContent = e.arastirma;
+        ae.sorgu.textContent = aktif ? this.arastirma.sorgu : e.arastirmaBos;
+        ae.kok.dataset.durum = aktif ? "aktif" : "bos";
+        if (yeniSorgu && !this.azHareket) {
+          // Yeni sorgu ekrana yazılarak gelir
+          ae.sorgu.classList.remove("ofis-yaziliyor");
+          void ae.sorgu.offsetWidth;
+          ae.sorgu.classList.add("ofis-yaziliyor");
+        }
+      }
+    }
+    const tp = this.testPanosu;
+    if (tp) {
+      const anahtar = `${this.lab.durum}|${this.lab.komut}|${this.dil}`;
+      if (zorla || anahtar !== this.lab.yazilan) {
+        this.lab.yazilan = anahtar;
+        tp.baslik.textContent = e.test;
+        tp.kok.dataset.durum = this.lab.durum;
+        tp.durum.textContent = e.testDurum[this.lab.durum];
+        tp.komut.textContent = this.lab.komut ? `$ ${this.lab.komut}` : e.testBos;
+        this.dunya.dataset.lab = this.lab.durum;
+      }
+    }
+    const se = this.sunumEkrani;
+    if (se) {
+      const s = this.sunum;
+      const anahtar = `${s.durum}|${s.baslik}|${s.adimlar.join("\n")}|${this.dil}`;
+      if (zorla || anahtar !== s.yazilan) {
+        s.yazilan = anahtar;
+        const bos = s.durum === "bos" || !s.baslik;
+        se.baslik.textContent = e.sunum;
+        se.kok.dataset.durum = bos ? "bos" : s.durum;
+        se.durum.textContent = bos ? "" : (e.sunumDurum[s.durum as keyof typeof e.sunumDurum] ?? "");
+        se.konu.textContent = bos ? e.sunumBos : kisaMetin(s.baslik, 42);
+        se.adimlar.innerHTML = bos ? "" : s.adimlar.map((a, i) => `<span style="--i:${i}"><i></i>${kacis(kisaMetin(a, 38))}</span>`).join("");
+      }
+    }
+  }
+
+  /** Kanat istasyonlarının monitörleri: oturan çalışıyorsa açık, yazıyorsa titrer */
+  private istasyonlariYaz() {
+    for (const ist of this.yer.istasyonlar) {
+      const isik = this.monitorler.get(ist.kimlik);
+      if (!isik) continue;
+      const sahip = this.koltukSahipleri.get(ist);
+      const k = sahip ? this.kisiler.get(sahip) : undefined;
+      const durumu = k && k.oturan === ist && k.ajan.durum === "calisiyor" ? (this.t < k.yazmaBitis ? "yaziyor" : "acik") : "";
+      if (isik.dataset.durum !== durumu) isik.dataset.durum = durumu;
+    }
+  }
+
+  /** Giriş kapısı: biri yaklaşınca kanatlar açılır */
+  private kapiYaz() {
+    if (!this.kapiEl) return;
+    const kp = this.yer.noktalar.girisKapisi;
+    let acik = false;
+    for (const k of this.kisiler.values()) {
+      if (Math.abs(k.x - kp.x) < 70 && Math.abs(k.y - kp.y) < 76) {
+        acik = true;
+        break;
+      }
+    }
+    if (this.kapiEl.classList.contains("ofis-kapi-acik") !== acik) this.kapiEl.classList.toggle("ofis-kapi-acik", acik);
+  }
+
+  /** Yerel saate göre gün ışığı (dakikada bir) */
+  private gunIsigiYaz() {
+    const simdi = new Date();
+    const g = gunIsigi(simdi.getHours() + simdi.getMinutes() / 60);
+    this.dunya.style.setProperty("--gece", g.gece.toFixed(3));
+    this.dunya.style.setProperty("--ilik", g.ilik.toFixed(3));
+  }
+
+  /** Kanat odalarının ve olayların yeri (akış satırı ve yayın için) */
+  private odaNoktasi(kimlik: "kurul" | "pano" | "sunucu" | "arsiv" | "laboratuvar" | "studyo" | "arastirma"): Nokta {
+    const n = this.yer.noktalar;
+    switch (kimlik) {
+      case "kurul": {
+        const km = this.yer.esyalar.find((e) => e.kimlik === n.kurulMasasiKimligi);
+        return km ? { x: km.x, y: km.y } : karoAyak(n.kurulBekleme[0]!);
+      }
+      case "pano":
+        return { x: n.pano.x, y: n.pano.y + KARO };
+      case "sunucu":
+        return karoAyak(n.sunucuOnu[0]!);
+      case "arsiv":
+        return karoAyak(n.arsivOnu[0]!);
+      case "laboratuvar":
+        return { x: n.testPanosu.x + KARO * 2, y: n.testPanosu.y + KARO };
+      case "studyo":
+        return { x: n.sunumEkrani.x, y: n.sunumEkrani.y + KARO };
+      case "arastirma":
+        return { x: n.arastirmaEkrani.x + KARO * 2, y: n.arastirmaEkrani.y + KARO };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Efektler: vurgu halkası, oda flaşı, kutlama
+  // -------------------------------------------------------------------------
+
+  /** Olay vurgusu: yerde genişleyen halka; canlı yayın bu olaya keser */
+  private vurgula(nokta: Nokta, o: { anahtar: string; ajanId?: string }) {
+    this.sahneOlaylari = [...this.sahneOlaylari.filter((x) => this.t - x.t < 8000 && x.anahtar !== o.anahtar), { anahtar: o.anahtar, nokta, ajanId: o.ajanId, t: this.t }].slice(-6);
+    if (!this.b) return;
+    const el = document.createElement("div");
+    el.className = "ofis-vurgu";
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText = `transform:translate(${nokta.x.toFixed(1)}px, ${nokta.y.toFixed(1)}px);z-index:${Math.max(2, Math.round(nokta.y) - 2)}`;
+    el.innerHTML = "<i></i><i></i>";
+    this.nesneler.appendChild(el);
+    this.efektler.ekle({ tur: "halka", simdi: this.t, sure: 1900, veri: el });
+  }
+
+  /** Odanın zemininde kısa ışık: birleşmede mercan, test geçince yeşil, kalınca kırmızı */
+  private odaFlasi(kimlik: OdaKimligi, renk: "mercan" | "yesil" | "kirmizi" | "sari") {
+    if (!this.b) return;
+    const oda = this.yer.odalar.find((o) => o.kimlik === kimlik);
+    if (!oda) return;
+    const el = document.createElement("div");
+    el.className = "ofis-oda-flas";
+    el.dataset.renk = renk;
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText = `left:${oda.alan.c * KARO}px;top:${oda.alan.r * KARO}px;width:${oda.alan.g * KARO}px;height:${oda.alan.y * KARO}px`;
+    this.nesneler.appendChild(el);
+    this.efektler.ekle({ tur: "flas", simdi: this.t, sure: 2700, veri: el });
+  }
+
+  /** Kutlama: başın üstünde kâğıtlar ve iki küçük zıplama (bütçe yetmezse yalnız zıplama) */
+  private kutla(k: Kisi) {
+    k.ziplaBas = this.t;
+    this.vurgula({ x: k.x, y: k.y }, { anahtar: `kutlama:${k.id}`, ajanId: k.id });
+    this.konfetiPatlat({ x: k.x, y: k.y - k.boy * (1 - k.kirp) - 6 }, 24);
+  }
+
+  /** Mercan ve kemik kâğıtlar: hareket azaltıldıysa ya da bütçe azsa atlanır */
+  private konfetiPatlat(n: Nokta, istenen: number) {
+    if (this.azHareket || !this.b) return;
+    const sayi = Math.min(istenen, this.efektler.kalan());
+    if (sayi < 6) return;
+    const el = document.createElement("div");
+    el.className = "ofis-konfeti";
+    el.setAttribute("aria-hidden", "true");
+    el.style.transform = `translate(${n.x.toFixed(1)}px, ${n.y.toFixed(1)}px) scale(${Math.min(this.ters, 1.3).toFixed(3)})`;
+    el.innerHTML = konfeti(sayi)
+      .map((p) => `<i style="--dx:${p.dx}px;--yukari:${-p.yukari}px;--asagi:${p.asagi}px;--don:${p.don}deg;--gecikme:${p.gecikme}ms" data-renk="${p.renk}"${p.serit ? " data-serit" : ""}></i>`)
+      .join("");
+    this.ustKatman.appendChild(el);
+    this.efektler.ekle({ tur: "konfeti", simdi: this.t, sure: 1800, agirlik: sayi, veri: el });
   }
 
   bildirimGeldi(metin: string, projeId?: string) {
@@ -1770,7 +2668,7 @@ export class OfisMotoru {
     const bulunan = adlariBul(metin, kisiler.map((k) => ({ ad: k.ajan.ad, k }))).map((x) => x.k);
     if (!bulunan.length) return;
     for (const k of bulunan) k.saatBitis = this.t + 20000;
-    this.akisa("bildirim", so().akis.gozetmen(kisaMetin(metin, 60)));
+    this.akisa("bildirim", so().akis.gozetmen(kisaMetin(metin, 60)), { ajanId: bulunan[0]?.id });
   }
 
   private gorevGecti(g: Gorev, once: GorevDurumu) {
@@ -1780,49 +2678,129 @@ export class OfisMotoru {
       const inceleyen = ink ?? this.ceo();
       if (sahip && inceleyen && inceleyen !== sahip && !sahip.cikiyor) {
         this.sahneEkle(sahip, "inceleme", () => this.belgeSahnesi(sahip, inceleyen, g.kod));
-        this.akisa("gorev", so().akis.incelemeyeHazir(sahip.ajan.ad, inceleyen.ajan.ad, g.kod));
-      } else this.akisa("gorev", so().akis.incelemede(g.kod));
+        this.akisa("gorev", so().akis.incelemeyeHazir(sahip.ajan.ad, inceleyen.ajan.ad, g.kod), { ajanId: sahip.id });
+      } else this.akisa("gorev", so().akis.incelemede(g.kod), { nokta: this.odaNoktasi("pano") });
       return;
     }
     if (g.durum === "tamam") {
       requestAnimationFrame(() => this.panoKivilcim(g.id));
-      if (sahip && !sahip.cikiyor) this.balon(sahip, so().balon.tamam(g.kod), "bilgi", "onay");
-      this.akisa("gorev", so().akis.tamamlandi(g.kod, sahip ? sahip.ajan.ad : null));
+      if (sahip && !sahip.cikiyor) {
+        this.balon(sahip, so().balon.tamam(g.kod), "bilgi", "onay");
+        // Kutlama: mercan ve kemik kâğıtlar, küçük bir zıplama
+        this.kutla(sahip);
+      }
+      this.akisa("gorev", so().akis.tamamlandi(g.kod, sahip ? sahip.ajan.ad : null), sahip ? { ajanId: sahip.id } : { nokta: this.odaNoktasi("pano") });
       return;
     }
-    if (once !== g.durum) this.akisa("gorev", so().akis.gorevDurumu(g.kod, sozluk().genel.gorevDurumu[g.durum]));
+    if (once !== g.durum) this.akisa("gorev", so().akis.gorevDurumu(g.kod, sozluk().genel.gorevDurumu[g.durum]), sahip ? { ajanId: sahip.id } : { nokta: this.odaNoktasi("pano") });
   }
 
   private onayYeni(o: Onay) {
     const ajan = o.ajanId ? this.kisiler.get(o.ajanId)?.ajan : undefined;
     if (o.tur === "ise_alim") {
       const v = (o.veri ?? {}) as { ad?: string };
-      this.akisa("onay", so().akis.adayKapida(v.ad ?? o.baslik));
-    } else if (o.tur === "birlestirme") this.akisa("onay", so().akis.birlestirmeBekliyor(o.baslik));
-    else if (o.tur !== "arac") this.akisa("onay", so().akis.onay(ajan?.ad ?? so().ekip, kisaMetin(o.baslik, 48)));
+      this.akisa("onay", so().akis.adayKapida(v.ad ?? o.baslik), { nokta: karoAyak(this.yer.noktalar.adaylar[0]!) });
+    } else if (o.tur === "birlestirme") this.akisa("onay", so().akis.birlestirmeBekliyor(o.baslik), { nokta: this.odaNoktasi("kurul") });
+    else if (o.tur !== "arac") this.akisa("onay", so().akis.onay(ajan?.ad ?? so().ekip, kisaMetin(o.baslik, 48)), ajan ? { ajanId: ajan.id } : { nokta: this.odaNoktasi("kurul") });
+    if (o.tur !== "arac") this.vurgula(this.odaNoktasi("kurul"), { anahtar: `onay:${o.id}` });
+    // Teslim: teslim eden stüdyoda sunar (teslim_et çağrısı akışta göründüyse sahne zaten açıldı)
+    const sunan = o.tur === "teslim" && o.ajanId ? this.kisiler.get(o.ajanId) : undefined;
+    if (sunan) this.sunumaCagir(sunan, teslimVerisi(o).baslik || o.baslik);
   }
 
   private onaySonuc(o: Onay) {
     if (o.tur === "birlestirme" && o.durum === "onaylandi") {
-      const v = (o.veri ?? {}) as { gorevId?: string };
-      const g = this.gorevler.find((x) => x.id === v.gorevId);
-      const sahip = (g?.atananId ? this.kisiler.get(g.atananId) : undefined) ?? (o.ajanId ? this.kisiler.get(o.ajanId) : undefined);
-      const kod = g?.kod ?? so().dal;
-      if (sahip && !sahip.cikiyor) this.sahneEkle(sahip, "birlesme", () => this.birlesmeSahnesi(sahip, kod));
-      else this.sunucuAkisBitis = this.t + 4800;
-      this.akisa("birlesme", so().akis.birlesti(kod));
+      // Onaylanan birleştirme kalite kapısına girer; birleşme anı kapının "birleşti" adımında oynar. Kalite kaydı
+      // hiç gelmezse (kapısız çekirdek) birkaç saniye sonra doğrudan birleşmiş sayılır.
+      if (!this.kaliteDurumu.has(o.id)) this.birlesmeBekleyenler.set(o.id, this.t + 8000);
+      this.akisa("birlesme", so().akis.birlesmeOnay(this.birlesmeKodu(o)), { nokta: this.odaNoktasi("laboratuvar") });
       return;
     }
     if (o.tur === "ise_alim") {
       const v = (o.veri ?? {}) as { ad?: string };
-      if (o.durum !== "onaylandi") this.akisa("onay", so().akis.adayKabulEdilmedi(v.ad ?? ""));
+      if (o.durum !== "onaylandi") this.akisa("onay", so().akis.adayKabulEdilmedi(v.ad ?? ""), { nokta: karoAyak(this.yer.noktalar.kapiIci) });
+      return;
+    }
+    if (o.tur === "teslim") {
+      this.teslimSonuc(o);
       return;
     }
     if (o.tur !== "arac") {
       const baslik = kisaMetin(o.baslik, 44);
       const a = so().akis;
-      this.akisa("onay", o.durum === "onaylandi" ? a.onaylandi(baslik) : o.durum === "reddedildi" ? a.reddedildi(baslik) : a.suresiDoldu(baslik));
+      this.akisa("onay", o.durum === "onaylandi" ? a.onaylandi(baslik) : o.durum === "reddedildi" ? a.reddedildi(baslik) : a.suresiDoldu(baslik), {
+        nokta: this.odaNoktasi("kurul"),
+      });
     }
+  }
+
+  private birlesmeKodu(o: Onay): string {
+    const v = (o.veri ?? {}) as { gorevId?: string };
+    return this.gorevler.find((x) => x.id === v.gorevId)?.kod ?? so().dal;
+  }
+
+  /** Birleşme anı: sahibi sunucu odasına yürür, dolapların ışıkları akar, oda mercan ışıkla yanıp söner */
+  private birlesmeOyna(o: Onay) {
+    const v = (o.veri ?? {}) as { gorevId?: string };
+    const g = this.gorevler.find((x) => x.id === v.gorevId);
+    const sahip = (g?.atananId ? this.kisiler.get(g.atananId) : undefined) ?? (o.ajanId ? this.kisiler.get(o.ajanId) : undefined);
+    const kod = g?.kod ?? so().dal;
+    if (sahip && !sahip.cikiyor) this.sahneEkle(sahip, "birlesme", () => this.birlesmeSahnesi(sahip, kod));
+    this.sunucuAkisBitis = this.t + 4800;
+    this.odaFlasi("sunucu", "mercan");
+    this.vurgula(this.odaNoktasi("sunucu"), { anahtar: `birlesme:${o.id}`, ajanId: sahip?.id });
+    this.akisa("birlesme", so().akis.birlesti(kod), sahip ? { ajanId: sahip.id } : { nokta: this.odaNoktasi("sunucu") });
+  }
+
+  /**
+   * Kalite kapısının adımları (onay.sonuc ile yayınlanır): hazırlık ve test laboratuvarın panosunda koşar; birleşince
+   * pano yeşil yanar ve birleşme anı oynar, testler geçmezse kırmızı yanar.
+   */
+  private kaliteGecti(o: Onay, durum: string, k: { komut?: string | null; testYok?: boolean; testsiz?: boolean }) {
+    const kod = this.birlesmeKodu(o);
+    const komut = k.komut ? komutMetni({ command: k.komut }) : "";
+    this.birlesmeBekleyenler.delete(o.id);
+    switch (durum) {
+      case "hazirlik":
+        this.labDurumu("hazirlik", komut);
+        break;
+      case "test":
+        this.labDurumu("kosuyor", komut);
+        this.akisa("test", so().akis.kaliteTest(kod), { nokta: this.odaNoktasi("laboratuvar") });
+        break;
+      case "birlesti":
+        if (!k.testYok && !k.testsiz) this.labSonuc("gecti", komut || this.lab.komut);
+        this.birlesmeOyna(o);
+        break;
+      case "test_basarisiz":
+      case "zaman_asimi":
+      case "hata":
+        this.labSonuc("kaldi", komut || this.lab.komut);
+        this.akisa("test", so().akis.kaliteKaldi(kod), { nokta: this.odaNoktasi("laboratuvar") });
+        break;
+      case "cakisma":
+        this.akisa("birlesme", so().akis.kaliteKaldi(kod), { nokta: this.odaNoktasi("sunucu") });
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** Teslim kararı: kabulde sahnede kutlama, geri bildirimde sarı ışık */
+  private teslimSonuc(o: Onay) {
+    const baslik = kisaMetin(teslimVerisi(o).baslik || o.baslik, 48);
+    const ekran = this.odaNoktasi("studyo");
+    const sunan = o.ajanId ? this.kisiler.get(o.ajanId) : undefined;
+    if (o.durum === "onaylandi") {
+      this.konfetiPatlat(ekran, 26);
+      if (sunan && !sunan.cikiyor) this.kutla(sunan);
+      this.odaFlasi("studyo", "yesil");
+      this.akisa("teslim", so().akis.teslimKabul(baslik), sunan ? { ajanId: sunan.id } : { nokta: ekran });
+    } else {
+      this.odaFlasi("studyo", "sari");
+      this.akisa("teslim", so().akis.teslimGeri(baslik), sunan ? { ajanId: sunan.id } : { nokta: ekran });
+    }
+    this.vurgula(ekran, { anahtar: `teslim:${o.id}`, ajanId: sunan?.id });
   }
 
   // -------------------------------------------------------------------------
@@ -1927,6 +2905,7 @@ export class OfisMotoru {
         n ? `${Array.from({ length: goster }, (_, i) => `<i style="--i:${i}"></i>`).join("")}<b>${n}</b>` : ""
       }`;
       this.kurulZemin.classList.toggle("ofis-kurul-var", n > 0);
+      this.kurulIsareti?.classList.toggle("ofis-kurul-isaret-var", n > 0);
       const masa = this.nesneler.querySelector<HTMLElement>('[data-sicak="kurul"]');
       const metin = so().kurulMasasi(n);
       masa?.setAttribute("aria-label", metin);
@@ -1990,12 +2969,12 @@ export class OfisMotoru {
   // Balonlar, işaretler, zarf
   // -------------------------------------------------------------------------
 
-  private balon(k: Kisi, metin: string, tip: BalonTipi, simge?: OfisSimgesi, ust?: string): Balon | null {
+  private balon(k: Kisi, metin: string, tip: BalonTipi, simge?: OfisSimgesi, ust?: string, sureVerilen?: number): Balon | null {
     if (!this.kisiler.has(k.id)) return null;
     const gorunur = k.balonlar.filter((b) => !b.kapaniyor);
     if (gorunur.length >= 2) {
       // Sıraya al: en eskisi kapanınca çıkar
-      k.bekleyenBalon.push({ metin, tip, simge, ust });
+      k.bekleyenBalon.push({ metin, tip, simge, ust, sure: sureVerilen });
       if (k.bekleyenBalon.length > 3) k.bekleyenBalon.shift();
       return null;
     }
@@ -2019,7 +2998,7 @@ export class OfisMotoru {
     el.style.setProperty("--uzunluk", String(metin.length));
     this.ustKatman.appendChild(el);
     const yazmaSuresi = yazar ? (metin.length / 42) * 1000 : 0;
-    const sure = Math.min(9000, Math.max(tip === "kisa" || tip === "bilgi" ? 2800 : 3600, yazmaSuresi + 1800 + metin.length * 18));
+    const sure = sureVerilen ?? Math.min(9000, Math.max(tip === "kisa" || tip === "bilgi" ? 2800 : 3600, yazmaSuresi + 1800 + metin.length * 18));
     const b: Balon = {
       kisi: k,
       el,
@@ -2091,10 +3070,10 @@ export class OfisMotoru {
     const sicak = hedef.closest<HTMLElement>("[data-sicak]")?.dataset.sicak;
     if (!sicak) return;
     const c = this.b?.cagrilar;
-    if (sicak === "kurul" || sicak === "aday") c?.git("onaylar");
+    if (sicak === "kurul" || sicak === "aday" || sicak === "laboratuvar" || sicak === "studyo") c?.git("onaylar");
     else if (sicak === "pano") c?.git("pano");
     else if (sicak === "sunucu") c?.git("kod");
-    else if (sicak === "arsiv") c?.git("notlar");
+    else if (sicak === "arsiv" || sicak === "arastirma") c?.git("notlar");
     else if (sicak === "toplanti") c?.git("kanallar", { kanal: "toplanti" });
   }
 
@@ -2124,10 +3103,27 @@ export class OfisMotoru {
   }
 
   private etkinlikMetni(k: Kisi): string {
+    const temel = this.temelEtkinlik(k);
+    return this.dusunuyor(k) ? so().etkinlik.dusunuyor(temel) : temel;
+  }
+
+  /** Düşünme noktaları görünüyor mu */
+  private dusunuyor(k: Kisi): boolean {
+    return k.ajan.durum === "calisiyor" && !k.cikiyor && this.t < k.dusunceBitis;
+  }
+
+  /** Uzun süre boşta kalıp durmuş: uyukluyor (kanepede, köşede) */
+  private uyukluyor(k: Kisi): boolean {
+    return k.ajan.durum === "bosta" && !k.cikiyor && this.t - k.bostaBas > UYUKLAMA && this.t - k.sonHareket > 6000 && this.hareketsiz(k) && !k.balonlar.length;
+  }
+
+  private temelEtkinlik(k: Kisi): string {
     const a = k.ajan;
     const e = so().etkinlik;
     if (k.cikiyor) return e.ayriliyor;
     if (k.is?.tur === "sahne" && k.etkinlik) return k.etkinlik;
+    if (k.kanalYazisi && this.t < k.kanalYazisi.bitis) return e.kanalaYaziyor(kanalAdi(k.kanalYazisi.kanal));
+    if (this.uyukluyor(k)) return e.uyukluyor;
     switch (a.durum) {
       case "calisiyor": {
         if (k.kaliciTur === "calisma") {
@@ -2146,8 +3142,14 @@ export class OfisMotoru {
               return e.kurulda;
             case "tahta":
               return this.toplantiSuruyor() ? e.panoda : e.tahtada;
-            case "okuma":
-              return e.okumada;
+            case "arastirma":
+              return e.arastirmada;
+            case "laboratuvar":
+              return e.laboratuvarda;
+            case "sunum":
+              return e.sunumda;
+            case "tasarim":
+              return e.tasarimda;
             case "sunucu":
               return e.sunucuda;
             default:
@@ -2171,20 +3173,36 @@ export class OfisMotoru {
 
   private olcekDegisti(o: number) {
     this.olcek = o;
-    this.ters = Math.min(1.15, Math.max(0.74, o)) / o;
-    this.dunya.style.setProperty("--ters", this.ters.toFixed(3));
+    const ters = Math.min(1.15, Math.max(0.74, o)) / o;
+    // Değişken yalnız değişince yazılır: dünyanın bütün alt ağacı ondan miras alır (her yazım stil hesaplatır)
+    const tersMetin = ters.toFixed(3);
+    if (tersMetin !== this.tersYazilan) {
+      this.tersYazilan = tersMetin;
+      this.dunya.style.setProperty("--ters", tersMetin);
+    }
+    const tersDegisti = Math.abs(ters - this.ters) > 1e-4;
+    this.ters = ters;
     const lod = o < 0.42 ? "uzak" : o < 0.62 ? "orta" : "yakin";
     if (lod !== this.lod) {
       this.lod = lod;
       this.dunya.dataset.lod = lod;
+      // Balonun kendi boyu ölçekten bağımsız (transform); yalnız ayrıntı düzeyi değişince yeniden ölçülür
+      for (const b of this.balonlar) b.olcum = true;
     }
-    for (const k of this.kisiler.values()) k.yaz.ust = "";
-    for (const b of this.balonlar) b.olcum = true;
-    this.kameraKaydetPlanla();
+    // Etiketler ölçeğin tersiyle büyür; ters değişmediyse (0.74-1.15 arası) yeniden yazmaya gerek yok
+    if (tersDegisti) for (const k of this.kisiler.values()) k.yaz.ust = "";
   }
 
-  private akisa(tur: AkisTuru, metin: string) {
-    const satir: AkisSatiri = { id: ++this.akisNo, zaman: Date.now(), tur, metin };
+  /** Şeride satır: kim ya da nerede (basınca kamera oraya gider) */
+  private akisa(tur: AkisTuru, metin: string, hedef: { ajanId?: string; nokta?: Nokta } = {}) {
+    const satir: AkisSatiri = {
+      id: ++this.akisNo,
+      zaman: Date.now(),
+      tur,
+      metin,
+      ...(hedef.ajanId ? { ajanId: hedef.ajanId } : {}),
+      ...(hedef.nokta ? { nokta: { x: Math.round(hedef.nokta.x), y: Math.round(hedef.nokta.y) } } : {}),
+    };
     this.akisGecmisi = [satir, ...this.akisGecmisi].slice(0, AKIS_GECMISI);
     this.b?.cagrilar.akis(satir);
   }
@@ -2217,6 +3235,11 @@ export class OfisMotoru {
       for (const k of kisiler) if (k.kaliciTur === "calisma" && !k.cikiyor) yerKarari(k.yerDurumu, this.t);
     }
     for (const k of kisiler) {
+      // Araç sonucundan sonra sıradaki çağrı gelmediyse model düşünüyor
+      if (this.t >= k.dusunceBaslar) {
+        k.dusunceBaslar = SONSUZ;
+        if (k.ajan.durum === "calisiyor") k.dusunceBitis = this.t + 9000;
+      }
       this.isiIlerlet(k);
       if (this.kisiler.has(k.id)) this.hareket(k, dt);
     }
@@ -2232,6 +3255,41 @@ export class OfisMotoru {
       if (this.t < kv.bitis) this.kivilcimlar.push(kv);
       else kv.el.remove();
     }
+    this.efektler.ilerlet(this.t);
+    this.kameraAdimi(dt);
+    this.yarimSaniye += dt;
+    if (this.yarimSaniye >= 250) {
+      this.yarimSaniye = 0;
+      this.yavasAdim();
+    }
+  }
+
+  /** Dörtte bir saniyede bir: kanat ekranları, istasyonlar, kapı, laboratuvarın sönmesi, gün ışığı, bütçe */
+  private yavasAdim() {
+    if (this.lab.durum !== "bos" && this.lab.bitis && this.t >= this.lab.bitis) {
+      this.lab.durum = "bos";
+      this.lab.bitis = 0;
+    }
+    // Kalite kaydı gelmeyen onaylı birleştirme: doğrudan birleşmiş sayılır
+    for (const [id, son] of this.birlesmeBekleyenler) {
+      if (this.t < son) continue;
+      this.birlesmeBekleyenler.delete(id);
+      const o = this.onaylar.find((x) => x.id === id);
+      if (o && !this.kaliteDurumu.has(id)) this.birlesmeOyna(o);
+    }
+    // Sonucu hiç gelmeyen çağrılar unutulur
+    for (const [id, c] of this.labCagrilari) if (this.t - c.t > 600_000) this.labCagrilari.delete(id);
+    this.sahneOlaylari = this.sahneOlaylari.filter((o) => this.t - o.t < 8000);
+    this.sunumuGuncelle();
+    this.ekranlariYaz();
+    this.istasyonlariYaz();
+    this.kapiYaz();
+    if (this.t - this.gunIsigiZamani > 60_000) {
+      this.gunIsigiZamani = this.t;
+      this.gunIsigiYaz();
+    }
+    this.efektler.butce = efektButcesi(this.kisiler.size, this.kareOlcer.dusukGuc);
+    this.kameraModunuBildir();
   }
 
   private hareket(k: Kisi, dt: number) {
@@ -2253,6 +3311,7 @@ export class OfisMotoru {
     }
     if (k.gecis) {
       const g = k.gecis;
+      k.sonHareket = this.t;
       const u = Math.min(1, (this.t - g.t0) / g.sure);
       const e = yumusakGecis(u);
       k.x = g.bas.x + (g.son.x - g.bas.x) * e;
@@ -2292,6 +3351,7 @@ export class OfisMotoru {
     }
     const hareketX = k.x - onceX;
     const hareketY = k.y - onceY;
+    k.sonHareket = this.t;
     if (Math.abs(hareketX) > 0.15) k.yon = hareketX > 0 ? 1 : -1;
     // Yukarı (bakandan uzağa) yürürken arkası döner; aşağı ya da yana dönünce yüzü görünür
     if (!k.yol) k.arkadan = k.bakis === "arka" && !!k.karakter.arka;
@@ -2358,6 +3418,11 @@ export class OfisMotoru {
       }
       const uz = this.t - k.uzanma;
       if (uz >= 0 && uz < 700) bob -= Math.sin((uz / 700) * Math.PI) * 5;
+      // Kutlama: iki küçük zıplama, ikincisi alçak
+      const zu = this.t - k.ziplaBas;
+      if (zu >= 0 && zu < 780) bob -= Math.abs(Math.sin((zu / 390) * Math.PI)) * (zu < 390 ? 10 : 5);
+      // Masada yazarken: hızlı, küçük kıpırtı (klavyeye vuruş)
+      if (k.oturan && this.t < k.yazmaBitis) bob -= Math.max(0, Math.sin(this.t * 0.046 + k.nefesFaz)) * 0.9;
       if (k.isaret?.tip === "omuz" && this.t < k.isaret.bitis) {
         const o = (k.isaret.bitis - this.t) % 700;
         if (o < 350) bob -= Math.sin((o / 350) * Math.PI) * 3;
@@ -2431,12 +3496,23 @@ export class OfisMotoru {
       k.isEl.hidden = !isMetni;
       k.yaz.is = isMetni;
     }
+    // Başın üstünde: düşünürken akan üç nokta, yüz yüze konuşurken sözsüz konuşma göstergesi
+    const konusma = this.t < k.konusmaBitis;
+    const dusunce = !konusma && this.dusunuyor(k);
+    if (dusunce !== k.yaz.dusunce || konusma !== k.yaz.konusma) {
+      k.yaz.dusunce = dusunce;
+      k.yaz.konusma = konusma;
+      if (konusma) k.dusunceEl.dataset.tur = "konusma";
+      else if (dusunce) k.dusunceEl.dataset.tur = "dusunce";
+      else delete k.dusunceEl.dataset.tur;
+    }
     // İşaret: kalıcı (durumdan) ya da geçici
     let isaret = "";
     if (k.isaret && this.t >= k.isaret.bitis) k.isaret = null;
     if (k.ajan.durum === "karar_bekliyor") isaret = "soru";
     else if (k.isaret) isaret = k.isaret.tip;
     else if (k.ajan.durum === "kapali" && k.oturan) isaret = "uyku";
+    else if (this.uyukluyor(k)) isaret = "uyku";
     else if (k.ajan.durum === "duraklatildi") isaret = "duraklat";
     else if (k.ajan.durum === "hata") isaret = "uyari";
     if (isaret !== k.yaz.isaret) {
@@ -2472,7 +3548,15 @@ export class OfisMotoru {
       const isik = this.monitorler.get(k.masa.kimlik);
       if (isik) {
         // Hata: ekran mercan renginde yanıp söner (belirgin işaret)
-        const durumu = masadaCalisiyor ? (k.aracSimge && this.t < k.aracSimge.bitis ? "parlak" : "acik") : masada && k.ajan.durum === "hata" ? "hata" : "";
+        const durumu = masadaCalisiyor
+          ? this.t < k.yazmaBitis
+            ? "yaziyor"
+            : k.aracSimge && this.t < k.aracSimge.bitis
+              ? "parlak"
+              : "acik"
+          : masada && k.ajan.durum === "hata"
+            ? "hata"
+            : "";
         if (isik.dataset.durum !== durumu) isik.dataset.durum = durumu;
       }
       this.masaSimgeleri(k, masadaCalisiyor);
@@ -2508,7 +3592,10 @@ export class OfisMotoru {
         el.textContent = "…";
         break;
       case "uyku":
-        el.innerHTML = "<i>z</i><i>z</i>";
+        // Her "z" kendi kabında yükselir (kabın dönüşümü birleştiricide oynar, SVG yerleşimini bozmaz)
+        el.innerHTML = [7, 5.5, 4]
+          .map((b, i) => `<i style="--i:${i}"><svg viewBox="0 0 8 8" width="${b}" height="${b}" aria-hidden="true" focusable="false"><path d="M1 1.5h6L1 6.5h6"/></svg></i>`)
+          .join("");
         break;
       case "duraklat":
         el.innerHTML = simgeSvg("duraklat", 10);
@@ -2591,7 +3678,7 @@ export class OfisMotoru {
           this.balonlar = this.balonlar.filter((x) => x !== b);
           kisi.balonlar = kisi.balonlar.filter((x) => x !== b);
           const sonraki = kisi.bekleyenBalon.shift();
-          if (sonraki && this.kisiler.has(kisi.id)) this.balon(kisi, sonraki.metin, sonraki.tip, sonraki.simge, sonraki.ust);
+          if (sonraki && this.kisiler.has(kisi.id)) this.balon(kisi, sonraki.metin, sonraki.tip, sonraki.simge, sonraki.ust, sonraki.sure);
         }, 260);
       }
     }
@@ -2669,21 +3756,22 @@ export class OfisMotoru {
       this.ipucuGizle();
       return;
     }
+    // Yazı ve ölçüler 400 ms'de bir yenilenir; aradaki karelerde yalnız konum hesaplanır (yerleşim zorlanmaz)
     if (this.t - this.ipucuYazildi > 400) {
       this.ipucuYazildi = this.t;
       const a = k.ajan;
       this.ipucu.innerHTML = `<b>${kacis(a.ad)}</b><small>${kacis(a.rolAdi)}</small><span class="ofis-ipucu-durum" data-durum="${DURUM_SINIFI[a.durum]}"><i></i>${kacis(sozluk().genel.ajanDurumu[a.durum])}</span><p>${kacis(this.etkinlikMetni(k))}</p>`;
+      const alan = this.b.alan.getBoundingClientRect();
+      const ekran = this.b.ekran.getBoundingClientRect();
+      this.ipucuOlcu = { dx: alan.left - ekran.left, dy: alan.top - ekran.top, eg: ekran.width, eh: ekran.height, g: this.ipucu.offsetWidth, h: this.ipucu.offsetHeight };
     }
     const n = this.kamera.ekrana(k.x + k.ax, k.y - k.boy * (1 - k.kirp));
-    const alan = this.b.alan.getBoundingClientRect();
-    const ekran = this.b.ekran.getBoundingClientRect();
-    const g = this.ipucu.offsetWidth;
-    const h = this.ipucu.offsetHeight;
-    let x = n.x + alan.left - ekran.left + 18;
-    let y = n.y + alan.top - ekran.top - 8;
-    if (x + g > ekran.width - 8) x = n.x + alan.left - ekran.left - g - 18;
+    const o = this.ipucuOlcu;
+    let x = n.x + o.dx + 18;
+    let y = n.y + o.dy - 8;
+    if (x + o.g > o.eg - 8) x = n.x + o.dx - o.g - 18;
     x = Math.max(8, x);
-    y = Math.max(8, Math.min(ekran.height - h - 8, y));
+    y = Math.max(8, Math.min(o.eh - o.h - 8, y));
     this.ipucu.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
   }
 }

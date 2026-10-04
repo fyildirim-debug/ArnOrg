@@ -17,6 +17,7 @@ const YOLLAR = {
   onay: '<path d="m3 8.5 3.25 3.25L13 5"/>',
   kisi: '<circle cx="8" cy="5" r="2.75"/><path d="M2.75 14c.5-3 2.5-4.5 5.25-4.5s4.75 1.5 5.25 4.5"/>',
   alt: '<rect x="2" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M7 4.5h2.5V9"/>',
+  ekran: '<rect x="1.5" y="2" width="13" height="8.5" rx="1"/><path d="M8 10.5V13M5 14.5 8 13l3 1.5M4.5 7.5l2-2 1.75 1.5 3-3"/>',
 } as const;
 
 export type OfisSimgesi = keyof typeof YOLLAR;

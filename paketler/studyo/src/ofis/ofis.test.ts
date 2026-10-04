@@ -1,11 +1,30 @@
-// Ofis motorunun saf parçaları: yol bulma, yerleşim, karakter seçimi, balon metni
+// Ofis motorunun saf parçaları: yol bulma, yerleşim (doğu kanadı dahil), karakter seçimi, balon metni, işe göre yer,
+// kayıtlı görünümün uyarlanması, efektlerin yaşam döngüsü, canlı yayın, gün ışığı ve güç durumu
 import { afterEach, describe, expect, it } from "vitest";
 import { useDilDurumu } from "../dil";
-import { aracYeri, durumYeri, EN_AZ_KALIS, TAZE_SURE, yerDurumu, yerKarari, yerOlayi, yerVarisi } from "./etkinlikYeri";
+import { EfektHavuzu, efektButcesi, egriNoktasi, konfeti, yayKontrolu } from "./efektler";
+import {
+  aracYeri,
+  aramaMetni,
+  durumYeri,
+  EN_AZ_KALIS,
+  komutMetni,
+  komutTuru,
+  TAZE_SURE,
+  testSonucu,
+  yerDurumu,
+  yerKarari,
+  yerOlayi,
+  yerVarisi,
+} from "./etkinlikYeri";
+import { ESKI_GENISLIK, kameraDurumunuUyarla } from "./kamera";
 import { adayKarakteri, karakterleriAta, ozet } from "./karakterSecimi";
 import { gerekenMasa, masaAtamasiOku, masaAtamasiYaz, masalariAta } from "./masaAtama";
 import { adlariBul, balonMetni, markdownTemizle, toplantiDuyurusu, toplantiSorusuMu } from "./metin";
-import { masaSayisi, yerlesimKur, yurunebilirMi, type Karo } from "./yerlesim";
+import { gunIsigi, KareOlcer } from "./ortam";
+import { KARAR_EKRANDA, sunumSec, teslimVerisi } from "./teslim";
+import { KISI_CEKIMI, OLAY_CEKIMI, sonrakiCekim, yeniCekim, type YayinAdayi } from "./yayin";
+import { ANA_SUTUN, KARO, karoAyak, masaSayisi, noktaKarosu, yerlesimKur, yurunebilirMi, type Karo } from "./yerlesim";
 import { gorusHatti, sadelestir, yakinBos, yolBul, yumusat, type Izgara } from "./yol";
 
 function izgara(satirlar: string[]): Izgara {
@@ -257,10 +276,12 @@ describe("masa ataması (kararlılık)", () => {
 describe("işe göre yer: araç → yer tablosu", () => {
   const yer = (arac: string | undefined, girdi?: unknown) => aracYeri(arac, girdi)?.yer ?? null;
 
-  it("kod yazma, test ve derleme kendi masasında", () => {
-    for (const a of ["Edit", "Write", "MultiEdit", "NotebookEdit"]) expect(yer(a), a).toBe("masa");
-    for (const komut of ["npm test", "npx vitest run", "npm run build", "tsc --noEmit", "git status", "git diff main"]) expect(yer("Bash", { command: komut }), komut).toBe("masa");
-    expect(aracYeri("Bash", { command: "npm test" })).toMatchObject({ kisa: false, esik: 1 });
+  it("kod yazma ve kısa komutlar kendi masasında", () => {
+    for (const a of ["Edit", "Write", "MultiEdit", "NotebookEdit"]) expect(yer(a, { file_path: "src/siparis/liste.tsx" }), a).toBe("masa");
+    for (const komut of ["git status", "git diff main", "ls -la", "cat vitest.config.ts", "node betik.mjs", "npm install"]) expect(yer("Bash", { command: komut }), komut).toBe("masa");
+    expect(aracYeri("Bash", { command: "git status" })).toMatchObject({ kisa: false, esik: 1 });
+    // Arka plandaki komutun çıktısına bakmak kısa iş: laboratuvarda testi bekleyeni yerinden kaldırmaz
+    for (const a of ["BashOutput", "KillShell", "KillBash"]) expect(aracYeri(a), a).toMatchObject({ yer: "masa", kisa: true, esik: 3 });
   });
 
   it("kod okuma ve arama masada, kısa iş: tek başına yerinden kaldırmaz", () => {
@@ -282,8 +303,6 @@ describe("işe göre yer: araç → yer tablosu", () => {
     for (const a of ["not_oku", "notlari_listele", "hafiza_ara", "hafiza_listele"]) expect(aracYeri(`mcp__arnorg__${a}`), a).toMatchObject({ yer: "arsiv", esik: 2 });
     for (const a of ["kurula_sor", "birlestirme_iste", "ise_al_teklif"]) expect(yer(`mcp__arnorg__${a}`), a).toBe("kurul");
     expect(yer("mcp__arnorg__rapor_hazirla")).toBe("tahta");
-    expect(aracYeri("WebSearch")).toMatchObject({ yer: "okuma", esik: 1 });
-    expect(aracYeri("WebFetch")).toMatchObject({ yer: "okuma", esik: 2 });
   });
 
   it("iş arkadaşına soru, devir, inceleme ve anma o kişinin yanına", () => {
@@ -322,9 +341,9 @@ describe("işe göre yer: durgunluk", () => {
 
   it("henüz yerleşmemiş kişi ilk işinin yerine beklemeden gider", () => {
     const d = yerDurumu(0);
-    yerOlayi(d, { yer: "okuma" }, 100);
+    yerOlayi(d, { yer: "arastirma" }, 100);
     expect(yerKarari(d, 100)).toBe(true);
-    expect(d.yer).toBe("okuma");
+    expect(d.yer).toBe("arastirma");
   });
 
   it("kısa okuma masadan kaldırmaz; panodayken tek bir okuma masaya geri götürmez", () => {
@@ -354,23 +373,23 @@ describe("işe göre yer: durgunluk", () => {
 
   it("sürüp giden iş kişiyi yerinde tutar", () => {
     const d = yerDurumu(0);
-    yerOlayi(d, { yer: "okuma" }, 0);
+    yerOlayi(d, { yer: "arastirma" }, 0);
     yerKarari(d, 0);
     yerVarisi(d, 3000);
     for (let t = 10000; t <= 90000; t += 10000) {
-      yerOlayi(d, { yer: "okuma" }, t);
+      yerOlayi(d, { yer: "arastirma" }, t);
       expect(yerKarari(d, t), String(t)).toBe(false);
     }
-    expect(d.yer).toBe("okuma");
+    expect(d.yer).toBe("arastirma");
   });
 
-  it("eşikli iş: tek web sayfası okuma köşesine götürmez, ikincisi götürür", () => {
+  it("eşikli iş: tek web sayfası kütüphaneye götürmez, ikincisi götürür", () => {
     const d = yerDurumu(0);
-    yerOlayi(d, { yer: "okuma", esik: 2 }, 1000);
+    yerOlayi(d, { yer: "arastirma", esik: 2 }, 1000);
     expect(yerKarari(d, 1000)).toBe(false);
-    yerOlayi(d, { yer: "okuma", esik: 2 }, 3000);
+    yerOlayi(d, { yer: "arastirma", esik: 2 }, 3000);
     expect(yerKarari(d, 3000)).toBe(true);
-    expect(d.yer).toBe("okuma");
+    expect(d.yer).toBe("arastirma");
   });
 
   it("bayatlayan öneri unutulur; bulunulan yerin işi öneriyi geçersiz kılar", () => {
@@ -418,5 +437,458 @@ describe("toplantı tanıma (dilden bağımsız)", () => {
     expect(toplantiSorusuMu("Meeting (called by Ada): Shipping integration\n\nGive your view briefly", "Ada")).toBe(true);
     expect(toplantiSorusuMu("Soru (acil): jeton süresi kaç?", "Ece")).toBe(false);
     expect(toplantiSorusuMu("Jeton süresi kaç dakika?", "Ece")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Doğu kanadı: kütüphane, test laboratuvarı, stüdyo
+// ---------------------------------------------------------------------------
+
+/** Kanattan önceki ana binanın yürünebilir ızgarası (sütun 0-46, 12 masa): kanat eklenince birebir aynı kalmalı */
+const ANA_BINA = [
+  "###############################################",
+  "###############################################",
+  "###......#......###.........######.#.#########.",
+  "###.....###.....####........######...#########.",
+  "#..###...#..###...#...######...#.......#######.",
+  "#..###.#.#..###...#...######...#.##.##.#.......",
+  "#........##.......#............#.##.##.#.......",
+  "##.......#.......##...........##.......##.....#",
+  "####..#######..#########..#########..######..##",
+  "#..............................................",
+  "#..............................................",
+  "#.............................#...............#",
+  "#.......#############.....#....##..#####...##..",
+  "#.#.........................#....#.#####.#.....",
+  "#..............................................",
+  "#...#########...#########...........###.......#",
+  "#...#########...#########......................",
+  "#..............................................",
+  "#...........................#.................#",
+  "#.................................####.........",
+  "#...#########...#########......#..####.........",
+  "#...#########...#########......................",
+  "#..............................................",
+  "#...........................#..................",
+  "#..............................................",
+  "###.......................#..##........#......#",
+  "##########################################..###",
+];
+
+describe("doğu kanadı: yerleşim", () => {
+  const ulasilir = (y: ReturnType<typeof yerlesimKur>, k: Karo) => yolBul(y, y.noktalar.kapiIci, k) !== null;
+  const odasi = (y: ReturnType<typeof yerlesimKur>, k: Karo) =>
+    y.odalar.find((o) => k.c >= o.alan.c && k.c < o.alan.c + o.alan.g && k.r >= o.alan.r && k.r < o.alan.r + o.alan.y)?.kimlik;
+
+  it("ana bina yerinde kalır: ızgara, masalar ve masa kimlikleri değişmez; kanat doğuya eklenir", () => {
+    const y = yerlesimKur(12);
+    expect(y.sutun).toBeGreaterThan(ANA_SUTUN);
+    const satirlar = ANA_BINA.map((_, r) => Array.from({ length: 47 }, (_, c) => (yurunebilirMi(y, { c, r }) ? "." : "#")).join(""));
+    expect(satirlar).toEqual(ANA_BINA);
+    // Masa ataması kimlikleri ve yerleri: m0 ilk adanın ilk masası, CEO ve CTO odalarında
+    const m0 = y.masalar.find((m) => m.kimlik === "m0")!;
+    expect(m0.yaklasma).toEqual({ c: 6, r: 14 });
+    expect(y.masalar.find((m) => m.kimlik === "ceo")!.yaklasma).toEqual({ c: 5, r: 3 });
+    expect(y.masalar.map((m) => m.kimlik)).toEqual(["ceo", "cto", ...Array.from({ length: 12 }, (_, i) => `m${i}`)]);
+    // Kanat istasyonları masa atamasına girmez
+    expect(y.masalar.every((m) => m.oda !== ("laboratuvar" as string))).toBe(true);
+    for (const i of y.istasyonlar) expect(i.oturma.x, i.kimlik).toBeGreaterThan(ANA_SUTUN * KARO);
+  });
+
+  it("üç yeni oda var, ana binayla örtüşmez ve sözlükte adları var", () => {
+    const y = yerlesimKur(12);
+    for (const kimlik of ["arastirma", "laboratuvar", "studyo"] as const) {
+      const o = y.odalar.find((x) => x.kimlik === kimlik)!;
+      expect(o, kimlik).toBeDefined();
+      expect(o.alan.c).toBeGreaterThanOrEqual(ANA_SUTUN);
+      expect(o.alan.c + o.alan.g).toBeLessThanOrEqual(y.sutun - 1);
+      // Kütüphane levha bandında, diğerlerinin kapı levhası var
+      expect(o.levha || !!o.kapiLevhasi, kimlik).toBe(true);
+    }
+    // Odalar birbirine girmez
+    const alanlar = y.odalar.map((o) => o.alan);
+    for (let i = 0; i < alanlar.length; i++) {
+      for (let j = i + 1; j < alanlar.length; j++) {
+        const a = alanlar[i]!;
+        const b = alanlar[j]!;
+        const ortusur = a.c < b.c + b.g && b.c < a.c + a.g && a.r < b.r + b.y && b.r < a.r + a.y;
+        expect(ortusur, `${y.odalar[i]!.kimlik} × ${y.odalar[j]!.kimlik}`).toBe(false);
+      }
+    }
+  });
+
+  it("kanadın her yerine kapıdan yürünebilir; noktalar kendi odasında (12 ve 30 masa)", () => {
+    for (const y of [yerlesimKur(12), yerlesimKur(30)]) {
+      const n = y.noktalar;
+      for (const k of n.arastirmaKoltuklari) {
+        expect(ulasilir(y, k.yaklasma), `kütüphane koltuğu ${k.yaklasma.c},${k.yaklasma.r}`).toBe(true);
+        expect(odasi(y, noktaKarosu(k.oturma))).toBe("arastirma");
+      }
+      for (const k of n.arastirmaOnu) {
+        expect(ulasilir(y, k), `kütüphane ${k.c},${k.r}`).toBe(true);
+        expect(odasi(y, k)).toBe("arastirma");
+      }
+      for (const k of n.labOnu) {
+        expect(ulasilir(y, k), `laboratuvar ${k.c},${k.r}`).toBe(true);
+        expect(odasi(y, k)).toBe("laboratuvar");
+      }
+      for (const i of y.istasyonlar) {
+        expect(ulasilir(y, i.yaklasma), i.kimlik).toBe(true);
+        expect(odasi(y, i.yaklasma)).toBe(i.oda);
+      }
+      expect(y.istasyonlar.filter((i) => i.oda === "laboratuvar")).toHaveLength(3);
+      expect(y.istasyonlar.filter((i) => i.oda === "studyo")).toHaveLength(1);
+      expect(ulasilir(y, n.sunumNoktasi)).toBe(true);
+      expect(odasi(y, n.sunumNoktasi)).toBe("studyo");
+      for (const k of n.studyoOnu) expect(ulasilir(y, k), `stüdyo ${k.c},${k.r}`).toBe(true);
+      // Kanat duvarındaki geçitler: koridor, dinlenme → laboratuvar, kurul → stüdyo
+      expect(n.kanatKapilari).toHaveLength(3);
+      for (const k of n.kanatKapilari) {
+        expect(yurunebilirMi(y, k), `geçit ${k.r}`).toBe(true);
+        expect(yurunebilirMi(y, { c: k.c, r: k.r + 1 }), `geçit ${k.r + 1}`).toBe(true);
+        expect(yurunebilirMi(y, { c: k.c - 1, r: k.r }), `geçidin batısı ${k.r}`).toBe(true);
+        expect(yurunebilirMi(y, { c: k.c + 1, r: k.r }), `geçidin doğusu ${k.r}`).toBe(true);
+      }
+      // Kanat duvarı geçitler dışında kapalı
+      const acik = Array.from({ length: y.satir }, (_, r) => r).filter((r) => yurunebilirMi(y, { c: ANA_SUTUN - 1, r }));
+      expect(acik).toEqual(n.kanatKapilari.flatMap((k) => [k.r, k.r + 1]));
+      // Ekranların ve küre ayaklarının karoları engel
+      for (const p of [n.arastirmaEkrani, n.testPanosu, n.sunumEkrani]) expect(yurunebilirMi(y, { c: p.engel.c + 1, r: p.engel.r })).toBe(false);
+      expect(yurunebilirMi(y, noktaKarosu(n.kure))).toBe(false);
+    }
+  });
+
+  it("kanattan ana binaya ve geri: laboratuvardan kurula, stüdyodan kütüphaneye yol var", () => {
+    const y = yerlesimKur(12);
+    const n = y.noktalar;
+    expect(yolBul(y, n.labOnu[0]!, n.kurulBekleme[0]!)).not.toBeNull();
+    expect(yolBul(y, n.sunumNoktasi, n.arastirmaOnu[0]!)).not.toBeNull();
+    expect(yolBul(y, y.masalar.find((m) => m.kimlik === "m0")!.yaklasma, n.labOnu[0]!)).not.toBeNull();
+    // Giriş kapısının kanatları iki kasanın arasında
+    expect(n.girisKapisi.genislik).toBe(2 * KARO);
+    expect(noktaKarosu({ x: n.girisKapisi.x, y: n.girisKapisi.y - 1 }).c).toBe(n.kapi.c + 1);
+    // Sunan, sahnedeki spotun üstünde ve ekranın solunda durur
+    expect(karoAyak(n.sunumNoktasi).x).toBeLessThan(n.sunumEkrani.x - n.sunumEkrani.genislik / 2 + 4);
+  });
+});
+
+describe("doğu kanadı: araç → oda", () => {
+  const yer = (arac: string | undefined, girdi?: unknown) => aracYeri(arac, girdi)?.yer ?? null;
+
+  it("web araştırması kütüphaneye: arama ve kayıt hemen, sayfa okumak ve paket bilgisi ikinci çağrıda", () => {
+    for (const a of ["WebSearch", "mcp__arnorg__web_ara", "mcp__arnorg__github_ara", "mcp__arnorg__arastirma_kaydet"]) {
+      expect(aracYeri(a, { query: "kargo api" }), a).toMatchObject({ yer: "arastirma", esik: 1, kisa: false });
+    }
+    for (const a of ["WebFetch", "mcp__arnorg__web_oku", "mcp__arnorg__paket_bilgisi"]) expect(aracYeri(a, { url: "https://x.dev" }), a).toMatchObject({ yer: "arastirma", esik: 2 });
+    // Benzer adlı başka araç kütüphaneye götürmez
+    expect(yer("mcp__baska__web_ara")).toBeNull();
+  });
+
+  it("test komutları laboratuvara; derleme, tür denetimi ve lint ikinci çağrıda", () => {
+    const testler = [
+      "npm test",
+      "npm run test -- liste",
+      "npm t",
+      "pnpm test",
+      "yarn test:unit",
+      "bun test",
+      "npx vitest run",
+      "vitest --run src/ofis",
+      "cd paketler/studyo && npx vitest run",
+      "npx jest --ci",
+      "pytest -x tests/",
+      "python -m pytest",
+      "go test ./...",
+      "cargo test",
+      "npx playwright test",
+      "cypress run",
+      "dotnet test",
+      "./gradlew test",
+      "mvn -q test",
+    ];
+    for (const komut of testler) expect(aracYeri("Bash", { command: komut }), komut).toMatchObject({ yer: "laboratuvar", esik: 1 });
+    const derlemeler = ["npm run build", "npm run lint", "npm run typecheck", "tsc --noEmit", "npx tsc -p .", "pnpm build", "npx vite build", "cargo clippy", "go vet ./...", "npx eslint src"];
+    for (const komut of derlemeler) expect(aracYeri("Bash", { command: komut }), komut).toMatchObject({ yer: "laboratuvar", esik: 2 });
+    // PowerShell (Windows) aynı
+    expect(yer("PowerShell", { command: "npx vitest run" })).toBe("laboratuvar");
+    expect(yer("PowerShell", { command: "Get-ChildItem" })).toBe("masa");
+    // Yol içinde geçen ad ve sıradan komutlar masada; sürüm komutu her zaman sunucuda
+    for (const komut of ["cat vitest.config.ts", "code jest.config.js", "rg pytest docs/", "echo build"]) expect(yer("Bash", { command: komut }), komut).toBe("masa");
+    expect(yer("Bash", { command: "npm test && git push origin main" })).toBe("sunucu");
+    expect(komutTuru("Bash", { command: "npm run build" })).toBe("derleme");
+    expect(komutTuru("Bash", { command: "npx vitest run" })).toBe("test");
+    expect(komutTuru("Bash", { command: "git push" })).toBeNull();
+    expect(komutTuru("Read", { command: "npm test" })).toBeNull();
+  });
+
+  it("teslim stüdyonun sahnesine; tasarım dosyaları tasarım masasına (Windows yolları dahil)", () => {
+    expect(aracYeri("mcp__arnorg__teslim_et", { baslik: "Sipariş akışı" })).toMatchObject({ yer: "sunum", esik: 1 });
+    const tasarim = ["src/stiller/tokenlar.css", "tasarim/akis.excalidraw", "public/logo.svg", "C:\\proje\\design\\ekran.fig", "D:\\is\\tasarım\\renkler.md", "src/theme.ts"];
+    for (const yol of tasarim) expect(aracYeri("Write", { file_path: yol }), yol).toMatchObject({ yer: "tasarim", esik: 2 });
+    for (const yol of ["src/siparis/liste.tsx", "C:\\proje\\src\\api.ts", "docs/README.md", "src/designer-notes.ts"]) expect(yer("Edit", { file_path: yol }), yol).toBe("masa");
+  });
+
+  it("durgunluk: tek bir kısa denetim masadan kaldırmaz; testler sürdükçe laboratuvarda kalır, bitince masaya döner", () => {
+    const d = yerDurumu(0);
+    yerVarisi(d, 0);
+    const derleme = aracYeri("Bash", { command: "tsc --noEmit" })!;
+    yerOlayi(d, derleme, EN_AZ_KALIS + 1000);
+    expect(yerKarari(d, EN_AZ_KALIS + 1000)).toBe(false);
+    expect(d.yer).toBe("masa");
+    yerOlayi(d, derleme, EN_AZ_KALIS + 4000);
+    expect(yerKarari(d, EN_AZ_KALIS + 4000)).toBe(true);
+    expect(d.yer).toBe("laboratuvar");
+    const t0 = EN_AZ_KALIS + 4000;
+    yerVarisi(d, t0 + 5000);
+    // Testler sürüyor: arada bir okuma ve çıktı yoklaması yerinden kaldırmaz
+    for (let t = t0 + 10000; t <= t0 + 120000; t += 10000) {
+      yerOlayi(d, aracYeri("Bash", { command: "npm test" })!, t);
+      yerOlayi(d, aracYeri("Read")!, t + 1000);
+      yerOlayi(d, aracYeri("BashOutput")!, t + 2000);
+      expect(yerKarari(d, t + 2000), String(t)).toBe(false);
+    }
+    expect(d.yer).toBe("laboratuvar");
+    // Test bitti, kod yazmaya döndü: en az kalış dolduğu için masaya
+    const son = t0 + 125000;
+    yerOlayi(d, aracYeri("Edit", { file_path: "src/a.ts" })!, son);
+    expect(yerKarari(d, son)).toBe(true);
+    expect(d.yer).toBe("masa");
+  });
+
+  it("panodaki komut ve kütüphane ekranındaki konu kısaltılır", () => {
+    expect(komutMetni({ command: "cd paketler/studyo && npx vitest run src/ofis" })).toBe("npx vitest run src/ofis");
+    expect(komutMetni({ command: "npm test\necho bitti" })).toBe("npm test");
+    expect(komutMetni({ command: "npx playwright test --project=chromium --reporter=line tests/e2e" }).length).toBeLessThanOrEqual(34);
+    expect(aramaMetni({ query: "kargo API rate limit" })).toBe("kargo API rate limit");
+    expect(aramaMetni({ url: "https://www.auth0.com/docs/secure/tokens" })).toBe("auth0.com/docs/secure/tokens");
+    expect(aramaMetni({ paket: "zustand" })).toBe("zustand");
+    expect(aramaMetni({ sorgu: "  çok   boşluklu   sorgu " })).toBe("çok boşluklu sorgu");
+    expect(aramaMetni({})).toBe("");
+    expect(aramaMetni({ query: "a".repeat(80) }).length).toBeLessThanOrEqual(44);
+  });
+
+  it("test sonucu: geçti, kaldı ya da tanınmadı (hata bayrağı her zaman kaldı)", () => {
+    expect(testSonucu(" ✓ tests/liste.test.tsx (4 tests) 88ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)")).toBe("gecti");
+    expect(testSonucu(" Test Files  1 failed | 7 passed (8)\n      Tests  2 failed | 51 passed (53)")).toBe("kaldi");
+    expect(testSonucu("   × iki sekme aynı anda yenileyince tek jeton geçerli kalır")).toBe("kaldi");
+    expect(testSonucu("Tests:       1 failed, 3 passed, 4 total")).toBe("kaldi");
+    expect(testSonucu("PASS src/a.test.ts\n  ✓ does not fail on empty input (3 ms)")).toBe("gecti");
+    expect(testSonucu("=== 5 passed in 0.12s ===")).toBe("gecti");
+    expect(testSonucu("--- FAIL: TestSiparis (0.00s)\nFAIL\texample.com/siparis\t0.012s")).toBe("kaldi");
+    expect(testSonucu("ok  \texample.com/siparis\t0.012s")).toBe("gecti");
+    expect(testSonucu("test result: ok. 5 passed; 0 failed")).toBe("gecti");
+    expect(testSonucu("src/a.ts(3,1): error TS2322: Type 'x' is not assignable")).toBe("kaldi");
+    expect(testSonucu("✓ built in 13.23s")).toBe("gecti");
+    expect(testSonucu("", false)).toBe("gecti");
+    expect(testSonucu("çıktı", true)).toBe("kaldi");
+    expect(testSonucu("bir şeyler yazdı")).toBeNull();
+  });
+});
+
+describe("kayıtlı görünümün uyarlanması", () => {
+  const dunya = yerlesimKur(12);
+  const yeni = { genislik: dunya.genislik, yukseklik: dunya.yukseklik };
+  // 1248×760 alan: genişlikle sınırlı sığdırma
+  const sigdir = (g: number, y: number) => Math.min((1248 - 40) / g, (760 - 80) / y);
+
+  it("kanat eklenince ana binanın koordinatları değişmez: yakın görünüm aynı yeri gösterir", () => {
+    expect(ESKI_GENISLIK).toBe(ANA_SUTUN * KARO);
+    const yakin = { olcek: 1.4, x: 420, y: 520, elle: true };
+    expect(kameraDurumunuUyarla(yakin, yeni, sigdir)).toEqual({ ...yakin, ...yeni });
+  });
+
+  it("eski ofisin tamamını gösteren görünüm yeni ofisi sığdırır (yeni odalar görünsün)", () => {
+    const eskiSigdir = sigdir(ESKI_GENISLIK, dunya.yukseklik);
+    expect(kameraDurumunuUyarla({ olcek: eskiSigdir, x: 768, y: 432, elle: true }, yeni, sigdir)).toBeNull();
+    expect(kameraDurumunuUyarla({ olcek: eskiSigdir * 1.1, x: 700, y: 400, elle: true }, yeni, sigdir)).toBeNull();
+    // Saklanan boyut varsa ona göre karar verilir
+    expect(kameraDurumunuUyarla({ olcek: 0.9, x: 700, y: 400, elle: true, genislik: ESKI_GENISLIK, yukseklik: dunya.yukseklik }, yeni, sigdir)).toBeNull();
+    expect(kameraDurumunuUyarla({ olcek: 1.2, x: 700, y: 400, elle: true, genislik: ESKI_GENISLIK, yukseklik: dunya.yukseklik }, yeni, sigdir)).toMatchObject({ olcek: 1.2, ...yeni });
+  });
+
+  it("yerleşim aynıysa görünüm korunur; dünya dışındaki nokta içeri çekilir; bozuk ya da sığdırılmış görünüm sığdırılır", () => {
+    const d = { olcek: 0.5, x: 99999, y: -40, elle: true, ...yeni };
+    expect(kameraDurumunuUyarla(d, yeni, sigdir)).toEqual({ ...d, x: yeni.genislik, y: 0 });
+    expect(kameraDurumunuUyarla({ olcek: 0.7, x: 10, y: 10, elle: false }, yeni, sigdir)).toBeNull();
+    expect(kameraDurumunuUyarla({ olcek: Number.NaN, x: 10, y: 10, elle: true }, yeni, sigdir)).toBeNull();
+    expect(kameraDurumunuUyarla(null, yeni, sigdir)).toBeNull();
+  });
+
+  it("saklanan masa ataması yeni yerleşimde de geçerli: kimse yer değiştirmez", () => {
+    const zaman = (dk: number) => new Date(Date.UTC(2026, 9, 1, 9, dk)).toISOString();
+    const ekip = [
+      { id: "ada", rol: "ceo", olusturma: zaman(0) },
+      { id: "kerem", rol: "cto", olusturma: zaman(1) },
+      { id: "ece", rol: "frontend", olusturma: zaman(2) },
+      { id: "deniz", rol: "backend", olusturma: zaman(3) },
+    ];
+    const saklanan = { ada: "ceo", kerem: "cto", ece: "m5", deniz: "m11" };
+    const sonuc = masalariAta(ekip, dunya.masalar, saklanan);
+    expect(Object.fromEntries(sonuc)).toEqual(saklanan);
+  });
+});
+
+describe("efektlerin yaşam döngüsü", () => {
+  it("süresi dolan efekt atılır; her biri bir kez", () => {
+    const atilan: string[] = [];
+    const h = new EfektHavuzu<string>((e) => atilan.push(e.veri), 100);
+    h.ekle({ tur: "konfeti", simdi: 0, sure: 1000, agirlik: 20, veri: "a" });
+    h.ekle({ tur: "halka", simdi: 100, sure: 300, veri: "b" });
+    expect(h.sayi).toBe(2);
+    expect(h.ilerlet(399)).toBe(0);
+    expect(h.ilerlet(400)).toBe(1);
+    expect(atilan).toEqual(["b"]);
+    expect(h.ilerlet(1000)).toBe(1);
+    expect(h.ilerlet(5000)).toBe(0);
+    expect(atilan).toEqual(["b", "a"]);
+    expect(h.sayi).toBe(0);
+    expect(h.yuk).toBe(0);
+  });
+
+  it("ilerleme her karede verilir; bütçe aşılırsa efekt eklenmez ve hemen atılır; temizle hepsini atar", () => {
+    const atilan: string[] = [];
+    const ilerleme: number[] = [];
+    const h = new EfektHavuzu<string>((e) => atilan.push(e.veri), 30);
+    h.ekle({ tur: "iz", simdi: 0, sure: 1000, agirlik: 10, veri: "iz", adim: (u) => ilerleme.push(u) });
+    h.ilerlet(250);
+    h.ilerlet(500);
+    expect(ilerleme).toEqual([0.25, 0.5]);
+    expect(h.kalan()).toBe(20);
+    expect(h.ekle({ tur: "konfeti", simdi: 500, sure: 1000, agirlik: 25, veri: "fazla" })).toBeNull();
+    expect(atilan).toEqual(["fazla"]);
+    // Ağırlıksız (olayın kendisi) her zaman
+    expect(h.ekle({ tur: "flas", simdi: 500, sure: 1000, veri: "flas" })).not.toBeNull();
+    h.temizle();
+    expect(atilan.sort()).toEqual(["fazla", "flas", "iz"]);
+    expect(h.sayi).toBe(0);
+  });
+
+  it("bütçe kalabalıkta ve düşük güçte küçülür, sıfıra inmez", () => {
+    expect(efektButcesi(2)).toBeGreaterThan(efektButcesi(12));
+    expect(efektButcesi(12, true)).toBeLessThan(efektButcesi(12));
+    expect(efektButcesi(500)).toBeGreaterThan(0);
+    expect(efektButcesi(500, true)).toBeGreaterThan(0);
+  });
+
+  it("kutlama kâğıtları mercan ve kemik, istenen sayıda; ışık izi yayı uçlardan geçer", () => {
+    let tohum = 7;
+    const rastgele = () => ((tohum = (tohum * 16807) % 2147483647) % 1000) / 1000;
+    const p = konfeti(24, rastgele);
+    expect(p).toHaveLength(24);
+    expect(new Set(p.map((x) => x.renk))).toEqual(new Set([0, 1]));
+    for (const x of p) expect(x.yukari).toBeGreaterThan(0);
+    expect(konfeti(0)).toEqual([]);
+    const a = { x: 0, y: 100 };
+    const b = { x: 200, y: 100 };
+    const k = yayKontrolu(a, b);
+    expect(k.y).toBeLessThan(100);
+    expect(egriNoktasi(a, k, b, 0)).toEqual(a);
+    expect(egriNoktasi(a, k, b, 1)).toEqual(b);
+    expect(egriNoktasi(a, k, b, 0.5).y).toBeLessThan(100);
+  });
+});
+
+describe("canlı yayın yönetmeni", () => {
+  const kisi = (id: string, puan: number): YayinAdayi => ({ id, puan });
+
+  it("en ilginç kişiyle başlar, çekim süresince kalır, sonra yakında gösterilmeyene geçer", () => {
+    let c = sonrakiCekim([kisi("ada", 30), kisi("kerem", 70)], yeniCekim(), 0, () => 0);
+    expect(c.hedef).toBe("kerem");
+    const ayni = sonrakiCekim([kisi("ada", 30), kisi("kerem", 70)], c, KISI_CEKIMI - 1, () => 0);
+    expect(ayni).toBe(c);
+    c = sonrakiCekim([kisi("ada", 30), kisi("kerem", 70)], c, KISI_CEKIMI + 1, () => 0);
+    expect(c.hedef).toBe("ada");
+  });
+
+  it("taze olay hemen keser, kısa kalır; hedef ayrılınca beklemeden yenisi seçilir", () => {
+    let c = sonrakiCekim([kisi("ada", 30)], yeniCekim(), 0, () => 0);
+    c = sonrakiCekim([kisi("ada", 30), { id: "olay:kutlama", puan: 100, olay: 1000 }], c, 1500, () => 0);
+    expect(c.hedef).toBe("olay:kutlama");
+    expect(c.sure).toBe(OLAY_CEKIMI);
+    // Olay bitti: kişilere döner
+    c = sonrakiCekim([kisi("ada", 30), kisi("ece", 30)], c, 1500 + OLAY_CEKIMI + 1, () => 0);
+    expect(["ada", "ece"]).toContain(c.hedef);
+    const once = c.hedef;
+    c = sonrakiCekim([kisi(once === "ada" ? "ece" : "ada", 30)], c, 1500 + OLAY_CEKIMI + 2, () => 0);
+    expect(c.hedef).not.toBe(once);
+    // Kimse yok: geniş çekim
+    expect(sonrakiCekim([], c, 99999).hedef).toBeNull();
+  });
+});
+
+describe("ortam: gün ışığı ve güç", () => {
+  it("gündüz açık, gece karanlık; akşam ılık ve arada", () => {
+    expect(gunIsigi(12)).toEqual({ gece: 0, ilik: 0 });
+    expect(gunIsigi(23.5).gece).toBe(1);
+    expect(gunIsigi(3).gece).toBe(1);
+    const aksam = gunIsigi(18.5);
+    expect(aksam.gece).toBeGreaterThan(0);
+    expect(aksam.gece).toBeLessThan(1);
+    expect(aksam.ilik).toBeGreaterThan(0);
+    expect(gunIsigi(6.5).gece).toBeLessThan(1);
+    expect(gunIsigi(-1).gece).toBe(gunIsigi(23).gece);
+  });
+
+  it("uzun süre yavaş kareler düşük güce geçirir; tek takılma geçirmez; gizli sekmeden dönüş sayılmaz", () => {
+    const o = new KareOlcer();
+    expect(o.ekle(120)).toBe(false);
+    expect(o.ekle(5000)).toBe(false);
+    for (let i = 0; i < 30; i++) o.ekle(16.7);
+    expect(o.dusukGuc).toBe(false);
+    let degisti = false;
+    for (let i = 0; i < 200 && !degisti; i++) degisti = o.ekle(40);
+    expect(degisti).toBe(true);
+    expect(o.dusukGuc).toBe(true);
+    // Kısa hızlanma geri döndürmez; uzun süre hızlı kalınca döner
+    for (let i = 0; i < 300; i++) o.ekle(16);
+    expect(o.dusukGuc).toBe(true);
+    for (let i = 0; i < 4000 && o.dusukGuc; i++) o.ekle(16);
+    expect(o.dusukGuc).toBe(false);
+  });
+});
+
+describe("stüdyonun sunum ekranı", () => {
+  const T0 = Date.parse("2026-10-04T12:00:00Z");
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const teslim = (o: { baslik: string; durum: string; olusturma: number; sonuclanma?: number; adimlar?: unknown }) => ({
+    tur: "teslim",
+    durum: o.durum,
+    baslik: `Teslim: ${o.baslik}`,
+    olusturma: iso(o.olusturma),
+    sonuclanma: o.sonuclanma === undefined ? null : iso(o.sonuclanma),
+    veri: { baslik: o.baslik, testAdimlari: o.adimlar ?? ["Paneli aç"] },
+  });
+
+  it("teslim verisi: onayın testAdimlari'si ya da çağrının test_adimlari'si; en çok dört adım; başlık öneksiz", () => {
+    expect(teslimVerisi({ veri: { baslik: "Liste", testAdimlari: ["a1", "", 3, "a2"] } })).toEqual({ baslik: "Liste", adimlar: ["a1", "a2"] });
+    expect(teslimVerisi({ veri: { baslik: "Liste", test_adimlari: ["1", "2", "3", "4", "5"] } }).adimlar).toEqual(["1", "2", "3", "4"]);
+    // Veride başlık yoksa onay başlığı "Teslim: " / "Delivery: " öneki atılarak
+    expect(teslimVerisi({ baslik: "Teslim: Sipariş akışı", veri: null }).baslik).toBe("Sipariş akışı");
+    expect(teslimVerisi({ baslik: "Delivery: Order flow", veri: {} }).baslik).toBe("Order flow");
+    expect(teslimVerisi({ veri: "bozuk" })).toEqual({ baslik: "", adimlar: [] });
+  });
+
+  it("en son hareket gören teslim: yeni karar eski bekleyenin önüne geçer; yeni bekleyen eski kararın", () => {
+    const eskiBekleyen = teslim({ baslik: "Eski", durum: "bekliyor", olusturma: T0 - 14 * 60_000 });
+    const yeniKabul = teslim({ baslik: "Liste", durum: "onaylandi", olusturma: T0 - 60_000, sonuclanma: T0 - 5_000 });
+    expect(sunumSec([eskiBekleyen, yeniKabul], null, T0)).toMatchObject({ baslik: "Liste", durum: "onaylandi" });
+    // Karar üç dakikadan eskiyse ekrandan iner, bekleyen geri gelir
+    expect(sunumSec([eskiBekleyen, yeniKabul], null, T0 + KARAR_EKRANDA)).toMatchObject({ baslik: "Eski", durum: "bekliyor" });
+    const yeniBekleyen = teslim({ baslik: "Kargo", durum: "bekliyor", olusturma: T0 });
+    expect(sunumSec([eskiBekleyen, yeniKabul, yeniBekleyen], null, T0 + 1000)).toMatchObject({ baslik: "Kargo", durum: "bekliyor" });
+    // Başka türden onaylar ve hiçbir şey yoksa boş
+    expect(sunumSec([{ ...yeniBekleyen, tur: "birlestirme" }], null, T0)).toBeNull();
+    expect(sunumSec([], null, T0)).toBeNull();
+  });
+
+  it("onayı henüz görünmeyen teslim_et çağrısı ekranda bekler; aynı başlıklı onay gelince onunki geçerli", () => {
+    const cagri = { baslik: "Liste", adimlar: ["Paneli aç"], an: T0 };
+    expect(sunumSec([], cagri, T0 + 2000)).toMatchObject({ baslik: "Liste", durum: "bekliyor" });
+    expect(sunumSec([], cagri, T0 + KARAR_EKRANDA + 1)).toBeNull();
+    // Onay gelince çağrı adaylıktan düşer: önce onayın bekleyişi, karar gelince kararı
+    const onay = teslim({ baslik: "Liste", durum: "bekliyor", olusturma: T0 + 300, adimlar: ["Paneli aç", "Listeyi kaydır"] });
+    expect(sunumSec([onay], cagri, T0 + 2000)).toMatchObject({ baslik: "Liste", durum: "bekliyor", adimlar: ["Paneli aç", "Listeyi kaydır"] });
+    const kabul = { ...onay, durum: "onaylandi", sonuclanma: iso(T0 + 40_000) };
+    expect(sunumSec([kabul], cagri, T0 + 41_000)).toMatchObject({ baslik: "Liste", durum: "onaylandi" });
   });
 });

@@ -58,10 +58,22 @@ export const VARSAYILAN_ORANLAR: EsyaOranlari = {
   lamba: 289 / 230,
 };
 
-export type OdaKimligi = "ceo" | "cto" | "toplanti" | "arsiv" | "sunucu" | "muhendislik" | "dinlenme" | "kurul";
-export type ZeminTuru = "oda" | "hali" | "ahsap" | "yukseltilmis" | "acik" | "kilim";
+export type OdaKimligi =
+  | "ceo"
+  | "cto"
+  | "toplanti"
+  | "arsiv"
+  | "sunucu"
+  | "muhendislik"
+  | "dinlenme"
+  | "kurul"
+  /** Doğu kanadı: araştırma kütüphanesi, test laboratuvarı, sunum ve tasarım stüdyosu */
+  | "arastirma"
+  | "laboratuvar"
+  | "studyo";
+export type ZeminTuru = "oda" | "hali" | "ahsap" | "yukseltilmis" | "acik" | "kilim" | "karo" | "sahne";
 /** Tıklanınca başka ekrana götüren sahne öğeleri */
-export type SicakNokta = "kurul" | "pano" | "sunucu" | "arsiv" | "toplanti";
+export type SicakNokta = "kurul" | "pano" | "sunucu" | "arsiv" | "toplanti" | "arastirma" | "laboratuvar" | "studyo";
 
 export interface Oda {
   /** Levhadaki ya da zemindeki ad ve alt yazı sözlükten bu kimlikle gelir (s.ofis.odalar) */
@@ -72,6 +84,8 @@ export interface Oda {
   levha: boolean;
   /** Levhasız odada zemin yazısının sol alt noktası; yoksa yazı çizilmez */
   etiket?: Nokta;
+  /** İç duvara asılı kapı levhasının ortası (kanat odaları); levha bandı olmayan odaların adı burada okunur */
+  kapiLevhasi?: Nokta;
 }
 
 export interface Cizgi {
@@ -79,6 +93,25 @@ export interface Cizgi {
   y1: number;
   x2: number;
   y2: number;
+}
+
+/** Kapı kasası: yatay duvardaki kapıda dik, dikey duvardaki kapıda yatık çizilir */
+export interface Kasa extends Nokta {
+  yatay?: boolean;
+}
+
+/** Sahnedeki ayaklı ekran ya da tahta: ayak ortası, boyut ve ayaklarının kapattığı karolar */
+export interface Pano {
+  x: number;
+  y: number;
+  genislik: number;
+  yukseklik: number;
+  engel: KaroAlani;
+}
+
+/** Kanat odalarındaki çalışma istasyonu: masa, sandalye ve monitör (test istasyonu, tasarım masası) */
+export interface Istasyon extends Omit<Masa, "oda"> {
+  oda: "laboratuvar" | "studyo";
 }
 
 export interface EsyaYeri {
@@ -130,11 +163,13 @@ export interface Yerlesim {
   odalar: Oda[];
   duvarlar: Cizgi[];
   /** Kapı boşluklarının iki yanındaki kasa noktaları */
-  kasalar: Nokta[];
+  kasalar: Kasa[];
   esyalar: EsyaYeri[];
   masalar: Masa[];
+  /** Kanat odalarındaki istasyonlar (masa ataması dışında; işe göre oturulur) */
+  istasyonlar: Istasyon[];
   /** Zemin kilimleri ve işaretli alanlar */
-  kilimler: { alan: KaroAlani; tur: "kilim" | "koyu" | "kurul" }[];
+  kilimler: { alan: KaroAlani; tur: "kilim" | "koyu" | "kurul" | "sahne" }[];
   /** 1: yürünebilir */
   yurunebilir: Uint8Array;
   noktalar: {
@@ -159,16 +194,47 @@ export interface Yerlesim {
     /** Toplantı odasındaki beyaz tahtanın önü (rapor) */
     beyazTahtaOnu: Karo[];
     beyazTahtaKimligi: string;
-    /** Okuma köşesi: dinlenme alanındaki kitaplığın ve okuma kanepelerinin önü (web araştırması) */
+    /** Okuma köşesi: dinlenme alanındaki kitaplığın ve okuma kanepelerinin önü (kitap seven boştakiler) */
     okumaKosesi: Karo[];
     okumaKimligi: string;
     adaylar: Karo[];
     /** Pano tahtasının ayak ortası ve boyutu */
-    pano: { x: number; y: number; genislik: number; yukseklik: number; engel: KaroAlani };
+    pano: Pano;
     /** Kapı paspası (zemin işareti) */
     paspas: KaroAlani;
+    /** Giriş kapısının kanatları: iki kasa arasının ortası (dünya pikseli) ve genişliği */
+    girisKapisi: { x: number; y: number; genislik: number };
+
+    // ---- Doğu kanadı ----
+    /** Kütüphane: okuma masalarının koltukları (web araştırması) */
+    arastirmaKoltuklari: Koltuk[];
+    /** Kütüphane: rafların ve ekranın önü (koltuk boş değilse ayakta) */
+    arastirmaOnu: Karo[];
+    /** Kütüphanenin büyük ekranı: son araştırmanın sorgusu */
+    arastirmaEkrani: Pano;
+    /** Dünya küresinin ayak noktası */
+    kure: Nokta;
+    /** Test laboratuvarı: test cihazlarının (dolap) ve panonun önü */
+    labOnu: Karo[];
+    /** Test panosu: büyük durum ışığı ve son komut */
+    testPanosu: Pano;
+    /** Test cihazı olarak duran dolapların kimlikleri (ışıkları motor çizer) */
+    testCihazlari: string[];
+    /** Stüdyo: sunum ekranı (teslim ve demo) */
+    sunumEkrani: Pano;
+    /** Sunan kişinin durduğu yer: ekranın yanında, kurula (izleyene) dönük */
+    sunumNoktasi: Karo;
+    /** Stüdyodaki taslak tahtasının önü */
+    studyoOnu: Karo[];
+    /** Dışarıdan kanada açılan kapılar (kanat duvarındaki boşlukların içi) */
+    kanatKapilari: Karo[];
   };
 }
+
+/** Ana binanın sütun sayısı: 0 ve 47 duvar; doğu kanadı 47. sütundaki duvarın ardından başlar */
+export const ANA_SUTUN = 48;
+/** Doğu kanadının iç genişliği (karo) */
+export const KANAT_SUTUN = 15;
 
 /** Mühendislik adası başına masa */
 export const ADA_MASA = 3;
@@ -198,18 +264,22 @@ export function masaSayisi(muhendis: number): number {
 /**
  * Ofis yerleşimini kurar.
  * muhendisMasasi: açık ofisteki masa sayısı (masaSayisi() ile yuvarlanmış)
- */
-/**
- * Ofis yerleşimini kurar.
- * muhendisMasasi: açık ofisteki masa sayısı (masaSayisi() ile yuvarlanmış)
  *
  * Satırlar: 0-1 duvar levhası, 2-7 üst odalar, 8 duvar, 9-10 koridor, 11'den sonrası açık ofis (solda),
  * dinlenme ve kurul/giriş (sağda). Ada satırı arttıkça ofis aşağı uzar; giriş ve kurul en altta kalır.
+ *
+ * Doğu kanadı (sütun 48'den sonrası) ana binanın yanına eklenir; ana binada hiçbir şeyin yeri değişmez (kamera ve
+ * masa ataması aynı kalır). Kanatta yukarıdan aşağı: kütüphane (koridora açılır), kanat koridoru, test laboratuvarı
+ * (dinlenmeye ve koridora açılır), sunum ve tasarım stüdyosu (kurul alanına ve laboratuvara açılır).
  */
 export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARSAYILAN_ORANLAR): Yerlesim {
   const adaSayisi = Math.ceil(Math.max(EN_AZ_MASA, muhendisMasasi) / ADA_MASA);
   const adaSatiri = Math.ceil(adaSayisi / SATIR_ADA);
-  const C = 48;
+  /** Kanat duvarı (ana binanın eski doğu duvarı) */
+  const KANAT_DUVARI = ANA_SUTUN - 1;
+  /** Kanadın ilk ve son iç sütunu */
+  const K0 = ANA_SUTUN;
+  const C = ANA_SUTUN + KANAT_SUTUN + 1;
   const R = Math.max(27, 15 + 5 * adaSatiri);
   /** Alt bölümün (lobi, giriş) temel 27 satırlık plana göre kayması */
   const alt = R - 27;
@@ -222,25 +292,47 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     for (let r = a.r; r < a.r + a.y; r++) for (let c = a.c; c < a.c + a.g; c++) if (c >= 0 && r >= 0 && c < C && r < R) yurunebilir[r * C + c] = 0;
   };
 
-  // İç alan: dış duvarlar (sütun 0 ve 47, son satır) ve üst levha bandı (satır 0-1) hariç
+  // İç alan: dış duvarlar (ilk ve son sütun, son satır) ve üst levha bandı (satır 0-1) hariç
   ac({ c: 1, r: 2, g: C - 2, y: R - 3 });
   // Üst odaların güney duvarı (satır 8) ve oda bölmeleri
   const DUVAR_SATIRI = 8;
   kapat({ c: 1, r: DUVAR_SATIRI, g: C - 2, y: 1 });
   const bolmeler = [9, 18, 31, 39];
   for (const c of bolmeler) kapat({ c, r: 0, g: 1, y: DUVAR_SATIRI + 1 });
+  /** Kanat odalarının kapı sütunları: kütüphane ve laboratuvar ortadan, stüdyo soldan açılır */
+  const KANAT_KAPI = 54;
+  const STUDYO_KAPI = 50;
   const odaKapilari: [number, number][] = [
     [4, 5],
     [13, 14],
     [24, 25],
     [35, 36],
     [43, 44],
+    [KANAT_KAPI, KANAT_KAPI + 1],
   ];
   for (const [a, b] of odaKapilari) ac({ c: a, r: DUVAR_SATIRI, g: b - a + 1, y: 1 });
   // Giriş kapısı (alt duvar)
   const girisC = 42;
   const kapi: Karo = { c: girisC, r: R - 1 };
   ac({ c: girisC, r: R - 1, g: 2, y: 1 });
+
+  // Kanat duvarı ve kapıları: koridorun devamı, dinlenmeden laboratuvara, kurul alanından stüdyoya
+  /** Stüdyonun ilk satırı (ofis aşağı uzadıkça stüdyo kurul alanıyla birlikte aşağı kayar) */
+  const S = 20 + alt;
+  const LAB_UST = 12;
+  const LAB_ALT = S - 2;
+  kapat({ c: KANAT_DUVARI, r: 0, g: 1, y: R });
+  const kanatGecitleri: [number, number][] = [
+    [9, 10],
+    [16, 17],
+    [S + 2, S + 3],
+  ];
+  for (const [a, b] of kanatGecitleri) ac({ c: KANAT_DUVARI, r: a, g: 1, y: b - a + 1 });
+  // Laboratuvarın kuzey duvarı (koridordan kapı) ve stüdyonun kuzey duvarı (laboratuvardan kapı)
+  kapat({ c: K0, r: LAB_UST - 1, g: KANAT_SUTUN, y: 1 });
+  ac({ c: KANAT_KAPI, r: LAB_UST - 1, g: 2, y: 1 });
+  kapat({ c: K0, r: S - 1, g: KANAT_SUTUN, y: 1 });
+  ac({ c: STUDYO_KAPI, r: S - 1, g: 2, y: 1 });
 
   // ---------------- Duvarlar ----------------
   const yarim = KARO / 2;
@@ -249,20 +341,35 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   const odaAlt = DUVAR_SATIRI * KARO + yarim;
   const altDuvar = (R - 1) * KARO + yarim;
   const duvarlar: Cizgi[] = [];
-  const kasalar: Nokta[] = [];
+  const kasalar: Kasa[] = [];
   duvarlar.push({ x1: sol, y1: 0, x2: sol, y2: altDuvar }, { x1: sag, y1: 0, x2: sag, y2: altDuvar });
   const girisSol = girisC * KARO;
   const girisSag = (girisC + 2) * KARO;
   duvarlar.push({ x1: sol, y1: altDuvar, x2: girisSol, y2: altDuvar }, { x1: girisSag, y1: altDuvar, x2: sag, y2: altDuvar });
   kasalar.push({ x: girisSol, y: altDuvar }, { x: girisSag, y: altDuvar });
-  let x = sol;
-  for (const [a, b] of odaKapilari) {
-    duvarlar.push({ x1: x, y1: odaAlt, x2: a * KARO, y2: odaAlt });
-    kasalar.push({ x: a * KARO, y: odaAlt }, { x: (b + 1) * KARO, y: odaAlt });
-    x = (b + 1) * KARO;
-  }
-  duvarlar.push({ x1: x, y1: odaAlt, x2: sag, y2: odaAlt });
+  /** Yatay duvar: verilen kapı boşluklarıyla x1'den x2'ye */
+  const yatayDuvar = (y: number, x1: number, x2: number, kapilar: [number, number][]) => {
+    let x = x1;
+    for (const [a, b] of kapilar) {
+      duvarlar.push({ x1: x, y1: y, x2: a * KARO, y2: y });
+      kasalar.push({ x: a * KARO, y }, { x: (b + 1) * KARO, y });
+      x = (b + 1) * KARO;
+    }
+    duvarlar.push({ x1: x, y1: y, x2: x2, y2: y });
+  };
+  yatayDuvar(odaAlt, sol, sag, odaKapilari);
   for (const c of bolmeler) duvarlar.push({ x1: c * KARO + yarim, y1: 0, x2: c * KARO + yarim, y2: odaAlt });
+  // Kanat duvarı: üstten alta, geçitlerde boşluk
+  const kanatX = KANAT_DUVARI * KARO + yarim;
+  let ky = 0;
+  for (const [a, b] of kanatGecitleri) {
+    duvarlar.push({ x1: kanatX, y1: ky, x2: kanatX, y2: a * KARO });
+    kasalar.push({ x: kanatX, y: a * KARO, yatay: true }, { x: kanatX, y: (b + 1) * KARO, yatay: true });
+    ky = (b + 1) * KARO;
+  }
+  duvarlar.push({ x1: kanatX, y1: ky, x2: kanatX, y2: altDuvar });
+  yatayDuvar((LAB_UST - 1) * KARO + yarim, kanatX, sag, [[KANAT_KAPI, KANAT_KAPI + 1]]);
+  yatayDuvar((S - 1) * KARO + yarim, kanatX, sag, [[STUDYO_KAPI, STUDYO_KAPI + 1]]);
 
   // ---------------- Odalar ----------------
   const ODA_Y = DUVAR_SATIRI - 2;
@@ -281,6 +388,22 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     },
     { kimlik: "dinlenme", alan: { c: 29, r: 11, g: 18, y: 7 }, zemin: "kilim", levha: false, etiket: { x: 40.4 * KARO, y: 17.15 * KARO } },
     { kimlik: "kurul", alan: { c: 29, r: 18 + alt, g: 18, y: 8 }, zemin: "acik", levha: false },
+    { kimlik: "arastirma", alan: { c: K0, r: 2, g: KANAT_SUTUN, y: ODA_Y }, zemin: "ahsap", levha: true },
+    {
+      kimlik: "laboratuvar",
+      alan: { c: K0, r: LAB_UST, g: KANAT_SUTUN, y: LAB_ALT - LAB_UST + 1 },
+      zemin: "karo",
+      levha: false,
+      // Kapı levhası kapının üstünde: duvar boyunca pano ve test cihazları var
+      kapiLevhasi: { x: (KANAT_KAPI + 1) * KARO, y: (LAB_UST - 1) * KARO + yarim },
+    },
+    {
+      kimlik: "studyo",
+      alan: { c: K0, r: S, g: KANAT_SUTUN, y: R - 1 - S },
+      zemin: "sahne",
+      levha: false,
+      kapiLevhasi: { x: (STUDYO_KAPI + 1) * KARO, y: (S - 1) * KARO + yarim },
+    },
   ];
 
   // ---------------- Eşyalar ----------------
@@ -309,8 +432,10 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
   };
 
   const masalar: Masa[] = [];
+  const istasyonlar: Istasyon[] = [];
   const MASA_G = 96;
-  const masaKur = (kimlik: string, oda: Masa["oda"], c: number, r: number) => {
+  /** Masa, sandalye ve monitör; masa ataması olan masalar masalar'a, kanat istasyonları istasyonlar'a girer */
+  const masaKur = (kimlik: string, oda: Masa["oda"] | Istasyon["oda"], c: number, r: number) => {
     // Masa ayak izi: c..c+2, r..r+1; arkasında (kuzeyinde) sandalye ve oturma yeri. Oturan izleyiciye dönük,
     // monitörün ekranı ona bakar: görselde monitörün arkası görünür (public/ofis/esyalar/masa.png)
     const ayakY = (r + 2) * KARO;
@@ -322,9 +447,8 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     const oturma = { x: oturmaX, y: arkaKenar - KARAKTER_BOYU * OTURMA_GORUNUR + KARAKTER_BOYU };
     yerlestir("sandalye", oturmaX, ust + h * 0.5, 40, { kimlik: `${kimlik}-sandalye`, golge: 0 });
     const m = yerlestir("masa", solX + MASA_G / 2, ayakY, MASA_G, { kimlik: `${kimlik}-masa`, engel: { c, r, g: 3, y: 2 }, golge: 0.9 });
-    masalar.push({
+    const ortak = {
       kimlik,
-      oda,
       esyaKimligi: m.kimlik,
       oturma,
       yaklasma: { c: Math.floor(oturmaX / KARO), r: r - 1 },
@@ -333,7 +457,9 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       monitor: { x: solX + MASA_G * 0.18, y: ust + h * 0.012, g: MASA_G * 0.56, h: h * 0.4 },
       isik: { x: solX + MASA_G * 0.5, y: ust - 32, g: MASA_G * 0.56, h: 56 },
       ust: { x: solX + MASA_G * 0.46, y: ust },
-    });
+    };
+    if (oda === "laboratuvar" || oda === "studyo") istasyonlar.push({ ...ortak, oda });
+    else masalar.push({ ...ortak, oda });
   };
 
   // CEO odası
@@ -496,6 +622,81 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     { c: 40, r: 21 + alt },
   ];
 
+  // ---------------- Doğu kanadı ----------------
+
+  // Kütüphane: solda büyük ekran, sağda raflar; ortada iki okuma masası (arkalarında ikişer koltuk), köşede küre.
+  // Levha ortada görünür kalsın diye arka duvarın ortası boş; kapı (54-55) ortadan açılır.
+  const arastirmaEkrani: Pano = { x: 50.5 * KARO, y: 4 * KARO, genislik: 150, yukseklik: 96, engel: { c: K0, r: 3, g: 5, y: 1 } };
+  kapat(arastirmaEkrani.engel);
+  yerlestir("kitaplik", 59 * KARO, 4 * KARO, 58, { engel: { c: 58, r: 2, g: 2, y: 2 } });
+  yerlestir("kitaplik", 61 * KARO, 4 * KARO, 58, { engel: { c: 60, r: 2, g: 2, y: 2 } });
+  yerlestir("bitki-buyuk", 62.5 * KARO, 3.9 * KARO, 40, { engel: { c: 62, r: 3, g: 1, y: 1 } });
+  const arastirmaKoltuklari: Koltuk[] = [];
+  /** Okuma masası: küçük oval masa, arkasında iki koltuk */
+  const okumaMasasi = (cx: number, c0: number) => {
+    const g = 104;
+    const h = g * oranlar["toplanti-masasi"];
+    const ayak = 6.75 * KARO;
+    const ustY = ayak - h;
+    for (const oran of [0.3, 0.7]) {
+      const kx = cx - g / 2 + g * oran;
+      yerlestir("sandalye", kx, ustY + h * 0.3, 36, { kimlik: `okuma-sandalye-${c0}-${oran}`, golge: 0 });
+      arastirmaKoltuklari.push({
+        oturma: { x: kx, y: ustY + h * 0.1 - KARAKTER_BOYU * OTURMA_GORUNUR + KARAKTER_BOYU },
+        yaklasma: { c: Math.floor(kx / KARO), r: 4 },
+        kesit: ustY + h * 0.6,
+      });
+    }
+    yerlestir("toplanti-masasi", cx, ayak, g, { kimlik: `okuma-masasi-${c0}`, engel: { c: c0, r: 5, g: 4, y: 2 }, golge: 0.85 });
+  };
+  okumaMasasi(51 * KARO, 49);
+  okumaMasasi(59.5 * KARO, 57);
+  yerlestir("lamba", 55.6 * KARO, 5.9 * KARO, 44, { engel: { c: 56, r: 5, g: 1, y: 1 } });
+  yerlestir("bitki-kucuk", 48.6 * KARO, 7.9 * KARO, 28, { engel: { c: K0, r: 7, g: 1, y: 1 } });
+  const kure: Nokta = { x: 61.6 * KARO, y: 7.75 * KARO };
+  kapat({ c: 61, r: 7, g: 1, y: 1 });
+  const arastirmaOnu: Karo[] = [
+    { c: 59, r: 4 },
+    { c: 61, r: 4 },
+    { c: 53, r: 4 },
+    { c: 49, r: 4 },
+    { c: 55, r: 4 },
+  ];
+
+  // Test laboratuvarı: arka duvarda durum panosu ve test cihazları, ortada üç test istasyonu
+  const testPanosu: Pano = { x: 50.5 * KARO, y: 14 * KARO, genislik: 140, yukseklik: 86, engel: { c: K0, r: LAB_UST + 1, g: 5, y: 1 } };
+  kapat(testPanosu.engel);
+  const testCihazlari: string[] = [];
+  for (const [i, c] of [57, 59].entries()) {
+    const e = yerlestir("sunucu", (c + 1) * KARO, 14 * KARO, 52, { kimlik: `test-cihazi-${i}`, engel: { c, r: LAB_UST, g: 2, y: 2 } });
+    testCihazlari.push(e.kimlik);
+  }
+  yerlestir("bitki-buyuk", 62.4 * KARO, 13.9 * KARO, 40, { engel: { c: 62, r: LAB_UST + 1, g: 1, y: 1 } });
+  for (const [i, c] of [49, 53, 57].entries()) masaKur(`lab-${i}`, "laboratuvar", c, 15);
+  yerlestir("lamba", 61.4 * KARO, 16.9 * KARO, 46, { engel: { c: 61, r: 16, g: 1, y: 1 } });
+  yerlestir("bitki-kucuk", 62.4 * KARO, (LAB_ALT + 0.9) * KARO, 28, { engel: { c: 62, r: LAB_ALT, g: 1, y: 1 } });
+  const labOnu: Karo[] = [
+    { c: 58, r: 14 },
+    { c: 60, r: 14 },
+    { c: 50, r: 14 },
+    { c: 49, r: 14 },
+  ];
+
+  // Stüdyo: sağda sahne ve sunum ekranı, en sağda taslak tahtası, solda tasarım masası
+  const sunumEkrani: Pano = { x: 57 * KARO, y: (S + 1.75) * KARO, genislik: 168, yukseklik: 92, engel: { c: 54, r: S + 1, g: 6, y: 1 } };
+  kapat(sunumEkrani.engel);
+  yerlestir("beyaz-tahta", 61.9 * KARO, (S + 2) * KARO, 64, { kimlik: "studyo-tahta", engel: { c: 61, r: S, g: 2, y: 2 } });
+  masaKur("tasarim-0", "studyo", 49, S + 3);
+  yerlestir("bitki-buyuk", 48.6 * KARO, (S + 0.95) * KARO, 40, { engel: { c: K0, r: S, g: 1, y: 1 } });
+  yerlestir("lamba", 60.5 * KARO, (S + 4.9) * KARO, 46, { engel: { c: 60, r: S + 4, g: 1, y: 1 } });
+  yerlestir("bitki-kucuk", 62.4 * KARO, (S + 4.9) * KARO, 28, { engel: { c: 62, r: S + 4, g: 1, y: 1 } });
+  const sunumNoktasi: Karo = { c: 53, r: S + 2 };
+  const studyoOnu: Karo[] = [
+    { c: 61, r: S + 2 },
+    { c: 62, r: S + 2 },
+    { c: 60, r: S + 2 },
+  ];
+
   const dinlenme: Karo[] = [];
   for (let r = 15; r <= 17; r++) for (let c = 31; c <= 40; c++) dinlenme.push({ c, r });
   for (let r = 14; r <= 16; r++) for (let c = 41; c <= 44; c++) dinlenme.push({ c, r });
@@ -510,12 +711,16 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
     kasalar,
     esyalar,
     masalar,
+    istasyonlar,
     kilimler: [
       { alan: { c: 31, r: 14, g: 15, y: 4 }, tur: "kilim" },
       { alan: { c: 2, r: 3, g: 6, y: 4 }, tur: "koyu" },
       { alan: { c: 11, r: 3, g: 6, y: 4 }, tur: "koyu" },
       { alan: { c: 3, r: 14, g: 23, y: 5 * adaSatiri }, tur: "koyu" },
       { alan: { c: 31, r: 18 + alt, g: 10, y: 5 }, tur: "kurul" },
+      { alan: { c: 49, r: 4, g: 13, y: 4 }, tur: "kilim" },
+      { alan: { c: K0, r: 14, g: 13, y: 4 }, tur: "koyu" },
+      { alan: { c: 52, r: S, g: 9, y: 4 }, tur: "sahne" },
     ],
     yurunebilir,
     noktalar: {
@@ -550,6 +755,18 @@ export function yerlesimKur(muhendisMasasi: number, oranlar: EsyaOranlari = VARS
       ],
       pano,
       paspas: { c: girisC - 1, r: R - 3, g: 4, y: 2 },
+      girisKapisi: { x: (girisSol + girisSag) / 2, y: altDuvar, genislik: girisSag - girisSol },
+      arastirmaKoltuklari,
+      arastirmaOnu,
+      arastirmaEkrani,
+      kure,
+      labOnu,
+      testPanosu,
+      testCihazlari,
+      sunumEkrani,
+      sunumNoktasi,
+      studyoOnu,
+      kanatKapilari: kanatGecitleri.map(([a]) => ({ c: KANAT_DUVARI, r: a })),
     },
   };
   // Dinlenme noktalarından yürünemeyenleri at

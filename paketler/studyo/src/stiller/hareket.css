@@ -1,0 +1,80 @@
+/* Arayüzün hafif hareketleri: ekran geçişinde yumuşak giriş, listeye yeni öğenin girişi, sayı değişince kısa vurgu.
+   Bileşen stillerine dokunmaz, yalnız animasyon ekler (animasyonu olmayan öğelere). Sayı vurgusunu
+   yardimcilar/hareket.ts başlatır. Hareket azaltılınca giriş hareketleri kapanır; sayı vurgusu yerinde, sönerek kalır. */
+
+/* Ekran geçişi: yeni ekranın kökü kısa bir solmayla ve hafifçe yükselerek gelir (çıkış beklemez) */
+.ana-ic > * {
+  animation: ekran-gir 280ms var(--egri);
+}
+.kod-katmani[data-gorunur="true"] {
+  animation: ekran-solarak-gir 220ms ease-out;
+}
+@keyframes ekran-gir {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes ekran-solarak-gir {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Listeye yeni öğe: onaylar, pano biletleri, hafıza kayıtları yukarıdan süzülerek girer */
+.onay-liste > .onay:not(.onay-vurgulu),
+.bilet-liste > .bilet,
+.hafiza-liste > .hafiza-kayit {
+  animation: liste-gir 340ms var(--egri);
+}
+@keyframes liste-gir {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Sayı değişince kısa vurgu: rakam bir an mercan yanar; rozet hafifçe büyüyüp yerine oturur */
+.sayi-vurgu {
+  animation: sayi-vurgu 900ms var(--egri);
+}
+.rozet.sayi-vurgu {
+  animation-name: rozet-vurgu;
+}
+@keyframes sayi-vurgu {
+  0%,
+  20% {
+    color: var(--coral);
+    text-shadow: 0 0 10px oklch(0.72 0.19 25 / 0.55);
+  }
+}
+@keyframes rozet-vurgu {
+  0% {
+    transform: scale(1.32);
+    box-shadow: 0 0 0 4px var(--coral-zemin);
+  }
+  60% {
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ana-ic > *,
+  .kod-katmani[data-gorunur="true"],
+  .onay-liste > .onay,
+  .bilet-liste > .bilet,
+  .hafiza-liste > .hafiza-kayit {
+    animation: none;
+  }
+  /* Vurgu konum değiştirmeden, yalnız renkle */
+  .sayi-vurgu,
+  .rozet.sayi-vurgu {
+    animation: sayi-solma 900ms linear;
+  }
+  @keyframes sayi-solma {
+    0%,
+    30% {
+      color: var(--coral);
+    }
+  }
+}

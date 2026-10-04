@@ -24,6 +24,8 @@ import { createRoot } from "react-dom/client";
 import { anahtariBaslat } from "./api/anahtar";
 import { App } from "./App";
 import { useDilDurumu } from "./dil";
+// Hafif arayüz hareketleri (stiller/hareket.css) ve sayı değişince kısa vurgu; stillerin en sonunda yüklenir
+import "./yardimcilar/hareket";
 
 // Anahtar adres parçasından okunur ve adres çubuğundan silinir; ilk çizimden önce yapılır
 anahtariBaslat();
