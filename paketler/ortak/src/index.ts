@@ -457,6 +457,9 @@ export interface DenetimKaydi {
 
 export type OnayTuru = "arac" | "ise_alim" | "birlestirme" | "genel" | "anayasa" | "isten_cikarma" | "teslim";
 export const ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"];
+
+/** Otomatik onay açılınca varsayılan olarak kendiliğinden verilen türler; genel sorular ve teslim kurula kalır */
+export const VARSAYILAN_OTOMATIK_ONAY_TURLERI: OnayTuru[] = ["arac", "ise_alim", "birlestirme", "anayasa", "isten_cikarma"];
 export type OnayDurumu = "bekliyor" | "onaylandi" | "reddedildi" | "zaman_asimi";
 
 export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {

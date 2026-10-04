@@ -29,6 +29,7 @@ import type {
   ZekaGunlukKaydi,
   ZekaGunlukTuru,
 } from "@arnorg/ortak";
+import { VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 
 /** Uzak depo adresinden GitHub "sahip/ad": https://github.com/a/b(.git), git@github.com:a/b(.git), ssh://git@github.com/a/b */
@@ -340,7 +341,8 @@ export class Depo {
       github: githubDeposu(uzak),
       otomatikGonder: Number(s.otomatik_gonder ?? 1) === 1,
       hazirlik: (String(s.hazirlik ?? "tamam") as Proje["hazirlik"]),
-      otomatikOnay: jsonOku<OtomatikOnay>(s.otomatik_onay as string | null, { etkin: false, turler: [] }),
+      // Hiç ayarlanmamış projede kutu işaretlenince varsayılan türler geçerli olsun
+      otomatikOnay: jsonOku<OtomatikOnay>(s.otomatik_onay as string | null, { etkin: false, turler: [...VARSAYILAN_OTOMATIK_ONAY_TURLERI] }),
     };
   }
 
