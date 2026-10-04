@@ -21,6 +21,9 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   denetimSaklamaGun: 90,
   disEditor: process.platform === "win32" ? "code" : "codium",
   tikanmaDakika: 20,
+  esZamanliAjan: 3,
+  acilistaSurdur: true,
+  gorevTokenTavani: 2_000_000,
   besSaatlikSinirYuzde: 90,
   haftalikSinirYuzde: 95,
   kodZekasiModeli: "kaliteli",
@@ -82,6 +85,12 @@ export class Yapilandirma {
     if (typeof degisiklik.besSaatlikSinirYuzde === "number") temiz.besSaatlikSinirYuzde = yuzde(degisiklik.besSaatlikSinirYuzde);
     if (typeof degisiklik.haftalikSinirYuzde === "number") temiz.haftalikSinirYuzde = yuzde(degisiklik.haftalikSinirYuzde);
     if (typeof degisiklik.tikanmaDakika === "number") temiz.tikanmaDakika = Math.min(Math.max(0, Math.round(degisiklik.tikanmaDakika)), 1440);
+    const tamSayi = (v: unknown, enCok: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(Math.max(0, Math.round(v)), enCok) : undefined);
+    const esZamanli = tamSayi(degisiklik.esZamanliAjan, 50);
+    if (esZamanli !== undefined) temiz.esZamanliAjan = esZamanli;
+    if (typeof degisiklik.acilistaSurdur === "boolean") temiz.acilistaSurdur = degisiklik.acilistaSurdur;
+    const tavan = tamSayi(degisiklik.gorevTokenTavani, 1_000_000_000);
+    if (tavan !== undefined) temiz.gorevTokenTavani = tavan;
     if (degisiklik.kodZekasiModeli === "kaliteli" || degisiklik.kodZekasiModeli === "hizli" || degisiklik.kodZekasiModeli === "kapali") temiz.kodZekasiModeli = degisiklik.kodZekasiModeli;
     if (typeof degisiklik.kodZekasiOtomatik === "boolean") temiz.kodZekasiOtomatik = degisiklik.kodZekasiOtomatik;
     if (degisiklik.ghYolu !== undefined) temiz.ghYolu = degisiklik.ghYolu ? String(degisiklik.ghYolu) : null;

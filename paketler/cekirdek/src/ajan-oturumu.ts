@@ -18,6 +18,9 @@ import { ajanOrtami, rootMu } from "./ortam.js";
 import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
 
+/** Duraklatılmış oturumda kuyruktaki tur beklenirken en çok bu kadar beklenir, sonra oturum kapanır */
+const KUYRUK_TURU_BEKLEME_MS = 10 * 60_000;
+
 /** Kimlik sorunuyla duran ajanın durum açıklaması (dil o anki ayardan) */
 const KIMLIK_BEKLENIYOR = () => iki("Claude Code girişi bekleniyor", "Waiting for Claude Code sign-in");
 
@@ -25,6 +28,9 @@ const KIMLIK_BEKLENIYOR = () => iki("Claude Code girişi bekleniyor", "Waiting f
 export interface Toplam {
   token: number;
 }
+
+/** Asistan mesajındaki API kullanımının sayılan alanları (önbellekten okuma hariç) */
+type Kullanim = { input_tokens?: number | null; output_tokens?: number | null; cache_creation_input_tokens?: number | null };
 
 /** Sonuç mesajındaki model başına kullanımdan işlenen token: girdi + çıktı + önbellek yazımı (önbellekten okuma hariç) */
 export function islenenToken(modelKullanimi: Record<string, { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number }> | undefined): number {
@@ -36,6 +42,22 @@ export function islenenToken(modelKullanimi: Record<string, { inputTokens?: numb
 /** Sürekli artan toplamdan bu turun payını çıkarır; toplam küçüldüyse (sıfırlanmış) yeni toplamın kendisi sayılır */
 export function toplamFarki(onceki: Toplam, yeni: Toplam): Toplam {
   return yeni.token < onceki.token ? { token: yeni.token } : { token: yeni.token - onceki.token };
+}
+
+/**
+ * Tur tavanı (SDK maxTurns): bir kullanıcı turundaki en çok API gidiş-dönüşü. Claude Code akış (streaming input)
+ * kipinde sayaç her kullanıcı turunda yeniden başlar; uzun yaşayan oturumu değil, tek turda dönüp duran ajanı durdurur.
+ */
+export const AJAN_TUR_TAVANI = 200;
+
+/**
+ * Birincil model aşırı yüklü ya da erişilemezse geçilecek yedek model: opus → sonnet, sonnet → haiku; haiku ve
+ * bilinmeyen modeller için yok. SDK yedeğin birincil modelle aynı olmasını kabul etmez (sorgu açılırken hata atar).
+ */
+export function yedekModel(model: string): string | null {
+  const m = model.toLowerCase();
+  const yedek = m.includes("opus") ? "sonnet" : m.includes("sonnet") ? "haiku" : null;
+  return yedek && yedek !== m ? yedek : null;
 }
 
 export type MesajKaynagi = { tur: "kurul" } | { tur: "ajan"; ad: string; id: string } | { tur: "sistem" };
@@ -67,6 +89,10 @@ export interface OturumBaglami {
   oturumKimligi(id: string): void;
   /** Bu turda işlenen token */
   kullanim(delta: Toplam): void;
+  /** Tur sürerken bu turun tahmini işlenen tokenı (asistan mesajlarındaki kullanım); tur sonucu kesin sayıyı getirir */
+  turKullanimi?(tahmin: number): void;
+  /** Tur, tur tavanına (maxTurns) ulaşıp bitti; ajan boşa çıktı */
+  turTavaniAsildi?(adim: number): void;
   pencere(bilgi: { tur: string; durum: string; sifirlanma: string | null; yuzde: number | null }): void;
   /** Oturumun Claude Code'a göre son toplamı; sürdürülen oturumda çift sayımı önler */
   oturumToplami: { oku(oturumId: string): Toplam | null; yaz(oturumId: string, t: Toplam): void };
@@ -122,6 +148,13 @@ export class AjanOturumu {
   private kimlikBekliyor = false;
   private devamDenemesi = true;
   private initGoruldu = false;
+  /** Duraklatma açıklaması (görev token tavanı): tur kesilir, sonucu gelince oturum kapanır, durum "duraklatildi" kalır */
+  private duraklatma: string | null = null;
+  /** Duraklatılmış oturumun sonuç gelmezse kapanma zamanlayıcısı */
+  private duraklatmaZamanlayici: NodeJS.Timeout | null = null;
+  /** Süren turun tahmini kullanımı: API mesajı kimliği → işlenen token (aynı mesaj birkaç parça hâlinde gelir) */
+  private turTahmini = new Map<string, number>();
+  private turToplami = 0;
 
   constructor(private readonly b: OturumBaglami) {}
 
@@ -186,11 +219,17 @@ export class AjanOturumu {
       const ek = guvenli(() => this.b.sikistirmaSonrasi());
       return ek ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: ek } } : {};
     };
+    // Zorlanan model (ARNORG_MODEL_ZORLA) de birincil sayılır; yedeği ondan seçilir
+    const model = process.env.ARNORG_MODEL_ZORLA || ajan.model;
+    const yedek = yedekModel(model);
     return query({
       prompt: this.kuyruk!,
       options: {
         cwd: this.b.cwd,
-        model: process.env.ARNORG_MODEL_ZORLA || ajan.model,
+        model,
+        ...(yedek && yedek !== model ? { fallbackModel: yedek } : {}),
+        // Tek turda dönüp duran ajan pencereyi tüketmesin; sayaç her kullanıcı turunda sıfırlanır
+        maxTurns: AJAN_TUR_TAVANI,
         permissionMode: izinModu,
         allowDangerouslySkipPermissions: bypass,
         ...(this.b.claudeYolu ? { pathToClaudeCodeExecutable: this.b.claudeYolu } : {}),
@@ -230,6 +269,9 @@ export class AjanOturumu {
   gonder(metin: string, oncelik: MesajOnceligi = "next", kaynak: MesajKaynagi = { tur: "kurul" }): void {
     const etiketli = kaynak.tur === "kurul" ? metin : `[${kaynakEtiketi(kaynak)}] ${metin}`;
     this.akisYaz({ tur: "kullanici", metin: kaynak.tur === "kurul" ? metin : etiketli, arac: kaynakEtiketi(kaynak) });
+    // Duraklatılmış oturuma gelen mesajı Şirket bilerek iletir (kurul, soru yanıtı): oturum kapanmaz, mesaj işlenir
+    this.duraklatma = null;
+    this.duraklatmaKapanisi(null);
     if (!this.kuyruk || this.kuyruk.kapandi) {
       this.kuyruk = null;
       this.baslatIcin(etiketli, oncelik, kaynak);
@@ -261,6 +303,10 @@ export class AjanOturumu {
     this.stderrSon = [];
     this.kapatiliyor = false;
     this.kimlikBekliyor = false;
+    this.duraklatma = null;
+    this.duraklatmaKapanisi(null);
+    this.turTahmini.clear();
+    this.turToplami = 0;
     this.sorgu = this.sorguOlustur(ajan, ajan.oturumId);
     this.durumYaz("calisiyor", iki("Oturum açılıyor", "Opening session"));
     void this.dongu(this.sorgu);
@@ -300,15 +346,68 @@ export class AjanOturumu {
     }
   }
 
+  /** Kapanmak üzere mi (kurul durdurdu, boşta kapatma): açılışta sürdürülecekler sayılırken atlanır */
+  get kapaniyor(): boolean {
+    return this.kapatiliyor;
+  }
+
+  /**
+   * Ajanı açıklamayla duraklatır (görev token tavanı): süren tur kesilir, kesilen turun sonucu (kullanımı) gelince oturum
+   * kapanır; sonuç gelmezse kısa süre sonra yine kapanır. Durum "duraklatildi" kalır; konuşma kimliği saklanır.
+   */
+  duraklat(aciklama: string): void {
+    const turSuruyor = this.sonDurum === "calisiyor" || this.sonDurum === "karar_bekliyor";
+    this.duraklatma = aciklama;
+    this.durumYaz("duraklatildi", aciklama);
+    const sorgu = this.sorgu;
+    if (!sorgu) return;
+    if (!turSuruyor) {
+      this.kapat();
+      return;
+    }
+    void sorgu.interrupt().catch(() => undefined);
+    this.duraklatmaKapanisi(15_000);
+  }
+
+  /** Duraklatılmış oturum ms içinde tur sonucu gelmezse kapanır; null zamanlayıcıyı kaldırır */
+  private duraklatmaKapanisi(ms: number | null): void {
+    if (this.duraklatmaZamanlayici) clearTimeout(this.duraklatmaZamanlayici);
+    this.duraklatmaZamanlayici = null;
+    const sorgu = this.sorgu;
+    if (ms === null || !sorgu) return;
+    this.duraklatmaZamanlayici = setTimeout(() => {
+      this.duraklatmaZamanlayici = null;
+      if (this.sorgu === sorgu && this.duraklatma) this.kapat();
+    }, ms);
+    this.duraklatmaZamanlayici.unref();
+  }
+
   // ------------------------------------------------------------------
 
   private durumYaz(durum: AjanDurumu, aciklama?: string): void {
+    // Duraklatılmış oturum kapanana dek ajan duraklatılmış görünür (tur sonu "boşta", kapanış "kapalı" yazmaz)
+    if (this.duraklatma && durum !== "duraklatildi") {
+      durum = "duraklatildi";
+      aciklama = this.duraklatma;
+    }
     this.sonDurum = durum;
     this.b.durum(durum, aciklama);
   }
 
   private akisYaz(o: Omit<AkisOgesi, "id" | "ajanId" | "zaman">): void {
     this.b.akis({ id: kimlik(), ajanId: this.b.ajan().id, zaman: simdi(), ...o });
+  }
+
+  /** Süren turun tahmini kullanımı: aynı API mesajı birkaç parça hâlinde gelir; her mesaj en büyük değeriyle bir kez sayılır */
+  private tahminEkle(mesaj: { id?: string; usage?: Kullanim | null }): void {
+    const u = mesaj.usage;
+    if (!u || !mesaj.id || !this.b.turKullanimi) return;
+    const islenen = (u.input_tokens ?? 0) + (u.output_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+    const onceki = this.turTahmini.get(mesaj.id) ?? 0;
+    if (islenen <= onceki) return;
+    this.turTahmini.set(mesaj.id, islenen);
+    this.turToplami += islenen - onceki;
+    this.b.turKullanimi(this.turToplami);
   }
 
   private async dongu(sorgu: Query): Promise<void> {
@@ -396,6 +495,7 @@ export class AjanOturumu {
       }
       case "assistant": {
         const ust = m.parent_tool_use_id;
+        this.tahminEkle(m.message as { id?: string; usage?: Kullanim | null });
         // Giriş düştüyse ya da abonelik sorunluysa SDK bunu hata alanıyla bildirir. Süreç eski kimliği tuttuğundan
         // oturum kapatılır (konuşma kimliği saklanır); giriş yapılınca yeni süreç kaldığı yerden sürer.
         const sorun = kimlikSorunuHatadan(m.error);
@@ -447,12 +547,26 @@ export class AjanOturumu {
           m.subtype === "success"
             ? kisalt(String((m as { result?: string }).result ?? ""), 600)
             : m.subtype === "error_max_turns"
-              ? iki("Tur sınırına ulaşıldı.", "Turn limit reached.")
+              ? iki(`Tur sınırına ulaşıldı (${AJAN_TUR_TAVANI} adım).`, `Turn limit reached (${AJAN_TUR_TAVANI} steps).`)
               : iki("Tur hatayla ya da kesilerek bitti.", "The turn ended with an error or was interrupted.");
         this.akisYaz({ tur: "sonuc", metin, token: fark.token, hata: m.subtype !== "success" });
         this.devamDenemesi = true;
+        this.turTahmini.clear();
+        this.turToplami = 0;
         // Tur bitti; kuyrukta mesaj varsa yeni tur bunu hemen günceller
         this.durumYaz("bosta", iki("İş bekliyor", "Waiting for work"));
+        // Tur tavanında ajan boşa çıkar; Şirket yöneticisine haber verir
+        if (m.subtype === "error_max_turns") this.b.turTavaniAsildi?.(AJAN_TUR_TAVANI);
+        // Duraklatılan oturum kesilen turun sonucu (kullanımı) gelince kapanır; Claude Code'un kuyruğunda işlenmemiş
+        // mesaj varsa (queued_turn_count) önce o tur işlenir (iş araçları denetim kapısında kapalı), sonra kapanır
+        const bekleyenTur = (m as { queued_turn_count?: number }).queued_turn_count ?? 0;
+        if (this.duraklatma) {
+          if (bekleyenTur > 0) this.duraklatmaKapanisi(KUYRUK_TURU_BEKLEME_MS);
+          else {
+            this.duraklatmaKapanisi(null);
+            queueMicrotask(() => this.kapat());
+          }
+        }
         return;
       }
       case "rate_limit_event": {

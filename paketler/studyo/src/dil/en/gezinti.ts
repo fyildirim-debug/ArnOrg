@@ -46,6 +46,7 @@ export const gezinti: typeof tr = {
     mesaiOnay: (n: number) =>
       `${n === 1 ? "1 agent session" : `${n} agent sessions`} will close. Running turns are interrupted; session IDs are kept, so agents can pick up where they left off later.`,
     mesaiDurdu: (n: number) => `Closed ${n === 1 ? "1 agent session" : `${n} agent sessions`}. Work stopped.`,
+    siradakiler: (n: number) => `Queued work for ${n === 1 ? "1 agent" : `${n} agents`} is dropped too.`,
   },
   ray: {
     baslik: "Live feed",

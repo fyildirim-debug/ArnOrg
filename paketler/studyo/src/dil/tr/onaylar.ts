@@ -143,6 +143,21 @@ export const onaylar = {
   /** İşten çıkarma: devralan belirtilmemişse */
   devralanYok: "Yöneticisi devralır",
 
+  /** Görev token tavanı (Karar türünün alt türü): görev tavanı aştı, ajan durdu; sürmesi kurula soruluyor */
+  tokenTavani: {
+    tur: "Token tavanı",
+    kim: "Durdurulan",
+    kullanim: "Kullanım",
+    gerekce: (ajan: string, gorev: string | null) => `${ajan}${gorev ? `, ${gorev} görevinde` : ""} token tavanını aştı ve durdu; sürmesi için kararınızı bekliyor.`,
+    yeniTavan: (n: string) => `sürerse yeni tavan ${n}`,
+    olcer: (islenen: string, tavan: string, yeni: string) => `${islenen} işlendi, tavan ${tavan}; sürerse yeni tavan ${yeni}`,
+    sonra: "Sürdürürseniz",
+    etki: (ajan: string, yeni: string, yonetici: string | null) =>
+      `Görevin tavanı ${yeni} olur ve ${ajan} kaldığı yerden sürer. Durdurursanız ${ajan} durur${yonetici ? `; ${yonetici} görevi bölmesi ya da yeniden planlaması için uyarılır` : ""}.`,
+    surdur: "Sürdür",
+    durdur: "Durdur",
+  },
+
   /** Otomatik onay: seçili türdeki onaylar kendiliğinden verilir, kayıt yine tutulur */
   oto: {
     etiket: "Otomatik onay",

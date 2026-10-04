@@ -47,6 +47,8 @@ export const gezinti = {
     mesaiOnay: (n: number) =>
       `${n} ajanın oturumu kapanır. Çalışan turlar kesilir; oturum kimlikleri saklanır, ajanlar sonra kaldığı yerden başlatılabilir.`,
     mesaiDurdu: (n: number) => `${n} ajanın oturumu kapatıldı. Mesai durdu.`,
+    /** Eşzamanlı tavan yüzünden sırada bekleyenler */
+    siradakiler: (n: number) => `Sırada bekleyen ${n} ajanın işi de düşer.`,
   },
   /** Canlı akış rayı; olay etiketleri çizim anında çevrilir */
   ray: {

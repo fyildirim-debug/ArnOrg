@@ -244,6 +244,25 @@ Eski sürümden gelen veritabanında token sayıları `kullanim` tablosuna taş�
 
 Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç). Sürdürülen oturumda Claude Code toplamı önceki turlardan devam ettirdiği için oturum başına son toplam saklanır, yalnız fark sayılır.
 
+## Çalışma düzeni: eşzamanlı tavan, açılışta sürdürme, görev ve tur tavanı
+
+0.0.4 ile `Ayarlar`'a gelenler (Stüdyo'da Ayarlar › Çalışma düzeni):
+
+| Alan | Varsayılan | Anlamı |
+|---|---|---|
+| `esZamanliAjan` | 3 | Bütün projelerde aynı anda tur işleyen en çok ajan; 0 sınırsız (0–50) |
+| `acilistaSurdur` | `true` | ArnOrg yeniden açılınca yarım kalan ajanlar kaldıkları yerden sürer |
+| `gorevTokenTavani` | 2000000 | Bir görevin işleyebileceği token; aşılınca ajan durur, kurula sorulur. 0 kapalı |
+
+| Yöntem | Yol | Yanıt |
+|---|---|---|
+| POST | `/api/projeler/:pid/durdur` | `{tamam:true}`: Mesaiyi durdur. Projenin bütün oturumları kapanır, sıradaki mesajlar düşer, durdurulan ajanlar açılışta uyanmaz |
+
+- **Eşzamanlı tavan ve sıra:** durumu `calisiyor` ya da `karar_bekliyor` olan ajan çalışan sayılır. Turu sürmeyen ajana mesaj gelince çalışan sayısı tavandaysa (ya da önünde bekleyen varsa) mesaj sıraya girer (FIFO); çağıran hata almaz. Ajanın `isAciklamasi` "Sırada: aynı anda en çok N ajan çalışır" olur ve `proje.guncellendi` yayınlanır. Bir ajan çalışan durumdan çıkınca (`bosta`, `kapali`, `hata`, `duraklatildi`) sıradakiler tavan izin verdikçe teslim edilir; aynı ajanın mesajları geliş sırasıyla birlikte gider. Turu süren ajana gelen mesaj doğrudan iletilir. Kurulun mesajı ve yanıt bekleyen sorunun sorulan ajanı (`ajana_sor`, toplantı) muaftır: soran beklerken çalışan sayılır, sorulan sırada kalsa ikisi kilitlenirdi. Teslim anında abonelik sınırı varsa mesaj sınırda bekleyenlere eklenir. Tıkanma koruması sıradaki ajanı dürtmez.
+- **Açılışta mesaiye dönüş:** çekirdek kapanırken (oturumlar kapanmadan önce) çalışan ajanları, sıradakileri, abonelik ve giriş bekleyenleri anahtar-değer kaydına yazar; kurulun durdurduğu oturum yazılmaz. Çökmede kayıt güncellenmez ama veritabanında çalışan durumda kalan ajanlar durumlar sıfırlanmadan okunur; açılış kümesi ikisinin birleşimidir. `acilistaSurdur` açıksa açılıştan ~30 sn sonra bu ajanlar eşzamanlı tavana uyarak "ArnOrg yeniden başlatıldı; yarım kalan işine kaldığın yerden devam et" mesajıyla uyandırılır; saklı oturum kimliğiyle aynı konuşma sürer. Abonelik sınırındaysa sessizce sınırda bekleyenlere eklenir. Mesaiyi durdur ve ajanın tek tek durdurulması kaydı temizler.
+- **Görev token tavanı:** ajanın işlediği token (`kullanim` ile aynı ölçü) o anki görevine (`Ajan.gorevId`, ajana atanmış ve bitmemiş görev) eklenir; tur sürerken asistan mesajlarındaki kullanımla da denetlenir. Toplam görevin tavanını (kurulun yükselttiği tavan, yoksa `gorevTokenTavani`) aşınca tur kesilir, ajan `duraklatildi` ("Görev token tavanı aşıldı") olur ve kurula `genel` onay açılır: başlık "T-12 görevi token tavanını aştı (2,1 M / 2 M). Sürsün mü?", veri `GorevTavaniOnayVerisi` (`altTur: "gorev_token_tavani"`, `gorevId`, `gorevKodu`, `toplam`, `tavan`, `yeniTavan`). Karar beklerken denetim kapısı iş araçlarını "Görev token tavanı" kuralıyla reddeder (ArnOrg araçları açık), ajana gelen mesajlar tutulur; kurulun mesajı ve soru yanıtı geçer. Onaylanırsa görevin tavanı bir kat artar (2 M → 4 M) ve ajan tutulan mesajlarla kaldığı yerden sürer; reddedilirse ajan durur, yöneticisine (yoksa CEO'ya) görevi bölmesi ya da yeniden planlaması için sistem mesajı gider.
+- **Tur tavanı ve yedek model:** oturum `maxTurns: 200` ile açılır. Claude Code akış kipinde bu sayaç her kullanıcı turunda sıfırlanır (tek turdaki API gidiş-dönüşü), uzun yaşayan oturumu durdurmaz. `error_max_turns` sonucunda ajan boşa çıkar, akışa not düşülür, yöneticisine sistem mesajı gider. `fallbackModel` birincil model aşırı yüklü ya da erişilemezken kullanılır: opus → sonnet, sonnet → haiku, haiku için yok; `ARNORG_MODEL_ZORLA` ile zorlanan model birincil sayılır (SDK yedeğin birincille aynı olmasını kabul etmez).
+
 ## Proje hafızası ve ajanlar arası sorular
 
 Her projenin kendi kalıcı hafızası vardır; başka projelerle karışmaz. Kayıtlar veritabanında aranır, ayrıca repo içinde `.arnorg/hafiza/hafiza.md` (okunur), `.arnorg/hafiza/kayitlar.json` (geri yükleme) ve `.arnorg/hafiza/ajanlar/<ad>.md` (ajan defterleri) olarak tutulur. Var olan bir repo başka makinede bağlanınca hafıza ve defterler geri yüklenir. ArnOrg kendi `.arnorg/` değişikliklerini 90 sn gecikmeyle ve birleştirmeden hemen önce yalnız o yolu kapsayan bir commit'le kaydeder; kullanıcının diğer değişikliklerine dokunmaz.

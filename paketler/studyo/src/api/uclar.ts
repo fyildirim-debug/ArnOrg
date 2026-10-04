@@ -102,6 +102,8 @@ export const api = {
   ajanaMesaj: (aid: string, i: AjanMesajIstegi) => istek<Tamam>(`${ajan(aid)}/mesaj`, { method: "POST", govde: i }),
   ajanKes: (aid: string) => istek<Tamam>(`${ajan(aid)}/kes`, { method: "POST" }),
   ajanDurdur: (aid: string) => istek<Ajan>(`${ajan(aid)}/durdur`, { method: "POST" }),
+  /** Mesaiyi durdur: projenin oturumları kapanır, sıradaki işler düşer, açılışta kimse uyanmaz */
+  mesaiyiDurdur: (pid: string) => istek<Tamam>(`${proje(pid)}/durdur`, { method: "POST" }),
   ajanMod: (aid: string, mod: IzinModu) => istek<Ajan>(`${ajan(aid)}/mod`, { method: "POST", govde: { mod } }),
   ajanModel: (aid: string, model: ModelAdi) => istek<Ajan>(`${ajan(aid)}/model`, { method: "POST", govde: { model } }),
   ajanAkis: (aid: string, sinir = 300) => istek<AkisOgesi[]>(`${ajan(aid)}/akis${sorgu({ sinir })}`),

@@ -44,6 +44,18 @@ export const ayarlar = {
     hafta: "Haftalık pencere üst sınırı (%)",
     haftaIpucu: "Pencere sıfırlanınca ajanlar kaldıkları yerden sürer.",
   },
+  /** Aynı anda çalışan ajan tavanı, görev token tavanı, açılışta yarım kalan işe dönüş */
+  calismaDuzeni: {
+    baslik: "Çalışma düzeni",
+    esZamanli: "Aynı anda çalışan ajan",
+    esZamanliIpucu: "Bütün projelerde aynı anda iş yapan en çok ajan. Tavan doluyken gelen iş sıraya girer, yer açılınca sırayla başlar. 0 sınırsız.",
+    esZamanliHata: "0 ile 50 arasında bir tam sayı olmalı.",
+    tavan: "Görev token tavanı (milyon)",
+    tavanIpucu: "Bir görev bu kadar token işleyince ajanı durur ve sürmesi için onayınız istenir; onaylarsanız tavan bir kat artar. 0 kapalı.",
+    tavanHata: "0 ile 1000 arasında olmalı.",
+    surdur: "Açılışta yarım kalan işe dön",
+    surdurIpucu: "ArnOrg yeniden açılınca, kapanırken çalışan ajanlar aynı konuşmayla kaldıkları yerden sürer. Mesaiyi durdur ile durdurulanlar uyanmaz.",
+  },
   cekirdek: {
     baslik: "Çekirdek",
     claudeYolu: "Claude Code yolu",

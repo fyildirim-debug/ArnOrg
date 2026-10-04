@@ -44,6 +44,17 @@ export const ayarlar: typeof tr = {
     hafta: "Weekly window cap (%)",
     haftaIpucu: "When the window resets, agents pick up where they left off.",
   },
+  calismaDuzeni: {
+    baslik: "Work rules",
+    esZamanli: "Agents working at once",
+    esZamanliIpucu: "The most agents doing work at the same time, across all projects. When it's full, new work waits in line and starts as a slot opens. 0 means no limit.",
+    esZamanliHata: "Must be a whole number from 0 to 50.",
+    tavan: "Task token ceiling (millions)",
+    tavanIpucu: "When a task has used this many tokens, its agent stops and asks for your approval to go on; approving raises the ceiling by the same amount again. 0 turns it off.",
+    tavanHata: "Must be between 0 and 1000.",
+    surdur: "Resume unfinished work on launch",
+    surdurIpucu: "When ArnOrg reopens, agents that were working when it closed pick up where they left off, in the same conversation. Agents stopped with Stop work stay stopped.",
+  },
   cekirdek: {
     baslik: "Core",
     claudeYolu: "Claude Code path",

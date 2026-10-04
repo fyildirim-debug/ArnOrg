@@ -188,8 +188,8 @@ export class Gozetmen {
             t = { surum: g.guncelleme, sorumluId: sorumlu.id, hatirlatma: 0, sonEylem: 0, yukseltildi: false, kurulaBildirildi: false };
             this.takip.set(g.id, t);
           }
-          // Çalışan, kurul kararı bekleyen ya da kurulca duraklatılan ajan tıkanmış sayılmaz
-          if (sorumlu.durum === "calisiyor" || sorumlu.durum === "karar_bekliyor" || sorumlu.durum === "duraklatildi") continue;
+          // Çalışan, kurul kararı bekleyen, kurulca duraklatılan ya da eşzamanlı tavan yüzünden sırada bekleyen ajan tıkanmış sayılmaz
+          if (sorumlu.durum === "calisiyor" || sorumlu.durum === "karar_bekliyor" || sorumlu.durum === "duraklatildi" || this.sirket.siradaMi(sorumlu.id)) continue;
           const sonHareket = Math.max(Date.parse(g.guncelleme) || 0, this.sirket.sonEtkinlik.get(sorumlu.id) ?? 0, this.acilisMs, t.sonEylem);
           if (simdiMs - sonHareket < esik) continue;
           const dk = Math.round((simdiMs - Math.max(Date.parse(g.guncelleme) || 0, this.acilisMs)) / 60_000);

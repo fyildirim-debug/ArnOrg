@@ -48,6 +48,12 @@ export interface Ayarlar {
   disEditor: string;
   /** Görev bu kadar dakika ilerlemezse sorumlu hatırlatılır, sonra yöneticiye ve kurula yükseltilir; 0 kapalı */
   tikanmaDakika: number;
+  /** Aynı anda tur işleyen en çok ajan sayısı (bütün projelerde); tavan doluyken gelen mesaj sıraya girer. 0 sınırsız */
+  esZamanliAjan: number;
+  /** ArnOrg yeniden açılınca kapanışta (ya da çökmede) çalışan ajanlar kaldıkları yerden sürer */
+  acilistaSurdur: boolean;
+  /** Bir görev bu kadar token işleyince ajan durur ve kurula sorulur; 0 kapalı */
+  gorevTokenTavani: number;
   /** Ajanlar Claude aboneliğinin 5 saatlik penceresinin en çok bu yüzdesine kadar çalışır; 0 sınırsız */
   besSaatlikSinirYuzde: number;
   /** Haftalık pencere için üst sınır yüzdesi; 0 sınırsız */
@@ -509,6 +515,22 @@ export interface Onay {
 export interface OnayKararIstegi {
   karar: "onayla" | "reddet";
   not?: string;
+}
+
+/** `genel` onayın alt türü: görev token tavanını aştı, ajan durdu; kurul sürdürmeyi onaylar ya da reddeder */
+export const GOREV_TAVANI_ALT_TURU = "gorev_token_tavani";
+
+export interface GorevTavaniOnayVerisi {
+  altTur: typeof GOREV_TAVANI_ALT_TURU;
+  ajanId: string;
+  gorevId: string;
+  gorevKodu: string;
+  /** Görevin işlediği token (girdi + çıktı + önbellek yazımı) */
+  toplam: number;
+  /** Aşılan tavan */
+  tavan: number;
+  /** Onaylanırsa görevin yeni tavanı (bir kat daha) */
+  yeniTavan: number;
 }
 
 // ---------------------------------------------------------------------------

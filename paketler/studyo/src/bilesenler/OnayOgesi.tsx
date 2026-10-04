@@ -22,6 +22,7 @@ import { AjanAvatar, modelAdi } from "./Kisi";
 import { anayasaVerisi, ilkParagraf, istenCikarmaVerisi, TESLIM_ALANLARI, teslimVerisi } from "./onayVerisi";
 import { Simge } from "./Simge";
 import { TeslimKarari } from "./TestPaneli";
+import { kisaToken, TavanOlcer, TOKEN_TAVANI_ALANLARI, tokenTavaniVerisi } from "./TokenTavani";
 
 /** Kalan süre bunun altına inince öğe acil görünür */
 const ACIL_MS = 60_000;
@@ -283,6 +284,16 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
     }
 
     case "genel": {
+      // Görev token tavanı: ajan durdu; kullanım ölçeri, görev ve iki kararın sonucu
+      const tavan = tokenTavaniVerisi(onay.veri);
+      if (tavan) {
+        gerekce = onay.durum === "bekliyor" ? t.tokenTavani.gerekce(kisi, tavan.gorevKodu) : null;
+        ekle({ k: "toplam", etiket: t.tokenTavani.kullanim, deger: <TavanOlcer veri={tavan} />, genis: true }, ...TOKEN_TAVANI_ALANLARI);
+        if (tavan.gorevId) ekle({ k: "gorevId", etiket: t.alan.gorevId, deger: <GorevBagi id={tavan.gorevId} gorevler={b.gorevler} />, genis: true });
+        const yonetici = ajan ? (b.ajanlar.find((x) => x.id === ajan.yoneticiId && x.id !== ajan.id) ?? b.ajanlar.find((x) => x.rol === "ceo" && x.id !== ajan.id)) : undefined;
+        etki = t.tokenTavani.etki(kisi, kisaToken(tavan.yeniTavan, b.dil), yonetici?.ad ?? null);
+        break;
+      }
       // Kurula soru: ayrıntı soru ile seçeneklerden kurulur; soru ve seçenekler ayrı gösterilir
       const soru = dize(v.soru);
       if (soru) gerekce = soru;
@@ -622,10 +633,12 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
   const oran = sureli && bitis > baslangic ? Math.max(0, Math.min(1, (bitis - simdi) / (bitis - baslangic))) : null;
   const vurgulu = useSohbet((d) => d.vurguluOnayId === onay.id);
   const ceoAdi = useVeri((d) => ceoBul(d.ajanlar)?.ad) ?? ajan?.ad ?? s.genel.arnorg;
+  // Görev token tavanı onayı: tür, kim ve karar düğmeleri kendi adlarıyla
+  const ozel = onay.tur === "genel" && tokenTavaniVerisi(onay.veri) ? t.tokenTavani : null;
 
   return (
     <li id={`onay-${onay.id}`} className={`onay onay-bekliyor${acil ? " onay-acil" : ""}${vurgulu ? " onay-vurgulu" : ""}`} data-tur={onay.tur}>
-      <span className="onay-tur">{s.genel.onayTuru[onay.tur]}</span>
+      <span className="onay-tur">{ozel?.tur ?? s.genel.onayTuru[onay.tur]}</span>
       <h3 className="onay-baslik" id={baslikId}>
         {onay.baslik}
       </h3>
@@ -638,7 +651,7 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
         ) : null}
       </span>
       <p className="onay-kim">
-        <span className="onay-kim-etiket">{t.kim[onay.tur]}</span>
+        <span className="onay-kim-etiket">{ozel?.kim ?? t.kim[onay.tur]}</span>
         <Isteyen onay={onay} ajan={ajan} />
         <span aria-hidden="true">·</span>
         <time dateTime={onay.olusturma} title={akilliZaman(onay.olusturma)}>
@@ -649,7 +662,7 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
         {g.gerekce ? <p className="onay-gerekce">{g.gerekce}</p> : null}
         <AlanListesi alanlar={g.alanlar} />
         <p className="onay-etki">
-          <span className="onay-etki-ad">{t.sonra[onay.tur]}</span> {g.etki}
+          <span className="onay-etki-ad">{ozel?.sonra ?? t.sonra[onay.tur]}</span> {g.etki}
           {sureli ? ` ${t.etki.sureli}` : ""}
         </p>
         {onay.tur === "arac" ? (
@@ -678,7 +691,7 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
             }
           />
         ) : (
-          <OnayKararDugmeleri onay={onay} onayMetni={t.fiil[onay.tur]} aciklayan={baslikId} kilitli={doldu} tehlikeli={onay.tur === "isten_cikarma"} />
+          <OnayKararDugmeleri onay={onay} onayMetni={ozel?.surdur ?? t.fiil[onay.tur]} retMetni={ozel?.durdur} aciklayan={baslikId} kilitli={doldu} tehlikeli={onay.tur === "isten_cikarma"} />
         )}
       </div>
     </li>

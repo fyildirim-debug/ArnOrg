@@ -132,6 +132,20 @@ export const onaylar: typeof tr = {
   },
   devralanYok: "Their manager takes over",
 
+  tokenTavani: {
+    tur: "Token ceiling",
+    kim: "Stopped",
+    kullanim: "Usage",
+    gerekce: (ajan: string, gorev: string | null) => `${ajan} went over the token ceiling${gorev ? ` on ${gorev}` : ""} and stopped; they're waiting for your call to go on.`,
+    yeniTavan: (n: string) => `new ceiling ${n} if it goes on`,
+    olcer: (islenen: string, tavan: string, yeni: string) => `${islenen} used, ceiling ${tavan}; new ceiling ${yeni} if it goes on`,
+    sonra: "If it goes on",
+    etki: (ajan: string, yeni: string, yonetici: string | null) =>
+      `The task's ceiling becomes ${yeni} and ${ajan} picks up where they left off. If you stop it, ${ajan} stays stopped${yonetici ? ` and ${yonetici} is asked to split or re-plan the task` : ""}.`,
+    surdur: "Keep going",
+    durdur: "Stop",
+  },
+
   oto: {
     etiket: "Auto-approve",
     ipucuKapali: (n: number) =>

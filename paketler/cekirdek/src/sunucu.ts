@@ -149,6 +149,9 @@ const semalar = {
     denetimSaklamaGun: z.number().int().min(0).max(3650).optional(),
     disEditor: z.string().max(200).optional(),
     tikanmaDakika: z.number().optional(),
+    esZamanliAjan: z.number().int().min(0).max(50).optional(),
+    acilistaSurdur: z.boolean().optional(),
+    gorevTokenTavani: z.number().min(0).max(1_000_000_000).optional(),
     besSaatlikSinirYuzde: z.number().min(0).max(100).optional(),
     haftalikSinirYuzde: z.number().min(0).max(100).optional(),
     kodZekasiModeli: z.enum(["kaliteli", "hizli", "kapali"]).optional(),
@@ -399,6 +402,11 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return tamam;
   });
   app.post("/api/ajanlar/:aid/durdur", async (i) => sirket.ajanDurdur(param(i, "aid")));
+  // Mesaiyi durdur: projenin bütün oturumları kapanır, sıradaki mesajlar düşer, açılışta kimse uyanmaz
+  app.post("/api/projeler/:pid/durdur", async (i) => {
+    sirket.tumunuDurdur(sirket.proje(param(i, "pid")).id);
+    return tamam;
+  });
   app.post("/api/ajanlar/:aid/mod", async (i) => sirket.ajanMod(param(i, "aid"), z.object({ mod: izinModu }).parse(i.body ?? {}).mod));
   app.post("/api/ajanlar/:aid/model", async (i) => sirket.ajanModel(param(i, "aid"), z.object({ model: z.string().min(1) }).parse(i.body ?? {}).model));
   app.get("/api/ajanlar/:aid/akis", async (i) => sirket.akis(param(i, "aid"), sayi(sorgu(i, "sinir"), 300)));

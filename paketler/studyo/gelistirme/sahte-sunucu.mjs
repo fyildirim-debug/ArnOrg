@@ -17,6 +17,7 @@ import * as KZ from "./kod-zekasi-verisi.mjs";
 import { kur as surum002 } from "./surum-002.mjs";
 import { kur as surum004Kazanim } from "./surum-004-kazanim.mjs";
 import { kur as surum004Kalite } from "./surum-004-kalite.mjs";
+import { kur as surum004Tavan } from "./surum-004-tavan.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2134,6 +2135,8 @@ surum002({
 surum004Kazanim({ rota, db, yay, herkeseYay, Hata, simdi, projeGerekli, ajanBul });
 // 0.0.4: kalite kapısı (surum-004-kalite.mjs)
 surum004Kalite({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), proje, mesajEkle, Hata, simdi, yeniKimlik, projeGerekli, projeYay });
+// 0.0.4: çalışma düzeni ayarları, sıradaki ajan, görev token tavanı onayı, Mesaiyi durdur (surum-004-tavan.mjs)
+surum004Tavan({ rota, db, yay, ajanBul, akisEkle, projeYay, onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f), Hata });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

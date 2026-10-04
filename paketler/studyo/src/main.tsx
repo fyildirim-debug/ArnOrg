@@ -12,6 +12,7 @@ import "./stiller/kod-zekasi.css";
 import "./stiller/kurulum.css";
 import "./stiller/sohbet.css";
 import "./stiller/zeka.css";
+import "./stiller/tavan.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

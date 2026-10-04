@@ -2,13 +2,15 @@
 import os from "node:os";
 import type { Ajan, AjanDurumu } from "@arnorg/ortak";
 import { describe, expect, it, vi } from "vitest";
-import { AjanOturumu, type OturumBaglami } from "./ajan-oturumu.js";
+import { AJAN_TUR_TAVANI, AjanOturumu, yedekModel, type OturumBaglami } from "./ajan-oturumu.js";
 
 type Senaryo = (kapandi: Promise<void>) => AsyncGenerator<unknown>;
 
 const sahte = vi.hoisted(() => ({
   senaryo: null as null | ((kapandi: Promise<void>) => AsyncGenerator<unknown>),
   secenekler: [] as Record<string, unknown>[],
+  /** Turu kesme (interrupt) çağrılınca */
+  kes: null as null | (() => void),
 }));
 
 vi.mock("@anthropic-ai/claude-agent-sdk", async (asil) => {
@@ -19,7 +21,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", async (asil) => {
       sahte.secenekler.push(options);
       let kapat!: () => void;
       const kapandi = new Promise<void>((coz) => (kapat = coz));
-      return Object.assign(sahte.senaryo!(kapandi), { close: () => kapat(), interrupt: async () => undefined });
+      return Object.assign(sahte.senaryo!(kapandi), { close: () => kapat(), interrupt: async () => sahte.kes?.() });
     },
   };
 });
@@ -31,6 +33,9 @@ function baglam() {
   const durumlar: [AjanDurumu, string | undefined][] = [];
   const sorunlar: [string, string][] = [];
   const bittiler: (string | null)[] = [];
+  const kullanimlar: number[] = [];
+  const tahminler: number[] = [];
+  const tavanlar: number[] = [];
   const ajan = {
     id: "a1",
     ad: "Ada",
@@ -57,14 +62,16 @@ function baglam() {
     akis: () => undefined,
     durum: (d, a) => durumlar.push([d, a]),
     oturumKimligi: (id) => (ajan.oturumId = id || null),
-    kullanim: () => undefined,
+    kullanim: (d) => kullanimlar.push(d.token),
+    turKullanimi: (t) => tahminler.push(t),
+    turTavaniAsildi: (n) => tavanlar.push(n),
     pencere: () => undefined,
     oturumToplami: { oku: () => null, yaz: () => undefined },
     girisKaynagi: () => undefined,
     kimlikSorunu: (s, a) => sorunlar.push([s, a]),
     bitti: (h) => bittiler.push(h),
   };
-  return { b, durumlar, sorunlar, bittiler };
+  return { b, ajan, durumlar, sorunlar, bittiler, kullanimlar, tahminler, tavanlar };
 }
 
 async function bekle(kosul: () => boolean) {
@@ -139,5 +146,150 @@ describe("ajan oturumu ve Claude Code kimlik sorunları", () => {
     expect(sorunlar).toHaveLength(0);
     expect(durumlar.at(-1)?.[0]).toBe("hata");
     expect(bittiler[0]).toContain("spawn git ENOENT");
+  });
+});
+
+describe("tur tavanı, yedek model ve duraklatma", () => {
+  it("yedek model: opus → sonnet, sonnet → haiku; haiku ve bilinmeyen için yok", () => {
+    expect(yedekModel("opus")).toBe("sonnet");
+    expect(yedekModel("claude-opus-4-5")).toBe("sonnet");
+    expect(yedekModel("sonnet")).toBe("haiku");
+    expect(yedekModel("claude-sonnet-4-5[1m]")).toBe("haiku");
+    expect(yedekModel("haiku")).toBeNull();
+    expect(yedekModel("claude-haiku-4-5")).toBeNull();
+    expect(yedekModel("default")).toBeNull();
+  });
+
+  it("sorgu tur tavanıyla ve birincil modelin yedeğiyle açılır; zorlanan model de birincil sayılır", async () => {
+    const acVeOku = async (model: string, zorla?: string) => {
+      const { b, ajan, durumlar } = baglam();
+      (ajan as { model: string }).model = model;
+      const eski = process.env.ARNORG_MODEL_ZORLA;
+      if (zorla) process.env.ARNORG_MODEL_ZORLA = zorla;
+      else delete process.env.ARNORG_MODEL_ZORLA;
+      senaryo(async function* (kapandi) {
+        yield init;
+        await kapandi;
+      });
+      const oturum = new AjanOturumu(b);
+      try {
+        oturum.baslat("Mesaine başla.");
+        await bekle(() => durumlar.some(([, a]) => a === "Çalışıyor"));
+      } finally {
+        if (eski === undefined) delete process.env.ARNORG_MODEL_ZORLA;
+        else process.env.ARNORG_MODEL_ZORLA = eski;
+        oturum.kapat();
+      }
+      const s = sahte.secenekler.at(-1)!;
+      return { model: s.model, yedek: s.fallbackModel, tur: s.maxTurns };
+    };
+    expect(await acVeOku("opus")).toEqual({ model: "opus", yedek: "sonnet", tur: AJAN_TUR_TAVANI });
+    expect(await acVeOku("sonnet")).toEqual({ model: "sonnet", yedek: "haiku", tur: 200 });
+    expect(await acVeOku("haiku")).toEqual({ model: "haiku", yedek: undefined, tur: 200 });
+    expect(await acVeOku("opus", "haiku")).toEqual({ model: "haiku", yedek: undefined, tur: 200 });
+    expect(await acVeOku("haiku", "sonnet")).toEqual({ model: "sonnet", yedek: "haiku", tur: 200 });
+  });
+
+  it("tur tavanında biten tur ajanı boşa çıkarır ve Şirket'e bildirir; oturum açık kalır", async () => {
+    const { b, durumlar, tavanlar } = baglam();
+    senaryo(async function* (kapandi) {
+      yield init;
+      yield { type: "result", subtype: "error_max_turns", num_turns: 201, errors: ["Reached maximum number of turns (200)"], modelUsage: {} };
+      await kapandi;
+    });
+    const oturum = new AjanOturumu(b);
+    oturum.baslat("Mesaine başla.");
+    await bekle(() => tavanlar.length === 1);
+    expect(tavanlar).toEqual([AJAN_TUR_TAVANI]);
+    expect(durumlar.at(-1)?.[0]).toBe("bosta");
+    expect(oturum.acik).toBe(true);
+    oturum.kapat();
+  });
+
+  it("asistan mesajlarındaki kullanım tur sürerken tahmin edilir: aynı API mesajı bir kez, önbellekten okuma hariç", async () => {
+    const { b, tahminler, kullanimlar } = baglam();
+    const parca = (id: string, girdi: number, cikti: number, yazim: number) => ({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: { id, content: [], usage: { input_tokens: girdi, output_tokens: cikti, cache_creation_input_tokens: yazim, cache_read_input_tokens: 99_999 } },
+    });
+    senaryo(async function* (kapandi) {
+      yield init;
+      yield parca("m1", 1000, 10, 500);
+      yield parca("m1", 1000, 50, 500);
+      yield parca("m2", 200, 20, 0);
+      yield { type: "result", subtype: "success", result: "tamam", modelUsage: { haiku: { inputTokens: 1200, outputTokens: 70, cacheCreationInputTokens: 500 } } };
+      await kapandi;
+    });
+    const oturum = new AjanOturumu(b);
+    oturum.baslat("Mesaine başla.");
+    await bekle(() => kullanimlar.length === 1);
+    expect(tahminler).toEqual([1510, 1550, 1770]);
+    expect(kullanimlar).toEqual([1770]);
+    oturum.kapat();
+  });
+
+  it("duraklatılan oturumda süren tur kesilir, kesilen turun kullanımı sayılır, oturum kapanır ve ajan duraklatılmış kalır", async () => {
+    const { b, durumlar, bittiler, kullanimlar } = baglam();
+    let kesildi!: () => void;
+    const kesme = new Promise<void>((coz) => (kesildi = coz));
+    sahte.kes = () => kesildi();
+    senaryo(async function* (kapandi) {
+      yield init;
+      yield { type: "assistant", parent_tool_use_id: null, message: { id: "m1", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "npm test" } }] } };
+      await kesme;
+      yield { type: "result", subtype: "error_during_execution", modelUsage: { haiku: { inputTokens: 30, outputTokens: 12 } } };
+      await kapandi;
+    });
+    const oturum = new AjanOturumu(b);
+    try {
+      oturum.baslat("Mesaine başla.");
+      await bekle(() => durumlar.some(([, a]) => a === "Komut: npm test"));
+      const sinir = durumlar.length;
+      oturum.duraklat("Görev token tavanı aşıldı");
+      await bekle(() => bittiler.length === 1);
+      expect(oturum.acik).toBe(false);
+      expect(kullanimlar).toEqual([42]);
+      // Duraklatmadan sonra ne tur sonu ne kapanış ajanı boşa ya da kapalıya çevirir
+      expect(durumlar.slice(sinir).map(([d]) => d)).toEqual(["duraklatildi", "duraklatildi", "duraklatildi"]);
+      expect(durumlar.at(-1)).toEqual(["duraklatildi", "Görev token tavanı aşıldı"]);
+      expect(bittiler).toEqual([null]);
+    } finally {
+      sahte.kes = null;
+    }
+  });
+  it("duraklatılan oturum, Claude Code kuyruğunda bekleyen tur varsa onu işleyip öyle kapanır (mesaj kaybolmaz)", async () => {
+    const { b, durumlar, bittiler } = baglam();
+    let kesildi!: () => void;
+    const kesme = new Promise<void>((coz) => (kesildi = coz));
+    let devam!: () => void;
+    const ikinciTur = new Promise<void>((coz) => (devam = coz));
+    sahte.kes = () => kesildi();
+    senaryo(async function* (kapandi) {
+      yield init;
+      yield { type: "assistant", parent_tool_use_id: null, message: { id: "m1", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "npm test" } }] } };
+      await kesme;
+      yield { type: "result", subtype: "error_during_execution", queued_turn_count: 1, modelUsage: {} };
+      await ikinciTur;
+      yield { type: "result", subtype: "success", result: "Soruyu yanıtladım.", queued_turn_count: 0, modelUsage: {} };
+      await kapandi;
+    });
+    const oturum = new AjanOturumu(b);
+    try {
+      oturum.baslat("Mesaine başla.");
+      await bekle(() => durumlar.some(([, a]) => a === "Komut: npm test"));
+      oturum.duraklat("Görev token tavanı aşıldı");
+      await bekle(() => durumlar.filter(([d]) => d === "duraklatildi").length >= 2);
+      await new Promise((r) => setTimeout(r, 30));
+      // Kesilen turun sonucu geldi ama kuyrukta tur var: oturum açık, ajan duraklatılmış görünür
+      expect(oturum.acik).toBe(true);
+      expect(durumlar.at(-1)?.[0]).toBe("duraklatildi");
+      devam();
+      await bekle(() => bittiler.length === 1);
+      expect(oturum.acik).toBe(false);
+      expect(durumlar.at(-1)).toEqual(["duraklatildi", "Görev token tavanı aşıldı"]);
+    } finally {
+      sahte.kes = null;
+    }
   });
 });

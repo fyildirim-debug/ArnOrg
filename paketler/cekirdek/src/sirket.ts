@@ -60,6 +60,9 @@ import { Kurulum } from "./kurulum.js";
 import { ProjeHafizasi } from "./hafiza.js";
 import { karakterBul, karakterMetni, karakterSec } from "@arnorg/ortak/karakterler";
 import { Hatirlatici, oncekiYanit, tercihGibi, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
+import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type SiradakiMesaj } from "./es-zamanlilik.js";
+import { GorevTavani } from "./gorev-tavani.js";
+import { MesaiyeDonus } from "./mesaiye-donus.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
 export { kisilikMetni } from "./talimat.js";
@@ -181,6 +184,12 @@ export class Sirket {
   private esitlemeZamanlayici: NodeJS.Timeout | null = null;
   /** Onaylanan birleştirmelerin proje başına sırası ve kalite kapısı (test geçerse ana repoda birleştirme) */
   readonly birlestirmeKuyrugu: BirlestirmeKuyrugu;
+  /** Eşzamanlı ajan tavanı: tavan doluyken turu sürmeyen ajana gelen mesajların sırası (bütün projeler) */
+  readonly esZamanlilik: EsZamanlilik<MesajKaynagi>;
+  /** Görev token tavanı (aşınca ajan durur, kurula sorulur) ve tur tavanı bildirimi */
+  readonly gorevTavani: GorevTavani;
+  /** Açılışta mesaiye dönüş: kapanışta ya da çökmede çalışan ajanlar kaldıkları yerden sürer */
+  readonly mesai: MesaiyeDonus;
 
   constructor(
     readonly depo: Depo,
@@ -191,6 +200,8 @@ export class Sirket {
     private readonly oturumlarKapali = false,
   ) {
     dilKaynagi(() => yapilandirma.ayarlar.dil);
+    // Kapanış kaydı ve (çökmede) çalışan durumda kalan ajanlar durumlar sıfırlanmadan okunur
+    this.mesai = new MesaiyeDonus(depo, depo.projeler().flatMap((p) => depo.ajanlar(p.id)));
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat(iki("Uygulama yeniden başladı", "The app restarted"));
     depo.bekleyenSorulariKapat();
@@ -229,6 +240,29 @@ export class Sirket {
       sistemMesaji: (ajanId, metin) => this.sistemMesaji(ajanId, metin),
       duyur: (pid, metin) => this.duyur(pid, metin),
     });
+    this.esZamanlilik = new EsZamanlilik<MesajKaynagi>({
+      tavan: () => this.yapilandirma.ayarlar.esZamanliAjan,
+      durum: (id) => this.depo.ajan(id)?.durum ?? null,
+      calisanSayisi: () => this.depo.projeler().reduce((t, p) => t + this.depo.ajanlar(p.id).filter((a) => calisanMi(a.durum)).length, 0),
+      teslimEt: (id, mesajlar) => this.siradanTeslim(id, mesajlar),
+      siraDegisti: (id, sirada) => this.siraAciklamasiYaz(id, sirada),
+    });
+    this.gorevTavani = new GorevTavani({
+      depo,
+      temelTavan: () => this.yapilandirma.ayarlar.gorevTokenTavani,
+      duraklat: (id, aciklama) => {
+        const o = this.oturumlar.get(id);
+        if (o?.acik) o.duraklat(aciklama);
+        else this.durumDegisti(id, "duraklatildi", aciklama);
+      },
+      durumYaz: (id, durum, aciklama) => this.durumDegisti(id, durum, aciklama),
+      onayAc: (ajan, baslik, ayrinti, veri) => this.teklifAc(ajan, "genel", baslik, ayrinti, veri),
+      sistemMesaji: (id, metin) => void this.sistemMesaji(id, metin),
+      akisNotu: (id, metin) => this.akisEkle(id, { id: kimlik(), ajanId: id, zaman: simdi(), tur: "sistem", metin }),
+    });
+    olaylar.dinle((o) => this.gorevTavani.olay(o));
+    // Yarım kalan ajanlar açılıştan ~30 sn sonra eşzamanlı tavana uyarak uyandırılır
+    if (!oturumlarKapali) this.mesai.planla(() => void this.mesaiyeDon());
   }
 
   /** Gözlemi arka planda damıtıp global zekâya işler; hata iş akışını etkilemez */
@@ -870,6 +904,8 @@ export class Sirket {
         this.depo.ajanGuncelle(id, { oturumId: oid || null });
       },
       kullanim: (delta) => this.kullanimEkle(id, delta),
+      turKullanimi: (tahmin) => this.gorevTavani.turSuruyor(id, tahmin),
+      turTavaniAsildi: (adim) => this.gorevTavani.turSiniri(id, adim),
       pencere: (p) => {
         this.pencere = { tur: p.tur, durum: p.durum, sifirlanma: p.sifirlanma };
         this.hesap.pencereOlayi(p);
@@ -924,23 +960,46 @@ export class Sirket {
     // Abonelik sınırında ajan uyandırılmaz; mesaj saklanır, pencere açılınca teslim edilir. Kurulun kendi mesajı geçer.
     const sinir = this.hesap.sinir;
     if (sinir && kaynak.tur !== "kurul") {
-      const kuyruk = this.sinirdaBekleyenler.get(id) ?? [];
-      kuyruk.push(kisalt(metin, 1500));
-      this.sinirdaBekleyenler.set(id, kuyruk);
+      this.sinirdaSakla(id, metin);
       throw new ArnorgHatasi(
         iki(`Abonelik kullanımı sınırda (${sinir.pencere} %${sinir.yuzde}); ${a.ad} pencere açılınca uyanacak.`, `Subscription usage is at the limit (${sinir.pencere} ${sinir.yuzde}%); ${a.ad} will wake up when the window opens.`),
         429,
       );
     }
+    // Görev token tavanı aşıldı, kurul kararı bekleniyor: mesaj kararla birlikte iletilir (kurul ve soru yanıtı geçer)
+    const muaf = this.tavandanMuaf(a, kaynak);
+    if (!muaf && this.gorevTavani.tut(id, metin)) return;
+    // Eşzamanlı ajan tavanı: turu sürmeyen ajana gelen mesaj tavan doluysa sıraya girer; çağıran hata almaz
+    const oturum = this.oturumlar.get(id);
+    if (!(oturum?.acik && calisanMi(a.durum)) && this.esZamanlilik.siraGerekli(muaf)) {
+      this.esZamanlilik.ekle({ ajanId: id, metin, oncelik, kaynak });
+      return;
+    }
+    // Sırada bekleyen önceki mesajları geliş sırasıyla bu mesajdan önce gider
+    await this.teslimEt(a, [...this.esZamanlilik.ajaninkileriAl(id), { ajanId: id, metin, oncelik, kaynak }]);
+  }
+
+  /** Kurulun mesajı ve bir ajanın sorusunu yanıtlamak için uyandırılan ajan tavanlardan muaftır: soran beklerken çalışan sayılır, sorulan sırada kalırsa ikisi kilitlenir */
+  private tavandanMuaf(a: Ajan, kaynak: MesajKaynagi): boolean {
+    return kaynak.tur === "kurul" || this.depo.sorular(a.projeId, { soruluId: a.id, durum: "bekliyor", sinir: 1 }).length > 0;
+  }
+
+  /** Mesajları geliş sırasıyla ajana verir; oturum kapalıysa açar. Ajan hemen çalışan sayılır: tavandaki yeri çalışma alanı hazırlanırken de tutulur */
+  private async teslimEt(a: Ajan, mesajlar: SiradakiMesaj<MesajKaynagi>[]): Promise<void> {
+    const id = a.id;
+    const [ilk, ...kalan] = mesajlar;
+    if (!ilk) return;
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
-      oturum.gonder(metin, oncelik, kaynak);
+      if (!calisanMi(this.depo.ajan(id)?.durum)) this.durumDegisti(id, "calisiyor", iki("Çalışıyor", "Working"));
+      for (const m of mesajlar) oturum.gonder(m.metin, m.oncelik, m.kaynak);
       return;
     }
     if (this.oturumlarKapali) throw new ArnorgHatasi(iki("Oturumlar bu çalıştırmada kapalı.", "Sessions are disabled in this run."), 503);
     if (!this.claudeYolu && !this.sdkIkilisiVar()) {
       throw new ArnorgHatasi(iki("Claude Code bulunamadı. Ayarlar'dan Claude Code yolunu verin ya da Claude Code'u kurun.", "Claude Code was not found. Set the Claude Code path in Settings or install Claude Code."), 500);
     }
+    this.durumDegisti(id, "calisiyor", iki("Oturum açılıyor", "Opening session"));
     let cwd: string;
     try {
       cwd = await this.calismaAlaniHazirla(a);
@@ -948,7 +1007,49 @@ export class Sirket {
       this.durumDegisti(id, "hata", iki(`Çalışma alanı açılamadı: ${(h as Error).message}`, `Could not open the workspace: ${(h as Error).message}`));
       throw h;
     }
-    this.oturumAl(this.ajan(id), cwd).baslat(metin, kaynak);
+    const yeni = this.oturumAl(this.ajan(id), cwd);
+    yeni.baslat(ilk.metin, ilk.kaynak);
+    for (const m of kalan) yeni.gonder(m.metin, m.oncelik, m.kaynak);
+  }
+
+  /** Sırası gelen ajanın mesajları; teslim anında abonelik sınırı varsa sınırda bekleyenlere sessizce eklenir */
+  private siradanTeslim(ajanId: string, mesajlar: SiradakiMesaj<MesajKaynagi>[]): void {
+    const a = this.depo.ajan(ajanId);
+    if (!a) return;
+    if (this.hesap.sinir) {
+      for (const m of mesajlar) this.sinirdaSakla(ajanId, m.metin);
+      return;
+    }
+    if (this.gorevTavani.duraklatmaAciklamasi(ajanId)) {
+      for (const m of mesajlar) this.gorevTavani.tut(ajanId, m.metin);
+      return;
+    }
+    void this.teslimEt(a, mesajlar).catch((h) =>
+      this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${a.ad} uyandırılamadı: ${(h as Error).message}`, `Could not wake ${a.ad}: ${(h as Error).message}`), projeId: a.projeId }),
+    );
+  }
+
+  /** Abonelik sınırında ajana gelen mesaj saklanır; pencere açılınca uyandırılırken iletilir */
+  private sinirdaSakla(ajanId: string, metin: string): void {
+    const kuyruk = this.sinirdaBekleyenler.get(ajanId) ?? [];
+    kuyruk.push(kisalt(metin, 1500));
+    this.sinirdaBekleyenler.set(ajanId, kuyruk);
+  }
+
+  /** Sıraya giren ajanın iş açıklaması "Sırada…" olur; sırası düşünce (ajan başlamadıysa) temizlenir */
+  private siraAciklamasiYaz(ajanId: string, sirada: boolean): void {
+    const a = this.depo.ajan(ajanId);
+    if (!a || calisanMi(a.durum)) return;
+    if (sirada) this.depo.ajanGuncelle(ajanId, { isAciklamasi: siraAciklamasi(this.yapilandirma.ayarlar.esZamanliAjan) });
+    else if (siraAciklamasiMi(a.isAciklamasi)) this.depo.ajanGuncelle(ajanId, { isAciklamasi: "" });
+    else return;
+    this.ajanYayinla(ajanId);
+    this.projeYayinla(a.projeId);
+  }
+
+  /** Ajan eşzamanlı tavan yüzünden sırada mı (tıkanma koruması dürtmez) */
+  siradaMi(ajanId: string): boolean {
+    return this.esZamanlilik.siradaMi(ajanId);
   }
 
   private sdkIkilisiVar(): boolean {
@@ -969,6 +1070,9 @@ export class Sirket {
   ajanDurdur(id: string): Ajan {
     this.ajan(id);
     this.oturumlar.get(id)?.kapat();
+    // Kurul durdurdu: sıradaki mesajları düşer, açılışta da uyanmaz
+    this.esZamanlilik.dusur((x) => x === id);
+    this.mesai.cikar((x) => x === id);
     return this.ajan(id);
   }
 
@@ -991,6 +1095,10 @@ export class Sirket {
       const a = this.depo.ajan(id);
       if (!projeId || a?.projeId === projeId) o.kapat();
     }
+    // Mesai durdu: sıradaki mesajlar düşer, durdurulan ajanlar açılışta uyanmaz
+    const projede = (id: string) => !projeId || this.depo.ajan(id)?.projeId === projeId;
+    this.esZamanlilik.dusur(projede);
+    this.mesai.cikar(projede);
   }
 
   private akisEkle(ajanId: string, oge: AkisOgesi): void {
@@ -1005,9 +1113,19 @@ export class Sirket {
   private durumDegisti(ajanId: string, durum: AjanDurumu, aciklama?: string): void {
     const onceki = this.depo.ajan(ajanId);
     if (!onceki) return;
+    // Görev token tavanı aşıldı, kurul kararı bekleniyor: ajan iş bitince (soru yanıtı, kurul mesajı) duraklatılmış görünür
+    const bosaCikti = durum === "bosta";
+    const tavanAciklamasi = this.gorevTavani.duraklatmaAciklamasi(ajanId);
+    if (tavanAciklamasi && !calisanMi(durum)) {
+      durum = "duraklatildi";
+      aciklama = tavanAciklamasi;
+    }
     const alanlar: Partial<Ajan> = { durum };
     if (aciklama !== undefined) alanlar.isAciklamasi = aciklama;
     if (durum === "kapali") alanlar.isAciklamasi = "";
+    // Sıradaki ajanın açıklaması sırası gelene dek "Sırada…" kalır; kendiliğinden çalışmaya başlayanınki temizlenir
+    if (!calisanMi(durum) && this.esZamanlilik.siradaMi(ajanId)) alanlar.isAciklamasi = siraAciklamasi(this.yapilandirma.ayarlar.esZamanliAjan);
+    else if (calisanMi(durum) && aciklama === undefined && siraAciklamasiMi(onceki.isAciklamasi)) alanlar.isAciklamasi = iki("Çalışıyor", "Working");
     this.depo.ajanGuncelle(ajanId, alanlar);
     if (durum === "bosta" || durum === "kapali" || durum === "hata" || durum === "duraklatildi") this.yaziyorBitir(ajanId);
     // CEO'nun projede ilk çalışması #genel'e duyurulur
@@ -1039,9 +1157,17 @@ export class Sirket {
           if (this.depo.ajan(ajanId)?.durum === "bosta") this.oturumlar.get(ajanId)?.kapat();
         }, BOSTA_KAPATMA_MS),
       );
+    } else if (tavanAciklamasi && bosaCikti) {
+      // Kurul kararı bekleyen ajanın boşta kalan oturumu da bir süre sonra kapanır
+      this.bostaZamanlayicilari.set(
+        ajanId,
+        setTimeout(() => this.oturumlar.get(ajanId)?.kapat(), BOSTA_KAPATMA_MS),
+      );
     }
     this.ajanYayinla(ajanId);
     if (onceki.durum !== durum) this.projeYayinla(onceki.projeId);
+    // Çalışan durumdan çıkan ajan tavanda yer açar: sıradakiler teslim edilir
+    this.esZamanlilik.durumDegisti(ajanId, onceki.durum, durum);
   }
 
   private kullanimEkle(ajanId: string, delta: Toplam): void {
@@ -1051,6 +1177,8 @@ export class Sirket {
     const y = this.depo.ajan(ajanId)!;
     this.olaylar.yayinla({ tur: "kullanim", projeId: a.projeId, ajanId, bugunToken: y.bugunToken, toplamToken: y.toplamToken });
     this.ajanYayinla(ajanId);
+    // Görev token tavanı: token ajanın o anki görevine yazılır; aşıldıysa ajan durur, kurula sorulur
+    this.gorevTavani.tokenEkle(ajanId, delta.token);
   }
 
   // ===================================================================
@@ -1120,6 +1248,13 @@ export class Sirket {
       );
       this.denetimKaydet(ajan, arac, girdi, "ret", iki("Kullanım sınırı", "Usage limit"), neden, aracKimligi, altAjan);
       return this.ret(neden);
+    }
+
+    // Görev token tavanı aşıldı, kurul kararı bekleniyor: iş araçları kapalı (ArnOrg araçlarıyla soru yanıtlanabilir)
+    const tavanNedeni = this.gorevTavani.kapiNedeni(ajanId);
+    if (tavanNedeni) {
+      this.denetimKaydet(ajan, arac, girdi, "ret", iki("Görev token tavanı", "Task token ceiling"), tavanNedeni, aracKimligi);
+      return this.ret(tavanNedeni);
     }
 
     // Kurulun düzenlediği dosya
@@ -1866,7 +2001,8 @@ export class Sirket {
               return false;
             },
           );
-      if (!uyandi) this.yaziyorBitir(a.id);
+      // Uyanmadıysa ya da sıraya girdiyse / tavan kararını bekliyorsa (çalışmıyor) kanalda "yazıyor" görünmez
+      if (!uyandi || !calisanMi(this.depo.ajan(a.id)?.durum)) this.yaziyorBitir(a.id);
     }
     return mesaj;
   }
@@ -2178,7 +2314,57 @@ export class Sirket {
   // Kapanış
   // ===================================================================
 
+  /**
+   * Açılışta mesaiye dönüş: kapanışta ya da çökmede yarım kalan ajanlar sırayla (eşzamanlı tavana uyarak) kaldıkları
+   * yerden sürer; oturum kimliği saklı olduğundan aynı konuşma devam eder. Abonelik sınırındaysa ajan sınırda
+   * bekleyenlere sessizce eklenir. Uyandırılanlar döner.
+   */
+  async mesaiyeDon(): Promise<string[]> {
+    const idler = this.mesai.al();
+    if (!this.yapilandirma.ayarlar.acilistaSurdur) return [];
+    const metin = iki(
+      "ArnOrg yeniden başlatıldı; yarım kalan işine kaldığın yerden devam et (görevlerine ve defterine bak).",
+      "ArnOrg was restarted; continue your unfinished work where you left off (check your tasks and your journal).",
+    );
+    const uyanan: string[] = [];
+    for (const id of idler) {
+      // Bu arada kurul ya da başka bir mesaj başlattıysa ya da görev tavanında kurul kararı bekliyorsa dokunulmaz
+      if (!this.depo.ajan(id) || this.oturumlar.get(id)?.acik || this.gorevTavani.duraklatmaAciklamasi(id)) continue;
+      if (this.hesap.sinir) {
+        this.sinirdaSakla(id, metin);
+        continue;
+      }
+      try {
+        await this.ajanaMesaj(id, metin, "next", { tur: "sistem" });
+        uyanan.push(id);
+      } catch {
+        // Tek tek bildirilmez; ajan bir sonraki mesajda başlar
+      }
+    }
+    if (uyanan.length) {
+      this.olaylar.yayinla({
+        tur: "bildirim",
+        seviye: "bilgi",
+        metin: iki(`ArnOrg yeniden açıldı; ${uyanan.length} ajan kaldığı yerden sürüyor.`, `ArnOrg reopened; ${uyanan.length === 1 ? "1 agent is" : `${uyanan.length} agents are`} picking up where they left off.`),
+      });
+    }
+    return uyanan;
+  }
+
   kapat(): void {
+    // Oturumlar kapanmadan önce: çalışanlar (kurulun durdurduğu hariç), sıradakiler, abonelik ve giriş bekleyenler açılışta sürer
+    try {
+      this.mesai.kapanis(
+        this.depo
+          .projeler()
+          .flatMap((p) => this.depo.ajanlar(p.id))
+          .filter((a) => (calisanMi(a.durum) && !this.oturumlar.get(a.id)?.kapaniyor) || this.esZamanlilik.siradaMi(a.id) || this.sinirdaBekleyenler.has(a.id) || this.kimlikBekleyenler.has(a.id))
+          .map((a) => a.id),
+      );
+    } catch {
+      // Depo kapanmışsa kayıt yazılamaz; açılışta çalışan durumda kalanlar yine okunur
+    }
+    this.esZamanlilik.kapat();
     this.birlestirmeKuyrugu.kapat();
     this.hesap.durdur();
     this.kurulum.kapat();

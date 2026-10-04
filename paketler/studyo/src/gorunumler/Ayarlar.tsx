@@ -13,6 +13,7 @@ import {
 } from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { anahtarAyarla } from "../api/anahtar";
+import { CalismaDuzeni, calismaDuzeniGecersiz } from "../bilesenler/CalismaDuzeni";
 import { api } from "../api/uclar";
 import { diliAyarla, sozluk, useDil, useSozluk } from "../dil";
 import { ClaudeKurulumu } from "../bilesenler/ClaudeKurulumu";
@@ -73,10 +74,11 @@ export function Ayarlar() {
   const tikanmaGecersiz = !!taslak && (!Number.isFinite(taslak.tikanmaDakika) || taslak.tikanmaDakika < 0 || taslak.tikanmaDakika > 1440);
   const saklamaGecersiz =
     !!taslak && taslak.denetimSaklamaGun !== undefined && !(Number.isInteger(taslak.denetimSaklamaGun) && taslak.denetimSaklamaGun >= 0 && taslak.denetimSaklamaGun <= 3650);
+  const calismaGecersiz = !!taslak && calismaDuzeniGecersiz(taslak);
 
   const kaydet = (e: FormEvent) => {
     e.preventDefault();
-    if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz) return;
+    if (!taslak || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz || calismaGecersiz) return;
     void calistir("kaydet", async () => {
       const a = await api.ayarlariKaydet({
         ...taslak,
@@ -190,6 +192,7 @@ export function Ayarlar() {
                   <span className="alan-ipucu">{t.giris.haftaIpucu}</span>
                 </div>
               </div>
+              <CalismaDuzeni taslak={taslak} degistir={degistir} />
 
               <h2 className="ara-baslik">{t.cekirdek.baslik}</h2>
               <div className="form-izgara">
@@ -349,7 +352,7 @@ export function Ayarlar() {
                 <button
                   type="submit"
                   className="dugme dugme-ana"
-                  disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz}
+                  disabled={!kirli || suruyor !== null || sureGecersiz || tikanmaGecersiz || sinirGecersiz || saklamaGecersiz || calismaGecersiz}
                 >
                   {suruyor ? <span className="doner" aria-hidden="true" /> : null}
                   {s.genel.kaydet}

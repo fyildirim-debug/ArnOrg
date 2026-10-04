@@ -135,18 +135,25 @@ function ProjeSecici({ adi }: { adi: string }) {
   );
 }
 
-/** Projedeki bütün açık oturumları kapatır */
+/** Eşzamanlı tavan yüzünden sırada bekleyen ajan (çekirdeğin iş açıklaması, iki dilde) */
+const SIRADA = /^(Sırada|Queued): /;
+
+/** Projedeki bütün açık oturumları kapatır; sırada bekleyen işler de düşer */
 function MesaiDugmesi() {
   const u = useSozluk().gezinti.ust;
   const [acik, setAcik] = useState(false);
   const [suruyor, setSuruyor] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const ajanlar = useVeri((d) => d.ajanlar);
+  const projeId = useVeri((d) => d.aktifProjeId);
   const acikOlanlar = ajanlar.filter(oturumAcikMi);
+  const siradakiler = ajanlar.filter((a) => !oturumAcikMi(a) && SIRADA.test(a.isAciklamasi));
   useDisariTik(ref, acik && !suruyor, () => setAcik(false));
 
   const durdur = async () => {
     setSuruyor(true);
+    // Önce proje: sıradaki işler düşer (oturumlar kapanınca sıra kendiliğinden başlamaz), açılışta kimse uyanmaz
+    if (projeId) await api.mesaiyiDurdur(projeId).catch(hataBildir);
     const sonuclar = await Promise.allSettled(acikOlanlar.map((a) => api.ajanDurdur(a.id)));
     let basarili = 0;
     sonuclar.forEach((s) => {
@@ -166,9 +173,9 @@ function MesaiDugmesi() {
         type="button"
         className="dugme dugme-kucuk"
         onClick={() => setAcik(!acik)}
-        disabled={acikOlanlar.length === 0}
+        disabled={acikOlanlar.length === 0 && siradakiler.length === 0}
         aria-expanded={acik}
-        title={acikOlanlar.length === 0 ? u.acikOturumYok : u.mesaiBaslik}
+        title={acikOlanlar.length === 0 && siradakiler.length === 0 ? u.acikOturumYok : u.mesaiBaslik}
       >
         <Simge ad="dur" boyut={12} />
         {u.mesai}
@@ -176,7 +183,7 @@ function MesaiDugmesi() {
       {acik ? (
         <div className="acilir acilir-sag">
           <OnaySor evet={durdur} vazgec={() => setAcik(false)} evetMetni={u.hepsiniDurdur} suruyor={suruyor}>
-            {u.mesaiOnay(acikOlanlar.length)}
+            {[acikOlanlar.length ? u.mesaiOnay(acikOlanlar.length) : null, siradakiler.length ? u.siradakiler(siradakiler.length) : null].filter(Boolean).join(" ")}
           </OnaySor>
         </div>
       ) : null}
