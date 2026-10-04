@@ -17,7 +17,7 @@ Electron ana süreci (dist/ana.js)
 - **Çekirdek süreci:** Electron'un `utilityProcess`'i (Node ortamı, Electron ile aynı ikili). Çıktısı `logs/cekirdek.log` dosyasına yazılır. 60 sn içinde hazır olmazsa ya da beklenmedik biçimde durursa kaydın son satırları ve **Yeniden başlat** düğmesiyle hata sayfası açılır.
 - **Kapanış:** çekirdeğe `kapat` mesajı gider (`sunucu.kapat()`), 5 sn içinde çıkmazsa süreç sonlandırılır.
 - **Güvenlik:** `contextIsolation`, `sandbox`, `webSecurity` açık, `nodeIntegration` kapalı. Pencere yalnız çekirdeğin kökünde gezinebilir; başka http(s) adresleri sistem tarayıcısında açılır, diğer her şey engellenir. Yeni pencere, `<webview>` ve izinler (pano, bildirim, tam ekran dışında) kapalı; yazım denetimi sözlük indirmesin diye kapalı.
-- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url) }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar.
+- **Köprü:** Stüdyo'ya yalnız `window.arnorg = { platform, surum, disaridaAc(url), klasorSec(), dikkatCek(), oneGetir() }` açılır (`src/onyukleme.ts`). `disaridaAc` yalnız http/https adreslerini sistem tarayıcısında açar; `klasorSec` sistemin klasör seçicisini açar (proje açarken yol yazılmaz); `dikkatCek` pencere arkadayken görev çubuğunda yanıp söner (önemli an bildirimi), `oneGetir` pencereyi öne alır (masaüstü bildirimine tıklanınca). Hepsi yalnız çekirdek kökünden yüklenmiş ana pencereden çağrılabilir.
 - **Pencere:** konum ve boyut `pencere-durumu.json` dosyasında hatırlanır; menü Türkçedir (Dosya, Düzen, Görünüm, Pencere, Yardım), Windows ve Linux'ta Alt ile görünür.
 
 ### Çekirdek sözleşmesi

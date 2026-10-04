@@ -10,7 +10,7 @@
   - WebSocket: `?anahtar=<anahtar>` sorgu parametresi.
   - Stüdyo anahtarı ilk açılışta adres parçasından alır (`/#anahtar=<anahtar>`), `sessionStorage`'a yazar ve adres çubuğundan siler. Electron kabuğu pencereyi bu adresle açar; sunucu modunda çekirdek açılışta bağlantıyı terminale yazar.
 - `Host` başlığı yalnız `127.0.0.1:<port>`, `localhost:<port>` ya da `--izinli-host` ile verilen adlar olabilir (DNS yeniden bağlama koruması). Tarayıcıdan gelen istekte `Origin` aynı kökten olmalıdır.
-- Gövdeler JSON. Hata yanıtı: `{"hata": "<Türkçe açıklama>"}` ve uygun durum kodu (400 geçersiz istek, 401 anahtar yok/yanlış, 404 bulunamadı, 409 geçersiz durum geçişi, 500 iç hata).
+- Gövdeler JSON. Hata yanıtı: `{"hata": "<açıklama>"}` (ayardaki dilde: Türkçe ya da İngilizce) ve uygun durum kodu (400 geçersiz istek, 401 anahtar yok/yanlış, 404 bulunamadı, 409 geçersiz durum geçişi, 500 iç hata).
 - `GET /` ve statik dosyalar (Stüdyo derlemesi) anahtar istemez; API ve WebSocket ister.
 
 ## Genel
@@ -23,16 +23,57 @@
 | GET | `/api/hesap?tazele=1` | — | `HesapDurumu`: Claude Code'un fiili girişi (plan, e-posta, kaynak), abonelik pencereleri (5 saatlik, haftalık, model başına yüzde ve sıfırlanma), ayardaki sınır aşıldıysa `sinir`, Claude Code abonelik dışı bir girişle (API anahtarı, bulut sağlayıcı) çalışıyorsa `uyari`. `tazele=1` Claude Code'a yeniden sorar (açık bir ajan oturumu varsa onun üzerinden, yoksa mesaj göndermeyen kısa bir yoklamayla; token harcanmaz) |
 | GET | `/api/roller` | — | `Rol[]` |
 
+`Ayarlar` içinde 0.0.2 ile gelenler: `dil` (`tr` | `en`; arayüz, ajan talimatları, ArnOrg'un kanal mesajları ve hata metinleri bu dilde), `projeKoku` (yeni projelerin ve klonların varsayılan yeri; boşsa `~/ArnOrg`), `ghYolu` (GitHub CLI; boşsa ArnOrg'un indirdiği ya da PATH'teki `gh`), `kurulumTamam` (ilk açılış sihirbazı bitti mi).
+
+## Kurulum: Claude Code, git, GitHub CLI
+
+İlk açılış sihirbazı ve Ayarlar bu uçları kullanır. Uzun süren işler (giriş, indirme, kurulum) arka planda bir **kurulum işlemi** olarak yürür; durumu `kurulum.islem` olayıyla gelir, bitince `kurulum.durum` yeni `KurulumDurumu`'nu taşır.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/kurulum?tazele=1` | — | `KurulumDurumu`: Claude Code (kurulu mu, sürüm, giriş, abonelik), git (sürüm, kimlik), GitHub CLI (sürüm, giriş yapan hesap, git yardımcısı), platform. `tazele=1` önbelleği atlar |
+| GET | `/api/kurulum/islemler` | — | `KurulumIslemi[]` |
+| GET | `/api/kurulum/islemler/:id` | — | `KurulumIslemi` |
+| POST | `/api/kurulum/islemler/:id/girdi` | `{metin}` | `KurulumIslemi` (girdi bekleyen işleme; Claude girişinde tarayıcıdaki kod) |
+| DELETE | `/api/kurulum/islemler/:id` | — | `KurulumIslemi` (iptal) |
+| POST | `/api/kurulum/claude/giris` | — | `KurulumIslemi`: `claude auth login --claudeai` bir sözde uçbirimde açılır; giriş adresi `adres` alanında gelir, kod istenirse `girdiBekliyor` olur |
+| POST | `/api/kurulum/claude/kur` | — | `KurulumIslemi`: paketle gelen Claude Code ile `claude install` (kullanıcı dizinine, yönetici izni gerekmez) |
+| POST | `/api/kurulum/gh/kur` | — | `KurulumIslemi`: GitHub CLI'ın son sürümü GitHub'dan indirilip ArnOrg'un araç dizinine açılır |
+| POST | `/api/kurulum/gh/giris` | — | `KurulumIslemi`: `gh auth login --web`; tek kullanımlık kod `kod`, adres `adres` alanında. Bitince git kimlik yardımcısı ayarlanır |
+| POST | `/api/kurulum/gh/git-yardimcisi` | — | `KurulumIslemi` (`gh auth setup-git`) |
+| POST | `/api/kurulum/git/kur` | — | `KurulumIslemi` (Windows'ta winget, macOS'ta Xcode araçları; Linux'ta kurulacak komutu bildirir) |
+| PUT | `/api/kurulum/git/kimlik` | `{ad, eposta}` | `GitKurulumu` (`git config --global user.name/user.email`) |
+
+## GitHub ve klasör seçimi
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/github/hesap` | — | `GithubHesabi` (giriş yapan hesap ve kuruluşları) |
+| GET | `/api/github/depolar?q=` | — | `GithubDeposu[]` (hesabın ve kuruluşlarının depoları; `q` ada göre süzer) |
+| GET | `/api/github/dallar?depo=sahip/ad` | — | `GithubDali[]` (varsayılan dal işaretli) |
+| POST | `/api/github/klonla` | `KlonlaIstegi` | `KurulumIslemi`: klonlama arka planda; bitince proje açılır (`proje.guncellendi`) ve işlemin `sonuc` alanı `projeId` taşır |
+| GET | `/api/dizinler?yol=` | — | `DizinListesi` (tarayıcıdaki Stüdyo için klasör gezgini; kısayollar ve git deposu işaretleri) |
+| POST | `/api/dizinler` | `{ust, ad}` | `{yol}` (yeni klasör) |
+
+Masaüstü uygulamasında klasör seçimi sistemin penceresiyle yapılır (`window.arnorg.klasorSec`); dizin gezgini sunucu modunda ve tarayıcıda kullanılır.
+
 ## Projeler
 
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
 | GET | `/api/projeler` | — | `ProjeOzeti[]` |
-| POST | `/api/projeler` | `ProjeOlusturIstegi` | `ProjeOzeti` |
+| POST | `/api/projeler` | `ProjeOlusturIstegi` | `ProjeOzeti` (yol verilmezse `~/ArnOrg/<ad>`; `dal` çalışma dalı; `github` verilirse GitHub'da depo da açılır) |
 | GET | `/api/projeler/:pid` | — | `ProjeOzeti` |
+| PATCH | `/api/projeler/:pid` | `ProjeGuncelleIstegi` | `ProjeOzeti` (ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık, otomatik onay) |
+| GET | `/api/projeler/:pid/dallar` | — | `ProjeDallari` (yerel ve uzak dallar, çalışma dalı) |
+| POST | `/api/projeler/:pid/esitle` | `{gonder?}` | `EsitlemeSonucu` (uzaktan getirir; ağaç temizse ileri sarar, `gonder` ya da otomatik gönderimde yerel commit'leri gönderir; ayrışmada dokunmaz) |
+| POST | `/api/projeler/:pid/github` | `{ozel, sahip?}` | `ProjeOzeti` (GitHub'da depo açar, `origin` yapar ve gönderir) |
+| POST | `/api/projeler/:pid/hazirlik` | `{islem: "baslat" \| "atla"}` | `ProjeOzeti` (CEO ile hazırlık görüşmesi #yonetim'de başlar ya da atlanır) |
 | DELETE | `/api/projeler/:pid` | — | `{tamam:true}` (yalnız ArnOrg listesinden çıkarır, dosyalara dokunmaz) |
 
-Proje açılınca `.arnorg/` iskeleti yoksa oluşturulur: `proje.yaml`, `ekip/`, `notlar/vizyon.md`, `notlar/mimari.md`, `notlar/kararlar/`, `hafiza/`. Yeni projede ayrıca `git init`, `CLAUDE.md` ve ilk commit yapılır. Her projede bir CEO ajanı otomatik işe alınır (kapalı durumda).
+Proje açılınca `.arnorg/` iskeleti yoksa oluşturulur: `proje.yaml`, `ekip/`, `notlar/vizyon.md`, `notlar/mimari.md`, `notlar/kararlar/`, `hafiza/`. Yeni projede ayrıca `git init`, `CLAUDE.md` ve ilk commit yapılır. Her projede bir CEO ajanı otomatik işe alınır (kapalı durumda). Sistem kanalları: `genel`, `muhendislik`, `yonetim` (kurul ile CEO'nun bire bir sohbeti; başka ajan yazamaz), toplantıda `toplanti`. İngilizce arayüzde görünen adları `#general`, `#engineering`, `#ceo`, `#meetings`; kimlikleri değişmez.
+
+Uzak deposu olan projeler 10 dakikada bir eşitlenir (`EsitlemeSonucu`; ayrışma ya da hata olursa `bildirim`).
 
 ## Ekip ve ajan oturumları
 
@@ -41,7 +82,7 @@ Proje açılınca `.arnorg/` iskeleti yoksa oluşturulur: `proje.yaml`, `ekip/`,
 | GET | `/api/projeler/:pid/ajanlar` | — | `Ajan[]` |
 | POST | `/api/projeler/:pid/ajanlar` | `AjanIseAlIstegi` | `Ajan` (kurulun doğrudan işe alımı) |
 | PATCH | `/api/ajanlar/:aid` | `AjanGuncelleIstegi` | `Ajan` |
-| DELETE | `/api/ajanlar/:aid` | — | `{tamam:true}` (oturum kapanır; kimlik dosyası ve worktree kalır) |
+| DELETE | `/api/ajanlar/:aid?devralan=<aid>` | — | `{tamam:true}` (kurulun işten çıkarması: oturum kapanır, açık görevleri, sözleri ve defteri devralana, verilmezse yöneticisine geçer; kimlik dosyası ve worktree kalır) |
 | POST | `/api/ajanlar/:aid/baslat` | `AjanBaslatIstegi` | `Ajan` |
 | POST | `/api/ajanlar/:aid/mesaj` | `AjanMesajIstegi` | `{tamam:true}` (oturum kapalıysa açılır) |
 | POST | `/api/ajanlar/:aid/kes` | — | `{tamam:true}` |
@@ -256,6 +297,51 @@ Ajan araçları ajanın kendi çalışma alanında çalışır:
 | `benzer_kod` | Satırı içeren parçaya en çok benzeyenleri bulur |
 
 Görev verilirken dizin hazırsa görev başlığı ve açıklamasıyla arama yapılır. Bulunan en çok beş konum, görev mesajına "İlgili kod" olarak eklenir. Arama en çok ~1,5 sn sürer; dizin hazır değilse atlanır.
+
+## Ana yasa ve ajan zekâsı
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/anayasa` | — | `Anayasa` (`.arnorg/anayasa.json`; sürüm, maddeler, onaylayan) |
+| PUT | `/api/projeler/:pid/anayasa` | `{maddeler: AnayasaMaddesi[]}` | `Anayasa` (kurulun doğrudan düzenlemesi; sürüm artar, `anayasa.md` yeniden yazılır, `anayasa.guncellendi`) |
+| GET | `/api/projeler/:pid/sozler?durum=acik\|tutuldu\|iptal` | — | `Soz[]` |
+| GET | `/api/projeler/:pid/beceriler` | — | `Beceri[]` (`.arnorg/beceriler/*.md`) |
+| GET | `/api/projeler/:pid/beceriler/:ad` | — | `BeceriIcerigi` |
+| GET | `/api/ajanlar/:aid/zeka` | — | `AjanZekasi` (kişisel hafıza ve doluluğu, defter, verdiği ve aldığı sözler, beceriler, ekip bağları) |
+| POST | `/api/ajanlar/:aid/aktar` | `{kime, sozler?, not?}` | `{mesaj}` (kişisel hafıza ve defter alana aktarılır; `sozler` ile açık sözler de devredilir) |
+
+- **Ana yasa:** CEO `anayasa_oner` ile önerir, kurul onaylar (`anayasa` türünde onay) ya da kurul doğrudan düzenler. Her ajanın talimatının en başına girer. `kural` alanı olan maddeler (`PolitikaKurali` biçiminde) denetim kapısında proje politikasından önce uygulanır. Sürüm değişince her ajana bir sonraki turunda hatırlatılır.
+- **Kişisel hafıza:** ajan başına en çok 2200 karakter. Oturum başında donmuş bir anlık görüntü olarak talimata girer, oturum içindeki değişiklik sonraki oturumda görünür.
+- **Hatırlatma kancaları:** her 25 araç çağrısında ya da 30 dakikada bir ve bağlam sıkıştırılınca kimlik, rol, açık işler, sözler ve ana yasanın kısası hatırlatılır. Ekipten haberler (tutulan söz, biten bağımlı görev, devir) bir sonraki turun başına eklenir.
+- **Ajan araçları:** `kendime_not`, `soz_ver`, `soz_tut`, `beceri_listele`, `beceri_oku`, `beceri_yaz`, `gecmiste_ara`, `hafiza_aktar`, `anayasa_oku`, `anayasa_oner`, `kuresel_kural_oner`, `kuresel_kural_degerlendir`, `kurula_bildir`, `teslim_et`, `isten_cikar_teklif`, `hazirlik_tamam`.
+- **Olaylar:** `anayasa.guncellendi`, `soz.guncellendi`.
+
+## Global zekâ
+
+Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; okunur kopyası `<veri>/zeka/kurallar.md`).
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/zeka` | — | `ZekaDurumu` (kurallar, sayılar, son günlük kayıtları) |
+| POST | `/api/zeka/kurallar` | `{metin, kapsam?}` | `KureselKural` (kurulun yazdığı kural; doğrudan etkin) |
+| PATCH | `/api/zeka/kurallar/:id` | `{metin?, kapsam?, durum?}` | `KureselKural` (`durum`: `aday`, `etkin`, `emekli`; emekliye ayırmak kapatmaktır) |
+| POST | `/api/zeka/kurallar/:id/geri-bildirim` | `{sonuc: "ise_yaradi" \| "yanlis" \| "ihlal", not?}` | `KureselKural` (güveni artırır ya da düşürür) |
+| DELETE | `/api/zeka/kurallar/:id` | — | `{tamam:true}` |
+
+- **Gözlem:** kurulun önemli tercihleri ve yazdığı kayıtlar, ajanların dersleri, kurulun gerekçeli retleri (düzeltme), kurulun kalıcı tercih bildiren mesajları ve ajan önerileri (`kuresel_kural_oner`). Projeye özgü olan (yol, sürüm, proje adı) elenir.
+- **Öğrenme:** benzer gözlemler aynı kuralı güçlendirir. Aday kural güveni 0,65'i geçince ya da iki ayrı projede görülünce etkin olur. Bakımda çok benzeyen kurallar birleşir, zayıflar emekliye ayrılır; en çok 60 etkin kural tutulur.
+- **Kapsam:** `hepsi`, `yonetici`, `gelistirici` ya da rol kimliği. Her ajanın talimatına yalnız kapsamına uyan etkin kurallar girer; kullanıldıkça ve geri bildirimle güven değişir.
+- **Olay:** `zeka.guncellendi`.
+
+## Onay türleri ve kurula bildirim
+
+`OnayTuru`: `arac`, `ise_alim`, `birlestirme`, `genel`, `anayasa`, `isten_cikarma`, `teslim`.
+
+- **Otomatik onay:** projede `otomatikOnay.etkin` açıkken türü `otomatikOnay.turler` içinde olan onaylar bekletilmeden verilir ve "Otomatik onay" notuyla kaydedilir; açıldığı anda bekleyen uygun onaylar da verilir. Varsayılan türler: `arac`, `ise_alim`, `birlestirme`, `anayasa`, `isten_cikarma` (`genel` ve `teslim` kurulun kendisine kalır).
+- **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
+- **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
+- **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir.
+- **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken; yazıyor göstergesi).
 
 ## Rapor ve tıkanma koruması
 
