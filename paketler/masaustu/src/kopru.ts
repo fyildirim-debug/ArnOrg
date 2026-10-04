@@ -28,3 +28,8 @@ export const DISARIDA_AC_KANALI = "arnorg:disarida-ac";
 
 /** Ana pencerenin sistem klasör seçicisi kanalı */
 export const KLASOR_SEC_KANALI = "arnorg:klasor-sec";
+
+/** Önemli anda dikkat: "cek" pencere arkadaysa görev çubuğunda yanıp söner, "one-getir" pencereyi öne alır */
+export const DIKKAT_KANALI = "arnorg:dikkat";
+
+export type DikkatIstegi = "cek" | "one-getir";

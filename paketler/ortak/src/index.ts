@@ -1016,6 +1016,10 @@ export interface MasaustuKoprusu {
   disaridaAc(url: string): Promise<boolean>;
   /** Sistemin klasör seçicisi; vazgeçilirse null. Eski masaüstü sürümlerinde yoktur */
   klasorSec?(secenek?: { baslik?: string; varsayilan?: string }): Promise<string | null>;
+  /** Pencere arkadaysa görev çubuğunda dikkat çeker (önemli an bildirimi). Eski masaüstü sürümlerinde yoktur */
+  dikkatCek?(): void;
+  /** Pencereyi öne getirir (masaüstü bildirimine tıklanınca). Eski masaüstü sürümlerinde yoktur */
+  oneGetir?(): void;
 }
 
 /** API hata gövdesi */

@@ -20,7 +20,7 @@ import { ayniKokMu } from "./denetimler.js";
 import { guncellemeyiDenetle } from "./guncelleme.js";
 import { disaridaAc, guvenligiKur, oturumAyarlariniKur } from "./guvenlik.js";
 import { Kayit } from "./kayit.js";
-import { DISARIDA_AC_KANALI, DURUM_EYLEMLERI, DURUM_KANALLARI, KLASOR_SEC_KANALI, type DurumBilgisi, type DurumEylemi } from "./kopru.js";
+import { DIKKAT_KANALI, DISARIDA_AC_KANALI, DURUM_EYLEMLERI, DURUM_KANALLARI, KLASOR_SEC_KANALI, type DurumBilgisi, type DurumEylemi } from "./kopru.js";
 import { menuyuKur } from "./menu.js";
 import { pencereDurumunuOku, pencereDurumunuYaz } from "./pencere-durumu.js";
 import { yollariBul } from "./yollar.js";
@@ -229,6 +229,8 @@ function basla(): void {
       durumPenceresiniKapat();
     });
     pencere.on("close", () => pencereDurumunuYaz(pencereDurumuDosyasi, pencere));
+    // Dikkat çekme (önemli an bildirimi) pencereye dönülünce biter
+    pencere.on("focus", () => pencere.flashFrame(false));
     pencere.on("closed", () => {
       if (anaPencere === pencere) anaPencere = null;
     });
@@ -312,6 +314,20 @@ function basla(): void {
       properties: ["openDirectory", "createDirectory", "promptToCreate"],
     });
     return sonuc.canceled ? null : (sonuc.filePaths[0] ?? null);
+  });
+  ipcMain.on(DIKKAT_KANALI, (olay, istek: unknown) => {
+    // Önemli anda (onay, öneri, teslim): pencere arkadaysa görev çubuğunda dikkat çeker; bildirime tıklanınca öne gelir.
+    // Yalnız çekirdek kökünden yüklenmiş ana pencere isteyebilir
+    const p = anaPencere;
+    const cerceve = olay.senderFrame?.url ?? "";
+    if (!p || p.isDestroyed() || olay.sender !== p.webContents || !cekirdekKoku || !ayniKokMu(cerceve, cekirdekKoku)) return;
+    if (istek === "one-getir") {
+      if (p.isMinimized()) p.restore();
+      p.show();
+      p.focus();
+    } else if (istek === "cek" && !p.isFocused()) {
+      p.flashFrame(true);
+    }
   });
   ipcMain.handle(DISARIDA_AC_KANALI, (olay, url: unknown) => {
     // Yalnız çekirdek kökünden yüklenmiş ana pencere isteyebilir
