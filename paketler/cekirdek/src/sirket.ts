@@ -113,7 +113,7 @@ export interface ToplantiSonucu {
 export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import { BirlestirmeKuyrugu, birlestirmeVerisi, kaliteAyarlari, kaliteDuyurusu, sureMetni } from "./birlestirme-kuyrugu.js";
-import type { Depo } from "./depo.js";
+import { KARAR_YETKISI_GOCU, type Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
 import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
 import type { OlayYolu } from "./olaylar.js";
@@ -375,6 +375,32 @@ export class Sirket {
     }
     // Yarım kalan ajanlar açılıştan ~30 sn sonra eşzamanlı tavana uyarak uyandırılır
     if (!oturumlarKapali) this.mesai.planla(() => void this.mesaiyeDon());
+    this.kararYetkisiGocunuDuyur();
+  }
+
+  /** 0.0.7 güncellemesiyle karar yetkisi CEO'ya geçen projeler: #genel'e ve CEO sohbetine bir kez duyurulur */
+  private kararYetkisiGocunuDuyur(): void {
+    const kayit = this.depo.deger(KARAR_YETKISI_GOCU);
+    if (!kayit) return;
+    this.depo.degerYaz(KARAR_YETKISI_GOCU, "[]");
+    let kimlikler: unknown = [];
+    try {
+      kimlikler = JSON.parse(kayit);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(kimlikler)) return;
+    for (const id of kimlikler) {
+      const p = typeof id === "string" ? this.depo.proje(id) : null;
+      if (!p || p.kararVeren !== "ceo") continue;
+      const ceo = this.ceoBul(p.id);
+      const metin = iki(
+        `ArnOrg 0.0.7: karar yetkisi ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} geçti, şirket tam otonom. İzinler, birleştirmeler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları ve gerekçeleri Onaylar'da görür. Kararları yine siz vermek isterseniz: Proje ayarları → Karar yetkisi → Kurul karar verir.`,
+        `ArnOrg 0.0.7: decision authority moved to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}; the company is fully autonomous. Permissions, merges, hires and the other approvals now go through the CEO; the board sees the results and the reasons under Approvals. To keep deciding yourself: Project settings → Decision authority → The board decides.`,
+      );
+      this.duyur(p.id, metin);
+      this.duyur(p.id, metin, "yonetim");
+    }
   }
 
   /** Gözlemi arka planda damıtıp global zekâya işler; hata iş akışını etkilemez */

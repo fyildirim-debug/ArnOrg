@@ -77,8 +77,8 @@ function rehber(onay: Onay, ajanAdi: (id: string) => string | null): string {
     }
     case "arac":
       return iki(
-        "Komutun ne yaptığını ve ana yasaya uyup uymadığını tart; geri alınamaz ya da dışa etkili bir işse (uzak depoya push, yayın, dağıtım, sistem paketi, silme) gerekçeni ona göre yaz. Çalışan kararını bekliyor; süre dolarsa reddedilmiş sayılır.",
-        "Judge what the command does and whether it respects the constitution; if it is irreversible or affects the outside world (pushing to a remote, publishing, deploying, system packages, deleting), write your reasoning accordingly. The employee is waiting for your decision; if time runs out it counts as rejected.",
+        "Komutun ne yaptığını ve ana yasaya uyup uymadığını tart; geri alınamaz ya da dışa etkili bir işse (uzak depoya push, yayın, dağıtım, sistem paketi, silme) gerekçeni ona göre yaz. Çalışanın uzak depoya push isteğini görev açıkça gerektirmiyorsa reddet: birleşen işi uzak depoya ArnOrg kendisi gönderir; uzak depo yoksa push zaten tutmaz. Çalışan kararını bekliyor; süre dolarsa reddedilmiş sayılır.",
+        "Judge what the command does and whether it respects the constitution; if it is irreversible or affects the outside world (pushing to a remote, publishing, deploying, system packages, deleting), write your reasoning accordingly. Reject an employee's request to push to a remote unless the task clearly needs it: ArnOrg pushes merged work to the remote itself, and without a remote the push can't work anyway. The employee is waiting for your decision; if time runs out it counts as rejected.",
       );
     case "genel":
       return (onay.veri as { altTur?: unknown } | null)?.altTur === GOREV_TAVANI_ALT_TURU

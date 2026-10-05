@@ -38,6 +38,9 @@ import { duzeltmeGocu } from "./duzeltmeler.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 import { rolYetenekleri } from "./yetenekler.js";
 
+/** 0.0.7 güncellemesiyle karar yetkisi CEO'ya geçen projeler (anahtar-değer; Şirket açılışta duyurup boşaltır) */
+export const KARAR_YETKISI_GOCU = "karar-yetkisi-gocu";
+
 /** Uzak depo adresinden GitHub "sahip/ad": https://github.com/a/b(.git), git@github.com:a/b(.git), ssh://git@github.com/a/b */
 export function githubDeposu(adres: string | null | undefined): string | null {
   if (!adres) return null;
@@ -289,8 +292,12 @@ export class Depo {
     if (!projeSutunlari.includes("test_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_komutu TEXT");
     if (!projeSutunlari.includes("hazirlik_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN hazirlik_komutu TEXT");
     if (!projeSutunlari.includes("test_zaman_asimi_dk")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_zaman_asimi_dk REAL NOT NULL DEFAULT 20");
-    // 0.0.7: karar yetkisi (ceo: tam otonom, kurul); var olan projeler de CEO'ya geçer
-    if (!projeSutunlari.includes("karar_veren")) this.db.exec("ALTER TABLE projeler ADD COLUMN karar_veren TEXT NOT NULL DEFAULT 'ceo'");
+    // 0.0.7: karar yetkisi (ceo: tam otonom, kurul); var olan projeler de CEO'ya geçer ve açılışta bir kez duyurulur
+    if (!projeSutunlari.includes("karar_veren")) {
+      this.db.exec("ALTER TABLE projeler ADD COLUMN karar_veren TEXT NOT NULL DEFAULT 'ceo'");
+      const gecenler = (this.db.prepare("SELECT id FROM projeler").all() as Satir[]).map((s) => String(s.id));
+      if (gecenler.length) this.degerYaz(KARAR_YETKISI_GOCU, JSON.stringify(gecenler));
+    }
     // 0.0.7: onayı kimin karara bağladığı (kurul, otomatik, ceo) ve adı; bekleyen onayın muhatabı (ceo ya da kurul)
     const onaySutunlari = (this.db.prepare("PRAGMA table_info(onaylar)").all() as Satir[]).map((s) => String(s.name));
     if (!onaySutunlari.includes("karar_kaynagi")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_kaynagi TEXT");

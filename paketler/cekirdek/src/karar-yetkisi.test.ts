@@ -442,7 +442,7 @@ describe("kurula düşme", () => {
 });
 
 describe("veri ve API", () => {
-  it("karar yetkisi sütunu olmayan eski veritabanında projeler CEO kipine geçer, eski onaylarda karar veren boş kalır", () => {
+  it("karar yetkisi sütunu olmayan eski veritabanında projeler CEO kipine geçer, eski onaylarda karar veren boş kalır; geçiş açılışta bir kez duyurulur", () => {
     const dizin = fs.mkdtempSync(path.join(os.tmpdir(), "arnorg-karar-goc-"));
     try {
       const dosya = path.join(dizin, "arnorg.db");
@@ -458,6 +458,12 @@ describe("veri ve API", () => {
       try {
         expect(ikinci.proje(p.id)?.kararVeren).toBe("ceo");
         expect(ikinci.onay(o.id)).toMatchObject({ durum: "bekliyor", kararKaynagi: null, kararVerenAd: null, muhatap: null });
+        // Şirket açılınca #genel'e ve CEO sohbetine bir kez yazılır; sonraki açılışta yinelenmez
+        const duyurular = (kanal: string) => ikinci.mesajlar(p.id, kanal).filter((m) => m.metin.includes("0.0.7"));
+        for (let i = 0; i < 2; i++) new Sirket(ikinci, new OlayYolu(), new Yapilandirma(path.join(dizin, "veri")), () => null, true).kapat();
+        expect(duyurular("genel")).toHaveLength(1);
+        expect(duyurular("yonetim")).toHaveLength(1);
+        expect(duyurular("genel")[0]?.metin).toMatch(/Kurul karar verir|The board decides/);
       } finally {
         ikinci.kapat();
       }
