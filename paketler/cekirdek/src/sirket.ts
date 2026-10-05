@@ -84,6 +84,8 @@ import type { BrifingKaynagi, BrifingYaniti } from "@arnorg/ortak";
 import { Brifing } from "./brifing.js";
 import { ModelKataloguIzleyici, sdkModelOkuyucu } from "./model-katalogu.js";
 import { aracAcik, kapaliClaudeAraclari, kapaliYetenekNedeni, yetenekleriDogrula } from "./yetenekler.js";
+import { skilleriDogrula } from "./skiller.js";
+import { skillEklentileri } from "./skill-eklentisi.js";
 import { WebHizmeti } from "./web/index.js";
 import { webDenetimGirdisi } from "./web/etiketler.js";
 
@@ -795,6 +797,8 @@ export class Sirket {
     const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
     if (rol.kimlik === "ceo" && ceo) throw new ArnorgHatasi(iki("Projede zaten bir CEO var.", "The project already has a CEO."), 409);
     const yoneticiId = istek.yoneticiId === undefined ? (rol.kimlik === "ceo" ? null : (ceo?.id ?? null)) : istek.yoneticiId;
+    // 0.0.8: işe alımda atanan skiller (skiller.ts); verilmezse kayıt boş kalır ve rolün varsayılanları geçerlidir
+    const skiller = istek.skiller == null ? null : skilleriDogrula(istek.skiller, rol.kimlik);
     const ajan = this.depo.ajanEkle({
       projeId,
       ad,
@@ -815,10 +819,11 @@ export class Sirket {
       // Karakter seçilmediyse role uyan boş karakter atanır; kişiliği talimata, görünüşü ofise yansır
       karakter: istek.karakter ?? karakterSec(rol.kimlik, this.kullanilanKarakterler(projeId), `${projeId}:${ad}`),
     });
+    if (skiller) this.depo.ajanSkilleriYaz(ajan.id, skiller);
     if (dosyaYaz) this.kimlikDosyasiYaz(ajan, proje);
     this.ajanYayinla(ajan.id);
     this.projeYayinla(projeId);
-    return ajan;
+    return this.ajan(ajan.id);
   }
 
   private kullanilanKarakterler(projeId: string): string[] {
@@ -861,6 +866,8 @@ export class Sirket {
     if (istek.karakter !== undefined) alanlar.karakter = istek.karakter;
     // Yetenekler bir sonraki oturumun araç listesine ve talimatına girer; kapanan yeteneğin aracı hemen kapıda reddedilir
     if (istek.yetenekler !== undefined) alanlar.yetenekler = yetenekleriDogrula(istek.yetenekler);
+    // Skiller (skiller.ts) bir sonraki oturumda eklentiyle yüklenir; null rolün varsayılanlarına döndürür
+    if (istek.skiller !== undefined) this.depo.ajanSkilleriYaz(id, istek.skiller === null ? null : skilleriDogrula(istek.skiller, a.rol));
     const yeni = this.depo.ajanGuncelle(id, alanlar);
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
@@ -1061,6 +1068,8 @@ export class Sirket {
       talimat: () => this.talimatOlustur(this.ajan(id), cwd),
       araclar: () => arnorgAraclari(this, id),
       yasakAraclar: () => [...(rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []), ...kapaliClaudeAraclari(this.ajan(id))],
+      // Atanan skiller veri dizinindeki yerel eklentiyle yüklenir (skill-eklentisi.ts); repoya bir şey yazılmaz
+      eklentiler: () => skillEklentileri(this.yapilandirma.veriDizini, this.ajan(id), (h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: iki(`Skiller yüklenemedi: ${h.message}`, `Could not load the skills: ${h.message}`), projeId: ajan.projeId })),
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
       kapi: (arac, girdi, aracKimligi, altAjan) => this.kapi(id, arac, girdi, aracKimligi, altAjan),
       izinSor,

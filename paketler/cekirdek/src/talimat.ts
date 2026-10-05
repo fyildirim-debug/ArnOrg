@@ -7,6 +7,7 @@ import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
 import { kararYetkisiTalimati } from "./karar-yetkisi.js";
 import { rolBul } from "./roller.js";
+import { skillTalimati } from "./skiller.js";
 import { tanitimTalimati } from "./tanitim.js";
 import { kisalt } from "./yardimci.js";
 import { yetenekTalimati } from "./yetenekler.js";
@@ -170,6 +171,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "## Team",
       ekipListesi,
       ...tanitimTalimati(ajan, b.ekip, "en"),
+      ...skillTalimati({ ajan, rol, dil: "en" }),
       b.baglar ? `\n## Your ties\n${b.baglar}` : "",
       "",
       "## Your personal memory",
@@ -238,6 +240,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "## Ekip",
     ekipListesi,
     ...tanitimTalimati(ajan, b.ekip, "tr"),
+    ...skillTalimati({ ajan, rol, dil: "tr" }),
     b.baglar ? `\n## Bağların\n${b.baglar}` : "",
     "",
     "## Kişisel hafızan",

@@ -1,0 +1,48 @@
+// Skiller (Türkçe): ArnOrg'un Claude Code skill kütüphanesi; işe alım formundaki seçici ve çalışan panelindeki bölüm.
+// Skillerin ad ve açıklaması katalogdan (çekirdekte skiller/katalog.json) gelir. Ekibin öğrendiği yöntemler (beceriler)
+// ayrıdır; onların metinleri zeka bölümündedir.
+import type { SkillKategorisi } from "@arnorg/ortak";
+
+export const skiller = {
+  baslik: "Skiller",
+  sayac: (n: number) => `${n} skill`,
+  ipucu: "ArnOrg'un kütüphanesinden Claude Code skilleri; çalışanın oturumuna yüklenir, değişiklik bir sonraki oturumda gelir. Ekibin öğrendiği yöntemler Zekâ sekmesindedir.",
+  iseAlimIpucu: "Rolün varsayılanlarıyla başlar; işe uyanları ekle, gerekmeyenleri çıkar. Skiller çalışanın oturumuna yüklenir.",
+  ceo: "CEO skill kullanmaz; işe aldığı çalışanlara skill atar.",
+  bos: "Atanmış skill yok.",
+  ekle: "Skill ekle",
+  listeyiKapat: "Listeyi kapat",
+  ara: "Skill ara",
+  araYer: "Ad, kimlik ya da konu",
+  roleUyan: "Bu role uyanlar",
+  tumu: "Tümü",
+  suzgec: "Gösterilen skiller",
+  sonucYok: "Aramaya uyan skill yok.",
+  hepsiAtanmis: "Bu listedeki skillerin hepsi atanmış.",
+  varsayilan: "Rol varsayılanı",
+  varsayilanaDon: "Rol varsayılanına dön",
+  cikar: (ad: string) => `Çıkar: ${ad}`,
+  ekleEtiket: (ad: string) => `Ekle: ${ad}`,
+  eklendi: (ajan: string, ad: string) => `${ajan}: ${ad} eklendi.`,
+  cikarildi: (ajan: string, ad: string) => `${ajan}: ${ad} çıkarıldı.`,
+  varsayilanaDondu: (ajan: string) => `${ajan}: skiller rol varsayılanına döndü.`,
+  yukleniyor: "Skill kütüphanesi yükleniyor",
+  alinamadi: "Skill kütüphanesi alınamadı.",
+  yenidenDene: "Yeniden dene",
+  kaynak: (depo: string, lisans: string) => `${depo} · ${lisans}`,
+  kategoriler: {
+    muhendislik: "Mühendislik",
+    test: "Test",
+    inceleme: "Kod inceleme",
+    backend: "Backend",
+    veri: "Veri",
+    mimari: "Mimari",
+    frontend: "Frontend",
+    tasarim: "Tasarım",
+    guvenlik: "Güvenlik",
+    devops: "DevOps",
+    yazim: "Teknik yazım",
+    arastirma: "Araştırma",
+    tanitim: "Tanıtım",
+  } as Record<SkillKategorisi, string>,
+};

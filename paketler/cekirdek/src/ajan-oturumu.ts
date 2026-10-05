@@ -9,6 +9,7 @@ import {
   type McpSdkServerConfigWithInstance,
   type PermissionMode,
   type Query,
+  type SdkPluginConfig,
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -73,6 +74,8 @@ export interface OturumBaglami {
   araclar(): McpSdkServerConfigWithInstance;
   /** Yazma araçları kapalı roller (CEO) */
   yasakAraclar(): string[];
+  /** Oturuma yüklenecek yerel eklentiler: çalışana atanan skiller (skill-eklentisi.ts); oturum açılırken bir kez okunur */
+  eklentiler?(): SdkPluginConfig[];
   onaySuresiSn(): number;
   /** PreToolUse denetim kapısı */
   kapi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, altAjan: string | undefined): Promise<HookJSONOutput>;
@@ -119,6 +122,7 @@ const ARAC_ACIKLAMA: Record<string, (g: Record<string, unknown>) => string> = {
   WebSearch: (g) => `${iki("Web araması", "Web search")}: ${kisalt(String(g.query ?? ""), 40)}`,
   Agent: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
   Task: (g) => `${iki("Alt ajan", "Subagent")}: ${kisalt(String(g.description ?? ""), 40)}`,
+  Skill: (g) => `Skill: ${kisalt(String(g.skill ?? ""), 50)}`,
   // Web ve araştırma araçları: "Web araması: <sorgu>", "Okunuyor: <alan adı>"
   ...WEB_ARAC_ACIKLAMALARI,
 };
@@ -251,6 +255,7 @@ export class AjanOturumu {
         // ArnOrg'da tek hafıza projenin ortak hafızasıdır (repo içinde, ekipçe ve kurulca görülür) ve ajanın defteridir.
         settings: { attribution: { commit: "", pr: "", sessionUrl: false }, includeCoAuthoredBy: false, autoMemoryEnabled: false, autoDreamEnabled: false },
         mcpServers: { arnorg: this.b.araclar() },
+        plugins: this.b.eklentiler?.() ?? [],
         disallowedTools: ["AskUserQuestion", ...this.b.yasakAraclar()],
         hooks: {
           PreToolUse: [{ hooks: [kapiKancasi], timeout: this.b.onaySuresiSn() + 60 }],

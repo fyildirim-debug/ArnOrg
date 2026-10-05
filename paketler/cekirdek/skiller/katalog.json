@@ -1,0 +1,824 @@
+{
+  "$aciklama": "ArnOrg skill kütüphanesi: yöneticinin işe alımda çalışana atadığı Claude Code skilleri. Kaynaklar ve lisanslar: NOTICE.md",
+  "surum": 1,
+  "kategoriler": ["muhendislik", "test", "inceleme", "backend", "veri", "mimari", "frontend", "tasarim", "guvenlik", "devops", "yazim", "arastirma", "tanitim"],
+  "skiller": [
+    {
+      "kimlik": "systematic-debugging",
+      "ad": "Sistematik hata ayıklama",
+      "aciklama": "Düzeltme önermeden önce kök nedeni bulur: inceleme, örüntü karşılaştırma, hipotez ve test, sonra düzeltme.",
+      "en": {
+        "ad": "Systematic debugging",
+        "aciklama": "Finds the root cause before proposing a fix: investigation, pattern comparison, hypothesis testing, then the fix."
+      },
+      "kategori": "muhendislik",
+      "roller": ["backend", "frontend", "fullstack", "test", "devops", "cto"],
+      "varsayilan": ["backend", "frontend", "fullstack", "test", "devops", "cto"],
+      "kaynak": {
+        "depo": "obra/superpowers",
+        "adres": "https://github.com/obra/superpowers",
+        "yol": "skills/systematic-debugging",
+        "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+        "katalog": "development/systematic-debugging"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Jesse Vincent",
+      "cikarilan": ["find-polluter.sh"]
+    },
+    {
+      "kimlik": "verification-before-completion",
+      "ad": "Bitirmeden önce doğrulama",
+      "aciklama": "\"Bitti\", \"düzeldi\", \"geçiyor\" demeden önce doğrulama komutunu çalıştırıp çıktısını görmeyi şart koşar.",
+      "en": {
+        "ad": "Verification before completion",
+        "aciklama": "Requires running the verification command and reading its output before claiming anything is done, fixed or passing."
+      },
+      "kategori": "muhendislik",
+      "roller": ["backend", "frontend", "fullstack", "test", "devops", "cto", "guvenlik"],
+      "varsayilan": ["backend", "frontend", "fullstack", "test", "devops", "cto"],
+      "kaynak": {
+        "depo": "obra/superpowers",
+        "adres": "https://github.com/obra/superpowers",
+        "yol": "skills/verification-before-completion",
+        "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+        "katalog": "development/verification-before-completion"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Jesse Vincent"
+    },
+    {
+      "kimlik": "test-driven-development",
+      "ad": "Test güdümlü geliştirme",
+      "aciklama": "Önce başarısız testi yazar, sonra onu geçiren en küçük kodu: kırmızı, yeşil, yeniden düzenleme.",
+      "en": {
+        "ad": "Test-driven development",
+        "aciklama": "Writes the failing test first, then the smallest code that passes it: red, green, refactor."
+      },
+      "kategori": "test",
+      "roller": ["backend", "frontend", "fullstack", "test", "cto"],
+      "varsayilan": ["backend", "frontend", "fullstack", "test"],
+      "kaynak": {
+        "depo": "obra/superpowers",
+        "adres": "https://github.com/obra/superpowers",
+        "yol": "skills/test-driven-development",
+        "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+        "katalog": "development/test-driven-development"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Jesse Vincent"
+    },
+    {
+      "kimlik": "webapp-testing",
+      "ad": "Web uygulaması testi (Playwright)",
+      "aciklama": "Yerel web uygulamasını Python Playwright betikleriyle sürer: ekran görüntüsü, konsol günlüğü, arayüz doğrulaması.",
+      "gereksinim": "Python 3 ve Playwright gerekir: pip install playwright, ardından playwright install chromium.",
+      "en": {
+        "ad": "Web app testing (Playwright)",
+        "aciklama": "Drives a local web app with Python Playwright scripts: screenshots, console logs and UI checks.",
+        "gereksinim": "Needs Python 3 and Playwright: pip install playwright, then playwright install chromium."
+      },
+      "kategori": "test",
+      "roller": ["test", "frontend", "fullstack"],
+      "varsayilan": ["test"],
+      "kaynak": {
+        "depo": "anthropics/skills",
+        "adres": "https://github.com/anthropics/skills",
+        "yol": "skills/webapp-testing",
+        "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+        "katalog": "development/webapp-testing"
+      },
+      "lisans": "Apache-2.0",
+      "lisansDosyasi": "LICENSE.txt",
+      "telif": "Copyright (c) Anthropic, PBC"
+    },
+    {
+      "kimlik": "e2e-testing-patterns",
+      "ad": "Uçtan uca test kalıpları",
+      "aciklama": "Playwright ve Cypress ile güvenilir uçtan uca test takımları; kararsız testlerin ayıklanması.",
+      "en": {
+        "ad": "End-to-end testing patterns",
+        "aciklama": "Reliable end-to-end suites with Playwright and Cypress, and how to fix flaky tests."
+      },
+      "kategori": "test",
+      "roller": ["test", "frontend", "fullstack"],
+      "varsayilan": ["test"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/developer-essentials/skills/e2e-testing-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/e2e-testing-patterns"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "javascript-testing-patterns",
+      "ad": "JavaScript ve TypeScript testleri",
+      "aciklama": "Jest, Vitest ve Testing Library ile birim ve entegrasyon testleri, sahteler ve fikstürler.",
+      "en": {
+        "ad": "JavaScript and TypeScript testing",
+        "aciklama": "Unit and integration tests with Jest, Vitest and Testing Library, with mocks and fixtures."
+      },
+      "kategori": "test",
+      "roller": ["test", "backend", "frontend", "fullstack"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/javascript-typescript/skills/javascript-testing-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/javascript-testing-patterns"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "python-testing-patterns",
+      "ad": "Python testleri",
+      "aciklama": "pytest, fikstürler, sahteleme ve parametreli testlerle Python test takımı kurar.",
+      "en": {
+        "ad": "Python testing",
+        "aciklama": "Builds Python test suites with pytest, fixtures, mocking and parametrised tests."
+      },
+      "kategori": "test",
+      "roller": ["test", "backend"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/python-development/skills/python-testing-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/python-testing-patterns"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "code-review-excellence",
+      "ad": "Etkili kod incelemesi",
+      "aciklama": "Değişikliği doğruluk, güvenlik, test ve okunabilirlik açısından sistemli inceler; yapıcı ve önceliklendirilmiş geri bildirim yazar.",
+      "en": {
+        "ad": "Code review excellence",
+        "aciklama": "Reviews changes systematically for correctness, security, tests and readability, and writes constructive, prioritised feedback."
+      },
+      "kategori": "inceleme",
+      "roller": ["inceleme", "cto", "guvenlik"],
+      "varsayilan": ["inceleme", "cto"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/developer-essentials/skills/code-review-excellence",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "productivity/code-review-excellence"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "receiving-code-review",
+      "ad": "İnceleme bulgularını karşılama",
+      "aciklama": "İnceleme önerilerini körü körüne uygulamaz; her öneriyi kodla doğrular, yanlışsa gerekçeyle itiraz eder.",
+      "en": {
+        "ad": "Receiving code review",
+        "aciklama": "Does not apply review findings blindly: checks each one against the code and pushes back with reasons when it is wrong."
+      },
+      "kategori": "inceleme",
+      "roller": ["backend", "frontend", "fullstack", "test", "devops", "cto"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "obra/superpowers",
+        "adres": "https://github.com/obra/superpowers",
+        "yol": "skills/receiving-code-review",
+        "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+        "katalog": "development/receiving-code-review"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Jesse Vincent"
+    },
+    {
+      "kimlik": "api-design-principles",
+      "ad": "API tasarım ilkeleri",
+      "aciklama": "REST ve GraphQL API'lerinde kaynak modeli, sürümleme, sayfalama, hata biçimi ve tutarlılık.",
+      "en": {
+        "ad": "API design principles",
+        "aciklama": "Resource modelling, versioning, pagination, error formats and consistency for REST and GraphQL APIs."
+      },
+      "kategori": "backend",
+      "roller": ["backend", "fullstack", "cto"],
+      "varsayilan": ["backend", "fullstack"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/backend-development/skills/api-design-principles",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/api-design-principles"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "error-handling-patterns",
+      "ad": "Hata yönetimi kalıpları",
+      "aciklama": "İstisnalar, Result türleri, hata yayılımı ve zarif bozulmayla dayanıklı kod.",
+      "en": {
+        "ad": "Error handling patterns",
+        "aciklama": "Resilient code with exceptions, Result types, error propagation and graceful degradation."
+      },
+      "kategori": "backend",
+      "roller": ["backend", "frontend", "fullstack", "inceleme"],
+      "varsayilan": ["backend"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/developer-essentials/skills/error-handling-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "nodejs-backend-patterns",
+      "ad": "Node.js backend kalıpları",
+      "aciklama": "Express ya da Fastify ile ara katman, hata yönetimi, kimlik doğrulama, veritabanı erişimi ve katmanlı yapı.",
+      "en": {
+        "ad": "Node.js backend patterns",
+        "aciklama": "Express or Fastify services: middleware, error handling, auth, database access and a layered structure."
+      },
+      "kategori": "backend",
+      "roller": ["backend", "fullstack"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/javascript-typescript/skills/nodejs-backend-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/nodejs-backend-patterns"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "supabase-postgres-best-practices",
+      "ad": "Postgres en iyi uygulamaları",
+      "aciklama": "Şema, indeks, sorgu planı, kilit, RLS ve bağlantı yönetiminde önceliklendirilmiş Postgres kuralları (Supabase).",
+      "en": {
+        "ad": "Postgres best practices",
+        "aciklama": "Prioritised Postgres rules for schema, indexes, query plans, locking, RLS and connections (by Supabase)."
+      },
+      "kategori": "veri",
+      "roller": ["backend", "fullstack", "cto", "inceleme"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "supabase/agent-skills",
+        "adres": "https://github.com/supabase/agent-skills",
+        "yol": "skills/supabase-postgres-best-practices",
+        "commit": "c9be0e931b7930f7d02126d04774d904c381e7d7",
+        "katalog": "database/supabase-postgres-best-practices"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Supabase"
+    },
+    {
+      "kimlik": "sql-optimization-patterns",
+      "ad": "SQL sorgu iyileştirme",
+      "aciklama": "EXPLAIN okuma, indeks stratejisi ve yavaş sorguların ayıklanması.",
+      "en": {
+        "ad": "SQL query optimization",
+        "aciklama": "Reading EXPLAIN plans, indexing strategy and fixing slow queries."
+      },
+      "kategori": "veri",
+      "roller": ["backend", "fullstack"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/developer-essentials/skills/sql-optimization-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "architecture-patterns",
+      "ad": "Mimari kalıplar",
+      "aciklama": "Clean Architecture, altıgen mimari ve DDD ile katmanlar ve sınırlı bağlamlar.",
+      "en": {
+        "ad": "Architecture patterns",
+        "aciklama": "Clean Architecture, hexagonal architecture and DDD for layers and bounded contexts."
+      },
+      "kategori": "mimari",
+      "roller": ["cto", "backend", "fullstack"],
+      "varsayilan": ["cto"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/backend-development/skills/architecture-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/architecture-patterns"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "architecture-decision-records",
+      "ad": "Mimari karar kayıtları (ADR)",
+      "aciklama": "Önemli teknik kararları bağlamı, seçenekleri ve sonuçlarıyla ADR olarak yazar ve güncel tutar.",
+      "en": {
+        "ad": "Architecture decision records (ADR)",
+        "aciklama": "Writes and maintains ADRs that capture the context, options and consequences of technical decisions."
+      },
+      "kategori": "mimari",
+      "roller": ["cto", "yazar", "arastirmaci", "backend"],
+      "varsayilan": ["cto"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/documentation-generation/skills/architecture-decision-records",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "development/architecture-decision-records"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "c4-architecture",
+      "ad": "C4 mimari diyagramları",
+      "aciklama": "Sistemi C4 modeliyle (bağlam, kapsayıcı, bileşen, dağıtım) Mermaid diyagramları olarak belgeler.",
+      "en": {
+        "ad": "C4 architecture diagrams",
+        "aciklama": "Documents a system with the C4 model (context, containers, components, deployment) as Mermaid diagrams."
+      },
+      "kategori": "mimari",
+      "roller": ["cto", "yazar"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "softaworks/agent-toolkit",
+        "adres": "https://github.com/softaworks/agent-toolkit",
+        "yol": "skills/c4-architecture",
+        "commit": "3027f20f3181758385a1bb8c022d4041dfb4de84",
+        "katalog": "creative-design/c4-architecture"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Leonardo Flores"
+    },
+    {
+      "kimlik": "vercel-react-best-practices",
+      "ad": "React ve Next.js performans kuralları",
+      "aciklama": "Vercel'in önceliklendirilmiş React ve Next.js kuralları: bekleme zincirleri, paket boyutu, yeniden çizim, sunucu tarafı.",
+      "en": {
+        "ad": "React and Next.js performance rules",
+        "aciklama": "Vercel's prioritised React and Next.js rules: waterfalls, bundle size, re-renders and server-side work."
+      },
+      "kategori": "frontend",
+      "roller": ["frontend", "fullstack", "inceleme"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "vercel-labs/agent-skills",
+        "adres": "https://github.com/vercel-labs/agent-skills",
+        "yol": "skills/react-best-practices",
+        "commit": "063bee94c3f4df8453406c830b0a7df0f2860278",
+        "katalog": "web-development/react-best-practices"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) Vercel"
+    },
+    {
+      "kimlik": "accessibility",
+      "ad": "Erişilebilirlik (WCAG 2.2)",
+      "aciklama": "Klavye, ekran okuyucu, kontrast ve ARIA ile WCAG 2.2 denetimi ve düzeltmeleri.",
+      "en": {
+        "ad": "Accessibility (WCAG 2.2)",
+        "aciklama": "WCAG 2.2 audits and fixes: keyboard, screen readers, contrast and ARIA."
+      },
+      "kategori": "frontend",
+      "roller": ["frontend", "fullstack", "tasarim", "test", "inceleme"],
+      "varsayilan": ["frontend", "tasarim"],
+      "kaynak": {
+        "depo": "addyosmani/web-quality-skills",
+        "adres": "https://github.com/addyosmani/web-quality-skills",
+        "yol": "skills/accessibility",
+        "commit": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
+        "katalog": "development/accessibility"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Addy Osmani"
+    },
+    {
+      "kimlik": "performance",
+      "ad": "Web performansı",
+      "aciklama": "Yükleme süresini, Core Web Vitals değerlerini ve kaynak boyutlarını ölçerek iyileştirir.",
+      "en": {
+        "ad": "Web performance",
+        "aciklama": "Measures and improves load time, Core Web Vitals and asset sizes."
+      },
+      "kategori": "frontend",
+      "roller": ["frontend", "fullstack"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "addyosmani/web-quality-skills",
+        "adres": "https://github.com/addyosmani/web-quality-skills",
+        "yol": "skills/performance",
+        "commit": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
+        "katalog": "development/performance"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Addy Osmani"
+    },
+    {
+      "kimlik": "frontend-design",
+      "ad": "Özgün arayüz tasarımı",
+      "aciklama": "Hazır şablon gibi görünmeyen, ürüne özgü renk, tipografi ve yerleşim kararları.",
+      "en": {
+        "ad": "Distinctive frontend design",
+        "aciklama": "Deliberate palette, typography and layout choices specific to the product, not templated defaults."
+      },
+      "kategori": "tasarim",
+      "roller": ["frontend", "fullstack", "tasarim"],
+      "varsayilan": ["frontend", "tasarim"],
+      "kaynak": {
+        "depo": "anthropics/skills",
+        "adres": "https://github.com/anthropics/skills",
+        "yol": "skills/frontend-design",
+        "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+        "katalog": "creative-design/frontend-design"
+      },
+      "lisans": "Apache-2.0",
+      "lisansDosyasi": "LICENSE.txt",
+      "telif": "Copyright (c) Anthropic, PBC"
+    },
+    {
+      "kimlik": "design-system-patterns",
+      "ad": "Tasarım sistemi kalıpları",
+      "aciklama": "Tasarım belirteçleri, tema altyapısı ve bileşen mimarisiyle ölçeklenen tasarım sistemi.",
+      "en": {
+        "ad": "Design system patterns",
+        "aciklama": "Scalable design systems with design tokens, theming and component architecture."
+      },
+      "kategori": "tasarim",
+      "roller": ["tasarim", "frontend"],
+      "varsayilan": ["tasarim"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/ui-design/skills/design-system-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "visual-design-foundations",
+      "ad": "Görsel tasarım temelleri",
+      "aciklama": "Tipografi, renk, boşluk sistemi ve ikonlarla tutarlı görsel hiyerarşi.",
+      "en": {
+        "ad": "Visual design foundations",
+        "aciklama": "Typography, colour, spacing systems and iconography for a consistent visual hierarchy."
+      },
+      "kategori": "tasarim",
+      "roller": ["tasarim"],
+      "varsayilan": ["tasarim"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/ui-design/skills/visual-design-foundations",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "security-threat-model",
+      "ad": "Tehdit modeli",
+      "aciklama": "Depoya dayanan tehdit modeli: güven sınırları, varlıklar, saldırı yolları ve önlemler.",
+      "en": {
+        "ad": "Threat model",
+        "aciklama": "Repository-grounded threat model: trust boundaries, assets, abuse paths and mitigations."
+      },
+      "kategori": "guvenlik",
+      "roller": ["guvenlik", "cto"],
+      "varsayilan": ["guvenlik"],
+      "kaynak": {
+        "depo": "openai/skills",
+        "adres": "https://github.com/openai/skills",
+        "yol": "skills/.curated/security-threat-model",
+        "commit": "49f948faa9258a0c61caceaf225e179651397431",
+        "katalog": "security/security-threat-model"
+      },
+      "lisans": "Apache-2.0",
+      "lisansDosyasi": "LICENSE.txt",
+      "telif": "Copyright (c) OpenAI"
+    },
+    {
+      "kimlik": "security-best-practices",
+      "ad": "Güvenli kodlama denetimi",
+      "aciklama": "Python, JavaScript/TypeScript ve Go için dile ve çatıya özgü güvenlik incelemesi ve raporu.",
+      "en": {
+        "ad": "Secure coding review",
+        "aciklama": "Language and framework specific security review and report for Python, JavaScript/TypeScript and Go."
+      },
+      "kategori": "guvenlik",
+      "roller": ["guvenlik", "inceleme", "backend", "fullstack"],
+      "varsayilan": ["guvenlik", "inceleme"],
+      "kaynak": {
+        "depo": "openai/skills",
+        "adres": "https://github.com/openai/skills",
+        "yol": "skills/.curated/security-best-practices",
+        "commit": "49f948faa9258a0c61caceaf225e179651397431",
+        "katalog": "security/security-best-practices"
+      },
+      "lisans": "Apache-2.0",
+      "lisansDosyasi": "LICENSE.txt",
+      "telif": "Copyright (c) OpenAI"
+    },
+    {
+      "kimlik": "auth-implementation-patterns",
+      "ad": "Kimlik doğrulama ve yetkilendirme",
+      "aciklama": "JWT, OAuth2, oturum yönetimi ve RBAC ile güvenli erişim denetimi.",
+      "en": {
+        "ad": "Authentication and authorization",
+        "aciklama": "Secure access control with JWT, OAuth2, session management and RBAC."
+      },
+      "kategori": "guvenlik",
+      "roller": ["guvenlik", "backend", "fullstack"],
+      "varsayilan": ["guvenlik"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/developer-essentials/skills/auth-implementation-patterns",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "secrets-management",
+      "ad": "Gizli değer yönetimi",
+      "aciklama": "CI/CD'de API anahtarlarını ve parolaları kasada tutma, döndürme ve sızıntı taraması.",
+      "en": {
+        "ad": "Secrets management",
+        "aciklama": "Keeping API keys and passwords in a vault in CI/CD, rotating them and scanning for leaks."
+      },
+      "kategori": "devops",
+      "roller": ["devops", "guvenlik"],
+      "varsayilan": ["devops", "guvenlik"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/cicd-automation/skills/secrets-management",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "security/secrets-management"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "github-actions-templates",
+      "ad": "GitHub Actions iş akışları",
+      "aciklama": "Test, derleme ve dağıtım için üretime hazır GitHub Actions şablonları.",
+      "en": {
+        "ad": "GitHub Actions workflows",
+        "aciklama": "Production-ready GitHub Actions templates for testing, building and deploying."
+      },
+      "kategori": "devops",
+      "roller": ["devops"],
+      "varsayilan": ["devops"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/cicd-automation/skills/github-actions-templates",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": "workflow-automation/github-actions-templates"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "deployment-pipeline-design",
+      "ad": "Dağıtım hattı tasarımı",
+      "aciklama": "Onay kapıları, güvenlik denetimleri, canary ve mavi-yeşil dağıtımlarla çok aşamalı CI/CD.",
+      "en": {
+        "ad": "Deployment pipeline design",
+        "aciklama": "Multi-stage CI/CD with approval gates, security checks, canary and blue-green rollouts."
+      },
+      "kategori": "devops",
+      "roller": ["devops", "cto"],
+      "varsayilan": ["devops"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/cicd-automation/skills/deployment-pipeline-design",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "crafting-effective-readmes",
+      "ad": "Etkili README yazımı",
+      "aciklama": "Okura ve proje türüne göre README şablonları ve bölüm denetim listesi.",
+      "en": {
+        "ad": "Effective READMEs",
+        "aciklama": "README templates and section checklists matched to the reader and the project type."
+      },
+      "kategori": "yazim",
+      "roller": ["yazar", "tanitim"],
+      "varsayilan": ["yazar", "tanitim"],
+      "kaynak": {
+        "depo": "softaworks/agent-toolkit",
+        "adres": "https://github.com/softaworks/agent-toolkit",
+        "yol": "skills/crafting-effective-readmes",
+        "commit": "3027f20f3181758385a1bb8c022d4041dfb4de84",
+        "katalog": "productivity/crafting-effective-readmes"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Leonardo Flores"
+    },
+    {
+      "kimlik": "mermaid-diagrams",
+      "ad": "Mermaid diyagramları",
+      "aciklama": "Sınıf, sıra, akış, ER ve durum diyagramlarını Mermaid metniyle çizer.",
+      "en": {
+        "ad": "Mermaid diagrams",
+        "aciklama": "Class, sequence, flow, ER and state diagrams written as Mermaid text."
+      },
+      "kategori": "yazim",
+      "roller": ["yazar", "cto", "backend", "arastirmaci"],
+      "varsayilan": ["yazar"],
+      "kaynak": {
+        "depo": "softaworks/agent-toolkit",
+        "adres": "https://github.com/softaworks/agent-toolkit",
+        "yol": "skills/mermaid-diagrams",
+        "commit": "3027f20f3181758385a1bb8c022d4041dfb4de84",
+        "katalog": "creative-design/mermaid-diagrams"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2026 Leonardo Flores"
+    },
+    {
+      "kimlik": "openapi-spec-generation",
+      "ad": "OpenAPI belgesi",
+      "aciklama": "Koddan ya da tasarımdan OpenAPI 3.1 belgesi üretir ve API sözleşmesini doğrular.",
+      "en": {
+        "ad": "OpenAPI specs",
+        "aciklama": "Generates OpenAPI 3.1 specs from code or design and validates the API contract."
+      },
+      "kategori": "yazim",
+      "roller": ["backend", "fullstack", "yazar"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/documentation-generation/skills/openapi-spec-generation",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "humanizer",
+      "ad": "Yapay zekâ izlerini temizleme",
+      "aciklama": "Metindeki yapay zekâ kalıplarını (abartı, süslü kapanış, zorlama üçleme) anlamı değiştirmeden ayıklar.",
+      "en": {
+        "ad": "Humanizer",
+        "aciklama": "Removes AI writing tells (inflated claims, staged closers, forced triads) without changing what the text says."
+      },
+      "kategori": "yazim",
+      "roller": ["yazar", "tanitim", "arastirmaci"],
+      "varsayilan": ["yazar", "tanitim"],
+      "kaynak": {
+        "depo": "blader/humanizer",
+        "adres": "https://github.com/blader/humanizer",
+        "yol": ".",
+        "commit": "225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8",
+        "katalog": "productivity/humanizer"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Siqi Chen"
+    },
+    {
+      "kimlik": "competitive-landscape",
+      "ad": "Rekabet analizi",
+      "aciklama": "Beş güç modeli, mavi okyanus ve konumlandırma haritasıyla rakipleri ve farklılaşmayı inceler.",
+      "en": {
+        "ad": "Competitive landscape",
+        "aciklama": "Competitors and differentiation through Porter's five forces, blue ocean strategy and positioning maps."
+      },
+      "kategori": "arastirma",
+      "roller": ["arastirmaci", "tanitim"],
+      "varsayilan": ["arastirmaci"],
+      "kaynak": {
+        "depo": "wshobson/agents",
+        "adres": "https://github.com/wshobson/agents",
+        "yol": "plugins/startup-business-analyst/skills/competitive-landscape",
+        "commit": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2024 Seth Hobson"
+    },
+    {
+      "kimlik": "customer-research",
+      "ad": "Müşteri araştırması",
+      "aciklama": "Görüşme, anket, destek kaydı ve topluluk yorumlarından müşterinin dilini, ihtiyaçlarını ve personaları çıkarır.",
+      "en": {
+        "ad": "Customer research",
+        "aciklama": "Draws customer language, needs and personas from interviews, surveys, support tickets and community posts."
+      },
+      "kategori": "arastirma",
+      "roller": ["arastirmaci", "tanitim"],
+      "varsayilan": ["arastirmaci"],
+      "kaynak": {
+        "depo": "coreyhaines31/marketingskills",
+        "adres": "https://github.com/coreyhaines31/marketingskills",
+        "yol": "skills/customer-research",
+        "commit": "dda3841f0b294e01e93b1541486beefbfab0915e",
+        "katalog": null
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Corey Haines"
+    },
+    {
+      "kimlik": "copywriting",
+      "ad": "Pazarlama metni",
+      "aciklama": "Ana sayfa, açılış ve özellik sayfaları için net, ikna edici ve yapay zekâ kokmayan metin.",
+      "en": {
+        "ad": "Copywriting",
+        "aciklama": "Clear, persuasive copy for home, landing and feature pages that does not read like AI."
+      },
+      "kategori": "tanitim",
+      "roller": ["tanitim", "tasarim"],
+      "varsayilan": ["tanitim"],
+      "kaynak": {
+        "depo": "coreyhaines31/marketingskills",
+        "adres": "https://github.com/coreyhaines31/marketingskills",
+        "yol": "skills/copywriting",
+        "commit": "dda3841f0b294e01e93b1541486beefbfab0915e",
+        "katalog": "business-marketing/copywriting"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Corey Haines"
+    },
+    {
+      "kimlik": "launch",
+      "ad": "Lansman stratejisi",
+      "aciklama": "Ürün ya da özellik lansmanını aşamalara ve kanallara göre planlar; Product Hunt dahil.",
+      "en": {
+        "ad": "Launch strategy",
+        "aciklama": "Plans a product or feature launch by phases and channels, Product Hunt included."
+      },
+      "kategori": "tanitim",
+      "roller": ["tanitim"],
+      "varsayilan": [],
+      "kaynak": {
+        "depo": "coreyhaines31/marketingskills",
+        "adres": "https://github.com/coreyhaines31/marketingskills",
+        "yol": "skills/launch",
+        "commit": "dda3841f0b294e01e93b1541486beefbfab0915e",
+        "katalog": "business-marketing/launch-strategy"
+      },
+      "lisans": "MIT",
+      "lisansDosyasi": "LICENSE",
+      "telif": "Copyright (c) 2025 Corey Haines"
+    }
+  ]
+}

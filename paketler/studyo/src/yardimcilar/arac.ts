@@ -85,6 +85,9 @@ export function girdiOzeti(arac: string | undefined, girdi: unknown, kok?: strin
     case "Task":
     case "Agent":
       return { metin: dize(g.description) ?? dize(g.prompt) ?? "" };
+    // Skill kütüphanesinden yüklenen skill (0.0.8): arnorg:test-driven-development
+    case "Skill":
+      return { metin: dize(g.skill) ?? dize(g.command) ?? "" };
     case "TodoWrite": {
       const n = Array.isArray(g.todos) ? g.todos.length : 0;
       return { metin: sozluk().bilesenler.arac.yapilacaklar(n) };

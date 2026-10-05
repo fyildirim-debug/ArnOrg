@@ -1,0 +1,233 @@
+/* Skiller (0.0.8): çalışan panelindeki bölüm ve işe alım formundaki seçici. FY: kıl çizgili satırlar, gölge yok; tek
+   vurgu mercan yalnız odakta ve ekleme simgesinde. Adlar, kimlikler ve kaynak satırı mono (arayüz çerçevesi),
+   açıklamalar Plex Sans (okunan metin). Yeni eklenen satır kısa bir girişle belirir; hareket azaltılınca belirmez. */
+
+.skill-ust {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b-2);
+}
+.skill-sayac {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.skill-secici {
+  display: grid;
+  gap: var(--b-3);
+  min-width: 0;
+}
+
+/* ---------- atanmış skiller ---------- */
+.skill-liste {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.skill-satir {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--b-3);
+  min-height: 2.75rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.skill-satir-yeni {
+  animation: skill-gir var(--hiz-yavas) var(--egri);
+}
+.skill-metin {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.skill-metin b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--paper);
+}
+.skill-metin code,
+.skill-aday-metin code {
+  font-size: var(--t-2xs);
+  color: var(--muted-2);
+  overflow-wrap: anywhere;
+}
+.skill-cikar {
+  color: var(--muted);
+}
+.skill-cikar:hover {
+  color: var(--paper);
+}
+.skill-cikar:disabled {
+  cursor: progress;
+}
+.skill-bos {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+.skill-eylem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-4);
+}
+.skill-varsayilan {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  font-size: var(--t-2xs);
+}
+.skill-varsayilan:disabled {
+  cursor: progress;
+}
+
+/* ---------- ekleme listesi: yerinde açılır, kendi içinde kayar ---------- */
+.skill-ekle {
+  display: grid;
+  gap: var(--b-3);
+  min-width: 0;
+  padding: var(--b-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--ink-2);
+  animation: acilir-gir var(--hiz) var(--egri);
+}
+.skill-suzgec {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2);
+}
+.skill-suzgec .arama-kutu {
+  flex: 1 1 12rem;
+  width: auto;
+}
+.skill-suzgec .girdi::-webkit-search-cancel-button {
+  filter: grayscale(1) brightness(1.6);
+}
+.skill-adaylar {
+  display: grid;
+  gap: var(--b-4);
+  max-height: 25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-width: 0;
+}
+.skill-grup {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.skill-grup h4 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 0 var(--b-1);
+  margin-bottom: var(--b-1);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-2);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.skill-grup ul {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.skill-aday {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--b-3);
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--hiz) ease,
+    border-color var(--hiz) ease;
+}
+.skill-aday:hover {
+  background: var(--ink-3);
+  border-color: var(--line);
+}
+.skill-aday:focus-visible {
+  outline-offset: -2px;
+}
+.skill-aday:disabled {
+  cursor: progress;
+}
+.skill-aday-metin {
+  display: grid;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+.skill-aday-metin b {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem var(--b-2);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--paper);
+}
+.skill-aciklama {
+  max-width: 64ch;
+  font-family: var(--font-govde);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.skill-gereksinim {
+  color: var(--bone);
+}
+.skill-aday-simge {
+  margin-top: 0.125rem;
+  color: var(--muted-2);
+  transition: color var(--hiz) ease;
+}
+.skill-aday:hover .skill-aday-simge,
+.skill-aday:focus-visible .skill-aday-simge {
+  color: var(--coral);
+}
+
+.skill-durum {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+.skill-durum-hata {
+  color: var(--sil);
+}
+
+@keyframes skill-gir {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-satir-yeni,
+  .skill-ekle {
+    animation: none;
+  }
+  .skill-aday,
+  .skill-aday-simge {
+    transition: none;
+  }
+}

@@ -1979,3 +1979,91 @@ export interface TanitimGuncellemeYaniti {
   ajanId: string;
   ajanAd: string;
 }
+
+// ---------------------------------------------------------------------------
+// Skiller (0.0.8): depoda duran seçilmiş Claude Code skill kütüphanesi (paketler/cekirdek/skiller, kaynaklar NOTICE.md).
+// Yönetici işe alımda çalışana skill atar (ise_al_teklif skiller alanı); kurul işe alım formunda ve çalışan panelinde
+// ekler, çıkarır. Atanan skiller çalışanın oturumuna veri dizinindeki yerel bir eklentiyle yüklenir, kullanıcının
+// reposuna hiçbir şey yazılmaz. Ekipçe öğrenilen yöntemler (beceriler, beceri_oku/beceri_yaz) ayrı bir şeydir.
+// Uç: GET /api/skiller (docs/API.md, "Skiller")
+// ---------------------------------------------------------------------------
+
+export type SkillKategorisi =
+  | "muhendislik"
+  | "test"
+  | "inceleme"
+  | "backend"
+  | "veri"
+  | "mimari"
+  | "frontend"
+  | "tasarim"
+  | "guvenlik"
+  | "devops"
+  | "yazim"
+  | "arastirma"
+  | "tanitim";
+
+/** Skillin alındığı açık kaynak depo */
+export interface SkillKaynagi {
+  /** "sahip/ad" */
+  depo: string;
+  adres: string;
+  /** Depo içindeki klasör */
+  yol: string;
+  commit: string;
+  /** aitmpl.com kataloğundaki (davila7/claude-code-templates) karşılığı; katalogda yoksa null */
+  katalog: string | null;
+}
+
+/** Kütüphanedeki bir skill (katalog.json) */
+export interface SkillKaydi {
+  /** Klasör adı ve SKILL.md'deki name; oturumda arnorg:<kimlik> olarak görünür */
+  kimlik: string;
+  ad: string;
+  aciklama: string;
+  /** Kurulu olması gereken araçlar (ör. Python ve Playwright); yoksa alan yok */
+  gereksinim?: string;
+  en: { ad: string; aciklama: string; gereksinim?: string };
+  kategori: SkillKategorisi;
+  /** Skillin uyduğu roller */
+  roller: string[];
+  /** Skilli işe alımda varsayılan olarak alan roller */
+  varsayilan: string[];
+  kaynak: SkillKaynagi;
+  /** SPDX lisans kimliği: MIT, Apache-2.0 */
+  lisans: string;
+  /** Skill klasöründeki lisans dosyası */
+  lisansDosyasi: string;
+  telif: string;
+  /** Kaynaktan kopyalanmayan dosyalar (işletim sistemine bağlı betikler) */
+  cikarilan?: string[];
+}
+
+/** GET /api/skiller */
+export interface SkillKatalogu {
+  skiller: SkillKaydi[];
+  /** Rol kimliği → işe alımda varsayılan skiller (katalog sırasıyla) */
+  roller: Record<string, string[]>;
+}
+
+/** Skillin seçilen dildeki adı, açıklaması ve gereksinimi */
+export function skillMetni(s: SkillKaydi, dil: Dil): { ad: string; aciklama: string; gereksinim?: string } {
+  return dil === "en" ? s.en : { ad: s.ad, aciklama: s.aciklama, gereksinim: s.gereksinim };
+}
+
+// Arayüz birleştirmesi: ajan, işe alım ve güncelleme isteği skill alanıyla genişler
+
+export interface Ajan {
+  /** Atanmış skill kimlikleri (katalog sırasıyla); eski çekirdekte yoktur. Hiç seçilmediyse rolün varsayılanları */
+  skiller?: string[];
+}
+
+export interface AjanIseAlIstegi {
+  /** Atanacak skill kimlikleri; verilmezse ya da null ise rolün varsayılanları */
+  skiller?: string[] | null;
+}
+
+export interface AjanGuncelleIstegi {
+  /** Skillerin tam listesi (verilmeyen çıkar); null rolün varsayılanlarına döndürür */
+  skiller?: string[] | null;
+}

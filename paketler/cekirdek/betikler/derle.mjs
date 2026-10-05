@@ -1,5 +1,7 @@
 // Çekirdeği esbuild ile paketler: dist/index.js (kitaplık), dist/cli.js (komut satırı) ve
-// dist/gomme-calisani.js (kod zekâsının gömme iş parçacığı; worker_threads ile ayrı yüklenir)
+// dist/gomme-calisani.js (kod zekâsının gömme iş parçacığı; worker_threads ile ayrı yüklenir).
+// Skill kütüphanesi (skiller/) dist/skiller'e kopyalanır: masaüstü paketi dist'i olduğu gibi taşır, çekirdek onu
+// kendi yanında bulur (src/skiller.ts)
 import { build } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
@@ -29,4 +31,5 @@ await build({
   logLevel: "warning",
 });
 fs.chmodSync(path.join(kok, "dist/cli.js"), 0o755);
-console.log("Çekirdek derlendi: dist/index.js, dist/cli.js, dist/gomme-calisani.js");
+fs.cpSync(path.join(kok, "skiller"), path.join(kok, "dist", "skiller"), { recursive: true });
+console.log("Çekirdek derlendi: dist/index.js, dist/cli.js, dist/gomme-calisani.js, dist/skiller/");

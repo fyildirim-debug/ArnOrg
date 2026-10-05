@@ -45,6 +45,8 @@ import { ArnorgHatasi, bugun, bulunamadi, sadelestir } from "./yardimci.js";
 import { webAyarSemasi } from "./web/ayarlar.js";
 import { webUclariniKur } from "./web/uclar.js";
 import { yetenekListesiSemasi } from "./yetenekler.js";
+import { skillListesiSemasi } from "./skiller.js";
+import { skillUclariniKur } from "./skill-uclari.js";
 
 export interface SunucuSecenekleri {
   sirket: Sirket;
@@ -116,6 +118,7 @@ const semalar = {
     yoneticiId: z.string().nullable().optional(),
     talimatEki: z.string().max(8000).optional(),
     karakter: karakterSemasi.nullable().optional(),
+    skiller: skillListesiSemasi.nullable().optional(),
   }),
   ajanGuncelle: z.object({
     model: z.string().max(80).optional(),
@@ -124,6 +127,7 @@ const semalar = {
     talimatEki: z.string().max(8000).optional(),
     karakter: karakterSemasi.nullable().optional(),
     yetenekler: yetenekListesiSemasi.optional(),
+    skiller: skillListesiSemasi.nullable().optional(),
   }),
   baslat: z.object({ talimat: z.string().max(20_000).optional(), gorevId: z.string().optional() }),
   mesaj: z.object({ metin: z.string().min(1).max(20_000), oncelik: z.enum(["next", "now"]).optional() }),
@@ -295,6 +299,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/modeller", async () => sirket.modelKatalogu.mevcut);
   // Yetenek kataloğu, web motorlarının durumu, kurulun deneme araması ve okuması (web/uclar.ts)
   webUclariniKur(app, sirket);
+  // Skill kütüphanesi: katalog ve rol varsayılanları (skill-uclari.ts)
+  skillUclariniKur(app);
 
   // ---------------- kurulum: Claude Code, git, GitHub CLI ----------------
   app.get("/api/kurulum", async (i) => sirket.kurulum.durum(sorgu(i, "tazele") === "1"));

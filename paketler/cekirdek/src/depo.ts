@@ -37,6 +37,7 @@ import { iki } from "./dil.js";
 import { duzeltmeGocu } from "./duzeltmeler.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 import { rolYetenekleri } from "./yetenekler.js";
+import { skillGocu, skillListesi } from "./skiller.js";
 
 /** 0.0.7 güncellemesiyle karar yetkisi CEO'ya geçen projeler (anahtar-değer; Şirket açılışta duyurup boşaltır) */
 export const KARAR_YETKISI_GOCU = "karar-yetkisi-gocu";
@@ -338,6 +339,8 @@ export class Depo {
     this.db.exec("CREATE INDEX IF NOT EXISTS denetim_zaman ON denetim(zaman)");
     // 0.0.5: uygulama içi tarayıcının düzeltme notları (tablo ve SQL: duzeltmeler.ts)
     duzeltmeGocu(this.db);
+    // 0.0.8: çalışan başına skiller (skiller.ts); NULL rolün varsayılanları
+    skillGocu(this.db);
   }
 
   kapat(): void {
@@ -465,6 +468,7 @@ export class Depo {
       karakter: (s.karakter as string | null) ?? null,
       olusturma: String(s.olusturma),
       yetenekler: jsonOku<YetenekKimligi[] | null>(s.yetenekler as string | null, null) ?? rolYetenekleri(String(s.rol)),
+      skiller: skillListesi(s.skiller as string | null | undefined, String(s.rol)),
     };
   }
 
@@ -526,6 +530,12 @@ export class Depo {
       degerler.push(k === "yetenekler" ? JSON.stringify(v) : v);
     }
     if (parcalar.length) this.db.prepare(`UPDATE ajanlar SET ${parcalar.join(", ")} WHERE id = ?`).run(...degerler, id);
+    return this.ajan(id)!;
+  }
+
+  /** Çalışanın skilleri (skiller.ts doğrular); null kaydı siler, rolün varsayılanları geçerli olur */
+  ajanSkilleriYaz(id: string, skiller: string[] | null): Ajan {
+    this.db.prepare("UPDATE ajanlar SET skiller = ? WHERE id = ?").run(skiller ? JSON.stringify(skiller) : null, id);
     return this.ajan(id)!;
   }
 

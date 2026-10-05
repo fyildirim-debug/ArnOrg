@@ -18,6 +18,8 @@ import { kisalt, yonelme } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
 import { webAraclari } from "./web/araclar.js";
 import { aracAcik } from "./yetenekler.js";
+import { skillAraclari } from "./skill-araclari.js";
+import { rolSkilleri, skilleriDogrula, skillListesiSemasi } from "./skiller.js";
 
 type Sonuc = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -279,6 +281,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         model: z.string().optional().describe(iki("fable, opus, sonnet ya da haiku; boşsa rolün varsayılanı", "fable, opus, sonnet or haiku; the role's default if empty")),
         yonetici: z.string().optional().describe(iki("Bağlanacağı çalışanın adı", "Name of the employee they will report to")),
         talimat_eki: z.string().optional(),
+        skiller: skillListesiSemasi.optional().describe(iki("İşe uyan skill kimlikleri (skilleri_listele); boşsa rolün varsayılanları", "Skill ids that fit the work (skilleri_listele); the role's defaults if empty")),
       },
       (a) =>
         guvenli(async () => {
@@ -295,13 +298,14 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             model: a.model,
             talimatEki: a.talimat_eki,
             yoneticiAd: a.yonetici ?? ben().ad,
+            skiller: a.skiller?.length ? skilleriDogrula(a.skiller, rol.kimlik) : undefined,
           };
           const onay = await sonHali(
             sirket.teklifAc(
               ben(),
               "ise_alim",
               iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
-              `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
+              `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd} · ${iki("Skiller", "Skills")}: ${(veri.skiller ?? rolSkilleri(rol.kimlik)).join(", ") || "-"}`,
               veri,
             ),
           );
@@ -1161,6 +1165,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     // ---------------- web ve araştırma (web/araclar.ts) ----------------
     ...webAraclari(sirket, ajanId),
+    // ---------------- skill kütüphanesi (skill-araclari.ts) ----------------
+    ...skillAraclari(sirket, ajanId),
   ];
 
   // Kapalı yeteneklerin araçları listeden çıkar (yetenekler.ts); oturum açılırken okunur

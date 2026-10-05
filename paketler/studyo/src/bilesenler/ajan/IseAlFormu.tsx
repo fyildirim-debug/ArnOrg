@@ -1,4 +1,4 @@
-// Kurulun doğrudan işe alımı: ad, rol, model, yönetici, karakter, ek talimat
+// Kurulun doğrudan işe alımı: ad, rol, model, yönetici, skiller, karakter, ek talimat
 import { rolMetni } from "@arnorg/ortak";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
@@ -10,6 +10,7 @@ import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu, Yukleniyor } from "../Durumlar";
 import { KarakterSecici } from "../KarakterSecici";
+import { IseAlimSkilleri } from "./IseAlimSkilleri";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
   const s = useSozluk();
@@ -25,6 +26,8 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [yoneticiId, setYoneticiId] = useState(() => ceoBul(useVeri.getState().ajanlar)?.id ?? "");
   const [talimat, setTalimat] = useState("");
   const [karakter, setKarakter] = useState<string | null>(null);
+  // null: dokunulmadı, rolün varsayılanları geçerli (çekirdeğe gönderilmez)
+  const [skiller, setSkiller] = useState<string[] | null>(null);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
   // Model seçenekleri katalogdan; rolün modeli katalogda yoksa zincirde bir sonraki önerilir (CEO: Fable yoksa Opus)
@@ -65,6 +68,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
           yoneticiId: yoneticiId || null,
           talimatEki: talimat.trim() || undefined,
           karakter,
+          ...(skiller && rol !== "ceo" ? { skiller } : {}),
         });
         ajanUygula(a);
         bildir("basari", sozluk().ekip.iseAlim.alindi(a.ad));
@@ -116,6 +120,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             value={rol}
             onChange={(e) => {
               setRol(e.target.value);
+              setSkiller(null);
               const r = roller.find((x) => x.kimlik === e.target.value);
               if (r) setModel(rolModeli(r.varsayilanModel, katalog));
             }}
@@ -151,6 +156,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             ))}
           </select>
         </div>
+        <IseAlimSkilleri rol={rol} deger={skiller} degisti={setSkiller} />
         <div className="alan tam">
           <span className="alan-ad" id="ise-karakter-etiket">
             {t.karakter}

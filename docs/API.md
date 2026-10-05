@@ -455,6 +455,27 @@ Ajan araçları (`mcp__arnorg__*`, her çağrı denetim kaydına düşer):
 
 Rol `arastirmaci` (Araştırmacı, varsayılan model sonnet) bütün web yetenekleriyle başlar; kod yazmaz, kaynaklı araştırma notu yazar.
 
+## Skiller (0.0.8)
+
+ArnOrg depoda seçilmiş bir Claude Code skill kütüphanesi taşır (`paketler/cekirdek/skiller`; derlemede `dist/skiller`, masaüstü paketinde `resources/app.asar.unpacked/cekirdek/skiller`). Her skill kaynak deposundan yazarının yazdığı hâliyle alınmıştır; kaynak, commit ve lisans `katalog.json` ile `NOTICE.md`'dedir. Ekipçe öğrenilen yöntemler (beceriler: `beceri_oku`, `beceri_yaz`) ayrı bir şeydir.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/skiller` | — | `SkillKatalogu`: `{skiller: SkillKaydi[], roller: Record<rol, string[]>}` (katalog ve rol varsayılanları) |
+
+- `SkillKaydi`: `kimlik` (klasör adı ve `SKILL.md`'deki `name`), `ad`, `aciklama`, `gereksinim?`, `en: {ad, aciklama, gereksinim?}`, `kategori` (`muhendislik`, `test`, `inceleme`, `backend`, `veri`, `mimari`, `frontend`, `tasarim`, `guvenlik`, `devops`, `yazim`, `arastirma`, `tanitim`), `roller` (uyduğu roller), `varsayilan` (skilli işe alımda varsayılan alan roller), `kaynak: {depo, adres, yol, commit, katalog}`, `lisans`, `lisansDosyasi`, `telif`, `cikarilan?` (kopyalanmayan işletim sistemine bağlı betikler).
+- **Çalışanın skilleri:** `Ajan.skiller` (kimlikler, katalog sırasıyla). İşe alımda `AjanIseAlIstegi.skiller` ile verilir; verilmezse ya da `null` ise kayıt boş kalır ve rolün varsayılanları geçerlidir (eski çalışanlar da böyle). `PATCH /api/ajanlar/:aid` gövdesinde `skiller` tam listedir; `null` rolün varsayılanlarına döndürür. Bilinmeyen kimlik 400; CEO'ya skill atanmaz (Skill aracı CEO'ya kapalıdır); bir çalışana en çok 24 skill.
+- **Oturuma yükleme:** oturum açılırken çalışanın skilleri veri dizininde yerel bir eklentiye kopyalanır (`<veri>/skiller/<ajan>/<imza>/.claude-plugin/plugin.json` ve `skills/<kimlik>/`) ve SDK'nın `plugins` seçeneğiyle (`--plugin-dir`) verilir; skiller oturumda `arnorg:<kimlik>` adıyla görünür. Kullanıcının reposuna ve çalışma dizinine hiçbir şey yazılmaz; atanmamış skill eklentide olmadığından görünmez. Klasör adı atanan skillerden ve katalogdan türer: atama ya da kütüphane değişince yeni klasör kurulur, eskisi silinir. Değişiklik çalışanın bir sonraki oturumunda gelir.
+- **Talimat:** skill sahibi çalışana kendi skilleri ve ArnOrg kurallarının önceliği (soru kurula ya da yöneticiye, commit, push ve imza kuralları); yöneticiye (CEO, CTO) işe alımda rol varsayılanları ve role uyan öteki skill sayısı.
+
+Ajan araçları (`mcp__arnorg__*`):
+
+| Araç | Ne yapar |
+|---|---|
+| `ise_al_teklif` | `skiller?` alanı: işe alınacak çalışanın skilleri (boşsa rolün varsayılanları); onay ayrıntısında görünür |
+| `skilleri_listele` | `{rol?}` kütüphane ya da o role uyan skiller: kimlik, ad, açıklama, roller; rolün varsayılanları işaretli |
+| `skill_ata` | `{ad, skiller}` var olan çalışanın skillerini değiştirir (yalnız CEO ve CTO); çalışanın akışına not düşer |
+
 ## Ana yasa ve ajan zekâsı
 
 | Yöntem | Yol | Gövde | Yanıt |
