@@ -755,8 +755,9 @@ export class OrtakCalisma {
    * sıradaki işlerini başlatır: kendi planlı işi, yoksa rolüne uyan atanmamış iş. Başlatılan görev kodları döner.
    */
   async isDagit(projeId: string): Promise<string[]> {
-    // Kurul mesaiyi durdurduysa ArnOrg işi kendiliğinden yeniden başlatmaz; kurul yazınca sürer
-    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId)) return [];
+    // Kurul mesaiyi durdurduysa ArnOrg işi kendiliğinden yeniden başlatmaz (kurul yazınca sürer); uykudaki proje de
+    // kendiliğinden uyanmaz (açılışta, güncellemeden sonra)
+    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId) || !this.s.projeEtkinMi(projeId)) return [];
     const p = this.s.depo.proje(projeId);
     if (!p || !fs.existsSync(p.yol)) return [];
     this.dagitiliyor.add(projeId);
@@ -850,7 +851,7 @@ export class OrtakCalisma {
 
   /** İşsiz çalışanları CEO'ya söyler; söylenenler döner (söylenmediyse boş) */
   async issizleriBildir(projeId: string): Promise<string[]> {
-    if (this.kapali || !this.isDagitimi || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId)) return [];
+    if (this.kapali || !this.isDagitimi || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId) || !this.s.projeEtkinMi(projeId)) return [];
     const ceo = this.s.ceoBul(projeId);
     if (!ceo || this.s.kurulDurdurduMu(ceo.id) || ceo.durum === "duraklatildi" || ceo.durum === "hata") return [];
     const issizler = this.issizler(projeId);
@@ -883,7 +884,7 @@ export class OrtakCalisma {
 
   /**
    * Açılışta 0.0.8 geçişi: eski worktree ve dallar ortak projeye alınır (gecis.ts). Kalan varsa ya da bir şey
-   * değiştiyse #genel'e ve CEO'ya bir kez söylenir: kalan varsa CEO'ya sistem mesajı, yoksa uyandırmadan haber.
+   * değiştiyse #genel'e ve CEO'ya (uyandırmadan, haber olarak) bir kez söylenir.
    */
   async gecis(): Promise<GecisSonucu[]> {
     const sonuclar: GecisSonucu[] = [];
@@ -935,8 +936,9 @@ export class OrtakCalisma {
       `${ozet} birlestirme_iste artık yok; incelemede görevin kaydını calisma_farki ile oku ve uygunsa 'tamam' yap. Aynı anda kaç çalışanın çalışacağını ekip_temposu ile sen belirlersin.${kalan}`,
       `${ozet} birlestirme_iste no longer exists; in review read the task's save with calisma_farki and move it to 'tamam' if it is right. You decide how many employees work at once with ekip_temposu.${kalan}`,
     );
-    if (s.kalanlar.length) void this.s.uyandir(ceo.id, ceoMetni, null).catch(() => false);
-    else this.s.zeka.haberEkle(ceo.id, ceoMetni);
+    // Uyandırmadan: güncellemeden sonra uykudaki projeler kendiliğinden çalışmaya başlamasın; CEO bir sonraki turunda
+    // okur, kurul #genel'de ve Ekip'te görür
+    this.s.zeka.haberEkle(ceo.id, ceoMetni);
   }
 }
 

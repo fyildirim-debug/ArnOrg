@@ -33,6 +33,9 @@ describe("karakter kataloğu", () => {
       if (!en) continue;
       // Ad kimliktir: görsel ve projedeki kayıtlı ajan adı ona bağlı
       expect(en.ad, k.id).toBe(k.ad);
+      // Arayüzde gösterilen görünüş tanımı İngilizcedir
+      expect(en.gorunus?.trim(), `${k.id}.gorunus`).toBeTruthy();
+      expect(en.gorunus, `${k.id}.gorunus`).not.toMatch(turkceHarf);
       for (const alan of ["lakap", "ozet", "konusma", "calisma", "dikkat"] as const) {
         expect(en[alan].trim(), `${k.id}.${alan}`).not.toBe("");
         expect(en[alan], `${k.id}.${alan}`).not.toMatch(turkceHarf);

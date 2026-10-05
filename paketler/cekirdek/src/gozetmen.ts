@@ -197,9 +197,11 @@ export class Gozetmen {
           if (sorumlu.durum === "calisiyor" || sorumlu.durum === "karar_bekliyor" || sorumlu.durum === "duraklatildi" || this.sirket.siradaMi(sorumlu.id)) continue;
           if (this.sirket.kurulDurdurduMu(sorumlu.id)) continue;
           const sonHareket = Math.max(Date.parse(g.guncelleme) || 0, this.sirket.sonEtkinlik.get(sorumlu.id) ?? 0, this.acilisMs, t.sonEylem);
-          // Turu biten ama görevi süren çalışan: ilk hatırlatma kısa sessizlikten sonra (görev başına saatte sınırlı)
+          // Turu biten ama görevi süren çalışan: etkin projede ilk hatırlatma kısa sessizlikten sonra (görev başına saatte
+          // sınırlı); uykudaki projede kurulun eşiğiyle
           const hizliAnlar = (this.hizli.get(g.id) ?? []).filter((z) => simdiMs - z < HIZLI_PENCERE_MS);
-          const hizli = g.durum === "calisiliyor" && t.hatirlatma === 0 && hizliAnlar.length < HIZLI_SINIR && HIZLI_HATIRLATMA_MS < esik;
+          const hizli =
+            g.durum === "calisiliyor" && t.hatirlatma === 0 && hizliAnlar.length < HIZLI_SINIR && HIZLI_HATIRLATMA_MS < esik && this.sirket.projeEtkinMi(proje.id, simdiMs);
           if (simdiMs - sonHareket < (hizli ? HIZLI_HATIRLATMA_MS : esik)) continue;
           const dk = Math.round((simdiMs - Math.max(Date.parse(g.guncelleme) || 0, this.acilisMs)) / 60_000);
           t.sonEylem = simdiMs;

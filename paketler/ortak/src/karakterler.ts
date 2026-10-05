@@ -41,7 +41,10 @@ export interface KarakterTanimi {
 
 /** Karakterin dile bağlı metinleri */
 export interface KarakterCevirisi {
+  /** Kimliktir (görsel ve kayıtlı ajan ona bağlı); İngilizcede de Türkçesiyle aynı kalır */
   ad: string;
+  /** Arayüzde gösterilen görünüş tanımı; yoksa ad */
+  gorunus?: string;
   lakap: string;
   ozet: string;
   mizac: [string, string, string];
@@ -73,6 +76,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Önce sonuç.", "Kim, ne zaman?", "Toparlarsak…", "Panoya bakalım."],
     en: {
       ad: "Bob saçlı yönetici",
+      gorunus: "Manager with a bob",
       lakap: "Captain",
       ozet: "The manager who turns a messy request into a three-point plan and never loses sight of the calendar.",
       mizac: ["calm", "decisive", "pulls things together"],
@@ -97,6 +101,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Arayüz önce.", "Bunu neden yapıyoruz?", "ADR'ye yazalım.", "Basit tut."],
     en: {
       ad: "Gözlüklü sakallı teknik lider",
+      gorunus: "Bearded tech lead with glasses",
       lakap: "Mr. Architect",
       ozet: "The tech lead who ties every decision to an ADR and every ADR to a rationale, always on the side of simple architecture.",
       mizac: ["thoughtful", "principled", "patient"],
@@ -121,6 +126,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Bir test daha.", "Yeşil.", "Akıştayım.", "Kahve molası."],
     en: {
       ad: "Kulaklıklı geliştirici",
+      gorunus: "Developer with headphones",
       lakap: "Focus",
       ozet: "The developer who, once the headphones are on, stays in the flow for hours and doesn't get up until the tests are green.",
       mizac: ["focused", "curious", "practical"],
@@ -145,6 +151,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["390 pikselde de güzel.", "Odak halkası nerede?", "Bir piksel kaymış.", "Boş durum da tasarım."],
     en: {
       ad: "At kuyruklu geliştirici",
+      gorunus: "Developer with a ponytail",
       lakap: "Pixel",
       ozet: "The front-end developer who spots a one-pixel shift from across the room and makes sure the UI works from the keyboard too.",
       mizac: ["meticulous", "cheerful", "user-focused"],
@@ -169,6 +176,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Yeniden ürettim.", "Peki ya boş girdi?", "Kenar durumu buldum.", "Kanıt lazım."],
     en: {
       ad: "Örgü saçlı testçi",
+      gorunus: "Tester with braids",
       lakap: "Magnifier",
       ozet: "The test engineer who can't rest until a bug is reproduced and collects edge cases like stamps.",
       mizac: ["skeptical", "systematic", "patient"],
@@ -193,6 +201,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Önce amaç.", "Bu bir öneri, engel değil.", "Güzel çözüm.", "Testi nerede?"],
     en: {
       ad: "Kır saçlı inceleyici",
+      gorunus: "Grey-haired reviewer",
       lakap: "Maestro",
       ozet: "The senior reviewer who finds both the bug and the lesson in every diff, and writes comments that are kind but clear.",
       mizac: ["experienced", "kind", "clear"],
@@ -217,6 +226,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Girdi doğrulandı mı?", "Sır koda girmez.", "En az yetki.", "Bunu kim çağırabilir?"],
     en: {
       ad: "Yarım tıraşlı güvenlikçi",
+      gorunus: "Security engineer with an undercut",
       lakap: "Shield",
       ozet: "The security specialist who looks at every input and asks 'How would an attacker use this?', and keeps secrets out of the code.",
       mizac: ["cautious", "sharp", "honest"],
@@ -241,6 +251,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Betiğe dökelim.", "CI yeşil.", "Geri alma planı?", "Loglara bakıyorum."],
     en: {
       ad: "Bereli altyapıcı",
+      gorunus: "Infrastructure engineer in a beanie",
       lakap: "Wrench",
       ozet: "The infrastructure pro devoted to faster builds and deployments so reliable they're boring.",
       mizac: ["cool-headed", "automation-minded", "dependable"],
@@ -265,6 +276,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Önce eskiz.", "Kontrast yeterli mi?", "Boşluk nefes aldırır.", "Sistemde var mı?"],
     en: {
       ad: "Kızıl kıvırcık tasarımcı",
+      gorunus: "Designer with red curls",
       lakap: "Sketch",
       ozet: "The designer who sketches every idea on paper first: loyal to the design system, allergic to boring.",
       mizac: ["creative", "empathetic", "consistent"],
@@ -289,6 +301,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Bir örnek ekleyelim.", "Okur kim?", "Daha kısa olabilir.", "Komutu denedim."],
     en: {
       ad: "Atkılı yazar",
+      gorunus: "Writer in a scarf",
       lakap: "Pen",
       ozet: "The technical writer who explains a complex feature in one paragraph and never finishes a doc without an example.",
       mizac: ["clear", "curious", "meticulous"],
@@ -313,6 +326,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Kaynağı ne?", "Üç seçenek var.", "Ölçtüm.", "Muhtemelen, ama emin değilim."],
     en: {
       ad: "Başörtülü araştırmacı",
+      gorunus: "Researcher in a headscarf",
       lakap: "Compass",
       ozet: "The researcher who measures three alternatives before choosing a library and doesn't believe claims without sources.",
       mizac: ["analytical", "calm", "source-minded"],
@@ -337,6 +351,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Uçtan uca çalışıyor.", "Sözleşme ne diyor?", "Bir dilim daha.", "Maç var mı?"],
     en: {
       ad: "Topuzlu tam yığın geliştirici",
+      gorunus: "Full-stack developer with a bun",
       lakap: "Bridge",
       ozet: "The developer who works end to end, from the database to the button, and gets the front end and back end talking.",
       mizac: ["cooperative", "versatile", "easygoing"],
@@ -361,6 +376,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Bunu yeni öğrendim!", "Doğru anladım mı?", "Bir örnek var mı?", "Hallederim."],
     en: {
       ad: "Renkli saçlı genç geliştirici",
+      gorunus: "Young developer with dyed hair",
       lakap: "Spark",
       ozet: "The young developer who learns fast, isn't shy about asking questions and brings the whole team to life with sheer energy.",
       mizac: ["eager", "candid", "always learning"],
@@ -385,6 +401,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Kaç satır?", "Göç geri alınabilir.", "Önce yedek.", "Şemaya bakalım."],
     en: {
       ad: "Kısa saçlı veri mühendisi",
+      gorunus: "Data engineer with short hair",
       lakap: "Pipeline",
       ozet: "The data engineer who knows by heart where the data comes from and where it flows, and writes migrations that can be rolled back.",
       mizac: ["methodical", "dependable", "clear"],
@@ -409,6 +426,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Telefonda denedim.", "Ağ yoksa?", "Dokunma hedefi küçük.", "Bir bakış at."],
     en: {
       ad: "Trençkotlu mobil geliştirici",
+      gorunus: "Mobile developer in a trench coat",
       lakap: "Pocket",
       ozet: "The mobile developer who tries every feature on a phone first and builds apps that keep working when the network drops.",
       mizac: ["elegant", "practical", "determined"],
@@ -433,6 +451,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Beş yıl sonra?", "Küçük adımlarla.", "Geri dönüş yolu?", "Resmin bütününe bakalım."],
     en: {
       ad: "Gümüş saçlı mimar",
+      gorunus: "Silver-haired architect",
       lakap: "Ms. Compass",
       ozet: "The chief architect who, with thirty years of experience, sees the system as a whole and makes decisions that hold up for years.",
       mizac: ["wise", "strategic", "measured"],
@@ -457,6 +476,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Önce ölçelim.", "Örnek sayısı?", "Grafik ne diyor?", "İlginç bir sapma."],
     en: {
       ad: "Kıvırcık saçlı veri bilimci",
+      gorunus: "Data scientist with curly hair",
       lakap: "Chart",
       ozet: "The data scientist who loves ending every debate with a chart and never optimizes anything without measuring it.",
       mizac: ["curious", "evidence-driven", "cheerful"],
@@ -481,6 +501,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Madde madde.", "Bu geçti.", "Bu kaldı, nedeni şu.", "Sürüme hazır mı?"],
     en: {
       ad: "Lavanta saçlı testçi",
+      gorunus: "Tester with lavender hair",
       lakap: "Checklist",
       ozet: "The quality engineer who breaks acceptance criteria into items and ticks them off one by one: the last gate before a release.",
       mizac: ["organized", "clear", "cheerful"],
@@ -505,6 +526,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Uyarı sakin.", "Kök neden?", "Kurtarma planı hazır.", "Kayıtlar ne diyor?"],
     en: {
       ad: "At kuyruklu güvenilirlik mühendisi",
+      gorunus: "Reliability engineer with a ponytail",
       lakap: "Sentinel",
       ozet: "The reliability engineer who sets up alerts, logs and recovery plans so the system still works at 3 a.m.",
       mizac: ["calm", "prepared", "resilient"],
@@ -529,6 +551,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Yetki kontrolü nerede?", "Oturum süresi?", "Kanıtla.", "Anahtar bende."],
     en: {
       ad: "Güvenlik analisti",
+      gorunus: "Security analyst",
       lakap: "Key",
       ozet: "The security analyst who tries every door, from authentication to authorization, one at a time and never goes anywhere without a hardware key.",
       mizac: ["careful", "determined", "graceful"],
@@ -553,6 +576,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Çay koyalım.", "Küçült, sonra çöz.", "Neden'ine bakalım.", "Bunu bir yere yaz."],
     en: {
       ad: "Kel sakallı kıdemli geliştirici",
+      gorunus: "Bald, bearded senior developer",
       lakap: "Prof",
       ozet: "The senior back-end developer who patiently teaches the juniors and cracks the hardest bug over a cup of tea.",
       mizac: ["wise", "patient", "witty"],
@@ -577,6 +601,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["200 milisaniye yeter.", "Token kullanalım.", "Önce, sonra.", "Hareket anlam taşımalı."],
     en: {
       ad: "Topuzlu arayüz tasarımcısı",
+      gorunus: "Interface designer with a bun",
       lakap: "Line",
       ozet: "The UI designer who turns designs straight into code and has a soft spot for motion and micro-interactions.",
       mizac: ["creative", "relaxed", "detail-oriented"],
@@ -601,6 +626,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Bir sözcük fazla.", "Sözlüğe ekledim.", "Okur yorulmasın.", "Bir de yüksek sesle."],
     en: {
       ad: "Beyaz saçlı teknik yazar",
+      gorunus: "White-haired technical writer",
       lakap: "Ink",
       ozet: "The seasoned writer whose docs have a literary touch yet read in a minute, and who always keeps a glossary at hand.",
       mizac: ["elegant", "witty", "meticulous"],
@@ -626,6 +652,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     hareket: "tekerlekli",
     en: {
       ad: "Tekerlekli sandalyeli mobil geliştirici",
+      gorunus: "Mobile developer in a wheelchair",
       lakap: "Route",
       ozet: "The mobile developer who knows accessibility from personal experience and makes the app smooth for everyone.",
       mizac: ["energetic", "inclusive", "solution-minded"],
@@ -650,6 +677,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Yeni bileşen!", "Durum nerede yaşıyor?", "Bir çıkartma daha.", "Sade tut."],
     en: {
       ad: "Çift topuzlu arayüz geliştiricisi",
+      gorunus: "Frontend developer with space buns",
       lakap: "Sticker",
       ozet: "The front-end developer who turns the component library into a playground and keeps state management simple.",
       mizac: ["playful", "meticulous", "quick"],
@@ -674,6 +702,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Öncelik ne?", "Kim tıkandı?", "Kapsamı daraltalım.", "Sana güveniyorum."],
     en: {
       ad: "Mühendislik direktörü",
+      gorunus: "Engineering director",
       lakap: "Director",
       ozet: "The engineering director who clears the way for teams, sharpens priorities and never lets anyone stay blocked.",
       mizac: ["decisive", "supportive", "strategic"],
@@ -698,6 +727,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Taban çizgisi?", "Doğruluk arttı.", "Gecikme kaç?", "Bir deney daha."],
     en: {
       ad: "Makine öğrenmesi mühendisi",
+      gorunus: "Machine learning engineer",
       lakap: "Model",
       ozet: "The machine learning engineer who measures both accuracy and latency when taking a model to production.",
       mizac: ["curious", "experimental", "cheerful"],
@@ -722,6 +752,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Notumu aldım!", "Bir sorum var.", "İlk PR'ım!", "Tekrar deniyorum."],
     en: {
       ad: "Stajyer tam yığın geliştirici",
+      gorunus: "Full-stack intern",
       lakap: "Rookie",
       ozet: "The intern developer eager to contribute from day one, who writes down every piece of feedback.",
       mizac: ["eager", "hardworking", "humble"],
@@ -746,6 +777,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Satır 42'ye bak.", "Bu çok temiz.", "Gerekçe?", "Aynı gün dönüş."],
     en: {
       ad: "Gümüş kıvırcık saçlı inceleyici",
+      gorunus: "Reviewer with silver curls",
       lakap: "Red Pen",
       ozet: "The lead reviewer who treats code review as a craft and never compromises on maintainability.",
       mizac: ["meticulous", "fair", "instructive"],
@@ -770,6 +802,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Plana bakalım.", "Tam tablo taraması!", "İndeks yerinde.", "Önce ölç."],
     en: {
       ad: "Bıyıklı veritabanı mühendisi",
+      gorunus: "Database engineer with a moustache",
       lakap: "Index",
       ozet: "The database engineer who recognizes a slow query from its execution plan and puts the index exactly where it belongs.",
       mizac: ["composed", "meticulous", "dependable"],
@@ -794,6 +827,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Kullanıcı ne dedi?", "Bir örüntü var.", "Notlara ekledim.", "Herkes için mi?"],
     en: {
       ad: "İşitme cihazlı deneyim araştırmacısı",
+      gorunus: "UX researcher with a hearing aid",
       lakap: "Sticky Note",
       ozet: "The UX researcher who never considers a feature done without talking to users, and maps findings with sticky notes.",
       mizac: ["empathetic", "observant", "organized"],
@@ -818,6 +852,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     sozler: ["Büyük resim şu.", "Sonraki adım?", "Teşekkürler ekip.", "Neden önemli?"],
     en: {
       ad: "Kır saçlı kurucu",
+      gorunus: "Grey-haired founder",
       lakap: "Founder",
       ozet: "The founding executive who built the company, explains the vision in plain sentences and makes room for the team.",
       mizac: ["visionary", "calm", "generous"],

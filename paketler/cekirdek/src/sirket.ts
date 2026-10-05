@@ -168,6 +168,8 @@ const CEO_KARAR_VEREMEZ: AjanDurumu[] = ["duraklatildi", "hata"];
 const CEO_HATIRLATMA_MS = 2 * 60_000;
 /** Kurulun durdurdukları (anahtar-değer): Mesaiyi durdur ile projeler, Durdur ile çalışanlar */
 const DURDURMA_KAYDI = "kurul-durdurdu";
+/** Son bu kadar sürede bir ajanı çalışan proje etkindir (kendiliğinden iş başlatma ve hızlı hatırlatma yalnız onda) */
+export const ETKIN_PROJE_MS = 30 * 60_000;
 
 /** Denetim kaydında kararı veren (kural sütunu): "Yönetim kurulu", "Ada (CEO)", "Otomatik onay"; süre dolduysa "Süre doldu" */
 function denetimKarari(k: KurulKarari): string {
@@ -1341,6 +1343,14 @@ export class Sirket {
     if (this.durdurulan.ajanlar.has(ajanId)) return true;
     const a = this.depo.ajan(ajanId);
     return !!a && this.durdurulan.projeler.has(a.projeId);
+  }
+
+  /**
+   * Proje etkin mi: bir ajanı şu an çalışıyor ya da sırada, ya da son yarım saatte çalıştı. ArnOrg yalnız etkin
+   * projede kendiliğinden iş başlatır ve hızlı hatırlatır; açılışta uykudaki projeler kendiliğinden uyanmaz.
+   */
+  projeEtkinMi(projeId: string, simdiMs = Date.now()): boolean {
+    return this.depo.ajanlar(projeId).some((a) => calisanMi(a.durum) || this.siradaMi(a.id) || simdiMs - (this.sonEtkinlik.get(a.id) ?? 0) < ETKIN_PROJE_MS);
   }
 
   /** Projenin mesaisini kurul durdurdu mu */

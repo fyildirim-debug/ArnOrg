@@ -77,7 +77,9 @@ export function useAjanKarakteri(ajanId: string | null | undefined): KarakterVar
 /** Karakterin arayüz dilindeki görünüş tanımı; çevirisi yoksa varlık bildirimindeki ad */
 function karakterAdi(k: KarakterVarligi, dil: Dil): string {
   const tanim = karakterBul(k.id);
-  return tanim ? karakterMetni(tanim, dil).ad : k.ad;
+  if (!tanim) return k.ad;
+  const m = karakterMetni(tanim, dil);
+  return m.gorunus ?? m.ad;
 }
 
 /** Görselin üst kısmı (yüz ve omuzlar) kare ya da yuvarlak kutuda */

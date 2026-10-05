@@ -570,6 +570,10 @@ describe("iş dağıtımı", () => {
     const mesaj = vi.spyOn(sirket, "ajanaMesaj").mockResolvedValue(undefined);
     sirket.ortak.isDagitimi = true;
     try {
+      // Uykudaki proje (son yarım saatte kimse çalışmadı) kendiliğinden uyanmaz
+      expect(sirket.projeEtkinMi(p.id)).toBe(false);
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([]);
+      sirket.sonEtkinlik.set(ceo(p.id).id, Date.now());
       const baslayan = await sirket.ortak.isDagit(p.id);
       expect(baslayan.sort()).toEqual([kendi.kod, arayuz.kod].sort());
       expect(depo.gorev(kendi.id)).toMatchObject({ durum: "calisiliyor", atananId: ali.id });
@@ -604,6 +608,7 @@ describe("kurulun durdurması ve işsiz çalışanlar", () => {
     const ayse = sirket.iseAl(p.id, { ad: "Ayse", rol: "frontend" });
     const g1 = sirket.gorevOlustur(p.id, { baslik: "Sipariş API'si", atananId: ali.id, durum: "planlandi" });
     const mesaj = vi.spyOn(sirket, "ajanaMesaj").mockResolvedValue(undefined);
+    sirket.sonEtkinlik.set(ceo(p.id).id, Date.now());
     sirket.ortak.isDagitimi = true;
     try {
       // Mesaiyi durdur: boşa çıkan çalışana iş başlamaz, durdurma veri dizininde saklanır
@@ -646,6 +651,9 @@ describe("kurulun durdurması ve işsiz çalışanlar", () => {
     const { mesajlar } = casus();
     sirket.ortak.isDagitimi = true;
     try {
+      // Uykudaki projede söylenmez
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual([]);
+      sirket.sonEtkinlik.set(patron.id, Date.now());
       // CTO'nun boşta olması olağandır; CEO boşta: uyandırılır
       expect(await sirket.ortak.issizleriBildir(p.id)).toEqual(["Ali", "Nil"]);
       const not = mesajlar(patron.id).at(-1) ?? "";
@@ -923,11 +931,12 @@ describe("0.0.8 geçişi", () => {
     expect(duyuru[0]).toContain(`- Can · ${can.dal} · ${alan("Can")} (1 commit'lenmemiş değişiklik)`);
     expect(duyuru[0]).toContain(`- Duru · ${duru.dal} · ${alan("Duru")}`);
     expect(duyuru[0]).toContain(`- Ece · ${ece.dal} · ${alan("Ece")}`);
-    expect(mesajlar(ceo(p.id).id)).toHaveLength(1);
-    expect(mesajlar(ceo(p.id).id)[0]).toContain("birlestirme_iste artık yok");
+    // CEO uyandırılmaz (güncellemeden sonra uykudaki proje kendiliğinden çalışmaya başlamasın); bir sonraki turunda okur
+    expect(mesajlar(ceo(p.id).id)).toEqual([]);
+    expect(sirket.zeka.haberleriAl(ceo(p.id).id).join("\n")).toContain("birlestirme_iste artık yok");
     expect(sirket.ortak.durum(p.id).kalanlar).toHaveLength(3);
     await sirket.ortak.gecis();
     expect(genel(p.id).filter((m) => m.startsWith("ArnOrg 0.0.8:"))).toHaveLength(1);
-    expect(mesajlar(ceo(p.id).id)).toHaveLength(1);
+    expect(sirket.zeka.haberleriAl(ceo(p.id).id).join("\n")).not.toContain("birlestirme_iste artık yok");
   }, 40_000);
 });
