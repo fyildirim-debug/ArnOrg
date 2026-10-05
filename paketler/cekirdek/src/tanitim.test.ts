@@ -93,6 +93,9 @@ describe("tanıtım durumu", () => {
   it("büyük README'nin ilk 512 KB'ı yarım satır atılarak notla verilir; BOM atılır", () => {
     const bom = Buffer.from("﻿# Baş\n");
     expect(readmeMetni(bom, bom.length)).toBe("# Baş\n");
+    // Windows'ta git README'yi CRLF çıkarır; metin LF'ye indirgenir ki taslak karşılaştırması tutsun
+    const crlf = Buffer.from("# Baş\r\n\r\nMetin\r\n", "utf8");
+    expect(readmeMetni(crlf, crlf.length)).toBe("# Baş\n\nMetin\n");
     const uzun = Buffer.from("satır\n".repeat(120_000));
     const m = readmeMetni(uzun, uzun.length);
     expect(Buffer.byteLength(m)).toBeLessThanOrEqual(TANITIM_SINIRI + 120);

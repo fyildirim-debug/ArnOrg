@@ -33,9 +33,13 @@ function icinde(ust: string, alt: string): boolean {
   return fark !== "" && !fark.startsWith("..") && !path.isAbsolute(fark);
 }
 
-/** README metni: BOM atılır; sınırı aşan metnin ilk 512 KB'ı yarım kalan son satırı atılarak, kısa bir notla verilir */
+/**
+ * README metni: BOM atılır, satır sonları LF olur (Windows'ta git core.autocrlf ile dosyayı CRLF çıkarır, git show ise
+ * nesneyi LF verir; taslak karşılaştırması ikisini eşit görmeli). Sınırı aşan metnin ilk 512 KB'ı yarım kalan son satırı
+ * atılarak, kısa bir notla verilir.
+ */
 export function readmeMetni(bas: Buffer, toplam: number): string {
-  let metin = bas.subarray(0, TANITIM_SINIRI).toString("utf8").replace(/^﻿/, "");
+  let metin = bas.subarray(0, TANITIM_SINIRI).toString("utf8").replace(/^﻿/, "").replace(/\r\n?/g, "\n");
   if (toplam <= TANITIM_SINIRI) return metin;
   const son = metin.lastIndexOf("\n");
   if (son > 0) metin = metin.slice(0, son);
