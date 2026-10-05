@@ -139,7 +139,7 @@ ARNORG_DENEME_EKRAN_GORUNTUSU=/tmp/arnorg.png paketler/masaustu/cikti/linux-unpa
 
 ### İmzalama
 
-Depoya sertifika ya da anahtar konmaz. Haziran 2023'ten beri kod imzalama anahtarlarının (OV ve EV) donanım güvenlik modülünde (HSM) durması zorunlu olduğundan CI'da imza bulut HSM hizmetiyle atılır. Windows'ta `betikler/imzala.cjs` (`win.signtoolOptions.sign`) imzalanacak her dosya için çağrılır: uygulama, kaldırıcı, kurulum sihirbazı ve MSI. Sağlayıcıyı `ARNORG_IMZA` ortam değişkeni seçer; boşsa kanca bir şey yapmaz ve paketler imzasız çıkar. Her imzadan sonra Authenticode imzası doğrulanır (bazı araçlar başarısızlıkta da 0 koduyla çıkar); imza tutmazsa paketleme durur, imzalı olması beklenen sürüm imzasız yayınlanmaz.
+Depoya sertifika ya da anahtar konmaz. Haziran 2023'ten beri kod imzalama anahtarlarının (OV ve EV) donanım güvenlik modülünde (HSM) durması zorunlu olduğundan CI'da imza bulut HSM hizmetiyle atılır. Windows'ta `betikler/imzala.cjs` (`win.signtoolOptions.sign`) imzalanacak her dosya için çağrılır: uygulama, kaldırıcı, kurulum sihirbazı ve MSI. Sağlayıcıyı `ARNORG_IMZA` ortam değişkeni seçer; boşsa kanca bir şey yapmaz ve paketler imzasız çıkar. Pakette zaten geçerli imzası olan başka yayıncıların ikilileri (Claude Code'un `claude.exe`'si, node-pty'nin `OpenConsole.exe`'si) kendi imzasıyla kalır. Her imzadan sonra Authenticode imzası doğrulanır (bazı araçlar başarısızlıkta da 0 koduyla çıkar); imza tutmazsa paketleme durur, imzalı olması beklenen sürüm imzasız yayınlanmaz.
 
 Sürüm iş akışında açmak için GitHub'da **Settings → Secrets and variables → Actions**:
 

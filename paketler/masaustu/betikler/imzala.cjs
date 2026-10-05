@@ -9,8 +9,9 @@
 //   komut     ARNORG_IMZA_KOMUTU'ndaki komut PowerShell'de çalışır; {dosya} imzalanacak dosyanın tırnaklı yoluyla
 //             değişir. Başka sağlayıcılar (Azure Key Vault + AzureSignTool, donanım anahtarlı kendi koşucunuz) için.
 //
-// Her imzadan sonra Authenticode imzası doğrulanır: bazı araçlar başarısızlıkta da 0 koduyla çıkar. İmza
-// tutmazsa paketleme durur; imzalı olması beklenen bir sürüm imzasız yayınlanmaz.
+// Geçerli imzası olan dosyaya (paketteki başka yayıncıların ikilileri) dokunulmaz. Her imzadan sonra Authenticode
+// imzası doğrulanır: bazı araçlar başarısızlıkta da 0 koduyla çıkar. İmza tutmazsa paketleme durur; imzalı olması
+// beklenen bir sürüm imzasız yayınlanmaz.
 
 const { spawnSync } = require("node:child_process");
 const { existsSync, readdirSync } = require("node:fs");
@@ -92,9 +93,9 @@ function komutlaImzala(dosya) {
   calistir("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", komut]);
 }
 
-function imzayiDogrula(dosya) {
-  const durum = calistir("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-AuthenticodeSignature -LiteralPath ${psDizge(dosya)}).Status`]).trim();
-  if (durum !== "Valid") throw new Error(`İmza: ${basename(dosya)} imzası doğrulanamadı (durum: ${durum || "bilinmiyor"}).`);
+/** Authenticode durumu: Valid, NotSigned, HashMismatch… */
+function imzaDurumu(dosya) {
+  return calistir("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-AuthenticodeSignature -LiteralPath ${psDizge(dosya)}).Status`]).trim();
 }
 
 const SAGLAYICILAR = { sslcom: sslcomIleImzala, digicert: digicertIleImzala, komut: komutlaImzala };
@@ -112,8 +113,15 @@ exports.default = async function imzala(yapilandirma) {
   // Bulut araçları SHA-256 imzalar; çift imza yapılandırılırsa ikinci tur atlanır
   const dosya = yapilandirma.path;
   if (imzalananlar.has(dosya)) return;
+  // Paketteki başka yayıncıların imzalı ikilileri (claude.exe, node-pty'nin OpenConsole.exe'si) kendi imzasıyla kalır
+  if (imzaDurumu(dosya) === "Valid") {
+    console.log(`  • imza: ${basename(dosya)} zaten imzalı, olduğu gibi kalır`);
+    imzalananlar.add(dosya);
+    return;
+  }
   console.log(`  • imza: ${basename(dosya)} (${saglayici})`);
   imzalayici(dosya);
-  imzayiDogrula(dosya);
+  const durum = imzaDurumu(dosya);
+  if (durum !== "Valid") throw new Error(`İmza: ${basename(dosya)} imzası doğrulanamadı (durum: ${durum || "bilinmiyor"}).`);
   imzalananlar.add(dosya);
 };
