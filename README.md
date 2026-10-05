@@ -2,7 +2,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A software company built from Claude Code agents. You open a project; the CEO agent writes the plan, hires the team, hands out the work and reports back to you. Every tool call of every agent passes through ArnOrg's gate.
+A software company built from Claude Code agents. You open a project and tell the CEO what you want; the CEO agent writes the plan, hires the team, hands out the work, makes the decisions and reports back to you. Every tool call of every agent passes through ArnOrg's gate.
 
 ![Headquarters](docs/gorseller/en/karargah.png)
 
@@ -40,10 +40,12 @@ A software company built from Claude Code agents. You open a project; the CEO ag
   - Each agent receives the rules within its role and authority.
   - You can review, edit or switch off any rule.
 - **Headquarters.** A one-to-one chat with the CEO in #ceo and live channels with typing indicators and clickable links. #general announces when work starts, goes to review and finishes.
+- **The CEO decides, you see the results.** By default the company runs fully autonomously. Permissions, merges, hires and the other approvals go through the CEO, and every decision is listed with its reason. The CEO asks you only for what a person has to do: sign-ins, payments, external accounts. You can decide any pending approval yourself, or switch a project back to **The board decides** in its settings.
 - **Approvals.**
   - Approval types: hiring, dismissal, merges to main, constitution changes, tool requests and deliveries.
-  - Each one shows its reasoning and what happens if you approve.
-  - An **Auto-approve** checkbox approves for you, limited to the types you choose.
+  - Each one shows its reasoning, who decided and what happens if it's approved.
+  - When the board decides, an **Auto-approve** checkbox approves for you, limited to the types you choose.
+- **Showcase.** The project's README.md on its own page, second in the menu. A product marketer writes it from what the team has actually built and updates it after each delivery; a draft shows until it's merged. **Request an update** asks for a refresh.
 - **Tested before it lands.** Approved merges go through a per-project queue and a quality gate: the branch is merged in a separate workspace and the project's test command runs. Only work that passes reaches your branch; the approval card shows the test output and the diff.
 - **Work within your limits.** A cap on how many agents work at once, a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts.
 - **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
@@ -52,13 +54,13 @@ A software company built from Claude Code agents. You open a project; the CEO ag
 - **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks.
 - **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
 - **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code; new CEOs use Fable.
-- **Updates itself** from the public releases repository.
+- **Updates itself** from this repository's releases.
 - **Important moments reach you anywhere.** A pop-up appears on whichever screen you're on. When the window is in the background, you also get a desktop notification and the taskbar flashes.
-- **A team that changes over time.** The CEO can propose new hires or a dismissal later in the project. A dismissal needs your approval, and the person's work and knowledge pass to a successor.
+- **A team that changes over time.** The CEO can hire or let someone go later in the project; when the board decides, both need your approval. A departing employee's work and knowledge pass to a successor.
 - **Delivery.** When the project is done, the CEO hands it over with test steps, the run command and the address. Your feedback goes back to the CEO as work.
 - **Everything else from 0.0.1:**
   - per-project memory under `.arnorg/`;
-  - a git worktree per agent; only work the board approves reaches the main branch;
+  - a git worktree per agent; only approved work that passes the quality gate reaches the main branch;
   - live audit with policies, interjection and stopping;
   - the Office, a live 2D view of the company;
   - a built-in VS Code workbench;
@@ -75,6 +77,7 @@ A software company built from Claude Code agents. You open a project; the CEO ag
 | First run | ![First run](docs/gorseller/en/ilk-kurulum.png) |
 | Office | ![Office](docs/gorseller/en/ofis.png) |
 | Channels | ![Channels](docs/gorseller/en/kanallar.png) |
+| Showcase | ![Showcase](docs/gorseller/en/tanitim.png) |
 | Approvals | ![Approvals](docs/gorseller/en/onaylar.png) |
 | Intelligence | ![Intelligence](docs/gorseller/en/zeka.png) |
 | Open from GitHub | ![Open from GitHub](docs/gorseller/en/github.png) |

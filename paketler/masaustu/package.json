@@ -3,7 +3,7 @@
   "productName": "ArnOrg",
   "desktopName": "arnorg.desktop",
   "private": true,
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "ArnOrg masaüstü uygulaması (Electron kabuğu)",
   "license": "MIT",
   "author": {

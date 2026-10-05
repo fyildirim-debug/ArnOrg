@@ -2,7 +2,7 @@
 
 [English](README.md) · **Türkçe**
 
-Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır ve size rapor verir. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
+Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne istediğinizi CEO'ya anlatırsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır, kararları verir ve size rapor verir. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
 
 ![Karargâh](docs/gorseller/tr/karargah.png)
 
@@ -40,10 +40,12 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
   - Her ajan, rolü ve yetkisi kapsamındaki kuralları alır.
   - Her kuralı görebilir, düzenleyebilir ya da kapatabilirsiniz.
 - **Karargâh.** #yonetim'de CEO ile bire bir sohbet; yazıyor göstergesi ve tıklanabilir bağlantılarla canlı kanallar. #genel, işin başladığını, incelemeye girdiğini ve bittiğini duyurur.
+- **CEO karar verir, siz sonucu görürsünüz.** Varsayılan olarak şirket tam otonom çalışır. İzinler, birleştirmeler, işe alımlar ve öteki onaylar CEO'dan geçer; her karar gerekçesiyle listelenir. CEO size yalnız bir insanın yapması gerekenler için gelir: giriş bilgileri, ödemeler, dış hesaplar. Bekleyen bir onaya isterseniz kendiniz karar verirsiniz ya da projeyi ayarlarından **Kurul karar verir** kipine döndürürsünüz.
 - **Onaylar.**
   - Onay türleri: işe alım, işten çıkarma, main'e birleştirme, ana yasa değişikliği, araç izni ve teslim.
-  - Her onay gerekçesini ve onaylanırsa ne olacağını gösterir.
-  - **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
+  - Her onay gerekçesini, kimin karar verdiğini ve onaylanırsa ne olacağını gösterir.
+  - Kurul karar verirken **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
+- **Tanıtım.** Projenin README.md'si menünün ikinci sırasında kendi sayfasında. Tanıtım uzmanı onu ekibin gerçekten yaptıklarından yazar ve her teslimden sonra günceller; birleşene kadar taslak görünür. **Güncellenmesini iste** yenilenmesini ister.
 - **Girmeden önce test.** Onaylanan birleştirmeler proje başına bir kuyruktan ve kalite kapısından geçer: dal ayrı bir çalışma alanında birleştirilir ve projenin test komutu koşar. Yalnız testleri geçen iş dalınıza girer; onay kartı test çıktısını ve farkı gösterir.
 - **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına tavan, görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer.
 - **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
@@ -52,13 +54,13 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 - **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir.
 - **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
 - **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5); yeni CEO'lar Fable kullanır.
-- **Kendini günceller:** açık sürüm deposundan.
+- **Kendini günceller:** bu deponun sürümlerinden.
 - **Önemli anlar her ekranda.** Hangi ekranda olursanız olun açılır pencere gelir. Pencere arkadaysa masaüstü bildirimi de gelir ve görev çubuğu yanıp söner.
-- **Zamanla değişen ekip.** CEO projenin ilerleyen döneminde yeni işe alım ya da işten çıkarma önerebilir. İşten çıkarma sizin onayınızla olur; kişinin işleri ve bildikleri devralana geçer.
+- **Zamanla değişen ekip.** CEO projenin ilerleyen döneminde işe alım yapabilir ya da birini işten çıkarabilir; kurul karar verirken ikisi de sizin onayınızla olur. Ayrılanın işleri ve bildikleri devralana geçer.
 - **Teslim.** Proje bitince CEO test adımları, çalıştırma komutu ve adresle teslim eder. Geri bildiriminiz CEO'ya iş olarak döner.
 - **0.0.1'den gelenler:**
   - `.arnorg/` altında proje hafızası;
-  - her ajana ayrı git çalışma alanı; main'e yalnız kurulun onayladığı iş girer;
+  - her ajana ayrı git çalışma alanı; main'e yalnız onaylanıp kalite kapısını geçen iş girer;
   - kurallar, araya girme ve kesmeyle canlı denetim;
   - Ofis: şirketin canlı 2D hâli;
   - yerleşik VS Code tezgâhı;
@@ -75,6 +77,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 | İlk açılış | ![İlk açılış](docs/gorseller/tr/ilk-kurulum.png) |
 | Ofis | ![Ofis](docs/gorseller/tr/ofis.png) |
 | Kanallar | ![Kanallar](docs/gorseller/tr/kanallar.png) |
+| Tanıtım | ![Tanıtım](docs/gorseller/tr/tanitim.png) |
 | Onaylar | ![Onaylar](docs/gorseller/tr/onaylar.png) |
 | Zekâ | ![Zekâ](docs/gorseller/tr/zeka.png) |
 | GitHub'dan aç | ![GitHub'dan aç](docs/gorseller/tr/github.png) |
