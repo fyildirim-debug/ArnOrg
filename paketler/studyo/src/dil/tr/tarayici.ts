@@ -26,11 +26,13 @@ export const tarayici = {
   boyut: (genislik: number, yukseklik: number) => `${genislik} × ${yukseklik}`,
   yonerge: {
     baslik: "Projenin çalışan sayfasını açın",
-    adim1: "Adres çubuğuna sayfanın adresini yazın; ör. localhost:5173.",
+    adim1: "Linkler'den birine tıklayın ya da adres çubuğuna sayfanın adresini yazın; ör. localhost:5173.",
     adim2: "Öğe seç'e basın ve sayfada olmamış yere tıklayın.",
     adim3: "Ne olmadığını yazın. Notlar yanda birikir; Hepsini yaptır hepsini CEO'ya iş olarak gönderir.",
     kisayollar: (adres: string, sec: string) => `${adres} adres · ${sec} öğe seç · Esc seçiciden çık`,
     hizli: "Yerel adresler",
+    /** Projenin Linkleri (CEO'nun ve çalışanların bildirdiği, kurulun eklediği) */
+    linkler: "Projenin linkleri",
   },
   hata: {
     baslik: "Sayfa açılamadı",

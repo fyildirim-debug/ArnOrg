@@ -86,7 +86,7 @@ describe("araç sonrası kancası", () => {
     const b = (oturum as unknown as { b: OturumBaglami }).b;
     const not = b.aracSonrasi("Bash", { command: "npx vite --port 5299" }, "toolu_2", { stdout: VITE, stderr: "", interrupted: false });
     expect(not).toContain("http://localhost:5299/");
-    expect(sirket.adresler.listele(p.id)).toMatchObject([{ adres: "http://localhost:5299/", ad: "Vite", bildirenAd: "Ece", kaynak: "cikti" }]);
+    expect(sirket.adresler.listele(p.id)).toMatchObject([{ adres: "http://localhost:5299/", ad: "Vite", bildirenAd: "Ece", kaynak: "cikti", kalici: false }]);
     // Çıktısında sunucu olmayan araç: not yok, liste aynı
     expect(b.aracSonrasi("Bash", { command: "ls" }, "toolu_3", { stdout: "README.md\n", stderr: "", interrupted: false })).toBeNull();
     expect(sirket.adresler.listele(p.id)).toHaveLength(1);

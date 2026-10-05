@@ -5,6 +5,7 @@
 import type { MasaustuTarayicisi, TarayiciDurumu, TarayiciSecimi } from "@arnorg/ortak";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useSozluk } from "../../dil";
+import { useAdresler } from "../../durum/adresler";
 import { hataBildir } from "../../durum/arayuz";
 import { duzeltmeEkle } from "../../durum/duzeltmeler";
 import { useMedya } from "../../yardimcilar/kancalar";
@@ -18,6 +19,8 @@ type Genislik = 0 | 768 | 390;
 const GENISLIKLER: Genislik[] = [0, 768, 390];
 /** Yönergedeki hızlı yerel adresler */
 const YEREL_ADRESLER = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"];
+/** Yönergede adıyla gösterilen en çok link (tamamı sağdaki Linkler'de) */
+const YONERGE_LINK_SINIRI = 6;
 
 /** Görünümdeki sayfanın hangi projeye ait olduğu: ekran kapanıp açılınca sayfa yerinde kalır */
 let sayfaProjesi: string | null = null;
@@ -35,6 +38,8 @@ function SecimSimgesi() {
 export function MasaustuTarayici({ kopru, pid, ortuyor }: { kopru: MasaustuTarayicisi; pid: string | null; ortuyor: boolean }) {
   const s = useSozluk();
   const t = s.tarayici;
+  /** Projenin Linkleri: boş görünümün yönergesinde adlarıyla tek tıkla açılır */
+  const linkler = useAdresler((d) => (d.projeId === pid ? d.liste : null));
   const [durum, setDurum] = useState<TarayiciDurumu | null>(null);
   const [secim, setSecim] = useState<TarayiciSecimi | null>(null);
   const [genislik, setGenislik] = useState<Genislik>(() => gorunumGenisligi() as Genislik);
@@ -327,6 +332,18 @@ export function MasaustuTarayici({ kopru, pid, ortuyor }: { kopru: MasaustuTaray
                 <li>{t.yonerge.adim2}</li>
                 <li>{t.yonerge.adim3}</li>
               </ol>
+              {linkler?.length ? (
+                <div className="tarayici-yonerge-hizli">
+                  <span>{t.yonerge.linkler}</span>
+                  <div className="dugme-satir">
+                    {linkler.slice(0, YONERGE_LINK_SINIRI).map((a) => (
+                      <button key={a.id} type="button" className="dugme dugme-kucuk" title={a.adres} onClick={() => git(a.adres)}>
+                        {a.ad}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="tarayici-yonerge-hizli">
                 <span>{t.yonerge.hizli}</span>
                 <div className="dugme-satir">

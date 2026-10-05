@@ -305,7 +305,7 @@ export class Sirket {
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali, () => this.hesabaAjanBekliyor());
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
     this.kurulum = new Kurulum(yapilandirma, olaylar, {
-      claudeGirisiDegisti: () => void this.hesap.tazele().catch(() => undefined),
+      claudeGirisiDegisti: () => this.hesap.girisDegisti(),
       // Giriş yeniden hazır (ArnOrg'dan ya da terminalden): kimlik sorunuyla duran ajanlar kaldıkları yerden sürer
       claudeHazir: () => this.kimlikSonrasiSurdur(),
     });

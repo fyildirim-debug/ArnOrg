@@ -3,17 +3,19 @@
 //   - Ad ile karakter uyumu: çekirdekteki karakter-uyumu.ts gibi, adının cinsiyeti bilinen ve karakteri buna ters
 //     düşen çalışan açılışta bir kez aynı cinsiyetteki boş bir karaktere geçer (tohumda Kerem: k16 → k02). Karakteri
 //     kayıtsız çalışanlara ve yeni işe alımlara Stüdyo adına ve rolüne uyan karakteri kendisi seçer.
-//   - Proje adresleri (çekirdekte proje-adresleri.ts): GET /api/projeler/:pid/adresler ve adresler.guncellendi
-//     olayları (tam liste). Sipariş Paneli'nde üç adres: Ece'nin geliştirme sunucusu, Deniz'in çıktısında yakalanan
-//     API ve yanıt vermeyen Storybook. Sahne: ~40 sn sonra Mert önizleme sunucusunu açar (çıktısından yakalanır),
-//     ~70 sn sonra kapalı Storybook düşer, ~2,5 dk sonra Mert önizlemeyi kapatıp adresini kaldırır. Arnex Web
-//     Sitesi'nde adres yoktur (Tarayıcı'da bölüm görünmez).
+//   - Proje adresleri, Tarayıcı'da Linkler (çekirdekte proje-adresleri.ts): GET ve POST /api/projeler/:pid/adresler,
+//     DELETE /api/projeler/:pid/adresler/:aid, POST /api/projeler/:pid/adresler/iste ve adresler.guncellendi olayları
+//     (tam liste). Sipariş Paneli'nde dört link: CEO Ada'nın kalıcı test ortamı, Ece'nin geliştirme sunucusu, Deniz'in
+//     çıktısında yakalanan API ve yanıt vermeyen Storybook. Sahne: ~40 sn sonra Mert önizleme sunucusunu açar
+//     (çıktısından yakalanır), ~70 sn sonra kapalı Storybook düşer, ~2,5 dk sonra Mert önizlemeyi kapatıp adresini
+//     kaldırır. "CEO'dan iste" #yonetim'e kurul mesajı yazar; birkaç saniye sonra Ada yönetim panelinin linkini ekler.
+//     Arnex Web Sitesi'nde link yoktur (Tarayıcı'da bölümün boş hâli).
 //   - Toplam token (üst çubuk): kullanım ucu ve kullanim olayları sahte-sunucu.mjs'te; burada ek bir şey yok.
 //
 //   kur(c): sahte-sunucu.mjs'teki rota, db ve yardımcılarla çağrılır (surum-005-*.mjs deseni)
 //
 // Ortam:
-//   ARNORG_ADRES=yok          Sipariş Paneli adressiz başlar, sahne oynamaz (bölümün görünmediği hâl)
+//   ARNORG_ADRES=yok          Sipariş Paneli linksiz başlar, sahne oynamaz (bölümün boş hâli)
 //   ARNORG_ORNEK_ADRES=<url>  geliştirme sunucusunun adresi yerine (çerçevede gerçek bir sayfa görmek için)
 // Geliştirme ucu (yalnız sahte çekirdek):
 //   POST /api/gelistirme/adres-ornek   Mert önizleme sunucusunu hemen açar (yeni kartın girişi görülür)
@@ -94,7 +96,7 @@ function karakterUyumuGocu(db) {
 const kimlik = (adres) => crypto.createHash("sha1").update(adres.replace(/\/+$/, "")).digest("hex").slice(0, 12);
 
 export function kur(c) {
-  const { rota, db, yay, akisEkle, ajanBul, projeGerekli, Hata, simdi, yeniKimlik } = c;
+  const { rota, db, yay, akisEkle, ajanBul, projeGerekli, projeAjanlari, mesajEkle, Hata, simdi, yeniKimlik } = c;
   karakterUyumuGocu(db);
 
   const once = (dk) => new Date(Date.now() - dk * 60_000).toISOString();
@@ -106,25 +108,31 @@ export function kur(c) {
   const liste = (pid) => adresler.get(pid) ?? [];
   const yayinla = (pid) => yay({ tur: "adresler.guncellendi", projeId: pid, adresler: liste(pid) }, pid);
 
-  function adres(pid, { adres: url, ad, bildirenId, kaynak, guncelleme, durum = "acik" }) {
+  /** Yerel makine ve yerel ağ adresleri yoklanır (çekirdekteki yerelAdresMi'nin kabası) */
+  const yerelMi = (url) => /^(localhost|127\.|10\.|192\.168\.|\[::1\])/.test(new URL(url).host);
+
+  function adres(pid, { adres: url, ad, bildirenId, kaynak, guncelleme, durum, kalici = false }) {
     const b = ajanBul(bildirenId);
+    const yoklanir = yerelMi(url);
     return {
       id: kimlik(url),
       projeId: pid,
       adres: url,
       ad,
       bildirenId,
-      bildirenAd: b?.ad ?? "ArnOrg",
+      bildirenAd: kaynak === "kurul" ? ceviri("Kurul", "Board") : (b?.ad ?? "ArnOrg"),
       kaynak,
+      kalici,
       guncelleme,
-      durum,
-      denetim: simdi(),
-      yoklanir: true,
+      durum: durum ?? (yoklanir ? "acik" : "bilinmiyor"),
+      denetim: yoklanir ? simdi() : null,
+      yoklanir,
     };
   }
 
   if (!adressiz) {
     adresler.set(OFIS, [
+      adres(OFIS, { adres: "https://test.siparis-paneli.ornek.com/", ad: ceviri("Test ortamı", "Staging"), bildirenId: "ada", kaynak: "arac", guncelleme: once(95), kalici: true }),
       adres(OFIS, { adres: GELISTIRME, ad: ceviri("Geliştirme sunucusu", "Dev server"), bildirenId: "ece", kaynak: "arac", guncelleme: once(14) }),
       adres(OFIS, { adres: "http://localhost:4000/", ad: "API", bildirenId: "deniz", kaynak: "cikti", guncelleme: once(32) }),
       adres(OFIS, { adres: "http://localhost:6006/", ad: "Storybook", bildirenId: "selin", kaynak: "arac", guncelleme: once(3), durum: "kapali" }),
@@ -132,6 +140,67 @@ export function kur(c) {
   }
 
   rota("GET", "/api/projeler/:pid/adresler", ({ p }) => (projeGerekli(p.pid), liste(p.pid)));
+
+  /** Kurulun eklediği link: kalıcı; aynı adres yeniden eklenince adı güncellenir */
+  rota("POST", "/api/projeler/:pid/adresler", ({ p, govde }) => {
+    projeGerekli(p.pid);
+    let url;
+    try {
+      url = new URL(String(govde?.adres ?? "").trim()).href;
+    } catch {
+      throw new Hata(400, ceviri("Geçersiz adres.", "Invalid address."));
+    }
+    const ad = String(govde?.ad ?? "").trim().slice(0, 60);
+    if (!/^https?:/.test(url) || !ad) throw new Hata(400, ceviri("Adres ve ad gerekli.", "An address and a name are required."));
+    const yeni = adres(p.pid, { adres: url, ad, bildirenId: null, kaynak: "kurul", guncelleme: simdi(), kalici: true });
+    const vardi = liste(p.pid).some((a) => a.id === yeni.id);
+    adresler.set(p.pid, vardi ? liste(p.pid).map((a) => (a.id === yeni.id ? yeni : a)) : [...liste(p.pid), yeni]);
+    yayinla(p.pid);
+    return yeni;
+  });
+
+  rota("DELETE", "/api/projeler/:pid/adresler/:aid", ({ p }) => {
+    projeGerekli(p.pid);
+    if (!liste(p.pid).some((a) => a.id === p.aid)) throw new Hata(404, ceviri("Link bulunamadı.", "Link not found."));
+    adresler.set(
+      p.pid,
+      liste(p.pid).filter((a) => a.id !== p.aid),
+    );
+    yayinla(p.pid);
+    return { tamam: true };
+  });
+
+  /** "CEO'dan iste": #yonetim'e kurul mesajı; CEO birkaç saniye sonra yönetim panelinin linkini ekler */
+  rota("POST", "/api/projeler/:pid/adresler/iste", ({ p }) => {
+    projeGerekli(p.pid);
+    const ceo = projeAjanlari(p.pid).find((a) => a.rol === "ceo");
+    if (!ceo) throw new Hata(409, ceviri("Projede CEO yok.", "The project has no CEO."));
+    const mesaj = mesajEkle(
+      p.pid,
+      "yonetim",
+      "kurul",
+      ceviri(
+        "Tarayıcı'daki Linkler alanını güncelle: projenin açılabilen adreslerini (geliştirme sunucusu, API ve dokümanı, önizleme, test ya da canlı yayın, yönetim paneli) kısa ve açık bir adla adres_bildir ile ekle, değişenleri güncelle, artık kullanılmayanları adres_kaldir ile kaldır.",
+        "Update the Links in the Browser: add the project's openable addresses (dev server, API and its docs, preview, staging or live site, admin panel) with a short, clear name using adres_bildir, update the ones that changed, and remove the ones no longer used with adres_kaldir.",
+      ),
+    );
+    setTimeout(() => {
+      const PANEL = "http://localhost:5173/yonetim";
+      const ad = ceviri("Yönetim paneli", "Admin panel");
+      aracKaydi(ceo.id, "mcp__arnorg__adres_bildir", { adres: PANEL, ad }, ceviri(`Link kaydedildi: ${ad} → ${PANEL} (açık, bağlantı kabul ediyor).`, `Link saved: ${ad} → ${PANEL} (up, accepting connections).`));
+      if (!liste(p.pid).some((a) => a.adres === PANEL)) {
+        adresler.set(p.pid, [...liste(p.pid), adres(p.pid, { adres: PANEL, ad, bildirenId: ceo.id, kaynak: "arac", guncelleme: simdi(), kalici: true })]);
+        yayinla(p.pid);
+      }
+      mesajEkle(
+        p.pid,
+        "yonetim",
+        ceo.id,
+        ceviri("Linkleri güncelledim: yönetim panelini ekledim, test ortamı ve geliştirme sunucusu yerinde. Mert önizlemeyi açınca o da listeye düşecek.", "I've updated the links: I added the admin panel, and staging and the dev server are in place. When Mert starts the preview, it will show up in the list too."),
+      );
+    }, 3500);
+    return { mesaj };
+  });
 
   // -------------------------------------------------------------------------
   // Sahne: Mert önizleme sunucusunu açar (adres çıktısından yakalanır), Storybook düşer, Mert önizlemeyi kapatır

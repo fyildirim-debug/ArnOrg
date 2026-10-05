@@ -2288,11 +2288,15 @@ export interface AjanGuncelleIstegi {
 }
 
 // ---------------------------------------------------------------------------
-// Proje adresleri (0.0.8): projenin çalışan sunucularının adresleri (geliştirme sunucusu, API, önizleme). Çalışanlar
-// mcp__arnorg__adres_bildir ve adres_kaldir ile güncel tutar; ArnOrg çalışanların kabuk çıktısındaki "Local:
-// http://localhost:5173" gibi satırları da yakalar. Yerel makinedeki ve yerel ağdaki adresler ara ara yoklanır, uzun
-// süre kapalı kalan düşer. Stüdyo'nun Tarayıcı ekranında tek tıkla açılır.
-// Uç: GET /api/projeler/:pid/adresler (docs/API.md, "Proje adresleri"); olay: adresler.guncellendi
+// Proje adresleri (0.0.8), Tarayıcı'da "Linkler" (0.0.9): projenin açılabilen adresleri. CEO projenin linklerini verir
+// (geliştirme sunucusu, API ve dokümanı, önizleme, test ya da canlı yayın, yönetim paneli), çalışanlar başlattıkları
+// sunucuların adresini bildirir; ikisi de mcp__arnorg__adres_bildir ve adres_kaldir ile güncel tutar. ArnOrg çalışanların
+// kabuk çıktısındaki "Local: http://localhost:5173" gibi satırları da yakalar; kurul Tarayıcı'dan elle ekleyip
+// kaldırabilir. Yerel makinedeki ve yerel ağdaki adresler ara ara yoklanır. Kalıcı link kaldırılana dek durur; kalıcı
+// olmayan (çalışanın başlattığı sunucu, çıktıdan yakalanan) adres uzun süre kapalı kalınca düşer. Tarayıcı ekranının
+// sağ sütununun üstünde her zaman görünür, tek tıkla açılır.
+// Uçlar: GET ve POST /api/projeler/:pid/adresler, DELETE /api/projeler/:pid/adresler/:aid, POST
+// /api/projeler/:pid/adresler/iste (docs/API.md, "Proje adresleri"); olay: adresler.guncellendi
 // ---------------------------------------------------------------------------
 
 /** Son yoklama: acik (sunucu bağlantı kabul ediyor), kapali (yanıt yok), bilinmiyor (yoklanmadı ya da yoklanmaz) */
@@ -2304,13 +2308,19 @@ export interface ProjeAdresi {
   projeId: string;
   /** http(s) adresi, normal biçimde (0.0.0.0 yerine localhost) */
   adres: string;
-  /** Kısa ad: "Geliştirme sunucusu", "API", "Storybook" */
+  /** Kısa ad: "Geliştirme sunucusu", "API", "Test ortamı" */
   ad: string;
-  /** Bildiren çalışan; çalışan ayrılsa da adı kalır */
+  /** Bildiren çalışan; kurulun eklediği linkte null. Çalışan ayrılsa da adı kalır */
   bildirenId: string | null;
   bildirenAd: string;
-  /** arac: çalışan adres_bildir ile bildirdi · cikti: ArnOrg çalışanın kabuk çıktısında yakaladı */
-  kaynak: "arac" | "cikti";
+  /** arac: CEO ya da çalışan adres_bildir ile bildirdi · cikti: ArnOrg çalışanın kabuk çıktısında yakaladı · kurul: kurul Tarayıcı'dan ekledi */
+  kaynak: "arac" | "cikti" | "kurul";
+  /**
+   * Kalıcı link (0.0.9): kaldırılana dek durur, yanıt vermese de listeden düşmez. CEO'nun ve kurulun eklediği linkler
+   * ile yerel ağ dışındaki adresler varsayılan olarak kalıcıdır; çalışanın başlattığı yerel sunucu ve çıktıdan
+   * yakalanan adres kalıcı değildir.
+   */
+  kalici: boolean;
   /** Son bildirim ya da yakalanma anı */
   guncelleme: Zaman;
   durum: ProjeAdresiDurumu;

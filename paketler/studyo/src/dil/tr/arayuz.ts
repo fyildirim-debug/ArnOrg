@@ -1,10 +1,10 @@
-// 0.0.8 arayüz: Tarayıcı'da proje adresleri ve web kipindeki çerçeve, üst çubukta açık projenin toplam tokenı,
-// işe alım formunda adla uyumlu karakter önerisi
+// 0.0.8 arayüz: Tarayıcı'da proje adresleri (0.0.9'da Linkler) ve web kipindeki çerçeve, üst çubukta açık projenin
+// toplam tokenı, işe alım formunda adla uyumlu karakter önerisi
 export const arayuz = {
   adresler: {
-    baslik: "Proje adresleri",
-    /** Başlığın yanındaki sayaç: yanıt veren adresler */
-    sayac: (acik: number, toplam: number) => (acik === toplam ? `${acik} açık` : `${acik}/${toplam} açık`),
+    baslik: "Linkler",
+    /** Başlığın yanındaki sayaç */
+    sayac: (toplam: number) => `${toplam} link`,
     durum: {
       acik: "Açık",
       kapali: "Yanıt vermiyor",
@@ -14,9 +14,27 @@ export const arayuz = {
     yoklanmaz: "Yerel ağ dışında, yoklanmaz",
     /** Çalışanın kabuk çıktısında yakalanan adres */
     cikti: "çıktıdan",
+    /** Kurulun eklediği linkin sahibi */
+    kurul: "Kurul",
     /** Kartın erişilebilir adı */
     ac: (ad: string, durum: string, adres: string) => `${ad}, ${durum}: ${adres} adresini aç`,
     acBaslik: (adres: string) => `${adres} · tarayıcıda aç`,
+    bos: "Henüz link yok. CEO projenin linklerini buraya ekler (geliştirme sunucusu, API, önizleme, test ya da canlı yayın), çalışanlar başlattıkları sunucuların adresini bildirir. Tıklayınca burada açılır.",
+    iste: "CEO'dan iste",
+    isteBaslik: "CEO'ya projenin linklerini eklemesini ve güncel tutmasını söyle (#yonetim)",
+    istendi: "CEO'ya iletildi; linkler eklendikçe burada görünür.",
+    ekle: "Link ekle",
+    sil: (ad: string) => `${ad} linkini kaldır`,
+    silOnay: (ad: string) => `${ad} Linkler'den kaldırılsın mı?`,
+    kaldir: "Kaldır",
+    form: {
+      ad: "Ad",
+      adIpucu: "Test ortamı",
+      adres: "Adres",
+      adresIpucu: "localhost:5173 ya da https://…",
+      ekle: "Ekle",
+      adresHata: "Geçerli bir adres yazın; ör. localhost:5173 ya da https://ornek.com.",
+    },
   },
   cerceve: {
     etiket: (ad: string) => `${ad}: projenin sayfası`,

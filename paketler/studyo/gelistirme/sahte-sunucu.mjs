@@ -2172,8 +2172,8 @@ surum008Ortak({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d
 surum008Skiller({ rota, rotalar, db, yay, ajanBul, akisEkle, Hata, yeniKimlik });
 // 0.0.8: kod zekâsı bağları: grafikte içe aktarma ve anlam kenarları, ilgili dosyalar ucu (surum-008-kodzeka.mjs)
 surum008Kodzeka({ rota, rotalar, kodDurumu, alanDosyalari });
-// 0.0.8: ad ile karakter uyumu, Tarayıcı'da proje adresleri (surum-008-arayuz.mjs)
-surum008Arayuz({ rota, db, yay, akisEkle, ajanBul, projeGerekli, Hata, simdi, yeniKimlik });
+// 0.0.8: ad ile karakter uyumu, Tarayıcı'da proje adresleri; 0.0.9: Linkler (surum-008-arayuz.mjs)
+surum008Arayuz({ rota, db, yay, akisEkle, ajanBul, projeGerekli, projeAjanlari, mesajEkle, Hata, simdi, yeniKimlik });
 // 0.0.8: seçenekli sorular, CEO sohbetinde "Seçerek yanıtla", kurula sorunun seçenekleri (surum-008-secenek.mjs)
 surum008Secenek({ rota, db, yay, mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, projeYay, onaySonucuDinle: (f) => onaySonucuDinleyicileri.push(f), Hata, simdi, sonra, yeniKimlik });
 // 0.0.8: ofisin canlılığı: yazma temposu, görev kaydı, geç yanıt, CEO'nun kararını bekleme (surum-008-canli.mjs)

@@ -1,10 +1,11 @@
-// Proje adresleri (0.0.8): kabuk çıktısında sunucu adresi, kayıt, yoklama ve düşme, araçlar, uç ve talimat
+// Proje adresleri (0.0.8), Tarayıcı'da Linkler (0.0.9): kabuk çıktısında sunucu adresi, kayıt, yoklama ve düşme,
+// kalıcı linkler, araçlar, uçlar (kurulun ekleyip kaldırması, CEO'dan iste) ve talimat
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import type { Ajan, ProjeAdresi, SunucuOlayi } from "@arnorg/ortak";
+import { KURUL, type Ajan, type Mesaj, type ProjeAdresi, type SunucuOlayi } from "@arnorg/ortak";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { arnorgAracListesi } from "./arnorg-araclari.js";
 import { Depo } from "./depo.js";
@@ -63,12 +64,14 @@ describe("kabuk çıktısında sunucu adresi", () => {
 
 describe("adres kaydı", () => {
   const AJAN = { id: "a1", ad: "Ece", projeId: "p1" } as Ajan;
+  /** Kalıcı link testinin projesindeki çalışan */
+  const MERT = { id: "a4", ad: "Mert", projeId: "p4" } as Ajan;
   const degerler = new Map<string, string>();
   const depo = {
     deger: (k: string) => degerler.get(k) ?? null,
     degerYaz: (k: string, v: string) => void degerler.set(k, v),
     projeler: () => [{ id: "p1" }, { id: "p2" }] as ReturnType<Depo["projeler"]>,
-    ajan: (id: string) => (id === AJAN.id ? AJAN : null),
+    ajan: (id: string) => [AJAN, MERT].find((a) => a.id === id) ?? null,
   };
   const olaylar: SunucuOlayi[] = [];
   let saat = Date.parse("2026-10-05T10:00:00Z");
@@ -85,7 +88,7 @@ describe("adres kaydı", () => {
 
   it("bildirilen yerel adres yoklanır, saklanır ve olay yayınlanır", async () => {
     const a = await k.bildir("p1", { adres: "localhost:5173", ad: "  Geliştirme   sunucusu ", bildiren: AJAN, kaynak: "arac" });
-    expect(a).toMatchObject({ projeId: "p1", adres: "http://localhost:5173/", ad: "Geliştirme sunucusu", bildirenId: "a1", bildirenAd: "Ece", kaynak: "arac", durum: "acik", yoklanir: true });
+    expect(a).toMatchObject({ projeId: "p1", adres: "http://localhost:5173/", ad: "Geliştirme sunucusu", bildirenId: "a1", bildirenAd: "Ece", kaynak: "arac", kalici: false, durum: "acik", yoklanir: true });
     expect(a.denetim).not.toBeNull();
     expect(son()).toMatchObject({ projeId: "p1", adresler: [{ id: a.id, durum: "acik" }] });
     expect(JSON.parse(degerler.get("proje-adresleri:p1")!)).toHaveLength(1);
@@ -113,8 +116,9 @@ describe("adres kaydı", () => {
   });
 
   it("uzak adres yoklanmaz; izinli sunucu yoklanır; http(s) dışı ve kimlik bilgili adres reddedilir", async () => {
-    const uzak = await k.bildir("p2", { adres: "https://onizleme.ornek.com/", ad: "Önizleme", bildiren: AJAN, kaynak: "arac" });
-    expect(uzak).toMatchObject({ yoklanir: false, durum: "bilinmiyor", denetim: null });
+    // Yerel ağ dışındaki adres varsayılan olarak kalıcıdır; burada geçici bildirilir (bir günde düşmesi aşağıda)
+    const uzak = await k.bildir("p2", { adres: "https://onizleme.ornek.com/", ad: "Önizleme", bildiren: AJAN, kaynak: "arac", kalici: false });
+    expect(uzak).toMatchObject({ yoklanir: false, kalici: false, durum: "bilinmiyor", denetim: null });
     k.izinliHostlariAyarla(["onizleme.ornek.com"]);
     expect(k.listele("p2")[0]!.yoklanir).toBe(true);
     k.izinliHostlariAyarla([]);
@@ -164,7 +168,7 @@ describe("adres kaydı", () => {
     acikPortlar.clear();
     for (let i = 0; i < ADRES_SINIRI; i++) acikPortlar.add(6000 + i);
     for (let i = 0; i < ADRES_SINIRI; i++) await dolu.bildir("p3", { adres: `http://localhost:${6000 + i}`, ad: `S${i}`, bildiren: AJAN, kaynak: "arac" });
-    await expect(dolu.bildir("p3", { adres: "http://localhost:7000", ad: "Fazla", bildiren: AJAN, kaynak: "arac" })).rejects.toThrow(/en çok 20/);
+    await expect(dolu.bildir("p3", { adres: "http://localhost:7000", ad: "Fazla", bildiren: AJAN, kaynak: "arac" })).rejects.toThrow(/en çok 20 link/);
     acikPortlar.delete(6003);
     await dolu.yokla("p3");
     await dolu.bildir("p3", { adres: "http://localhost:7000", ad: "Yeni", bildiren: AJAN, kaynak: "arac" });
@@ -173,6 +177,67 @@ describe("adres kaydı", () => {
     expect(adlar).not.toContain("S3");
     expect(adlar.at(-1)).toBe("Yeni");
     dolu.durdur();
+  });
+
+  it("kalıcı link (0.0.9): CEO'nun, kurulun ve yerel ağ dışındaki bildirim kalıcıdır; kapalı da kalsa günler de geçse düşmez", async () => {
+    const r = kayit();
+    const CEO = { id: "c1", ad: "Ada", rol: "ceo" } as Ajan;
+    acikPortlar.clear();
+    const uygulama = await r.bildir("p4", { adres: "http://localhost:5174", ad: "Uygulama", bildiren: CEO, kaynak: "arac" });
+    const test = await r.bildir("p4", { adres: "https://test.ornek.com", ad: "Test ortamı", bildiren: AJAN, kaynak: "arac" });
+    const panel = await r.bildir("p4", { adres: "localhost:8081/yonetim", ad: "Yönetim paneli", bildiren: null, kaynak: "kurul" });
+    const onizleme = await r.bildir("p4", { adres: "http://localhost:5175", ad: "Önizleme", bildiren: AJAN, kaynak: "arac" });
+    expect([uygulama, test, panel, onizleme].map((a) => a.kalici)).toEqual([true, true, true, false]);
+    expect(panel).toMatchObject({ adres: "http://localhost:8081/yonetim", kaynak: "kurul", bildirenId: null, bildirenAd: "Kurul", durum: "kapali" });
+
+    // Çıktıdan yakalanan aynı adres adı, sahibi ve kalıcılığı değiştirmez; çalışanın kalıcılık vermeden yeniden
+    // bildirmesi adı günceller, kalıcılığı korur; açıkça geçici demesi kalıcılığı kaldırır
+    expect(r.ciktidanYakala(MERT.id, "Bash", {}, { stdout: "Local: http://localhost:5174/", stderr: "" })).toBeNull();
+    expect(r.listele("p4")[0]).toMatchObject({ ad: "Uygulama", bildirenAd: "Ada", kaynak: "arac", kalici: true });
+    expect(await r.bildir("p4", { adres: "localhost:5174", ad: "Uygulama (Vite)", bildiren: MERT, kaynak: "arac" })).toMatchObject({ ad: "Uygulama (Vite)", kalici: true });
+    expect(await r.bildir("p4", { adres: "localhost:5174", ad: "Uygulama", bildiren: CEO, kaynak: "arac", kalici: false })).toMatchObject({ kalici: false });
+    await r.bildir("p4", { adres: "localhost:5174", ad: "Uygulama", bildiren: CEO, kaynak: "arac", kalici: true });
+
+    // Kapalılık süresi dolunca yalnız geçici adres düşer; bir gün sonra da kalıcılar durur
+    saat += KAPALI_DUSME_MS + 1000;
+    await r.yokla();
+    expect(r.listele("p4").map((a) => a.ad)).toEqual(["Uygulama", "Test ortamı", "Yönetim paneli"]);
+    saat += YOKLANMAYAN_DUSME_MS + 1000;
+    await r.yokla();
+    expect(r.listele("p4").map((a) => [a.ad, a.durum])).toEqual([
+      ["Uygulama", "kapali"],
+      ["Test ortamı", "bilinmiyor"],
+      ["Yönetim paneli", "kapali"],
+    ]);
+    // Kalıcı link yalnız kaldırılınca gider
+    expect(r.kaldir("p4", "test ortamı").map((a) => a.ad)).toEqual(["Test ortamı"]);
+    r.durdur();
+  });
+
+  it("sınır doluyken kalıcı linkler yer açmaz", async () => {
+    const dolu = kayit();
+    acikPortlar.clear();
+    for (let i = 0; i < ADRES_SINIRI; i++) await dolu.bildir("p5", { adres: `http://localhost:${6100 + i}`, ad: `K${i}`, bildiren: null, kaynak: "kurul" });
+    await dolu.yokla("p5");
+    await expect(dolu.bildir("p5", { adres: "http://localhost:7100", ad: "Fazla", bildiren: AJAN, kaynak: "arac" })).rejects.toThrow(/en çok 20 link/);
+    expect(dolu.listele("p5")).toHaveLength(ADRES_SINIRI);
+    dolu.durdur();
+  });
+
+  it("0.0.8 kaydı (kalıcılık alanı yok): bildirilen uzak adres kalıcı, yerel ve çıktıdan yakalanan geçici okunur", () => {
+    const zaman = new Date(saat).toISOString();
+    const eski = (adres: string, ad: string, kaynak: string) => ({ adres, ad, kaynak, bildirenId: "a1", bildirenAd: "Ece", guncelleme: zaman, durum: "bilinmiyor", denetim: null });
+    degerler.set(
+      "proje-adresleri:p6",
+      JSON.stringify([eski("https://canli.ornek.com/", "Canlı site", "arac"), eski("http://localhost:3000/", "Geliştirme", "arac"), eski("http://localhost:4000/", "API", "cikti")]),
+    );
+    const r = kayit();
+    expect(r.listele("p6").map((a) => [a.ad, a.kalici])).toEqual([
+      ["Canlı site", true],
+      ["Geliştirme", false],
+      ["API", false],
+    ]);
+    r.durdur();
   });
 });
 
@@ -242,28 +307,60 @@ describe("araçlar, uç ve talimat", () => {
     expect(olay.adresler.map((a) => a.ad)).toEqual(["API"]);
   });
 
+  it("kurul link ekler ve kaldırır (0.0.9): kalıcı, kaynağı kurul; aynı adres adını günceller; geçersiz 400, bilinmeyen 404", async () => {
+    const ekle = (govde: Record<string, unknown>) => app.inject({ method: "POST", url: `/api/projeler/${pid}/adresler`, headers: basliklar(), payload: govde });
+    const y = await ekle({ adres: "test.ornek.com/giris", ad: " Test ortamı " });
+    expect(y.statusCode, y.body).toBe(200);
+    const link = y.json() as ProjeAdresi;
+    expect(link).toMatchObject({ adres: "https://test.ornek.com/giris", ad: "Test ortamı", kaynak: "kurul", kalici: true, bildirenId: null, bildirenAd: "Kurul", yoklanir: false });
+    const yine = await ekle({ adres: "https://test.ornek.com/giris", ad: "Test" });
+    expect(yine.json()).toMatchObject({ id: link.id, ad: "Test", kalici: true });
+    expect((await ekle({ adres: "javascript:alert(1)", ad: "x" })).statusCode).toBe(400);
+    expect((await ekle({ adres: "", ad: "x" })).statusCode).toBe(400);
+    expect((await ekle({ adres: "localhost:3000", ad: "" })).statusCode).toBe(400);
+    // Ajanlar listede görür
+    expect((await arac("adresler", {})).metin).toMatch(/Test · https:\/\/test\.ornek\.com\/giris · .* · kalıcı · Kurul ekledi/);
+    const sil = (id: string) => app.inject({ method: "DELETE", url: `/api/projeler/${pid}/adresler/${id}`, headers: basliklar() });
+    expect((await sil(link.id)).statusCode).toBe(200);
+    expect(sirket.adresler.listele(pid).some((a) => a.id === link.id)).toBe(false);
+    expect((await sil(link.id)).statusCode).toBe(404);
+  });
+
+  it("CEO'dan iste: CEO'ya #yonetim'den kurul mesajı gider, listedeki linkler de yazılır", async () => {
+    const y = await app.inject({ method: "POST", url: `/api/projeler/${pid}/adresler/iste`, headers: basliklar() });
+    expect(y.statusCode, y.body).toBe(200);
+    const { mesaj } = y.json() as { mesaj: Mesaj };
+    expect(mesaj).toMatchObject({ kanal: "yonetim", gonderenId: KURUL });
+    expect(mesaj.metin).toContain("Linkler alanını güncelle");
+    expect(mesaj.metin).toContain(`API (http://127.0.0.1:${port}/)`);
+    expect((await app.inject({ method: "POST", url: "/api/projeler/yok/adresler/iste", headers: basliklar() })).statusCode).toBe(404);
+  });
+
   it("GET /api/projeler/:pid/adresler listeyi verir; bilinmeyen proje 404", async () => {
     const y = await app.inject({ url: `/api/projeler/${pid}/adresler`, headers: basliklar() });
     expect(y.statusCode, y.body).toBe(200);
     const liste = y.json() as ProjeAdresi[];
     expect(liste).toHaveLength(1);
-    expect(liste[0]).toMatchObject({ ad: "API", adres: `http://127.0.0.1:${port}/`, bildirenAd: "Deniz", kaynak: "arac", durum: "acik", yoklanir: true });
+    expect(liste[0]).toMatchObject({ ad: "API", adres: `http://127.0.0.1:${port}/`, bildirenAd: "Deniz", kaynak: "arac", kalici: false, durum: "acik", yoklanir: true });
     const yok = await app.inject({ url: "/api/projeler/yok/adresler", headers: basliklar() });
     expect(yok.statusCode).toBe(404);
   });
 
-  it("talimat sunucuyu başlatanın adresini bildirmesini ve kapatınca kaldırmasını söyler (iki dilde)", async () => {
+  it("talimat: çalışan başlattığı sunucunun adresini bildirir, kapatınca kaldırır; CEO Linkler alanını yönetir (iki dilde)", async () => {
     const talimat = (a: Ajan) => (sirket as unknown as { talimatOlustur(a: Ajan, cwd: string): string }).talimatOlustur(a, "/tmp");
     expect(talimat(ajan)).toContain("mcp__arnorg__adres_bildir");
     expect(talimat(ajan)).toContain("adres_kaldir");
-    // CEO sunucu başlatmaz: çalışan adresleri teslimin test adımlarında kullanır
+    expect(talimat(ajan)).toContain("kalici: true");
+    // CEO projenin linklerini verir ve güncel tutar (0.0.9)
     const ceo = depo.ajanlar(pid).find((a) => a.rol === "ceo")!;
-    expect(talimat(ceo)).toContain("mcp__arnorg__adresler");
-    expect(talimat(ceo)).not.toContain("mcp__arnorg__adres_bildir");
+    expect(talimat(ceo)).toContain("Linkler alanını sen yönetirsin");
+    expect(talimat(ceo)).toContain("mcp__arnorg__adres_bildir");
+    expect(talimat(ceo)).toContain("adres_kaldir");
     const { dilKaynagi } = await import("./dil.js");
     dilKaynagi(() => "en");
     try {
       expect(talimat(ajan)).toContain("register its address with mcp__arnorg__adres_bildir");
+      expect(talimat(ceo)).toContain("You run the Links in the board's Browser");
     } finally {
       dilKaynagi(() => sirket.yapilandirma.ayarlar.dil);
     }

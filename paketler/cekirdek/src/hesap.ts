@@ -1,9 +1,12 @@
 // Claude girişi ve abonelik kullanımı: plan (Pro/Max), 5 saatlik ve haftalık pencere yüzdeleri, ayardaki üst sınır.
-// Bilgi önce açık bir ajan oturumundan, yoksa mesaj göndermeyen kısa bir Claude Code yoklamasından alınır (token harcanmaz).
-// Dönemsel okuma yalnız gerektiğinde yapılır: Stüdyo bağlıyken, açık ajan oturumu ya da abonelik sınırında bekleyen ajan
-// varken; kimse beklemese de aşılan sınırın sıfırlanma anı geçince bir kez (bilinmiyorsa sınır sürdükçe). Stüdyo
-// bağlanınca son okuma bayatsa hemen okunur.
-import { query, type AccountInfo, type SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
+// Bilgi önce açık bir ajan oturumundan, yoksa mesaj göndermeyen bir Claude Code yoklama oturumundan alınır (token
+// harcanmaz). Yoklama oturumu okumalar arasında açık kalır (her okumada yeni süreç açılmaz); iki dakika kullanılmazsa,
+// Claude girişi ya da Claude Code'un yolu değişince kapanır.
+// Dönemsel okuma yarım dakikada bir ve yalnız gerektiğinde yapılır: Stüdyo bağlıyken, açık ajan oturumu ya da abonelik
+// sınırında bekleyen ajan varken; kimse beklemese de aşılan sınırın sıfırlanma anı geçince bir kez (bilinmiyorsa sınır
+// sürdükçe). Stüdyo bağlanınca son okuma bayatsa hemen okunur. Okuma üst üste başarısız olursa aralık 1, 2 ve 5 dakikaya
+// açılır; ilk başarılı okumada yeniden yarım dakikadır.
+import { query, type AccountInfo, type Query, type SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import type { HesapDurumu, KullanimPenceresi, KullanimPenceresiTuru } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import type { OlayYolu } from "./olaylar.js";
@@ -39,6 +42,15 @@ const OLAY_TURLERI: Record<string, Exclude<KullanimPenceresiTuru, "model">> = {
   seven_day_sonnet: "haftalik_sonnet",
 };
 const API_KAYNAKLARI = new Set(["ANTHROPIC_API_KEY", "apiKeyHelper", "ANTHROPIC_AUTH_TOKEN"]);
+
+/** Gerektiğinde kullanım bu aralıkla okunur: üst çubuktaki yüzdeler yarım dakikada bir tazelenir */
+export const KULLANIM_ARALIGI_MS = 30_000;
+/** Döngü kayması: okuma birkaç saniye sürdüğünden son okuma aralıktan bu kadar genç olsa da bayat sayılır */
+const KAYMA_PAYI_MS = 5_000;
+/** Okuma üst üste başarısız olunca sonraki denemeye kadar beklenen süreler */
+export const HATA_BEKLEMELERI_MS = [60_000, 2 * 60_000, 5 * 60_000];
+/** Mesaj göndermeyen yoklama oturumu bu kadar kullanılmazsa kapanır */
+export const YOKLAMA_OTURUMU_BOSTA_MS = 2 * 60_000;
 
 export type KullanimKaynagi = () => Promise<{ hesap: AccountInfo; kullanim: SDKControlGetUsageResponse } | null>;
 
@@ -86,6 +98,12 @@ export class HesapIzleyici {
   private zamanlayici: NodeJS.Timeout | null = null;
   private suren: Promise<HesapDurumu> | null = null;
   private sonGirisKaynagi: string | null = null;
+  /** Üst üste başarısız okuma sayısı; başarılı okumada sıfırlanır */
+  private ardisikHata = 0;
+  /** Giriş ya da ayar değişince artar: o andan önce başlamış okumanın sonucu (ve hatası) yayınlanmaz */
+  private nesil = 0;
+  /** Okumalar arasında açık kalan, mesaj göndermeyen Claude Code oturumu */
+  private yoklamaOturumu: { q: Query; birak: () => void; sonKullanim: number; yol: string | null } | null = null;
   /** Sınır durumu değişince (aşıldı ↔ açıldı) çağrılır */
   sinirDegisti: ((sinir: HesapDurumu["sinir"]) => void) | null = null;
 
@@ -144,21 +162,25 @@ export class HesapIzleyici {
     return !!s && (!s.sifirlanma || Date.parse(s.sifirlanma) <= Date.now());
   }
 
-  /** Son okuma bayat mı: sınır aşıkken 2, değilken 5 dakikadan eski (hiç okunmadıysa bayat) */
+  /**
+   * Son okuma bayat mı (hiç okunmadıysa bayat): yarım dakikadan eski; okuma üst üste başarısız olduysa sırasıyla 1, 2
+   * ve 5 dakikadan eski
+   */
   private bayat(): boolean {
     const son = this.durum.guncelleme ? Date.parse(this.durum.guncelleme) : 0;
-    return Date.now() - son >= (this.durum.sinir ? 2 * 60_000 : 5 * 60_000);
+    const bekleme = this.ardisikHata > 0 ? HATA_BEKLEMELERI_MS[Math.min(this.ardisikHata, HATA_BEKLEMELERI_MS.length) - 1]! : KULLANIM_ARALIGI_MS - KAYMA_PAYI_MS;
+    return Date.now() - son >= bekleme;
   }
 
   baslat(): void {
     if (this.zamanlayici) return;
     const dongu = () => {
+      this.bostaYoklamayiKapat();
       if (this.yoklamaGerekli() && this.bayat()) void this.tazele().catch(() => undefined);
     };
     // İlk okuma da yalnız gerekiyorsa; Stüdyo sonradan bağlanırsa istemciBaglandi okur
     setTimeout(dongu, 1500).unref();
-    // Sınır aşıldıysa sıfırlanmayı yakalamak için daha sık bakılır (bayat sınırı 2 dk)
-    this.zamanlayici = setInterval(dongu, 30_000);
+    this.zamanlayici = setInterval(dongu, KULLANIM_ARALIGI_MS);
     this.zamanlayici.unref();
   }
 
@@ -170,6 +192,7 @@ export class HesapIzleyici {
   durdur(): void {
     if (this.zamanlayici) clearInterval(this.zamanlayici);
     this.zamanlayici = null;
+    this.yoklamaOturumunuKapat();
   }
 
   /** Ayar değişince (giriş yöntemi, sınırlar, dil) durum yeniden hesaplanır; pencere adları ve uyarı geçerli dilde yazılır */
@@ -177,6 +200,19 @@ export class HesapIzleyici {
     const pencereler = this.durum.pencereler.map(adiYenile);
     this.yayinla({ ...this.durum, pencereler, sinir: this.sinirHesapla(pencereler), uyari: this.uyariHesapla(this.durum) });
     void this.tazele().catch(() => undefined);
+  }
+
+  /**
+   * Claude girişi değişti (giriş, çıkış, başka hesap): eski girişle açılmış yoklama oturumu kapanır, hata beklemesi
+   * sıfırlanır; süren okuma bitince (sonucu yayınlanmadan) yeni oturumla yeniden okunur
+   */
+  girisDegisti(): void {
+    this.nesil++;
+    this.yoklamaOturumunuKapat();
+    this.ardisikHata = 0;
+    const suren = this.suren;
+    if (suren) void suren.catch(() => undefined).then(() => this.tazele().catch(() => undefined));
+    else void this.tazele().catch(() => undefined);
   }
 
   /** Ajan oturumunun init mesajındaki apiKeySource */
@@ -212,16 +248,22 @@ export class HesapIzleyici {
   }
 
   private async oku(): Promise<HesapDurumu> {
+    const nesil = this.nesil;
     let sonuc = await this.oturumdanSor().catch(() => null);
     if (!sonuc && !this.yoklamaKapali) {
       try {
         sonuc = await this.yokla();
       } catch (h) {
+        // Oturum bilerek kapatıldıysa (giriş ya da ayar değişti) hata sayılmaz; ardından yeniden okunur
+        if (nesil !== this.nesil) return this.mevcut;
+        this.ardisikHata++;
         this.yayinla({ ...this.durum, durum: "hata", hata: (h as Error).message, guncelleme: simdi() });
         return this.mevcut;
       }
     }
-    if (!sonuc) return this.mevcut;
+    // Eski girişle başlamış okumanın sonucu yayınlanmaz
+    if (!sonuc || nesil !== this.nesil) return this.mevcut;
+    this.ardisikHata = 0;
     const { hesap, kullanim } = sonuc;
     const pencereler = kullanim.rate_limits_available ? pencereleriCikar(kullanim.rate_limits) : [];
     const yeni: HesapDurumu = {
@@ -243,8 +285,39 @@ export class HesapIzleyici {
     return this.mevcut;
   }
 
-  /** Mesaj göndermeden Claude Code'u başlatır, hesap ve kullanımı sorar, kapatır */
-  private async yokla(): Promise<{ hesap: AccountInfo; kullanim: SDKControlGetUsageResponse }> {
+  /**
+   * Mesaj göndermeyen yoklama oturumundan hesap ve kullanımı sorar; oturum yoksa açar, okumadan sonra açık bırakır.
+   * Okuma başarısız olursa (süreç kapandı, yanıt gelmedi) oturum kapanır, sonraki okuma yenisini açar.
+   */
+  protected async yokla(): Promise<{ hesap: AccountInfo; kullanim: SDKControlGetUsageResponse }> {
+    const q = this.yoklamaOturumunuAl();
+    let zamanlayici: NodeJS.Timeout | undefined;
+    const zaman = new Promise<never>((_, red) => {
+      zamanlayici = setTimeout(() => red(new Error(iki("Claude Code yanıt vermedi (60 sn).", "Claude Code did not respond (60 s)."))), 60_000);
+      zamanlayici.unref();
+    });
+    try {
+      const [hesap, kullanim] = await Promise.race([
+        Promise.all([q.accountInfo(), q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })]),
+        zaman,
+      ]);
+      return { hesap, kullanim };
+    } catch (h) {
+      if (this.yoklamaOturumu?.q === q) this.yoklamaOturumunuKapat();
+      throw h;
+    } finally {
+      clearTimeout(zamanlayici);
+    }
+  }
+
+  /** Açık yoklama oturumu; yoksa (ya da Claude Code'un yolu değiştiyse) Claude Code mesaj beklemeden başlatılır */
+  private yoklamaOturumunuAl(): Query {
+    const yol = this.claudeYolu();
+    if (this.yoklamaOturumu?.yol === yol) {
+      this.yoklamaOturumu.sonKullanim = Date.now();
+      return this.yoklamaOturumu.q;
+    }
+    this.yoklamaOturumunuKapat();
     let birak: () => void = () => undefined;
     const bekle = new Promise<void>((coz) => {
       birak = coz;
@@ -252,7 +325,6 @@ export class HesapIzleyici {
     async function* hicMesajYok() {
       await bekle;
     }
-    const yol = this.claudeYolu();
     const q = query({
       prompt: hicMesajYok(),
       options: {
@@ -262,21 +334,25 @@ export class HesapIzleyici {
         env: ajanOrtami({ IS_SANDBOX: rootMu() ? "1" : undefined }),
       },
     });
-    const zaman = new Promise<never>((_, red) => setTimeout(() => red(new Error(iki("Claude Code yanıt vermedi (60 sn).", "Claude Code did not respond (60 s)."))), 60_000).unref());
+    this.yoklamaOturumu = { q, birak, sonKullanim: Date.now(), yol };
+    return q;
+  }
+
+  private yoklamaOturumunuKapat(): void {
+    const o = this.yoklamaOturumu;
+    if (!o) return;
+    this.yoklamaOturumu = null;
+    o.birak();
     try {
-      const [hesap, kullanim] = await Promise.race([
-        Promise.all([q.accountInfo(), q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })]),
-        zaman,
-      ]);
-      return { hesap, kullanim };
-    } finally {
-      birak();
-      try {
-        q.close();
-      } catch {
-        // zaten kapandı
-      }
+      o.q.close();
+    } catch {
+      // zaten kapandı
     }
+  }
+
+  /** İki dakikadır kullanılmayan yoklama oturumu kapanır (Stüdyo ayrıldı ya da okumalar ajan oturumundan geliyor) */
+  private bostaYoklamayiKapat(): void {
+    if (this.yoklamaOturumu && Date.now() - this.yoklamaOturumu.sonKullanim >= YOKLAMA_OTURUMU_BOSTA_MS) this.yoklamaOturumunuKapat();
   }
 
   private sinirHesapla(pencereler: KullanimPenceresi[]): HesapDurumu["sinir"] {

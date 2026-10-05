@@ -1,5 +1,6 @@
-/* Proje adresleri (Tarayıcı): sağ sütunun üst yarısındaki kartlar, dar ekranda notlar çekmecesinin üstündeki yatay
-   şerit; web kipinde adresin açıldığı çerçeve. Durum noktası: açık --ok, yanıt vermiyor --sil, yoklanmadı boş halka. */
+/* Linkler (Tarayıcı; 0.0.8'de proje adresleri): sağ sütunun üstündeki kartlar, her zaman görünür; boşken kısa yönerge,
+   başlıkta "CEO'dan iste" ve link ekleme. Dar ekranda notlar çekmecesinin üstündeki yatay şerit; web kipinde adresin
+   açıldığı çerçeve. Durum noktası: açık --ok, yanıt vermiyor --sil, yoklanmadı boş halka. */
 
 /* ---------- sağ sütun: üstte adresler, altta notlar ---------- */
 .tarayici-yan {
@@ -24,10 +25,41 @@
 }
 .adresler-ust {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--b-2);
   min-height: 2.75rem;
-  padding: var(--b-3) var(--b-4) var(--b-2);
+  padding: var(--b-2) var(--b-3) var(--b-2) var(--b-4);
+}
+.adresler-eylem {
+  display: flex;
+  align-items: center;
+  gap: var(--b-1);
+  margin-left: auto;
+}
+.adresler-bos,
+.adresler-istendi {
+  padding: 0 var(--b-4) var(--b-4);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.6;
+}
+.adresler-istendi {
+  color: var(--bone);
+}
+
+/* ---------- kurulun link ekleme formu ---------- */
+.adres-form {
+  display: grid;
+  gap: var(--b-2);
+  padding: 0 var(--b-4) var(--b-3);
+}
+.adres-form .alan {
+  display: grid;
+  gap: 0.25rem;
+}
+.adres-form label {
+  color: var(--muted);
+  font-size: var(--t-2xs);
 }
 .adresler-ust h2 {
   font-size: var(--t-s);
@@ -50,6 +82,33 @@
 .adres-liste > li {
   min-width: 0;
   animation: adres-gir var(--hiz-yavas) var(--egri);
+}
+/* Kart ve kaldırma düğmesi: düğme kartın sağ altında, üstüne gelince ya da odakta görünür (dokunmatikte hep) */
+.adres-oge {
+  position: relative;
+}
+.adres-sil {
+  position: absolute;
+  right: var(--b-1);
+  bottom: var(--b-1);
+  opacity: 0;
+  transition: opacity var(--hiz) ease;
+}
+.adres-oge:hover .adres-sil,
+.adres-sil:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .adres-sil {
+    opacity: 1;
+  }
+}
+/* Alt satırın sonu kaldırma düğmesine yer bırakır */
+.adres-oge .adres-alt {
+  padding-right: 1.75rem;
+}
+.adres-onay {
+  margin-top: var(--b-1);
 }
 @keyframes adres-gir {
   from {
@@ -153,7 +212,7 @@
   color: var(--sil);
 }
 
-/* ---------- dar düzen: notlar çekmecesinin üstünde yatay şerit ---------- */
+/* ---------- dar düzen: notlar çekmecesinin üstünde yatay şerit; boşken yalnız başlık satırı ---------- */
 .tarayici[data-dar] .adresler {
   max-height: none;
   border-left: 0;
@@ -162,7 +221,10 @@
 }
 .tarayici[data-dar] .adresler-ust {
   min-height: 0;
-  padding: var(--b-2) var(--b-4) var(--b-2);
+  padding: var(--b-1) var(--b-3) var(--b-1) var(--b-4);
+}
+.tarayici[data-dar] .adresler-bos {
+  display: none;
 }
 .tarayici[data-dar] .adres-liste {
   display: flex;
@@ -270,6 +332,9 @@
 @media (prefers-reduced-motion: reduce) {
   .adres-liste > li {
     animation: none;
+  }
+  .adres-sil {
+    transition: none;
   }
   .adres-git {
     transition: color var(--hiz) ease;

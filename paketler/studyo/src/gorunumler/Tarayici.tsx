@@ -2,8 +2,8 @@
 // notlar yanda birikir, "Hepsini yaptır" açık notları tek kurul mesajıyla CEO'ya (#yonetim) gönderir.
 // Masaüstünde sayfa ana süreçteki bir WebContentsView'dır (window.arnorg.tarayici, bkz. MasaustuTarayici);
 // tarayıcıdan açılan Stüdyo'da (web kipi) not elle eklenir. Notlar paneli iki kipte aynıdır.
-// Sağ sütunun üstünde projenin çalışan adresleri (ProjeAdresleri; yokken görünmez): tıklanan adres masaüstünde
-// uygulama içi tarayıcıda, web kipinde çerçevede açılır.
+// Sağ sütunun üstünde projenin Linkleri (ProjeAdresleri; her zaman görünür, CEO verir ve güncel tutar, kurul da ekler):
+// tıklanan link masaüstünde uygulama içi tarayıcıda, web kipinde çerçevede açılır.
 import "../stiller/tarayici.css";
 import type { ProjeAdresi } from "@arnorg/ortak";
 import { useEffect, useRef, useState } from "react";
@@ -49,7 +49,7 @@ export function Tarayici() {
   }, [dar]);
   useEffect(() => setCerceve(null), [pid]);
 
-  /** Proje adresi: masaüstünde uygulama içi tarayıcıda, web kipinde çerçevede; dar ekranda notlar çekmecesi kapanır */
+  /** Link: masaüstünde uygulama içi tarayıcıda, web kipinde çerçevede; dar ekranda notlar çekmecesi kapanır */
   const adresiAc = (a: ProjeAdresi) => {
     setNotlarAcik(false);
     if (!kopru) {

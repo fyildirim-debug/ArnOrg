@@ -27,11 +27,12 @@ export const tarayici: typeof tr = {
   boyut: (genislik: number, yukseklik: number) => `${genislik} × ${yukseklik}`,
   yonerge: {
     baslik: "Open your project's running page",
-    adim1: "Type the page's address in the address bar, e.g. localhost:5173.",
+    adim1: "Click one of the Links, or type the page's address in the address bar, e.g. localhost:5173.",
     adim2: "Press Pick element and click whatever isn't right.",
     adim3: "Write what's wrong. Notes pile up on the side; Get it all done sends them all to the CEO as work.",
     kisayollar: (adres: string, sec: string) => `${adres} address · ${sec} pick element · Esc leave the picker`,
     hizli: "Local addresses",
+    linkler: "Project links",
   },
   hata: {
     baslik: "The page could not be opened",

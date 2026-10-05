@@ -10,7 +10,7 @@ An AI software company built from Claude Code agents. You open a project and tel
 
 - **Desktop app for Windows and Linux**, plus a server mode.
 - **Open source** under the [MIT license](LICENSE). The desktop app updates itself from this repository's releases.
-- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage and the tokens the open project's team has spent. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
+- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage, refreshed every 30 seconds, and the tokens the open project's team has spent. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
 - **Guided first run.** A setup assistant walks you through:
   - installing and signing in to Claude Code (browser sign-in, paste the code back if asked);
   - git and your git identity;
@@ -59,7 +59,7 @@ An AI software company built from Claude Code agents. You open a project and tel
 - **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
 - **Briefings on demand.** **Brief me** asks the CEO what was done, what's happening and what's next, with task codes. A daily briefing arrives at the time you choose.
 - **Your own channels.** Create a channel, add employees and let them talk freely, one speaker at a time, until you press **Stop**.
-- **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks. The Browser also lists your project's running addresses, which the agents keep current; click one to open it.
+- **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks. The Browser's **Links** keep every address of your project one click away: the dev server, API, preview, staging or live site, admin panel. The CEO adds and updates them, employees register the servers they start, and you can add your own or **Ask the CEO** to bring them up to date.
 - **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. They walk over to ask a teammate, wait at the CEO's desk for a decision and take short breaks. Click a person for a card with what they're doing. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
 - **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code; new CEOs use Fable.
 - **Updates itself** from this repository's releases.
@@ -91,7 +91,7 @@ An AI software company built from Claude Code agents. You open a project and tel
 | Intelligence | ![Intelligence](docs/gorseller/en/zeka.png) |
 | Open from GitHub | ![Open from GitHub](docs/gorseller/en/github.png) |
 | Team and agent panel | ![Team](docs/gorseller/en/ekip.png) |
-| Browser and project addresses | ![Browser](docs/gorseller/en/tarayici.png) |
+| Browser and Links | ![Browser](docs/gorseller/en/tarayici.png) |
 | Code intelligence | ![Code intelligence](docs/gorseller/en/kod-zekasi.png) |
 | Code (VS Code workbench) | ![Code](docs/gorseller/en/kod.png) |
 

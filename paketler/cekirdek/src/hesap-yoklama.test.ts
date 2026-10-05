@@ -1,12 +1,13 @@
 // Abonelik kullanımı yalnız gerektiğinde okunur (0.0.4): Stüdyo bağlıyken, ajan oturumu ya da sınırda bekleyen ajan
-// varken, aşılan sınırın sıfırlanma anı geçince. Kimse yokken Claude Code süreci açılmaz.
+// varken, aşılan sınırın sıfırlanma anı geçince. Kimse yokken Claude Code süreci açılmaz. Gerektiğinde yarım dakikada
+// bir okunur (0.0.9); okuma üst üste başarısız olursa aralık 1, 2 ve 5 dakikaya açılır.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { Depo } from "./depo.js";
-import { HesapIzleyici, type KullanimKaynagi } from "./hesap.js";
+import { HesapIzleyici, KULLANIM_ARALIGI_MS, type KullanimKaynagi } from "./hesap.js";
 import { OlayYolu } from "./olaylar.js";
 import { Sirket } from "./sirket.js";
 import { sunucuKur } from "./sunucu.js";
@@ -67,7 +68,8 @@ describe("hesap izleyicisi: dönemsel okuma yalnız gerektiğinde", () => {
     expect(izleyici.yoklamaGerekli()).toBe(false);
   });
 
-  it("Stüdyo bağlanınca bayatsa hemen okur; bağlıyken 5 dakikada bir okur; ayrılınca durur", async () => {
+  it("Stüdyo bağlanınca bayatsa hemen okur; bağlıyken yarım dakikada bir okur; ayrılınca durur", async () => {
+    expect(KULLANIM_ARALIGI_MS).toBe(30_000);
     izleyici.baslat();
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(okuma).toBe(0);
@@ -76,21 +78,29 @@ describe("hesap izleyicisi: dönemsel okuma yalnız gerektiğinde", () => {
     izleyici.istemciBaglandi();
     await vi.advanceTimersByTimeAsync(0);
     expect(okuma).toBe(1);
-    await vi.advanceTimersByTimeAsync(4 * 60_000);
+    // Döngü yarım dakikada bir bakar; okuma birkaç saniye sürse de hiçbir bakış atlanmaz
+    await vi.advanceTimersByTimeAsync(29_000);
     expect(okuma).toBe(1);
-    await vi.advanceTimersByTimeAsync(90_000);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(okuma).toBe(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(okuma).toBe(3);
+    // Okunan yüzde Stüdyo'ya hemen gider
+    pencere = { ...pencere, utilization: 47 };
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(okuma).toBe(4);
+    expect(izleyici.mevcut.pencereler[0]).toMatchObject({ tur: "bes_saat", yuzde: 47 });
 
     istemci = 0;
     await vi.advanceTimersByTimeAsync(60 * 60_000);
-    expect(okuma).toBe(2);
+    expect(okuma).toBe(4);
   });
 
   it("taze okumadan hemen sonra bağlanan ikinci Stüdyo yeniden okutmaz", async () => {
     izleyici.baslat();
     istemci = 1;
     izleyici.istemciBaglandi();
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(okuma).toBe(1);
     istemci = 2;
     izleyici.istemciBaglandi();
@@ -103,8 +113,8 @@ describe("hesap izleyicisi: dönemsel okuma yalnız gerektiğinde", () => {
     izleyici.baslat();
     await vi.advanceTimersByTimeAsync(2_000);
     expect(okuma).toBe(1);
-    // Döngü 30 sn'de bir bakar; ilk okumadan 5 dk sonraki ilk bakışta yeniden okur
-    await vi.advanceTimersByTimeAsync(5.5 * 60_000);
+    // Döngü yarım dakikada bir bakar ve her bakışta yeniden okur
+    await vi.advanceTimersByTimeAsync(30_000);
     expect(okuma).toBe(2);
     ajanBekliyor = false;
     await vi.advanceTimersByTimeAsync(60 * 60_000);
@@ -131,6 +141,55 @@ describe("hesap izleyicisi: dönemsel okuma yalnız gerektiğinde", () => {
     // Sınır kalktı, kimse yok: yine durur
     await vi.advanceTimersByTimeAsync(60 * 60_000);
     expect(okuma).toBe(2);
+  });
+
+  it("okuma üst üste başarısız olunca 1, 2 ve 5 dakikada bir dener; başarılı okumada yeniden yarım dakika", async () => {
+    /** Açık ajan oturumu yok; yoklama oturumu sahte: hata ver dendikçe Claude Code yanıt vermiyor gibi */
+    class DenemeIzleyici extends HesapIzleyici {
+      hataVer = true;
+      deneme = 0;
+      protected override async yokla() {
+        this.deneme++;
+        if (this.hataVer) throw new Error("Claude Code yanıt vermedi (60 sn).");
+        return {
+          hesap: { email: "kurul@ornek.com", subscriptionType: "max" } as never,
+          kullanim: { rate_limits_available: true, subscription_type: "max", rate_limits: { five_hour: { utilization: 12, resets_at: null }, seven_day: null } } as never,
+        };
+      }
+    }
+    const d = new DenemeIzleyici(new Yapilandirma(fs.mkdtempSync(path.join(gecici, "veri-"))), new OlayYolu(), () => null, async () => null, false);
+    d.istemciVar = () => true;
+    try {
+      d.baslat();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(d.deneme).toBe(1);
+      expect(d.mevcut).toMatchObject({ durum: "hata", hata: expect.stringMatching(/yanıt vermedi/) });
+      // İlk hatadan sonra 1 dk beklenir (döngü yarım dakikada bir bakar)
+      await vi.advanceTimersByTimeAsync(59_000);
+      expect(d.deneme).toBe(1);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(d.deneme).toBe(2);
+      // İkinciden sonra 2 dk
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(d.deneme).toBe(2);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(d.deneme).toBe(3);
+      // Üçüncüden sonra 5 dk (en çok)
+      await vi.advanceTimersByTimeAsync(270_000);
+      expect(d.deneme).toBe(3);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(d.deneme).toBe(4);
+      // Claude Code yeniden yanıt verir: sonraki denemede okunur, aralık yeniden yarım dakika
+      d.hataVer = false;
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(d.deneme).toBe(5);
+      expect(d.mevcut).toMatchObject({ durum: "hazir", hata: null });
+      expect(d.mevcut.pencereler[0]).toMatchObject({ yuzde: 12 });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(d.deneme).toBe(6);
+    } finally {
+      d.durdur();
+    }
   });
 });
 

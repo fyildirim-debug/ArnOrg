@@ -1,10 +1,13 @@
-// Proje adresleri (0.0.8): projenin çalışan sunucularının adresleri (geliştirme sunucusu, API, önizleme).
+// Proje adresleri (0.0.8), Tarayıcı'da "Linkler" (0.0.9): projenin açılabilen adresleri (geliştirme sunucusu, API,
+// önizleme, test ya da canlı yayın, yönetim paneli).
 //
-// - Çalışanlar mcp__arnorg__adres_bildir ve adres_kaldir ile tutar (adres-araclari.ts).
+// - CEO projenin linklerini, çalışanlar başlattıkları sunucuların adresini mcp__arnorg__adres_bildir ve adres_kaldir
+//   ile tutar (adres-araclari.ts); kurul Tarayıcı'dan elle ekler ve kaldırır (adres-uclari.ts).
 // - ArnOrg çalışanların kabuk çıktısındaki "Local: http://localhost:5173", "listening on http://…", "Server running
 //   at …" gibi satırları araç sonrası kancasında yakalar (yalnız yerel makine ve yerel ağ adresleri).
 // - Yerel, yerel ağ ve çekirdeğin izinli sunucusundaki adresler ara ara yoklanır: yalnız TCP bağlantısı kurulur, HTTP
-//   isteği atılmaz. Uzun süre kapalı kalan adres listeden düşer; yoklanmayan adres bir gün yenilenmezse düşer.
+//   isteği atılmaz. Kalıcı link kaldırılana dek durur. Kalıcı olmayan adres uzun süre kapalı kalınca düşer; yoklanmayanı
+//   bir gün yenilenmezse düşer.
 // - Adres kuralları web/adres.ts ve masaüstü tarayıcısınınkiyle aynı: yalnız http ve https, kullanıcı adı ya da
 //   parola taşıyan adres reddedilir.
 // Liste proje başına depo değerinde saklanır; her değişiklikte adresler.guncellendi (tam liste) yayınlanır.
@@ -50,8 +53,26 @@ export const tcpYoklayici: Yoklayici = (sunucu, port, sureMs) =>
 export interface AdresBildirimi {
   adres: string;
   ad?: string | null;
-  bildiren: Pick<Ajan, "id" | "ad"> | null;
-  kaynak: "arac" | "cikti";
+  /** Bildiren ajan; kurulun eklediği linkte null. Rol, kalıcılığın varsayılanını belirler (CEO'nunki kalıcı) */
+  bildiren: (Pick<Ajan, "id" | "ad"> & { rol?: Ajan["rol"] }) | null;
+  kaynak: ProjeAdresi["kaynak"];
+  /**
+   * Kalıcı mı. Verilmezse yeni adreste: kurulun ve CEO'nun eklediği ve yerel ağ dışındaki adres kalıcı, çalışanın
+   * yerel sunucusu ve çıktıdan yakalanan kalıcı değil; var olan adreste değişmez
+   */
+  kalici?: boolean;
+}
+
+/** Yeni adresin kalıcılığı: verildiyse o; yoksa kurulun, CEO'nun ve yerel ağ dışındaki bildirim kalıcıdır */
+function varsayilanKalici(g: AdresBildirimi, u: URL): boolean {
+  if (g.kalici !== undefined) return g.kalici;
+  if (g.kaynak === "cikti") return false;
+  return g.kaynak === "kurul" || g.bildiren?.rol === "ceo" || !yerelAdresMi(u);
+}
+
+/** Bildirenin görünen adı: ajanın adı; kurulun eklediğinde "Kurul" */
+function bildirenAdi(g: AdresBildirimi): string {
+  return g.bildiren?.ad ?? (g.kaynak === "kurul" ? iki("Kurul", "Board") : "ArnOrg");
 }
 
 export interface AdresBaglami {
@@ -225,6 +246,7 @@ function oku(ham: string | null, projeId: string): ProjeAdresi[] {
     } catch {
       continue;
     }
+    const kaynak = x.kaynak === "cikti" || x.kaynak === "kurul" ? x.kaynak : "arac";
     liste.push({
       id: adresKimligi(u),
       projeId,
@@ -232,7 +254,9 @@ function oku(ham: string | null, projeId: string): ProjeAdresi[] {
       ad: x.ad,
       bildirenId: typeof x.bildirenId === "string" ? x.bildirenId : null,
       bildirenAd: typeof x.bildirenAd === "string" ? x.bildirenAd : "ArnOrg",
-      kaynak: x.kaynak === "cikti" ? "cikti" : "arac",
+      kaynak,
+      // 0.0.8 kaydında alan yok: çalışanın bildirdiği yerel ağ dışındaki adres kalıcı sayılır (eskiden bir günde düşerdi)
+      kalici: typeof x.kalici === "boolean" ? x.kalici : kaynak !== "cikti" && !yerelAdresMi(u),
       guncelleme: x.guncelleme,
       durum: x.durum === "acik" || x.durum === "kapali" ? x.durum : "bilinmiyor",
       denetim: typeof x.denetim === "string" ? x.denetim : null,
@@ -286,8 +310,8 @@ export class ProjeAdresleri {
   }
 
   /**
-   * Adresi ekler ya da yeniler. Çalışanın bildirdiği ad ve bildiren, çıktıdan yakalanan aynı adresle ezilmez.
-   * Yoklanan adres hemen yoklanır; bekle ise sonucu bekler (aracın yanıtı durumu söyler).
+   * Adresi ekler ya da yeniler. Bildirilen ya da kurulun eklediği adresin adı ve bildireni, çıktıdan yakalanan aynı
+   * adresle ezilmez. Yoklanan adres hemen yoklanır; bekle ise sonucu bekler (aracın yanıtı durumu söyler).
    */
   async bildir(projeId: string, g: AdresBildirimi, bekle = true): Promise<ProjeAdresi> {
     const { adres, yoklama } = this.ekle(projeId, g);
@@ -343,8 +367,8 @@ export class ProjeAdresleri {
     if (!yeniler.length) return null;
     const liste = yeniler.join(", ");
     return iki(
-      `[ArnOrg] Çıktındaki ${liste} adresini proje adreslerine ekledim; kurul Tarayıcı'dan tek tıkla açar. Adı yanlışsa adres_bildir ile düzelt; sunucuyu kapatınca adres_kaldir ile kaldır.`,
-      `[ArnOrg] I added ${liste} from your output to the project addresses; the board opens it from the Browser with one click. If the name is wrong, fix it with adres_bildir; when you stop the server, remove it with adres_kaldir.`,
+      `[ArnOrg] Çıktındaki ${liste} adresini Tarayıcı'daki Linkler'e ekledim; kurul tek tıkla açar. Adı yanlışsa adres_bildir ile düzelt; sunucuyu kapatınca adres_kaldir ile kaldır.`,
+      `[ArnOrg] I added ${liste} from your output to the Links in the Browser; the board opens it with one click. If the name is wrong, fix it with adres_bildir; when you stop the server, remove it with adres_kaldir.`,
     );
   }
 
@@ -371,17 +395,18 @@ export class ProjeAdresleri {
     const ad = adTemizle(g.ad);
     let a = this.liste(projeId).find((x) => x.id === id);
     if (a) {
-      if (g.kaynak === "arac" || a.kaynak === "cikti") {
+      if (g.kaynak !== "cikti" || a.kaynak === "cikti") {
         a.ad = ad ?? a.ad;
         a.bildirenId = g.bildiren?.id ?? null;
-        a.bildirenAd = g.bildiren?.ad ?? "ArnOrg";
+        a.bildirenAd = bildirenAdi(g);
         a.kaynak = g.kaynak;
       }
+      if (g.kalici !== undefined) a.kalici = g.kalici;
       a.guncelleme = zaman;
     } else {
       if (this.liste(projeId).length >= ADRES_SINIRI && !this.yerAc(projeId)) {
         throw new ArnorgHatasi(
-          iki(`Projede en çok ${ADRES_SINIRI} adres tutulur; kullanılmayanları adres_kaldir ile kaldır.`, `A project keeps at most ${ADRES_SINIRI} addresses; remove unused ones with adres_kaldir.`),
+          iki(`Projede en çok ${ADRES_SINIRI} link tutulur; kullanılmayanları kaldırın (adres_kaldir).`, `A project keeps at most ${ADRES_SINIRI} links; remove unused ones (adres_kaldir).`),
           409,
         );
       }
@@ -391,8 +416,9 @@ export class ProjeAdresleri {
         adres: u.href,
         ad: ad ?? iki("Geliştirme sunucusu", "Dev server"),
         bildirenId: g.bildiren?.id ?? null,
-        bildirenAd: g.bildiren?.ad ?? "ArnOrg",
+        bildirenAd: bildirenAdi(g),
         kaynak: g.kaynak,
+        kalici: varsayilanKalici(g, u),
         guncelleme: zaman,
         durum: "bilinmiyor",
         denetim: null,
@@ -424,10 +450,10 @@ export class ProjeAdresleri {
     return l;
   }
 
-  /** Sınır doluyken en eski kapalı ya da yoklanmayan adres yer açar */
+  /** Sınır doluyken kalıcı olmayan en eski kapalı ya da yoklanmayan adres yer açar; kalıcı link yer açmaz */
   private yerAc(projeId: string): boolean {
     const liste = this.liste(projeId);
-    const aday = liste.filter((a) => a.durum !== "acik").sort((x, y) => x.guncelleme.localeCompare(y.guncelleme))[0];
+    const aday = liste.filter((a) => !a.kalici && a.durum !== "acik").sort((x, y) => x.guncelleme.localeCompare(y.guncelleme))[0];
     if (!aday) return false;
     this.listeler.set(
       projeId,
@@ -472,9 +498,11 @@ export class ProjeAdresleri {
       s.a.durum = durum;
       s.a.denetim = zaman;
     }
-    // Uzun süre kapalı kalan ve yenilenmeyen yoklanmayan adres düşer (kimlikler verildiyse yalnız tek yoklama: düşürme yok)
+    // Kalıcı olmayan adreslerden uzun süre kapalı kalan ve yenilenmeyen yoklanmayan düşer (kimlikler verildiyse yalnız
+    // tek yoklama: düşürme yok). Kalıcı link yalnız kaldırılınca gider
     if (!kimlikler) {
       const kalan = this.liste(projeId).filter((a) => {
+        if (a.kalici) return true;
         if (a.yoklanir) return a.durum !== "kapali" || simdiMs - (this.kapanmalar.get(`${projeId}:${a.id}`) ?? simdiMs) < KAPALI_DUSME_MS;
         return simdiMs - Date.parse(a.guncelleme) < YOKLANMAYAN_DUSME_MS;
       });

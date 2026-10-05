@@ -10,7 +10,7 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
 
 - **Windows ve Linux'ta masaüstü uygulaması**, ayrıca sunucu modu.
 - **Açık kaynak**, [MIT lisansıyla](LICENSE). Masaüstü uygulaması kendini bu deponun sürümlerinden günceller.
-- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 5 saatlik ve haftalık pencere kullanımı ile açık projede ekibin harcadığı token görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
+- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 30 saniyede bir tazelenen 5 saatlik ve haftalık pencere kullanımı ile açık projede ekibin harcadığı token görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
 - **Yönlendirmeli ilk açılış.** Kurulum asistanı sizi adım adım götürür:
   - Claude Code kurulumu ve girişi (tarayıcıdan giriş; istenirse kodu yapıştırma);
   - git ve git kimliğiniz;
@@ -59,7 +59,7 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
 - **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
 - **İstediğinizde brifing.** **Brifing ver**, CEO'ya ne yapıldığını, ne olduğunu ve sırada ne olduğunu görev kodlarıyla yazdırır. Her gün seçtiğiniz saatte de brifing gelir.
 - **Kendi kanallarınız.** Kanal kurun, çalışanları ekleyin ve siz **Durdur** diyene kadar sırayla, serbestçe konuşsunlar.
-- **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir. Tarayıcı projenin çalışan adreslerini de listeler; listeyi ajanlar güncel tutar, tıklayınca açılır.
+- **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir. Tarayıcı'daki **Linkler** projenin bütün adreslerini tek tık uzakta tutar: geliştirme sunucusu, API, önizleme, test ya da canlı yayın, yönetim paneli. CEO ekler ve güncel tutar, çalışanlar başlattıkları sunucuları bildirir; siz de ekleyebilir ya da **CEO'dan iste** ile güncelletebilirsiniz.
 - **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Bir ekip arkadaşına sormak için masasına gider, karar için CEO'nun masasında bekler, arada kısa mola verir. Bir kişiye tıklayınca ne yaptığını gösteren kart açılır. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
 - **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5); yeni CEO'lar Fable kullanır.
 - **Kendini günceller:** bu deponun sürümlerinden.
@@ -91,7 +91,7 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
 | Zekâ | ![Zekâ](docs/gorseller/tr/zeka.png) |
 | GitHub'dan aç | ![GitHub'dan aç](docs/gorseller/tr/github.png) |
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/tr/ekip.png) |
-| Tarayıcı ve proje adresleri | ![Tarayıcı](docs/gorseller/tr/tarayici.png) |
+| Tarayıcı ve Linkler | ![Tarayıcı](docs/gorseller/tr/tarayici.png) |
 | Kod zekâsı | ![Kod zekâsı](docs/gorseller/tr/kod-zekasi.png) |
 | Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/tr/kod.png) |
 
