@@ -2,12 +2,13 @@
 // kimlik ve ana yasa en başta; ardından global standartlar, rol, ortak kurallar, kanallar, karar yetkisi (oturum
 // başındaki kipe göre), hafıza araçları, ekip ve bağlar, kişisel hafıza (donmuş anlık görüntü), beceriler, proje hafızası,
 // kişilik ve ek talimat.
-import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type Proje, type Rol } from "@arnorg/ortak";
+import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type EkipTemposu, type Proje, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { adresTalimati } from "./adres-araclari.js";
 import { anayasaTalimati } from "./anayasa.js";
 import { ilgiliDosyalarTalimati } from "./kod-zekasi/araclar.js";
 import { kararYetkisiTalimati } from "./karar-yetkisi.js";
+import { ortakCeoTalimati, ortakKurallar, ortakProjeSatiri } from "./ortak-calisma/talimat.js";
 import { rolBul } from "./roller.js";
 import { secenekTalimati } from "./secenek/index.js";
 import { skillTalimati } from "./skiller.js";
@@ -61,6 +62,8 @@ export interface TalimatBaglami {
   /** Proje hafızası, defter ve bekleyen sorular */
   hafizaBaglami: string;
   dil: Dil;
+  /** 0.0.8 · ekip temposu (CEO'nun ortak çalışma bölümü için) */
+  tempo?: EkipTemposu;
 }
 
 /** Rolün seçilen dildeki adı (kayıtlı rolAdi işe alındığı dildedir) */
@@ -122,7 +125,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "# ArnOrg",
       `Your name is ${ajan.ad}; you work as ${rolim} at the ArnOrg software company. Your manager: ${yoneticiMetni}.`,
       `Project: ${proje.ad}${proje.aciklama ? ` — ${proje.aciklama}` : ""}`,
-      `Main repository: ${proje.yol} (working branch ${proje.varsayilanDal}; approved work is merged into it). Your working directory: ${b.cwd}${ajan.dal ? ` (branch ${ajan.dal})` : ""}.`,
+      ortakProjeSatiri(proje, b.cwd, "en"),
       "",
       anayasaTalimati(b.anayasa, b.dil),
       b.kuresel ? `\n${b.kuresel}` : "",
@@ -135,15 +138,10 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "- Before starting, read the relevant notes with mcp__arnorg__notlari_listele and not_oku. Record decisions with not_yaz under notlar/kararlar/.",
       "- Keep your task status current with mcp__arnorg__gorev_guncelle. When the work is done move it to 'inceleme' (review) and summarise what you did.",
       soruKurali,
-      "- The mcp__arnorg__* tools are your own tools; call them directly. If one is not loaded yet, load it with ToolSearch (for example select:mcp__arnorg__birlestirme_iste) and then call it by name right away.",
+      "- The mcp__arnorg__* tools are your own tools; call them directly. If one is not loaded yet, load it with ToolSearch (for example select:mcp__arnorg__isi_kaydet) and then call it by name right away.",
       "- Every tool call passes ArnOrg's gate. Do not try to force a denied call another way; read the reason and ask for permission with kurula_sor if needed.",
-      `- Only write inside your own working directory. Pushing to a remote, releasing and deploying ${gonderimOnayi}; ArnOrg pushes the approved work on ${proje.varsayilanDal} itself.`,
-      '- Commit your code; messages say what changed. Never add Co-Authored-By, "Generated with Claude Code" or any other Claude signature to a commit message.',
-      ...(proje.testKomutu
-        ? [
-            `- Quality gate: before an approved merge enters ${proje.varsayilanDal}, ArnOrg merges the branch in a clean copy and runs \`${proje.testKomutu}\`${proje.hazirlikKomutu ? ` (after \`${proje.hazirlikKomutu}\`)` : ""}; if it fails, nothing is merged. Run the same command in your working directory before birlestirme_iste.`,
-          ]
-        : []),
+      // Ortak çalışma (0.0.8): dosya kiraları, salt okunur git, ArnOrg'un görev kaydı ve kalite denetimi
+      ...ortakKurallar({ proje, ceo, gonderimOnayi }, "en"),
       "- When searching code, use mcp__arnorg__kod_ara first (semantic; ask in plain English or Turkish). Use sembol_bul for a definition you know by name, kod_haritasi for the project's structure, bagimliliklar for who uses a file, benzer_kod for duplicated code. Use Grep and Read when you already know where to look.",
       ilgiliDosyalarTalimati("en"),
       // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
@@ -160,6 +158,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       ...secenekTalimati(ceo, "en"),
       yonetici ? `- As the project evolves, propose hiring with ise_al_teklif when the team is short and propose letting someone go with isten_cikar_teklif when a role is no longer needed; ${teklifSonu}` : "",
       ...(kararBolumu.length ? ["", ...kararBolumu] : []),
+      ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo }, "en")] : []),
       "",
       "## Remembering and thinking together",
       "- You have your own lasting intelligence. Never forget your assigned work, your promises or who you are. ArnOrg reminds you of these from time to time; act on the reminders.",
@@ -194,7 +193,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "# ArnOrg",
     `Adın ${ajan.ad}; ArnOrg yazılım şirketinde ${rolim} olarak çalışıyorsun. Yöneticin: ${yoneticiMetni}.`,
     `Proje: ${proje.ad}${proje.aciklama ? ` — ${proje.aciklama}` : ""}`,
-    `Ana repo: ${proje.yol} (çalışma dalı ${proje.varsayilanDal}; onaylı işler buna birleşir). Çalışma dizinin: ${b.cwd}${ajan.dal ? ` (dal ${ajan.dal})` : ""}.`,
+    ortakProjeSatiri(proje, b.cwd, "tr"),
     "",
     anayasaTalimati(b.anayasa, b.dil),
     b.kuresel ? `\n${b.kuresel}` : "",
@@ -207,15 +206,10 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "- İşe başlamadan mcp__arnorg__notlari_listele ve not_oku ile ilgili notları oku. Kararları not_yaz ile notlar/kararlar/ altına yaz.",
     "- Görevin durumunu mcp__arnorg__gorev_guncelle ile güncel tut. İş bitince 'inceleme' durumuna al ve ne yaptığını özetle.",
     soruKurali,
-    "- mcp__arnorg__* araçları senin araçların; doğrudan çağır. Henüz yüklenmemişse ToolSearch ile yükle (ör. select:mcp__arnorg__birlestirme_iste), sonra hemen adıyla çağır.",
+    "- mcp__arnorg__* araçları senin araçların; doğrudan çağır. Henüz yüklenmemişse ToolSearch ile yükle (ör. select:mcp__arnorg__isi_kaydet), sonra hemen adıyla çağır.",
     "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
-    `- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım ${gonderimOnayi}; ${proje.varsayilanDal} dalındaki onaylı işi uzak depoya ArnOrg kendisi gönderir.`,
-    '- Kodu commit\'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, "Generated with Claude Code" ya da başka bir Claude imzası ekleme.',
-    ...(proje.testKomutu
-      ? [
-          `- Kalite kapısı: onaylı birleştirme ${proje.varsayilanDal} dalına girmeden önce ArnOrg dalı temiz bir kopyada birleştirip \`${proje.testKomutu}\` koşar${proje.hazirlikKomutu ? ` (önce \`${proje.hazirlikKomutu}\`)` : ""}; geçmezse birleştirmez. birlestirme_iste'den önce aynı komutu kendi çalışma dizininde koş.`,
-        ]
-      : []),
+    // Ortak çalışma (0.0.8): dosya kiraları, salt okunur git, ArnOrg'un görev kaydı ve kalite denetimi
+    ...ortakKurallar({ proje, ceo, gonderimOnayi }, "tr"),
     "- Kodda bir şey ararken önce mcp__arnorg__kod_ara kullan (anlamsal; Türkçe ya da İngilizce doğal dille sorabilirsin). Tam adını bildiğin tanım için sembol_bul, projenin yapısı için kod_haritasi, bir dosyayı kimin kullandığı için bagimliliklar, tekrar eden kod için benzer_kod. Grep ve Read'i yer kesin belliyken kullan.",
     ilgiliDosyalarTalimati("tr"),
     // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
@@ -232,6 +226,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     ...secenekTalimati(ceo, "tr"),
     yonetici ? `- Proje ilerledikçe ekip yetmiyorsa ise_al_teklif ile işe alım, bir role artık gerek kalmadıysa isten_cikar_teklif ile işten çıkarma öner; ${teklifSonu}` : "",
     ...(kararBolumu.length ? ["", ...kararBolumu] : []),
+    ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo }, "tr")] : []),
     "",
     "## Unutmamak ve birlikte düşünmek",
     "- Kendine ait kalıcı bir zekân var. Sana verilen işleri, verdiğin sözleri ve kim olduğunu asla unutma. ArnOrg bunları ara ara hatırlatır; hatırlatmalara göre davran.",

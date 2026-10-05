@@ -17,7 +17,7 @@ export const projeler: typeof tr = {
   listedenCikar: "Remove from list",
   cikarEtiket: (ad: string) => `Remove ${ad} from the list`,
   cikarOnay: (ad: string) =>
-    `${ad} will be removed from the ArnOrg list. The repo, the .arnorg/ folder and the workspaces stay on disk; you can connect the same path again.`,
+    `${ad} will be removed from the ArnOrg list. The repo and the .arnorg/ folder stay on disk; you can connect the same path again.`,
   cikarildi: (ad: string) => `${ad} was removed from the list. Its files were not touched.`,
   form: {
     ilkBaslik: "Open your first project",
@@ -31,7 +31,7 @@ export const projeler: typeof tr = {
     ac: "Project settings",
     acEtiket: (ad: string) => `Settings for ${ad}`,
     dal: "Working branch",
-    dalIpucu: "Agents branch off it, and approved merges go into it.",
+    dalIpucu: "The team works on this branch together; ArnOrg commits every task to it.",
     dalDegistir: "Change branch",
     dalDegisti: (dal: string) => `The working branch is now ${dal}.`,
     dallarAlinamadi: "Couldn't load branches",
@@ -48,10 +48,10 @@ export const projeler: typeof tr = {
     githubBagliDegil: "GitHub isn't connected; connect it first to create a repository.",
     githubBagla: "Connect in Settings",
     gonderim: "Pushing",
-    otomatikGonder: "Push to the remote after approved merges",
-    otomatikGonderIpucu: "When off, approved work only goes into the working branch on this computer.",
+    otomatikGonder: "Push to the remote after task saves",
+    otomatikGonderIpucu: "When off, task saves stay on the working branch on this computer.",
     otomatikGonderUzakYok: "Takes effect once a remote is connected.",
-    otomatikAcik: "Approved merges will also be pushed to the remote.",
-    otomatikKapali: "Approved merges will stay on this computer.",
+    otomatikAcik: "Task saves will also be pushed to the remote.",
+    otomatikKapali: "Task saves will stay on this computer.",
   },
 };

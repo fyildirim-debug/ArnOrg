@@ -1,11 +1,11 @@
 // Tanıtım alanı: projenin kök README.md'si kurulun Stüdyo'nun Tanıtım alanında okuduğu vitrin sayfasıdır. Tanıtım
-// uzmanı (rol tanitim) README.md'yi kendi çalışma alanında yazar ve birleştirme ister; birleşene dek o hâli taslak
-// olarak görünür. Bu modül yayındaki ve taslak README'yi, son commit künyesini, uzmanı ve kurulun güncelleme isteğini
-// derler; isteği uzmana, uzman yoksa işe alması için CEO'ya iletir; README değişince ve iş birleşince tanitim.degisti
-// yayınlar. CEO talimatına giren satır da buradadır (talimat.ts).
+// uzmanı (rol tanitim) README.md'yi ortak projede yazar (0.0.8); çalışma dalına commit'lenmiş hâli yayındadır, çalışma
+// kopyasında ondan farklı (henüz kaydedilmemiş) hâli taslak olarak görünür. Bu modül yayındaki ve taslak README'yi, son
+// commit künyesini, uzmanı ve kurulun güncelleme isteğini derler; isteği uzmana, uzman yoksa işe alması için CEO'ya
+// iletir; README değişince ve README'li bir görev kaydedilince tanitim.degisti yayınlar. CEO talimatına giren satır da
+// buradadır (talimat.ts).
 // Yalnız alanın kökündeki README.md okunur: yol istekten gelmez, alanın dışını gösteren sembolik bağlantı okunmaz.
 // Uçlar: tanitim-uclari.ts, sözleşme: docs/API.md "Tanıtım".
-import fs from "node:fs";
 import fsp, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { TANITIM_DOSYASI, type Ajan, type Dil, type Proje, type SunucuOlayi, type TanitimDurumu, type TanitimGuncellemeYaniti } from "@arnorg/ortak";
@@ -82,40 +82,14 @@ export async function sonCommit(kok: string, dal: string): Promise<TanitimDurumu
   }
 }
 
-/** Alanın çalışma dalıyla ortak atasındaki README.md: orada yoksa null, ortak ata bulunamazsa undefined */
-async function atadakiReadme(alan: string, dal: string): Promise<string | null | undefined> {
-  let ata: string;
+/** Çalışma dalına commit'lenmiş README.md; dal ya da dosya yoksa null */
+async function kayitliReadme(kok: string, dal: string): Promise<string | null> {
   try {
-    ata = (await gitIslemleri.git(alan, ["merge-base", `refs/heads/${dal}`, "HEAD"])).trim();
-  } catch {
-    return undefined;
-  }
-  if (!ata) return undefined;
-  try {
-    const ham = Buffer.from(await gitIslemleri.git(alan, ["show", `${ata}:${TANITIM_DOSYASI}`]), "utf8");
+    const ham = Buffer.from(await gitIslemleri.git(kok, ["show", `refs/heads/${dal}:${TANITIM_DOSYASI}`]), "utf8");
     return readmeMetni(ham, ham.length);
   } catch {
     return null;
   }
-}
-
-/**
- * Uzmanın alanındaki README.md taslak mı: ana repodakinden farklı ve uzman ona dokunmuş. Alandaki hâl ortak atadaki
- * hâliyle aynıysa fark ana reponun ilerlemesindendir (alan geride kalmış), taslak sayılmaz.
- */
-async function taslakBul(p: Proje, a: Ajan, ana: string | null): Promise<TanitimDurumu["taslak"]> {
-  const alan = a.calismaAlani;
-  if (!alan || !fs.existsSync(alan) || gitIslemleri.ayniYol(alan, p.yol)) return null;
-  const oku = await readmeOku(alan);
-  if (!oku || oku.icerik === ana) return null;
-  if ((await atadakiReadme(alan, p.varsayilanDal)) === oku.icerik) return null;
-  return { ajanId: a.id, ajanAd: a.ad, icerik: oku.icerik, zaman: oku.zaman };
-}
-
-/** Kurulun birleştirmesi kalite kapısını geçip ana dala girdi mi (onayın veri.kalite alanı) */
-function birlestiMi(veri: unknown): boolean {
-  const k = (veri as { kalite?: { durum?: unknown } } | null)?.kalite;
-  return !!k && typeof k === "object" && k.durum === "birlesti";
 }
 
 /** Değişen yol kök README.md mi (Windows ve macOS'ta büyük/küçük harf duyarsız dosya sistemi) */
@@ -133,12 +107,12 @@ export function uzmanaIstekMetni(not: string): string {
     [
       "Kurul Tanıtım alanındaki README.md'nin güncellenmesini istiyor.",
       ...(not ? [`Kurulun notu: ${not}`] : []),
-      "README.md'yi projenin bugünkü hâline göre gözden geçir: son teslimleri, birleşen işleri, görevleri ve git geçmişini oku; yalnız gerçekte var olanı yaz, eskiyen yeri düzelt. Bitince commit'le ve birlestirme_iste ile kısa bir özetle birleştirme iste.",
+      "README.md'yi projenin bugünkü hâline göre gözden geçir: son teslimleri, kaydedilen işleri, görevleri ve git geçmişini oku; yalnız gerçekte var olanı yaz, eskiyen yeri düzelt. Bitince isi_kaydet ile kısa bir özetle kaydet ya da görevini 'inceleme'ye al; ArnOrg commit'ler.",
     ].join("\n"),
     [
       "The board wants the README.md in the Showcase area updated.",
       ...(not ? [`The board's note: ${not}`] : []),
-      "Review README.md against the project as it is today: read the latest deliveries, merged work, tasks and git history; write only what really exists and fix whatever has gone stale. When done, commit and ask for the merge with birlestirme_iste and a short summary.",
+      "Review README.md against the project as it is today: read the latest deliveries, saved work, tasks and git history; write only what really exists and fix whatever has gone stale. When done, save it with isi_kaydet and a short summary or move your task to 'inceleme'; ArnOrg commits it.",
     ].join("\n"),
   );
 }
@@ -146,14 +120,14 @@ export function uzmanaIstekMetni(not: string): string {
 /** Uzman yokken kurulun #yonetim'e (CEO'ya) yazdığı mesaj */
 export function ceoyaIstekMetni(not: string): string {
   return iki(
-    `Tanıtım alanında projenin README.md'sini görmek istiyorum. Ekipte tanıtım uzmanı yok: ise_al_teklif ile bir Tanıtım uzmanı (rol: tanitim) işe almayı öner; işe alınınca README.md'yi yazmasını ve birleştirme istemesini sağla.${not ? `\n\nNotum: ${not}` : ""}`,
-    `I want to see the project's README.md in the Showcase area. There is no product marketer on the team: propose hiring a Product marketer (role: tanitim) with ise_al_teklif; once hired, have them write README.md and ask for the merge.${not ? `\n\nMy note: ${not}` : ""}`,
+    `Tanıtım alanında projenin README.md'sini görmek istiyorum. Ekipte tanıtım uzmanı yok: ise_al_teklif ile bir Tanıtım uzmanı (rol: tanitim) işe almayı öner; işe alınınca README.md'yi yazıp kaydetmesi için ona bir görev ver.${not ? `\n\nNotum: ${not}` : ""}`,
+    `I want to see the project's README.md in the Showcase area. There is no product marketer on the team: propose hiring a Product marketer (role: tanitim) with ise_al_teklif; once hired, give them a task to write and save README.md.${not ? `\n\nMy note: ${not}` : ""}`,
   );
 }
 
 /**
  * CEO talimatının ekip bölümüne giren satır: ekipte tanıtım uzmanı yoksa ilk işe alımlarla birlikte bir tane alması,
- * varsa her teslimden ve birleşen işten sonra ona README.md'yi güncelletmesi. CEO dışındaki rollerde boş.
+ * varsa her teslimden ve önemli bir iş kaydedildikten sonra ona README.md'yi güncelletmesi. CEO dışındaki rollerde boş.
  */
 export function tanitimTalimati(ajan: Pick<Ajan, "rol">, ekip: Pick<Ajan, "ad" | "rol">[], dil: Dil): string[] {
   if (ajan.rol !== "ceo") return [];
@@ -161,13 +135,13 @@ export function tanitimTalimati(ajan: Pick<Ajan, "rol">, ekip: Pick<Ajan, "ad" |
   if (dil === "en") {
     return [
       uzman
-        ? `- ${uzman.ad} (Product marketer) owns the root README.md the board reads in the Showcase area. After every delivery and every merged piece of work, tell them with mesaj_gonder to update README.md.`
+        ? `- ${uzman.ad} (Product marketer) owns the root README.md the board reads in the Showcase area. After every delivery and after important work is saved, tell them with mesaj_gonder to update README.md.`
         : "- There is no Product marketer on the team. The board reads the project in the Showcase area of the Studio from the root README.md: together with the first hires, propose a Product marketer (role: tanitim) with ise_al_teklif; once hired, ask them to write README.md.",
     ];
   }
   return [
     uzman
-      ? `- ${uzman.ad} (Tanıtım uzmanı) kurulun Tanıtım alanında okuduğu kök README.md'nin sahibidir. Her teslimden ve birleşen her işten sonra ona mesaj_gonder ile README.md'yi güncellemesini söyle.`
+      ? `- ${uzman.ad} (Tanıtım uzmanı) kurulun Tanıtım alanında okuduğu kök README.md'nin sahibidir. Her teslimden ve önemli bir iş kaydedildikten sonra ona mesaj_gonder ile README.md'yi güncellemesini söyle.`
       : "- Ekipte Tanıtım uzmanı yok. Kurul projeyi Stüdyo'nun Tanıtım alanında kök README.md'den okur: ilk işe alımlarla birlikte ise_al_teklif ile bir Tanıtım uzmanı (rol: tanitim) öner; işe alınınca README.md'yi yazmasını iste.",
   ];
 }
@@ -185,6 +159,8 @@ export interface TanitimBaglami {
   ceoyaYaz(projeId: string, metin: string): Promise<void>;
   /** Olayların toplanma süresi (testlerde kısa verilir) */
   gecikmeMs?: number;
+  /** README.md'yi şu an düzenleyen (kiralayan) çalışan; taslak ona yazılır, yoksa tanıtım uzmanına */
+  readmeKiracisi?(projeId: string): { ajanId: string; ajanAd: string } | null;
 }
 
 export class Tanitim {
@@ -196,14 +172,13 @@ export class Tanitim {
     this.birak = b.olaylar.dinle((o) => this.olay(o));
   }
 
-  /** README'yi etkileyen olaylar: ana repoda ya da bir tanıtım uzmanının alanında kök README.md değişti, iş birleşti */
+  /** README'yi etkileyen olaylar: ortak projede kök README.md değişti ya da README'li bir görev kaydedildi */
   private olay(o: SunucuOlayi): void {
     if (o.tur === "dosya.degisti") {
-      if (!readmeYoluMu(o.yol)) return;
-      if (o.alan !== "ana" && this.b.depo.ajan(o.alan)?.rol !== "tanitim") return;
+      if (!readmeYoluMu(o.yol) || o.alan !== "ana") return;
       this.yayinla(o.projeId);
-    } else if (o.tur === "onay.sonuc" && o.onay.tur === "birlestirme" && birlestiMi(o.onay.veri)) {
-      this.yayinla(o.onay.projeId);
+    } else if (o.tur === "gorev.kaydedildi" && o.kayit.dosyalar.some(readmeYoluMu)) {
+      this.yayinla(o.projeId);
     }
   }
 
@@ -223,14 +198,17 @@ export class Tanitim {
     const p = this.b.depo.proje(projeId);
     if (!p) throw bulunamadi("Proje", "Project");
     const uzmanlar = this.b.depo.ajanlar(projeId).filter((a) => a.rol === "tanitim");
-    const ana = await readmeOku(p.yol);
+    const uzman = uzmanlar[0] ?? null;
+    // Yayındaki hâl çalışma dalına commit'lenmiş olandır; çalışma kopyasındaki farklı hâl kaydedilmemiş taslaktır
+    const yayinda = await kayitliReadme(p.yol, p.varsayilanDal);
+    const calisma = await readmeOku(p.yol);
     const son = await sonCommit(p.yol, p.varsayilanDal);
     let taslak: TanitimDurumu["taslak"] = null;
-    for (const a of uzmanlar) {
-      taslak = await taslakBul(p, a, ana?.icerik ?? null);
-      if (taslak) break;
+    if (calisma && calisma.icerik !== yayinda) {
+      const yazan = this.b.readmeKiracisi?.(projeId) ?? (uzman ? { ajanId: uzman.id, ajanAd: uzman.ad } : null);
+      if (yazan) taslak = { ...yazan, icerik: calisma.icerik, zaman: calisma.zaman };
     }
-    const uzman = uzmanlar[0] ?? null;
+    const ana = taslak ? (yayinda !== null ? { icerik: yayinda } : null) : calisma ? { icerik: calisma.icerik } : yayinda !== null ? { icerik: yayinda } : null;
     return {
       dosya: TANITIM_DOSYASI,
       var: ana !== null,

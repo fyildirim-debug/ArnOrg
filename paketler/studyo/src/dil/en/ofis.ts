@@ -95,7 +95,6 @@ export const ofis: typeof tr = {
     konusuyor: (ad: string) => `Talking with ${ad}`,
     kanalaYaziyor: (kanal: string) => `Writing in #${kanal}`,
     incelemeyeGoturuyor: (kod: string) => `Taking ${kod} to review`,
-    birlesiyor: (kod: string) => `Merging ${kod} into main`,
     arsiveNot: "Leaving a note in the archive",
     soruSoruyor: (ad: string) => `Asking ${ad} a question`,
     toplantiyaGidiyor: "Heading to a meeting",
@@ -129,7 +128,6 @@ export const ofis: typeof tr = {
     tesekkurler: "Thanks, getting started.",
     incelemeyeHazir: (kod: string) => `${kod} is ready for review`,
     bakiyorum: "On it.",
-    birlesti: (kod: string) => `${kod} merged into main`,
     notAldi: (baslik: string) => `noted: ${baslik}`,
     yanitladim: "Answered.",
     yanitGelmedi: "No answer.",
@@ -166,9 +164,7 @@ export const ofis: typeof tr = {
     tamamlandi: (kod: string, ad: string | null) => `${kod} done${ad ? ` · ${ad}` : ""}`,
     gorevDurumu: (kod: string, durum: string) => `${kod} → ${durum}`,
     adayKapida: (ad: string) => `Candidate at the door: ${ad}`,
-    birlestirmeBekliyor: (baslik: string) => `${baslik}: waiting for board approval`,
     onay: (ad: string, baslik: string) => `${ad}: ${baslik}`,
-    birlesti: (kod: string) => `${kod} merged into main`,
     adayKabulEdilmedi: (ad: string) => (ad ? `Candidate ${ad} was not accepted` : "The candidate was not accepted"),
     onaylandi: (baslik: string) => `${baslik}: approved`,
     reddedildi: (baslik: string) => `${baslik}: rejected`,
@@ -182,12 +178,8 @@ export const ofis: typeof tr = {
     teslimGeri: (baslik: string) => `Feedback on the delivery: ${baslik}`,
     tasarim: (ad: string) => `${ad} is working on design in the studio`,
     tanitim: (ad: string) => `${ad} is writing the showcase page in the studio`,
-    birlesmeOnay: (kod: string) => `${kod} approved, entered the quality gate`,
-    kaliteTest: (kod: string) => `${kod} at the quality gate: tests running`,
-    kaliteKaldi: (kod: string) => `${kod} was stopped at the quality gate`,
   },
   ekip: "Team",
-  dal: "Branch",
 
   ozet: (calisan: number, parcalar: string[], bekleyen: number) =>
     `${kisi(calisan, "employee", "employees")} in the office${parcalar.length ? `: ${parcalar.join(", ")}` : ""}. ${

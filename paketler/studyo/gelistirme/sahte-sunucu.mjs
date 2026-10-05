@@ -25,6 +25,7 @@ import { kur as surum005Tarayici } from "./surum-005-tarayici.mjs";
 import { kur as surum005Ofis } from "./surum-005-ofis.mjs";
 import { kur as surum007Tanitim } from "./surum-007-tanitim.mjs";
 import { kur as surum007Otonom } from "./surum-007-otonom.mjs";
+import { kur as surum008Ortak } from "./surum-008-ortak.mjs";
 import { kur as surum008Skiller } from "./surum-008-skiller.mjs";
 import { kur as surum008Kodzeka } from "./surum-008-kodzeka.mjs";
 import { kur as surum008Arayuz } from "./surum-008-arayuz.mjs";
@@ -461,12 +462,11 @@ function aracCalistir(ajanId, arac, girdi, sonuc, { ozet, hata = false, karar = 
 // ---------------------------------------------------------------------------
 
 let listeAdimi = 1;
-const K = V.CALISMA_KOKU;
 
 const sahne = [
   () =>
     calisiyorsa("kerem", () =>
-      aracCalistir("kerem", "Read", { file_path: `${K}/kerem/src/auth/jetonDeposu.ts` }, ceviri("// Erişim ve yenileme jetonlarını bellekte… (14 satır)", "// Keeps the access and refresh tokens in memory… (14 lines)"), {
+      aracCalistir("kerem", "Read", { file_path: `${V.PROJE_KOKU}/src/auth/jetonDeposu.ts` }, ceviri("// Erişim ve yenileme jetonlarını bellekte… (14 satır)", "// Keeps the access and refresh tokens in memory… (14 lines)"), {
         ozet: "src/auth/jetonDeposu.ts",
       }),
     ),
@@ -500,7 +500,7 @@ const sahne = [
       );
       setTimeout(() => mesajEkle("siparis-paneli", MUHENDISLIK, "ada", ceviri("@Kerem T-26 bugün incelemeye girebilir; Onur'u uyandıralım mı?", "@Kerem T-26 could go into review today; shall we wake Onur up?")), 800);
     }),
-  () => calisiyorsa("kerem", () => aracCalistir("kerem", "Grep", { pattern: "yenileniyor", path: `${K}/kerem/src` }, "src/auth/oturum.ts:6:let yenileniyor: Promise<void> | null = null;", { ozet: "\"yenileniyor\" src/" })),
+  () => calisiyorsa("kerem", () => aracCalistir("kerem", "Grep", { pattern: "yenileniyor", path: `${V.PROJE_KOKU}/src` }, "src/auth/oturum.ts:6:let yenileniyor: Promise<void> | null = null;", { ozet: "\"yenileniyor\" src/" })),
   () =>
     calisiyorsa("ece", () => {
       aracCalistir("ece", "WebFetch", { url: "https://cdn.example.com/ikonlar.json" }, ceviri("ArnOrg politikası reddetti: Ağ erişimi (izinli alan adı değil)", "Denied by ArnOrg policy: Network access (domain not allowed)"), {
@@ -528,7 +528,7 @@ function eceDuzenler() {
   const onceki = db.katmanlar.ece[yol];
   const yeni = listeSurumleri[listeAdimi];
   const kimlik = yeniKimlik("toolu");
-  akisEkle("ece", { tur: "arac_cagrisi", arac: "Edit", aracKimligi: kimlik, girdi: { file_path: `${K}/ece/${yol}`, old_string: onceki.slice(-80), new_string: yeni.slice(-80) } });
+  akisEkle("ece", { tur: "arac_cagrisi", arac: "Edit", aracKimligi: kimlik, girdi: { file_path: `${V.PROJE_KOKU}/${yol}`, old_string: onceki.slice(-80), new_string: yeni.slice(-80) } });
   denetimEkle("ece", "Edit", yol, "izin");
   setTimeout(() => {
     db.katmanlar.ece[yol] = yeni;
@@ -849,6 +849,8 @@ function isAlimDongusu() {
 
 // Birleştirme: incelemedeki bir görev için kurul onayı istenir
 function birlestirmeDongusu() {
+  // 0.0.8: birleştirme yok; ortak çalışma modülü görev kaydı oynatır (surum-008-ortak.mjs)
+  if (db.ortakCalisma) return db.ortakCalisma.kayitDongusu();
   if (db.onaylar.some((o) => o.projeId === OFIS && o.tur === "birlestirme" && o.durum === "bekliyor")) return;
   const g = db.gorevler.find((x) => x.projeId === OFIS && x.durum === "inceleme" && x.atananId);
   if (!g) return;
@@ -2163,6 +2165,8 @@ surum005Ofis({ db, yay, akisEkle, mesajEkle, ajanBul, projeAjanlari, simdi, yeni
 surum007Tanitim({ rota, rotalar, db, yay, mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, projeYay, Hata, simdi, yeniKimlik });
 // 0.0.7: karar yetkisi: tam otonomda onaylara CEO karar verir, kurul sonuçları görür (surum-007-otonom.mjs)
 surum007Otonom({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), mesajEkle, akisEkle, ajanBul, projeAjanlari, proje, projeGerekli, projeOzeti, projeYay, Hata, simdi, yeniKimlik });
+// 0.0.8: ortak çalışma: tek proje, görev kayıtları, dosya kiraları, ekip temposu; birleştirme yok (surum-008-ortak.mjs)
+surum008Ortak({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), mesajEkle, akisEkle, ajanBul, projeAjanlari, proje, projeGerekli, projeYay, Hata, simdi, yeniKimlik });
 // 0.0.8: skill kütüphanesi: katalog, işe alımda ve çalışan panelinde skill atama (surum-008-skiller.mjs)
 surum008Skiller({ rota, rotalar, db, yay, ajanBul, akisEkle, Hata, yeniKimlik });
 // 0.0.8: kod zekâsı bağları: grafikte içe aktarma ve anlam kenarları, ilgili dosyalar ucu (surum-008-kodzeka.mjs)

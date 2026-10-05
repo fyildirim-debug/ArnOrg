@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "../../api/uclar";
 import { sozluk, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
+import { calismaKoku } from "../../durum/ortakCalisma";
 import { onayUygula, useVeri } from "../../durum/veri";
 import { aracAdi, girdiOzeti } from "../../yardimcilar/arac";
 import { akilliZaman, kalanSure } from "../../yardimcilar/bicim";
@@ -35,7 +36,7 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
   const [not, setNot] = useState("");
   const { suruyor, calistir } = useIslem();
   const v = aracOnayVerisi(onay);
-  const ozet = girdiOzeti(v.arac, v.girdi, ajan?.calismaAlani);
+  const ozet = girdiOzeti(v.arac, v.girdi, calismaKoku(ajan));
   const komut = ozet.kod ?? (ozet.metin || (v.girdi !== undefined ? JSON.stringify(v.girdi, null, 2) : onay.ayrinti));
 
   const bitis = onay.sonGecerlilik ? new Date(onay.sonGecerlilik).getTime() : null;

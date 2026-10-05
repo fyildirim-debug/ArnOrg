@@ -7,7 +7,7 @@
 //
 // Oyun gibi canlılık: yürürken adım ve sallanma, dururken nefes, masada yazma (monitör titrer), araç sonuçları
 // arasında düşünme noktaları, uzun boşlukta uyuklama, kanal mesajında kısa balon ve anılana ışık izi, görev
-// bitince kutlama, birleşmede sunucu odasında ışık, test laboratuvarında geçti/kaldı ışığı, kurul masasında onay
+// bitince kutlama, görev kaydında sunucu odasında ışık, test laboratuvarında geçti/kaldı ışığı, kurul masasında onay
 // işareti, kahve buharı, bitki salınımı, yerel saate göre gün ışığı. Hareket azaltılınca süsler ve kamera dolaşması
 // kapanır; sekme gizliyken döngü durur; yavaş makinede 30 fps'e iner ve efekt bütçesi küçülür.
 //
@@ -24,6 +24,7 @@ import {
   type AkisOgesi,
   type Gorev,
   type GorevDurumu,
+  type GorevKaydi,
   type HafizaKaydi,
   type Mesaj,
   type Onay,
@@ -31,7 +32,7 @@ import {
 } from "@arnorg/ortak";
 import { karakterBul, karakterMetni, type KarakterTanimi, type OfisYeri } from "@arnorg/ortak/karakterler";
 import { sozluk, useDilDurumu } from "../dil";
-import type { GorevKaydi } from "../yardimcilar/gorevKaydi";
+import type { KayitOzeti } from "../yardimcilar/gorevKaydi";
 import {
   aracPayi,
   kararMuhatabi,
@@ -112,7 +113,6 @@ export type AkisTuru =
   | "soru"
   | "giris"
   | "cikis"
-  | "birlesme"
   | "kurul"
   | "toplanti"
   | "bildirim"
@@ -533,10 +533,8 @@ export class OfisMotoru {
   private sunumCagrisi: { baslik: string; adimlar: string[]; an: number } | null = null;
   /** Son sunum sahnesi (teslim_et çağrısı ve teslim onayı birlikte gelir; sahne bir kez açılır) */
   private sonSunum: { ajanId: string; t: number } | null = null;
-  /** Birleştirmelerin kalite kapısı durumu (onay kimliği → durum) */
-  private kaliteDurumu = new Map<string, string>();
-  /** Onaylanıp kalite kaydı beklenen birleştirmeler (gelmezse bu anda doğrudan birleşmiş sayılır) */
-  private birlesmeBekleyenler = new Map<string, number>();
+  /** 0.0.8 · görev kayıtlarının son görülen kalite durumu (kayıt kimliği → durum) */
+  private kayitDurumu = new Map<string, string>();
   /** Şeritteki bir yere kısa kamera gezintisi */
   private gezinti: { x: number; y: number; bitis: number } | null = null;
   /** Takip başlarken bir kez yakınlaşılan ölçek; kullanıcı yakınlaştırınca bırakılır */
@@ -1186,15 +1184,6 @@ export class OfisMotoru {
     for (const k of this.kisiler.values()) {
       if (k.cikiyor || k.kaliciTur !== "kurul" || k.is?.tur !== "kalici") continue;
       if (this.kararMuhatabiBul(k) !== k.kararMuhatabi) this.kaliciBaslat(k);
-    }
-    // Birleştirmelerin kalite kapısı: her adım onay.sonuc ile gelir (kuyrukta → hazırlık → test → birleşti/kaldı)
-    for (const o of v.onaylar) {
-      if (o.tur !== "birlestirme") continue;
-      const k = ((o.veri ?? null) as { kalite?: { durum?: string; komut?: string | null; testYok?: boolean; testsiz?: boolean } } | null)?.kalite;
-      if (!k?.durum) continue;
-      const once = this.kaliteDurumu.get(o.id);
-      this.kaliteDurumu.set(o.id, k.durum);
-      if (!sessiz && once !== k.durum) this.kaliteGecti(o, k.durum, k);
     }
     this.sunumuGuncelle();
     this.kurulIsiklariniGuncelle();
@@ -2247,18 +2236,6 @@ export class OfisMotoru {
     yield this.bekle(900);
   }
 
-  private *birlesmeSahnesi(k: Kisi, kod: string): Senaryo {
-    k.etkinlik = so().etkinlik.birlesiyor(kod);
-    yield* this.git(k, this.yer.noktalar.sunucuOnu[0]!, { adaylar: this.yer.noktalar.sunucuOnu });
-    k.yon = -1;
-    k.uzanma = this.t;
-    this.sunucuAkisBitis = this.t + 4800;
-    // Vardığında dolapların ışıkları bir kez daha akar
-    this.odaFlasi("sunucu", "mercan");
-    this.balon(k, so().balon.birlesti(kod), "bilgi", "dal");
-    yield this.bekle(3800);
-  }
-
   /** Teslim sunumu sahnesi; aynı kişiye bir dakikada bir */
   private sunumaCagir(k: Kisi, baslik: string) {
     if (k.cikiyor) return;
@@ -2505,6 +2482,33 @@ export class OfisMotoru {
     const liste = this.toplanti?.balonlar.get(k.id);
     if (!liste?.length) return;
     for (const b of liste.splice(0)) this.balon(k, b.metin, "konusma");
+  }
+
+  /**
+   * 0.0.8 · Ortak çalışma: görev kaydının kalite denetimi (kayit.guncellendi). Kayıt anı gorevKaydedildi'de oynar;
+   * denetim laboratuvarın panosunda koşar, geçince yeşil, geçmezse kırmızı yanar. Kaydın ilk durumu (kuyrukta ya da
+   * testsiz) yalnız not edilir.
+   */
+  kayitGeldi(k: GorevKaydi) {
+    if (k.projeId !== this.kur.projeId) return;
+    const durum = k.kalite.durum;
+    const once = this.kayitDurumu.get(k.id);
+    if (once === durum) return;
+    this.kayitDurumu.set(k.id, durum);
+    // Uzun oturumda bellek büyümesin: en eski kayıtlar unutulur
+    if (this.kayitDurumu.size > 200) this.kayitDurumu.delete(this.kayitDurumu.keys().next().value!);
+    const t = sozluk().ortakCalisma.ofis;
+    const kod = k.gorevKodu ?? k.commit.slice(0, 7);
+    const komut = k.kalite.komut ? komutMetni({ command: k.kalite.komut }) : "";
+    if (durum === "hazirlik") this.labDurumu("hazirlik", komut);
+    else if (durum === "test") {
+      this.labDurumu("kosuyor", komut);
+      this.akisa("test", t.testKosuyor(kod), { nokta: this.odaNoktasi("laboratuvar") });
+    } else if (durum === "gecti") this.labSonuc("gecti", komut || this.lab.komut);
+    else if (durum === "kaldi" || durum === "zaman_asimi" || durum === "hata") {
+      this.labSonuc("kaldi", komut || this.lab.komut);
+      this.akisa("test", t.testGecmedi(kod), { nokta: this.odaNoktasi("laboratuvar") });
+    }
   }
 
   hafizaGeldi(kayit: HafizaKaydi) {
@@ -2939,8 +2943,7 @@ export class OfisMotoru {
     if (o.tur === "ise_alim") {
       const v = (o.veri ?? {}) as { ad?: string };
       this.akisa("onay", so().akis.adayKapida(v.ad ?? o.baslik), { nokta: karoAyak(this.yer.noktalar.adaylar[0]!) });
-    } else if (o.tur === "birlestirme") this.akisa("onay", so().akis.birlestirmeBekliyor(o.baslik), { nokta: this.odaNoktasi("kurul") });
-    else if (o.tur !== "arac") this.akisa("onay", so().akis.onay(ajan?.ad ?? so().ekip, kisaMetin(o.baslik, 48)), ajan ? { ajanId: ajan.id } : { nokta: this.odaNoktasi("kurul") });
+    } else if (o.tur !== "arac") this.akisa("onay", so().akis.onay(ajan?.ad ?? so().ekip, kisaMetin(o.baslik, 48)), ajan ? { ajanId: ajan.id } : { nokta: this.odaNoktasi("kurul") });
     if (o.tur !== "arac") this.vurgula(this.odaNoktasi("kurul"), { anahtar: `onay:${o.id}` });
     // Teslim: teslim eden stüdyoda sunar (teslim_et çağrısı akışta göründüyse sahne zaten açıldı)
     const sunan = o.tur === "teslim" && o.ajanId ? this.kisiler.get(o.ajanId) : undefined;
@@ -2949,13 +2952,6 @@ export class OfisMotoru {
 
   private onaySonuc(o: Onay) {
     this.ceoKarari(o);
-    if (o.tur === "birlestirme" && o.durum === "onaylandi") {
-      // Onaylanan birleştirme kalite kapısına girer; birleşme anı kapının "birleşti" adımında oynar. Kalite kaydı
-      // hiç gelmezse (kapısız çekirdek) birkaç saniye sonra doğrudan birleşmiş sayılır.
-      if (!this.kaliteDurumu.has(o.id)) this.birlesmeBekleyenler.set(o.id, this.t + 8000);
-      this.akisa("birlesme", so().akis.birlesmeOnay(this.birlesmeKodu(o)), { nokta: this.odaNoktasi("laboratuvar") });
-      return;
-    }
     if (o.tur === "ise_alim") {
       const v = (o.veri ?? {}) as { ad?: string };
       if (o.durum !== "onaylandi") this.akisa("onay", so().akis.adayKabulEdilmedi(v.ad ?? ""), { nokta: karoAyak(this.yer.noktalar.kapiIci) });
@@ -2971,58 +2967,6 @@ export class OfisMotoru {
       this.akisa("onay", o.durum === "onaylandi" ? a.onaylandi(baslik) : o.durum === "reddedildi" ? a.reddedildi(baslik) : a.suresiDoldu(baslik), {
         nokta: this.odaNoktasi("kurul"),
       });
-    }
-  }
-
-  private birlesmeKodu(o: Onay): string {
-    const v = (o.veri ?? {}) as { gorevId?: string };
-    return this.gorevler.find((x) => x.id === v.gorevId)?.kod ?? so().dal;
-  }
-
-  /** Birleşme anı: sahibi sunucu odasına yürür, dolapların ışıkları akar, oda mercan ışıkla yanıp söner */
-  private birlesmeOyna(o: Onay) {
-    const v = (o.veri ?? {}) as { gorevId?: string };
-    const g = this.gorevler.find((x) => x.id === v.gorevId);
-    const sahip = (g?.atananId ? this.kisiler.get(g.atananId) : undefined) ?? (o.ajanId ? this.kisiler.get(o.ajanId) : undefined);
-    const kod = g?.kod ?? so().dal;
-    if (sahip && !sahip.cikiyor) this.sahneEkle(sahip, "birlesme", () => this.birlesmeSahnesi(sahip, kod));
-    this.sunucuAkisBitis = this.t + 4800;
-    this.odaFlasi("sunucu", "mercan");
-    this.vurgula(this.odaNoktasi("sunucu"), { anahtar: `birlesme:${o.id}`, ajanId: sahip?.id });
-    this.akisa("birlesme", so().akis.birlesti(kod), sahip ? { ajanId: sahip.id } : { nokta: this.odaNoktasi("sunucu") });
-  }
-
-  /**
-   * Kalite kapısının adımları (onay.sonuc ile yayınlanır): hazırlık ve test laboratuvarın panosunda koşar; birleşince
-   * pano yeşil yanar ve birleşme anı oynar, testler geçmezse kırmızı yanar.
-   */
-  private kaliteGecti(o: Onay, durum: string, k: { komut?: string | null; testYok?: boolean; testsiz?: boolean }) {
-    const kod = this.birlesmeKodu(o);
-    const komut = k.komut ? komutMetni({ command: k.komut }) : "";
-    this.birlesmeBekleyenler.delete(o.id);
-    switch (durum) {
-      case "hazirlik":
-        this.labDurumu("hazirlik", komut);
-        break;
-      case "test":
-        this.labDurumu("kosuyor", komut);
-        this.akisa("test", so().akis.kaliteTest(kod), { nokta: this.odaNoktasi("laboratuvar") });
-        break;
-      case "birlesti":
-        if (!k.testYok && !k.testsiz) this.labSonuc("gecti", komut || this.lab.komut);
-        this.birlesmeOyna(o);
-        break;
-      case "test_basarisiz":
-      case "zaman_asimi":
-      case "hata":
-        this.labSonuc("kaldi", komut || this.lab.komut);
-        this.akisa("test", so().akis.kaliteKaldi(kod), { nokta: this.odaNoktasi("laboratuvar") });
-        break;
-      case "cakisma":
-        this.akisa("birlesme", so().akis.kaliteKaldi(kod), { nokta: this.odaNoktasi("sunucu") });
-        break;
-      default:
-        break;
     }
   }
 
@@ -3524,13 +3468,6 @@ export class OfisMotoru {
     if (this.lab.durum !== "bos" && this.lab.bitis && this.t >= this.lab.bitis) {
       this.lab.durum = "bos";
       this.lab.bitis = 0;
-    }
-    // Kalite kaydı gelmeyen onaylı birleştirme: doğrudan birleşmiş sayılır
-    for (const [id, son] of this.birlesmeBekleyenler) {
-      if (this.t < son) continue;
-      this.birlesmeBekleyenler.delete(id);
-      const o = this.onaylar.find((x) => x.id === id);
-      if (o && !this.kaliteDurumu.has(id)) this.birlesmeOyna(o);
     }
     // Sonucu hiç gelmeyen çağrılar unutulur
     for (const [id, c] of this.labCagrilari) if (this.t - c.t > 600_000) this.labCagrilari.delete(id);
@@ -4064,10 +4001,11 @@ export class OfisMotoru {
 
   /**
    * Görev kaydedildi (gorev.kaydedildi, yardimcilar/gorevKaydi.ts): kaydedenin başında kısa onay işareti, masasındaysa
-   * monitörü bir an parlar; panodaki notu da işaretlenir, akışa satır düşer. Kutlama yok: kayıt sık ve sıradan bir an.
+   * monitörü bir an parlar; panodaki notu da işaretlenir, sunucu odasının dolaplarında ışık akar, akışa satır düşer.
+   * Kutlama ve yürüyüş yok: kayıt sık ve sıradan bir an. Kalite denetimi laboratuvarda oynar (kayitGeldi).
    */
-  gorevKaydedildi(kayit: GorevKaydi) {
-    if (kayit.projeId && kayit.projeId !== this.kur.projeId) return;
+  gorevKaydedildi(kayit: KayitOzeti) {
+    if (kayit.projeId !== this.kur.projeId) return;
     const g = this.gorevler.find((x) => (kayit.gorevId !== null && x.id === kayit.gorevId) || (kayit.kod !== null && x.kod === kayit.kod));
     const kod = g?.kod ?? kayit.kod ?? "";
     if (!kod) return;
@@ -4087,6 +4025,9 @@ export class OfisMotoru {
       not.classList.add("ofis-not-kayit");
       setTimeout(() => not.classList.remove("ofis-not-kayit"), 6000);
     }
+    // Commit main'e girdi: sunucu odasının dolaplarında ışık akar, oda bir an mercan yanar
+    this.sunucuAkisBitis = this.t + 4800;
+    this.odaFlasi("sunucu", "mercan");
     const ozet = kayit.ozet ? kisaMetin(kayit.ozet, 48) : "";
     this.akisa("kayit", sozluk().canli.ofis.akis.kaydedildi(kod, k?.ajan.ad ?? null, ozet), k ? { ajanId: k.id } : { nokta: this.odaNoktasi("pano") });
   }

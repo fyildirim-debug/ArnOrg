@@ -23,6 +23,7 @@ import {
   type CalismaAlani,
   type Gorev,
   type GorevDurumu,
+  type GorevKaydi,
   type GorevGuncelleIstegi,
   type AjanSorusu,
   type Anayasa,
@@ -118,16 +119,20 @@ export interface ToplantiSonucu {
 /** ajana_sor sonucu: yakın zamanda yanıtlanmış aynı soru ya da ArnOrg'un seçtiği uzman bilgisiyle */
 export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
 import { arnorgAraclari } from "./arnorg-araclari.js";
-import { BirlestirmeKuyrugu, birlestirmeVerisi, kaliteAyarlari, kaliteDuyurusu, sureMetni } from "./birlestirme-kuyrugu.js";
+import { kaliteAyarlari, kaliteDuyurusu } from "./birlestirme-kuyrugu.js";
 import { KARAR_YETKISI_GOCU, type Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
 import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
+import { OrtakCalisma } from "./ortak-calisma/index.js";
+import { kilitliyseYinele } from "./ortak-calisma/git-sirasi.js";
+import { yollariCommitle } from "./ortak-calisma/git-kayit.js";
+import { gorevSonu, incelemeCagrisi } from "./ortak-calisma/talimat.js";
 import type { OlayYolu } from "./olaylar.js";
 import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./politika.js";
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
-import { ArnorgHatasi, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, sadelestir, simdi, yonelme } from "./yardimci.js";
+import { ArnorgHatasi, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, simdi, yonelme } from "./yardimci.js";
 
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
@@ -154,7 +159,7 @@ export interface KurulKarari {
 }
 
 /** Tam otonom kipte CEO'nun kendi açtığı ve hemen geçerli olan onaylar (genel: kurula soru ve token tavanı kurula gider) */
-const CEO_KENDI_KARARI: OnayTuru[] = ["ise_alim", "isten_cikarma", "anayasa", "birlestirme", "arac", "teslim"];
+const CEO_KENDI_KARARI: OnayTuru[] = ["ise_alim", "isten_cikarma", "anayasa", "arac", "teslim"];
 /** CEO bu durumdayken karar veremez; onaylar kurula düşer */
 const CEO_KARAR_VEREMEZ: AjanDurumu[] = ["duraklatildi", "hata"];
 /** CEO boşa çıkınca kendisini bu kadar süredir bekleyen onaylar (her biri bir kez) hatırlatılır */
@@ -238,8 +243,11 @@ export class Sirket {
   /** Yazıyor göstergesi: ajan → kanal ve bitiş zamanlayıcısı */
   private readonly yaziyorlar = new Map<string, { projeId: string; kanal: string; zamanlayici: NodeJS.Timeout }>();
   private esitlemeZamanlayici: NodeJS.Timeout | null = null;
-  /** Onaylanan birleştirmelerin proje başına sırası ve kalite kapısı (test geçerse ana repoda birleştirme) */
-  readonly birlestirmeKuyrugu: BirlestirmeKuyrugu;
+  /**
+   * 0.0.8 ortak çalışma: ekip tek projede görev bazlı çalışır; dosya kiraları, görev kaydı (commit), kaydın kalite
+   * denetimi, proje başına git sırası, ekip temposu, boşa çıkana iş dağıtımı ve eski worktree'lerin geçişi (ortak-calisma/)
+   */
+  readonly ortak: OrtakCalisma;
   /** Eşzamanlı ajan tavanı: tavan doluyken turu sürmeyen ajana gelen mesajların sırası (bütün projeler) */
   readonly esZamanlilik: EsZamanlilik<MesajKaynagi>;
   /** Görev token tavanı (aşınca ajan durur, kurula sorulur) ve tur tavanı bildirimi */
@@ -295,21 +303,22 @@ export class Sirket {
     this.kuresel = new KureselZeka(depo, olaylar, yapilandirma.veriDizini, damitici);
     // Global zekâ gözlemleri: kurul tercihleri ve dersler kurala dönüşür
     olaylar.dinle((o) => this.zekaGozlemi(o));
-    this.birlestirmeKuyrugu = new BirlestirmeKuyrugu({
-      depo,
-      olaylar,
-      kaliteKoku: path.join(yapilandirma.veriDizini, "kalite"),
-      arnorgCommitle: (pid) => this.arnorgCommitle(pid),
-      birlesti: (onay) => this.birlesmeSonrasi(onay),
-      sistemMesaji: (ajanId, metin) => this.sistemMesaji(ajanId, metin),
-      duyur: (pid, metin) => this.duyur(pid, metin),
-    });
+    // Testlerde ve oturumsuz kipte boşa çıkana iş dağıtımı kapalıdır (oturum açılamaz)
+    this.ortak = new OrtakCalisma(this, { kaliteKoku: path.join(yapilandirma.veriDizini, "kalite"), isDagitimi: !oturumlarKapali });
     this.esZamanlilik = new EsZamanlilik<MesajKaynagi>({
       tavan: () => this.yapilandirma.ayarlar.esZamanliAjan,
       durum: (id) => this.depo.ajan(id)?.durum ?? null,
       calisanSayisi: () => this.depo.projeler().reduce((t, p) => t + this.depo.ajanlar(p.id).filter((a) => calisanMi(a.durum)).length, 0),
+      // Tam otonom kipte CEO'nun ekip temposu proje başına tavandır (CEO sayılmaz)
+      projeTavani: (id) => this.ortak.projeTavani(id),
+      projeCalisani: (id) => this.ortak.projeCalisani(id),
+      proje: (id) => this.depo.ajan(id)?.projeId ?? null,
       teslimEt: (id, mesajlar) => this.siradanTeslim(id, mesajlar),
-      siraDegisti: (id, sirada) => this.siraAciklamasiYaz(id, sirada),
+      siraDegisti: (id, sirada) => {
+        this.siraAciklamasiYaz(id, sirada);
+        const pid = this.depo.ajan(id)?.projeId;
+        if (pid) this.ortak.tempoBildir(pid);
+      },
     });
     // Kurulun kanalları: kurulun mesajına yanıt kurul kaynaklıdır (tavandan muaf); konuşma turu ArnOrg kaynaklıdır, tavana
     // ve abonelik sınırına uyar, döngü korumasına takılmaz
@@ -374,6 +383,8 @@ export class Sirket {
         if (!calisanMi(this.depo.ajan(ceo.id)?.durum)) this.yaziyorBitir(ceo.id);
       },
       erisilebilir: (p) => fs.existsSync(p.yol),
+      // 0.0.8: aralıktaki görev kayıtları ve testleri
+      kayitlar: (pid, baslangic, kesim) => this.ortak.defter.aralikta(pid, baslangic, kesim),
       hata: (p, h) =>
         this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: iki(`Günlük brifing istenemedi (${p.ad}): ${h.message}`, `Could not ask for the daily briefing (${p.ad}): ${h.message}`), projeId: p.id }),
     });
@@ -403,8 +414,8 @@ export class Sirket {
       if (!p || p.kararVeren !== "ceo") continue;
       const ceo = this.ceoBul(p.id);
       const metin = iki(
-        `ArnOrg 0.0.7: karar yetkisi ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} geçti, şirket tam otonom. İzinler, birleştirmeler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları ve gerekçeleri Onaylar'da görür. Kararları yine siz vermek isterseniz: Proje ayarları → Karar yetkisi → Kurul karar verir.`,
-        `ArnOrg 0.0.7: decision authority moved to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}; the company is fully autonomous. Permissions, merges, hires and the other approvals now go through the CEO; the board sees the results and the reasons under Approvals. To keep deciding yourself: Project settings → Decision authority → The board decides.`,
+        `ArnOrg 0.0.7: karar yetkisi ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} geçti, şirket tam otonom. İzinler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları ve gerekçeleri Onaylar'da görür. Kararları yine siz vermek isterseniz: Proje ayarları → Karar yetkisi → Kurul karar verir.`,
+        `ArnOrg 0.0.7: decision authority moved to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}; the company is fully autonomous. Permissions, hires and the other approvals now go through the CEO; the board sees the results and the reasons under Approvals. To keep deciding yourself: Project settings → Decision authority → The board decides.`,
       );
       this.duyur(p.id, metin);
       this.duyur(p.id, metin, "yonetim");
@@ -711,12 +722,20 @@ export class Sirket {
     if (kipDegisti) alanlar.kararVeren = istek.kararVeren;
     if (istek.varsayilanDal !== undefined && istek.varsayilanDal.trim() !== p.varsayilanDal) {
       const dal = istek.varsayilanDal.trim();
-      const kirli = (await gitIslemleri.git(p.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
-      if (kirli) throw new ArnorgHatasi(iki("Ana repoda commit'lenmemiş değişiklik var; dal değiştirilmedi.", "The main repo has uncommitted changes; the branch was not changed."), 409);
-      await this.arnorgCommitle(id).catch(() => false);
-      await gitIslemleri.dalaGec(p.yol, dal);
+      // Görev kayıtlarıyla aynı anda çalışmasın: projenin git sırasında (0.0.8)
+      await this.ortak.git.calistir(id, async () => {
+        const kirli = (await gitIslemleri.git(p.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
+        if (kirli) {
+          throw new ArnorgHatasi(
+            iki("Ana repoda commit'lenmemiş değişiklik var (çalışanların kaydedilmemiş işi olabilir); dal değiştirilmedi.", "The main repo has uncommitted changes (possibly employees' unsaved work); the branch was not changed."),
+            409,
+          );
+        }
+        await this.arnorgCommitIs(id).catch(() => false);
+        await gitIslemleri.dalaGec(p.yol, dal);
+      });
       alanlar.varsayilanDal = dal;
-      this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`Çalışma dalı ${dal} oldu. Yeni işler bu daldan açılır, onaylı birleştirmeler bu dala girer.`, `The working branch is now ${dal}. New work branches off it and approved merges go into it.`));
+      this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`Çalışma dalı ${dal} oldu. Ekip bu dalda çalışır; görev kayıtları bu dala commit'lenir.`, `The working branch is now ${dal}. The team works on it and task saves are committed to it.`));
     }
     const yeni = this.depo.projeGuncelle(id, alanlar);
     const kalite = kaliteDuyurusu(p, yeni);
@@ -742,8 +761,8 @@ export class Sirket {
       "genel",
       { id: ARNORG_GONDEREN, ad: "ArnOrg" },
       iki(
-        `GitHub deposu açıldı: ${yeni.github ?? uzak}. Onaylı birleştirmeler ${yeni.varsayilanDal} dalıyla oraya gönderilecek.`,
-        `GitHub repository created: ${yeni.github ?? uzak}. Approved merges will be pushed there on ${yeni.varsayilanDal}.`,
+        `GitHub deposu açıldı: ${yeni.github ?? uzak}. Görev kayıtları ${yeni.varsayilanDal} dalıyla oraya gönderilecek.`,
+        `GitHub repository created: ${yeni.github ?? uzak}. Task saves will be pushed there on ${yeni.varsayilanDal}.`,
       ),
     );
     this.projeYayinla(id);
@@ -763,7 +782,8 @@ export class Sirket {
       const uzak = await gitIslemleri.uzakAdresi(p.yol).catch(() => null);
       if (uzak) p = this.depo.projeGuncelle(id, { uzakAdres: uzak });
     }
-    const sonuc = await this.github.esitle(p, gonder);
+    // Görev kayıtlarıyla aynı anda çalışmasın: projenin git sırasında (0.0.8)
+    const sonuc = await this.ortak.git.calistir(id, () => this.github.esitle(p, gonder));
     const onemli = sonuc.durum === "cekildi" || sonuc.durum === "gonderildi" || sonuc.durum === "ayrisik" || sonuc.durum === "kirli" || sonuc.durum === "hata";
     if (!sessiz || onemli) {
       if (sonuc.durum === "cekildi" || sonuc.durum === "ayrisik") this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, sonuc.mesaj);
@@ -778,7 +798,7 @@ export class Sirket {
     this.kanallar.projeKaldir(id);
     this.kodZekasi.projeKaldir(id);
     const p = this.depo.proje(id);
-    if (p) this.birlestirmeKuyrugu.projeKaldir(p);
+    if (p) this.ortak.projeKaldir(p);
     this.depo.projeSil(id);
     this.olaylar.yayinla({ tur: "bildirim", seviye: "bilgi", metin: iki("Proje ArnOrg listesinden çıkarıldı; dosyalara dokunulmadı.", "The project was removed from ArnOrg's list; its files were not touched.") });
   }
@@ -898,6 +918,8 @@ export class Sirket {
     if (a.rol === "ceo") throw new ArnorgHatasi(iki("CEO işten çıkarılamaz.", "The CEO cannot be dismissed."), 409);
     this.oturumlar.get(id)?.kapat();
     this.oturumlar.delete(id);
+    // Devralanı olmayan kiralar biter (işten çıkarmada istenCikar kiraları önce devralana geçirir)
+    this.ortak.ajanAyrildi(a, null);
     for (const g of this.depo.gorevler(a.projeId)) {
       if (g.atananId === id && g.durum !== "tamam") this.depo.gorevGuncelle(g.id, { atananId: null, durum: g.durum === "calisiliyor" ? "planlandi" : g.durum });
     }
@@ -949,22 +971,24 @@ export class Sirket {
   // Çalışma alanları
   // ===================================================================
 
+  /**
+   * 0.0.8: herkes ortak projede, çalışma dalında çalışır; kişisel worktree ve dal açılmaz. Eski kayıtta çalışma alanı
+   * kaldıysa (geçişten önce) boşaltılır. Hiç commit yoksa ilk commit atılır (git sırasında).
+   */
   private async calismaAlaniHazirla(ajan: Ajan): Promise<string> {
     const proje = this.proje(ajan.projeId);
-    if (rolBul(ajan.rol)?.kimlik === "ceo") return proje.yol;
-    if (ajan.calismaAlani && fs.existsSync(ajan.calismaAlani)) return ajan.calismaAlani;
     if (!(await gitIslemleri.commitVarMi(proje.yol))) {
-      await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
-      await gitIslemleri.git(proje.yol, ["commit", "--allow-empty", "-m", iki("ArnOrg: başlangıç", "ArnOrg: initial commit")]);
+      await this.ortak.git.calistir(proje.id, async () => {
+        if (await gitIslemleri.commitVarMi(proje.yol)) return;
+        await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
+        await gitIslemleri.git(proje.yol, ["commit", "--allow-empty", "-m", iki("ArnOrg: başlangıç", "ArnOrg: initial commit")]);
+      });
     }
-    const slug = sadelestir(ajan.ad);
-    const hedef = path.join(this.yapilandirma.calismaKoku, `${sadelestir(proje.ad)}-${proje.id.slice(0, 8)}`, slug);
-    const dal = `arnorg/${slug}`;
-    await gitIslemleri.worktreeAc(proje.yol, hedef, dal, proje.varsayilanDal);
-    const yeni = this.depo.ajanGuncelle(ajan.id, { calismaAlani: hedef, dal });
-    this.kimlikDosyasiYaz(yeni, proje);
-    this.ajanYayinla(ajan.id);
-    return hedef;
+    if (ajan.calismaAlani || ajan.dal) {
+      this.depo.ajanGuncelle(ajan.id, { calismaAlani: null, dal: null });
+      this.ajanYayinla(ajan.id);
+    }
+    return proje.yol;
   }
 
   async calismaAlanlari(projeId: string): Promise<CalismaAlani[]> {
@@ -1024,6 +1048,7 @@ export class Sirket {
       baglar: this.zeka.baglar(ajan),
       hafizaBaglami,
       dil: dil(),
+      tempo: this.ortak.tempo(ajan.projeId),
     });
   }
 
@@ -1089,6 +1114,7 @@ export class Sirket {
       // Kabuk çıktısındaki sunucu adresi proje adreslerine girer; çalışana kısa not döner (proje-adresleri.ts)
       aracSonrasi: (arac, girdi, _k, yanit) => [this.aracSonrasi(id, arac, girdi), this.adresler.ciktidanYakala(id, arac, girdi, yanit)].filter(Boolean).join("\n\n") || null,
       aracHatasi: (arac, girdi, hata) => this.hatirlatici.hataSonrasi(this.ajan(id), arac, girdi, hata),
+      aracBasarisiz: (arac, girdi) => this.ortakAracSonu(id, arac, girdi),
       turBasi: (metin) => this.turBasiEki(this.ajan(id), metin),
       sikistirmaSonrasi: () => {
         const a = this.ajan(id);
@@ -1169,7 +1195,7 @@ export class Sirket {
     if (!muaf && this.gorevTavani.tut(id, metin)) return;
     // Eşzamanlı ajan tavanı: turu sürmeyen ajana gelen mesaj tavan doluysa sıraya girer; çağıran hata almaz
     const oturum = this.oturumlar.get(id);
-    if (!(oturum?.acik && calisanMi(a.durum)) && this.esZamanlilik.siraGerekli(muaf)) {
+    if (!(oturum?.acik && calisanMi(a.durum)) && this.esZamanlilik.siraGerekli(muaf, id)) {
       this.esZamanlilik.ekle({ ajanId: id, metin, oncelik, kaynak });
       return;
     }
@@ -1245,7 +1271,7 @@ export class Sirket {
   private siraAciklamasiYaz(ajanId: string, sirada: boolean): void {
     const a = this.depo.ajan(ajanId);
     if (!a || calisanMi(a.durum)) return;
-    if (sirada) this.depo.ajanGuncelle(ajanId, { isAciklamasi: siraAciklamasi(this.yapilandirma.ayarlar.esZamanliAjan) });
+    if (sirada) this.depo.ajanGuncelle(ajanId, { isAciklamasi: siraAciklamasi(this.ortak.siraTavani(ajanId)) });
     else if (siraAciklamasiMi(a.isAciklamasi)) this.depo.ajanGuncelle(ajanId, { isAciklamasi: "" });
     else return;
     this.ajanYayinla(ajanId);
@@ -1275,9 +1301,10 @@ export class Sirket {
   ajanDurdur(id: string): Ajan {
     this.ajan(id);
     this.oturumlar.get(id)?.kapat();
-    // Kurul durdurdu: sıradaki mesajları düşer, açılışta da uyanmaz
+    // Kurul durdurdu: sıradaki mesajları düşer, açılışta da uyanmaz; dosya kiraları biter
     this.esZamanlilik.dusur((x) => x === id);
     this.mesai.cikar((x) => x === id);
+    this.ortak.ajanDurdu(id);
     return this.ajan(id);
   }
 
@@ -1305,6 +1332,7 @@ export class Sirket {
     this.esZamanlilik.dusur(projede);
     this.mesai.cikar(projede);
     this.kanallar.konusmalariDurdur(projeId);
+    this.ortak.mesaiDurdu(projeId);
   }
 
   private akisEkle(ajanId: string, oge: AkisOgesi): void {
@@ -1330,7 +1358,7 @@ export class Sirket {
     if (aciklama !== undefined) alanlar.isAciklamasi = aciklama;
     if (durum === "kapali") alanlar.isAciklamasi = "";
     // Sıradaki ajanın açıklaması sırası gelene dek "Sırada…" kalır; kendiliğinden çalışmaya başlayanınki temizlenir
-    if (!calisanMi(durum) && this.esZamanlilik.siradaMi(ajanId)) alanlar.isAciklamasi = siraAciklamasi(this.yapilandirma.ayarlar.esZamanliAjan);
+    if (!calisanMi(durum) && this.esZamanlilik.siradaMi(ajanId)) alanlar.isAciklamasi = siraAciklamasi(this.ortak.siraTavani(ajanId));
     else if (calisanMi(durum) && aciklama === undefined && siraAciklamasiMi(onceki.isAciklamasi)) alanlar.isAciklamasi = iki("Çalışıyor", "Working");
     this.depo.ajanGuncelle(ajanId, alanlar);
     if (durum === "bosta" || durum === "kapali" || durum === "hata" || durum === "duraklatildi") this.yaziyorBitir(ajanId);
@@ -1486,6 +1514,13 @@ export class Sirket {
       }
     }
 
+    // Ortak çalışma (0.0.8): yasak git komutu, .git'e dokunma ya da başkasının kiraladığı dosya
+    const ortak = this.ortak.kapidan(ajan, arac, girdi, cwd);
+    if (ortak) {
+      this.denetimKaydet(ajan, arac, girdi, "ret", ortak.kural, ortak.neden, aracKimligi, altAjan);
+      return this.ret(ortak.neden);
+    }
+
     const sonuc = degerlendir([...anayasaPolitikasi(this.anayasa(proje.id)), ...this.politika(proje.id)], arac, girdi, { cwd, projeKoku: proje.yol, rol: ajan.rol });
     if (sonuc.karar === "ret") {
       this.denetimKaydet(ajan, arac, girdi, "ret", sonuc.kural, sonuc.neden, aracKimligi, altAjan);
@@ -1496,9 +1531,20 @@ export class Sirket {
       const k = await this.kararBekle(ajan, "arac", `${ajan.ad} · ${arac}`, girdiOzeti(arac, girdi), { arac, girdi, kural: sonuc.kural, aracKimligi });
       this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", denetimKarari(k), k.not, aracKimligi, altAjan);
       if (!k.izin) return this.ret(retMetni(k));
+      // Karar beklenirken dosyayı başkası kiraladıysa yazma yine reddedilir
+      const kira = this.ortak.kirala(ajan, arac, girdi, cwd);
+      if (kira) {
+        this.denetimKaydet(ajan, arac, girdi, "ret", kira.kural, kira.neden, aracKimligi, altAjan);
+        return this.ret(kira.neden);
+      }
       this.yazmaKaydet(ajanId, cwd, arac, girdi);
       const veren = kararVerenAdi(k.kaynak, k.verenAd);
       return this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki(`${veren} onayladı`, `${veren} approved`) } };
+    }
+    const kira = this.ortak.kirala(ajan, arac, girdi, cwd);
+    if (kira) {
+      this.denetimKaydet(ajan, arac, girdi, "ret", kira.kural, kira.neden, aracKimligi, altAjan);
+      return this.ret(kira.neden);
     }
     this.yazmaKaydet(ajanId, cwd, arac, girdi);
     const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan);
@@ -1522,6 +1568,12 @@ export class Sirket {
     if (y) this.duzenlemeler.set(path.resolve(cwd, y), { ajanId, zaman: Date.now() });
   }
 
+  /** Araç hatayla ya da kesintiyle bitti: ortak çalışmanın komut penceresi kapanır, yazan komutun izi alınır */
+  private ortakAracSonu(ajanId: string, arac: string, girdi: Record<string, unknown>): void {
+    const a = this.depo.ajan(ajanId);
+    if (a) this.ortak.aracSonrasi(a, arac, girdi, a.calismaAlani ?? this.proje(a.projeId).yol);
+  }
+
   /** Araç sonrası: defter sayacı, düzenleme izi; dokunulan dosyayla ilgili hafıza ek bağlam olarak döner */
   private aracSonrasi(ajanId: string, arac: string, girdi: Record<string, unknown>): string | null {
     if (!arac.startsWith("mcp__arnorg__")) {
@@ -1532,6 +1584,8 @@ export class Sirket {
     const a = this.depo.ajan(ajanId);
     if (!a) return null;
     const cwd = a.calismaAlani ?? this.proje(a.projeId).yol;
+    // Ortak çalışma: kira tazelenir, yazan komuttan sonra değişen dosyaların izi alınır
+    this.ortak.aracSonrasi(a, arac, girdi, cwd);
     const ekler = [this.hatirlatici.dosyaSonrasi(a, cwd, arac, girdi)];
     const y = typeof girdi.file_path === "string" ? girdi.file_path : null;
     if (y && YAZMA_ARACLARI.has(arac)) {
@@ -1725,8 +1779,8 @@ export class Sirket {
       projeId,
       kip === "ceo"
         ? iki(
-            `Kurul karar yetkisini ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} bıraktı: izinler, birleştirmeler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları görür.`,
-            `The board handed decision authority to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}: permissions, merges, hires and the other approvals now go through the CEO; the board sees the results.`,
+            `Kurul karar yetkisini ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} bıraktı: izinler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları görür.`,
+            `The board handed decision authority to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}: permissions, hires and the other approvals now go through the CEO; the board sees the results.`,
           )
         : iki("Kurul karar yetkisini geri aldı: onaylar yeniden kurula gelir.", "The board took decision authority back: approvals come to the board again."),
     );
@@ -1778,8 +1832,8 @@ export class Sirket {
 
     const sahip: KararSahibi = { kaynak: veren.kaynak, ad: verenAd };
     try {
+      // 0.0.8: birleştirme onayı yok; eski kayıttaki bir birleştirme kararı yalnız kayda geçer
       if (onay.tur === "ise_alim") await this.iseAlimSonucu(onay, izin, temizNot, sahip);
-      else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot, sahip);
       else if (onay.tur === "anayasa") await this.anayasaSonucu(onay, izin, temizNot, sahip);
       else if (onay.tur === "isten_cikarma") await this.istenCikarmaSonucu(onay, izin, temizNot, sahip);
       else if (onay.tur === "teslim") await this.teslimSonucu(onay, izin, temizNot, sahip, !not?.trim() && otomatik);
@@ -1871,6 +1925,8 @@ export class Sirket {
         }
       }
     }
+    // Dosya kiraları işleri devralana geçer (devralan yoksa ajanSil bırakır)
+    this.ortak.ajanAyrildi(a, aktarilan);
     const temizlik = this.ajanSil(id);
     this.duyur(
       a.projeId,
@@ -1993,55 +2049,6 @@ export class Sirket {
     return this.brifing.iste(projeId, kaynak);
   }
 
-  private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi): Promise<void> {
-    const veri = onay.veri as { ajanId: string; dal: string; ozet: string; isteyenId?: string };
-    const sahip = this.depo.ajan(veri.ajanId);
-    const isteyen = veri.isteyenId ? this.depo.ajan(veri.isteyenId) : sahip;
-    if (!izin) {
-      // Tam otonom kipte reddeden CEO anılır: "arnorg/deniz birleştirmesi reddedildi (CEO Ada)."
-      const kim = veren.kaynak === "ceo" ? ` (${kararOznesi(veren.kaynak, veren.ad)})` : "";
-      if (isteyen) await this.sistemMesaji(isteyen.id, iki(`${veri.dal} birleştirmesi reddedildi${kim}.${not ? ` Not: ${not}` : ""}`, `The merge of ${veri.dal} was rejected${kim}.${not ? ` Note: ${not}` : ""}`));
-      return;
-    }
-    // Kalite kapısı: iş projenin birleştirme kuyruğuna girer; sırası gelince kalite çalışma alanında test edilir,
-    // geçerse ana repoda birleştirilir, geçmezse dal sahibine düzeltmesi söylenir (birlestirme-kuyrugu.ts)
-    this.birlestirmeKuyrugu.ekle(onay);
-  }
-
-  /** Kalite kapısını geçen iş ana repoda birleşti: görevler tamam, duyuru, uzak depoya gönderim, hafıza */
-  private async birlesmeSonrasi(onay: Onay): Promise<void> {
-    const veri = birlestirmeVerisi(onay.veri);
-    const proje = this.depo.proje(onay.projeId);
-    if (!veri || !proje) return;
-    const sahip = this.depo.ajan(veri.ajanId);
-    for (const g of this.depo.gorevler(proje.id)) {
-      if (g.atananId === veri.ajanId && g.durum === "inceleme") await this.gorevGuncelle(g.id, { durum: "tamam" });
-    }
-    const k = veri.kalite;
-    const kapi = k?.testsiz
-      ? iki(" Kurul testsiz birleştirdi.", " The board merged it without tests.")
-      : k && !k.testYok && k.komut
-        ? iki(` Testler geçti (${k.komut}${k.sureMs ? `, ${sureMetni(k.sureMs)}` : ""}).`, ` Tests passed (${k.komut}${k.sureMs ? `, ${sureMetni(k.sureMs)}` : ""}).`)
-        : "";
-    this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`${veri.dal} ${proje.varsayilanDal} dalına birleştirildi.${kapi} ${kisalt(veri.ozet, 200)}`, `${veri.dal} was merged into ${proje.varsayilanDal}.${kapi} ${kisalt(veri.ozet, 200)}`));
-    // Uzak depo varsa ve otomatik gönderim açıksa çalışma dalı gönderilir
-    if (proje.uzakAdres && proje.otomatikGonder) {
-      void this.github
-        .gonder(proje)
-        .then((g) => {
-          if (g.durum === "gonderildi") this.kanalMesaji(proje.id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, g.mesaj);
-          else this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: g.mesaj, projeId: proje.id });
-        })
-        .catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: proje.id }));
-    }
-    this.hafiza.yaz(
-      proje.id,
-      { tur: "ozet", baslik: `${veri.dal} → ${proje.varsayilanDal}`, metin: kisalt(veri.ozet, 800), etiketler: ["birlestirme"], onem: 2 },
-      { ajan: sahip, ad: "ArnOrg" },
-    );
-    this.projeYayinla(proje.id);
-  }
-
   // ===================================================================
   // Görevler
   // ===================================================================
@@ -2104,10 +2111,7 @@ export class Sirket {
         ? [iki("\nBu görev hakkında sorulup yanıtlananlar:", "\nAsked and answered about this task:"), ...sorular.map((x) => `- ${x.soranAd} → ${x.soruluAd}: ${kisalt(x.soru, 160)} | ${kisalt(x.yanit ?? "", 260)}`)].join("\n")
         : "",
       ilgiliKod ? `\n${ilgiliKod}` : "",
-      iki(
-        "\nİşe başlamadan ilgili notları oku. İş bitince testleri çalıştır, commit'le, gorev_guncelle ile görevi 'inceleme' durumuna al ve ne yaptığını kısaca yaz.",
-        "\nRead the relevant notes before you start. When the work is done, run the tests, commit, move the task to 'inceleme' (review) with gorev_guncelle and briefly write what you did.",
-      ),
+      gorevSonu(),
     ].join("\n");
   }
 
@@ -2141,7 +2145,8 @@ export class Sirket {
     return gorev;
   }
 
-  async gorevGuncelle(id: string, istek: GorevGuncelleIstegi, kaynakAjanId: string | null = null): Promise<Gorev> {
+  /** geriNot: görevi incelemeden geri çeviren inceleyicinin notu; sahibine giden "geri döndü" mesajına girer */
+  async gorevGuncelle(id: string, istek: GorevGuncelleIstegi, kaynakAjanId: string | null = null, geriNot: string | null = null): Promise<Gorev> {
     const eski = this.depo.gorev(id);
     if (!eski) throw bulunamadi("Görev", "Task");
     if (istek.atananId) {
@@ -2180,21 +2185,33 @@ export class Sirket {
     });
     this.olaylar.yayinla({ tur: "gorev.guncellendi", gorev });
     this.projeYayinla(gorev.projeId);
+    // Ortak çalışma: iptalde kiralar biter, yeniden atamada yeni sahibine geçer
+    this.ortak.gorevDegisti(eski, gorev);
 
     const durumDegisti = yeniDurum && yeniDurum !== eski.durum;
     const atamaDegisti = istek.atananId !== undefined && istek.atananId !== eski.atananId;
     if (gorev.durum === "calisiliyor" && gorev.atananId && (durumDegisti || atamaDegisti) && gorev.atananId !== kaynakAjanId) {
       // İncelemeden aynı kişiye geri dönen görev yeniden başlatılır ama "geri döndü" diye duyurulur
-      await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null, !atamaDegisti && eski.durum === "inceleme").catch((h) =>
+      await this.gorevBaslat(gorev, atamaDegisti ? eski.atananId : null, !atamaDegisti && eski.durum === "inceleme", geriNot).catch((h) =>
         this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${gorev.kod} başlatılamadı: ${(h as Error).message}`, `${gorev.kod} could not be started: ${(h as Error).message}`), projeId: gorev.projeId }),
       );
     }
-    if (durumDegisti && gorev.durum === "inceleme") await this.incelemeyeBildir(gorev).catch(() => undefined);
+    // Görev incelemeye ya da tamama geçince sahibinin o göreve ait dosyaları çalışma dalına commit'lenir (ortak-calisma/)
+    let kayit: GorevKaydi | null = null;
+    let kayitHatasi: string | null = null;
+    if (durumDegisti && (gorev.durum === "inceleme" || gorev.durum === "tamam")) {
+      kayit = await this.ortak.gorevKaydet(gorev, gorev.durum).catch((h) => {
+        kayitHatasi = (h as Error).message;
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: iki(`${gorev.kod} kaydedilemedi: ${kayitHatasi}`, `${gorev.kod} could not be saved: ${kayitHatasi}`), projeId: gorev.projeId });
+        return null;
+      });
+    }
+    if (durumDegisti && gorev.durum === "inceleme") await this.incelemeyeBildir(gorev, kayit, kayitHatasi).catch(() => undefined);
     if (durumDegisti && gorev.durum === "tamam") await this.gorevBitti(gorev).catch(() => undefined);
     return gorev;
   }
 
-  private async gorevBaslat(g: Gorev, oncekiSahipId: string | null = null, geriDonus = false): Promise<void> {
+  private async gorevBaslat(g: Gorev, oncekiSahipId: string | null = null, geriDonus = false, geriNot: string | null = null): Promise<void> {
     if (!g.atananId) return;
     this.depo.ajanGuncelle(g.atananId, { gorevId: g.id });
     const sahip = this.depo.ajan(g.atananId);
@@ -2220,52 +2237,32 @@ export class Sirket {
     }
     const oturum = this.oturumlar.get(g.atananId);
     const gorevMetni = this.gorevMetni(g, oncekiSahipId, await this.ilgiliKod(g));
-    const metin = oturum?.acik ? `${iki("Yeni görev atandı.", "New task assigned.")}\n\n${gorevMetni}` : gorevMetni;
+    // İncelemeden geri dönen görev yeni iş gibi değil, düzeltme isteği olarak gider: sahibi neyi düzelteceğini bilir ve
+    // görevi yeniden incelemeye almadan durmaz (0.0.8 uçtan uca denemesinde "Yeni görev atandı" diyen mesajla ajanlar
+    // görevi 'calisiliyor' bırakıp duruyordu)
+    const not = geriNot?.trim();
+    const ust = geriDonus
+      ? iki(
+          `${g.kod} incelemeden sana geri döndü: düzeltme istendi.${not ? `\nİnceleyenin notu: ${not}` : ""}\nDüzelt, testleri koş ve görevi yeniden 'inceleme' durumuna al (gorev_guncelle). Görev 'calisiliyor' kaldıkça iş bitmiş sayılmaz ve kimse incelemez.`,
+          `${g.kod} came back to you from review: changes were requested.${not ? `\nReviewer's note: ${not}` : ""}\nFix it, run the tests and move the task to 'inceleme' (review) again with gorev_guncelle. While the task stays 'calisiliyor' the work does not count as done and nobody reviews it.`,
+        )
+      : oturum?.acik
+        ? iki("Yeni görev atandı.", "New task assigned.")
+        : "";
+    const metin = ust ? `${ust}\n\n${gorevMetni}` : gorevMetni;
     await this.ajanaMesaj(g.atananId, metin, "next", { tur: "sistem" });
   }
 
-  private async incelemeyeBildir(g: Gorev): Promise<void> {
+  /** İnceleme: görevin kaydı (commit) inceleyiciye, yoksa CEO'ya gider; uygunsa 'tamam', değilse 'calisiliyor' */
+  private async incelemeyeBildir(g: Gorev, kayit: GorevKaydi | null = null, kayitHatasi: string | null = null): Promise<void> {
     const ajanlar = this.depo.ajanlar(g.projeId);
     const sahip = g.atananId ? this.depo.ajan(g.atananId) : null;
     this.duyur(g.projeId, iki(`${g.kod} "${kisalt(g.baslik, 80)}" incelemeye hazır${sahip ? ` (${sahip.ad})` : ""}.`, `${g.kod} "${kisalt(g.baslik, 80)}" is ready for review${sahip ? ` (${sahip.ad})` : ""}.`));
     const inceleyici = ajanlar.find((a) => a.rol === "inceleme" && a.id !== g.atananId);
     const hedef = inceleyici ?? ajanlar.find((a) => a.rol === "ceo");
     if (!hedef) return;
-    const dal = sahip?.dal ? iki(` Dal: ${sahip.dal}.`, ` Branch: ${sahip.dal}.`) : "";
-    // Tam otonom kipte birleştirmeye CEO karar verir: inceleyici CEO'ya sunar, CEO'nun kendi isteği hemen geçerli olur
-    const otonom = Boolean(this.kararCeosu(g.projeId));
-    // Sahibi birleştirmeyi zaten istediyse ve karar CEO'daysa yeniden sunulmaz: CEO bekleyen onayı onay_karari ile karara bağlar
-    const istenen =
-      otonom && !inceleyici && sahip?.dal
-        ? this.depo.onaylar(g.projeId, "bekliyor").find((o) => o.tur === "birlestirme" && o.muhatap === "ceo" && (o.veri as { dal?: unknown } | null)?.dal === sahip.dal)
-        : undefined;
-    if (istenen && sahip) {
-      const kimlik = kisaKimlik(istenen.id);
-      await this.uyandir(
-        hedef.id,
-        iki(
-          `${g.kod} "${g.baslik}" incelemeye hazır (${sahip.ad}).${dal} ${sahip.ad} birleştirmeyi zaten istedi (onay ${kimlik}): calisma_farki ile değişiklikleri incele ve onay_karari ile karar ver; reddedersen gerekçen ${yonelme(sahip.ad)} iletilir.`,
-          `${g.kod} "${g.baslik}" is ready for review (${sahip.ad}).${dal} ${sahip.ad} has already asked for the merge (approval ${kimlik}): review the changes with calisma_farki and decide with onay_karari; if you reject it, your reasoning goes to ${sahip.ad}.`,
-        ),
-        null,
-      );
-      return;
-    }
-    const sun = otonom
-      ? inceleyici
-        ? iki("birlestirme_iste ile CEO'nun onayına sun", "submit it for the CEO's approval with birlestirme_iste")
-        : iki("birlestirme_iste ile birleştir (karar yetkisi sende; hemen geçerli olur ve kalite kapısından geçer)", "merge it with birlestirme_iste (you have the decision authority: it takes effect immediately and goes through the quality gate)")
-      : inceleyici
-        ? iki("birlestirme_iste ile kurul onayına sun", "submit it for the board's approval with birlestirme_iste")
-        : iki("birlestirme_iste ile kurula sun", "submit it to the board with birlestirme_iste");
-    await this.uyandir(
-      hedef.id,
-      iki(
-        `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? `calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa ${sun}, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz.` : `calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa ${sun}, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir.`}`,
-        `${g.kod} "${g.baslik}" is ready for review (${sahip?.ad ?? "unassigned"}).${dal} ${inceleyici ? `Read the changes with calisma_farki and the files with calisma_dosyasi; if all is well, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner.` : `Review the changes with calisma_farki (read files with calisma_dosyasi if needed); if it is ready, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner. If reviews come up often, consider hiring a code reviewer.`}`,
-      ),
-      null,
-    );
+    const testli = Boolean(kayit && kayit.kalite.durum !== "testsiz");
+    await this.uyandir(hedef.id, incelemeCagrisi({ g, sahip: sahip?.ad ?? null, kayit, kayitHatasi, testli, inceleyici: Boolean(inceleyici) }), null);
   }
 
   private async gorevBitti(g: Gorev): Promise<void> {
@@ -2721,7 +2718,7 @@ export class Sirket {
   }
 
   /** ArnOrg'un kendi kayıtlarının (.arnorg) gecikmeli commit'i; ana repoyu temiz tutar */
-  private arnorgCommitPlanla(projeId: string): void {
+  arnorgCommitPlanla(projeId: string): void {
     const z = this.arnorgCommitZamanlayicilari.get(projeId);
     if (z) clearTimeout(z);
     const yeni = setTimeout(() => {
@@ -2732,19 +2729,24 @@ export class Sirket {
     this.arnorgCommitZamanlayicilari.set(projeId, yeni);
   }
 
-  /** Yalnız .arnorg yolunu commit'ler; kullanıcının diğer değişikliklerine dokunmaz */
+  /** Yalnız .arnorg yolunu commit'ler; kullanıcının diğer değişikliklerine dokunmaz. Projenin git sırasında yapılır */
   async arnorgCommitle(projeId: string): Promise<boolean> {
+    if (!this.depo.proje(projeId)) return false;
+    return this.ortak.git.calistir(projeId, () => this.arnorgCommitIs(projeId));
+  }
+
+  /** arnorgCommitle'ın kendisi: git sırasında süren bir işin içinden doğrudan çağrılır (sıra beklenmez) */
+  async arnorgCommitIs(projeId: string): Promise<boolean> {
     const proje = this.depo.proje(projeId);
     if (!proje || !fs.existsSync(path.join(proje.yol, ".arnorg"))) return false;
     // Bekleyen hafıza yansıması önce yazılır; commit hafızanın son hâlini içerir
     this.hafiza.bekleyeniYansit(projeId);
     if ((await gitIslemleri.mevcutDal(proje.yol)) !== proje.varsayilanDal) return false;
-    const durum = (await gitIslemleri.git(proje.yol, ["status", "--porcelain", "--", ".arnorg"])).trim();
-    if (!durum) return false;
-    await gitIslemleri.kimlikGuvenceAltinaAl(proje.yol);
-    await gitIslemleri.git(proje.yol, ["add", "-A", "--", ".arnorg"]);
-    await gitIslemleri.git(proje.yol, ["commit", "-m", iki("ArnOrg: ekip, hafıza ve not kayıtları", "ArnOrg: team, memory and note records"), "--", ".arnorg"]);
-    return true;
+    // Yalnız .arnorg'daki değişenler; bir çalışanın kiraladığı not onun görev kaydına girer. Kancalar atlanır
+    const yollar = await this.ortak.arnorgYollari(projeId, proje.yol);
+    if (!yollar.length) return false;
+    await this.ortak.eskiKilit(proje);
+    return Boolean(await kilitliyseYinele(() => yollariCommitle(proje.yol, yollar, iki("ArnOrg: ekip, hafıza ve not kayıtları", "ArnOrg: team, memory and note records"))));
   }
 
   // ===================================================================
@@ -2818,7 +2820,7 @@ export class Sirket {
     }
     this.esZamanlilik.kapat();
     this.kanallar.kapat();
-    this.birlestirmeKuyrugu.kapat();
+    this.ortak.kapat();
     this.hesap.durdur();
     this.kurulum.kapat();
     this.kuresel.durdur();

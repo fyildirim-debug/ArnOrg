@@ -63,8 +63,10 @@ export async function baslat(s: BaslatSecenekleri): Promise<CalisanSunucu> {
   sirket.kuresel.baslat();
   // Otomatik dizinleme açıksa projelerin ana reposu arka planda dizinlenir
   sirket.kodZekasi.baslat();
-  // Kalite kapısında yarım kalan birleştirmeler (kuyrukta, hazırlık, test) sırasıyla sürer
-  sirket.birlestirmeKuyrugu.baslat();
+  // 0.0.8 ortak çalışma: eski worktree ve dallar ortak projeye alınır (izleyici kurulmadan önce: kaldırılan alanlar
+  // olay yağdırmasın); sonra yarım kalan kalite denetimleri sürer, kiralar ve iş dağıtımı dönemsel bakılır
+  await sirket.ortak.gecis().catch(() => []);
+  sirket.ortak.baslat();
   const izleyici = new DosyaIzleyici(olaylar, (tam) => {
     const d = sirket.duzenlemeler.get(tam);
     return d && Date.now() - d.zaman < 15_000 ? d.ajanId : null;

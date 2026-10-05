@@ -200,10 +200,23 @@ export class GithubIslemleri {
     }
     const { onde, geride } = await this.farkSay(proje);
     if (geride > 0 && onde === 0) {
-      const kirli = (await this.git(proje, ["status", "--porcelain", "--untracked-files=no"], 20_000)).cikti.trim();
-      if (kirli) return { durum: "kirli", mesaj: iki("Uzakta yeni commit var ama ana repoda commit'lenmemiş değişiklik olduğu için çekilmedi.", "There are new remote commits, but they were not pulled because the main repo has uncommitted changes."), onde, geride };
+      // Ortak çalışma kopyasında çalışanların kaydedilmemiş işi olabilir (0.0.8): git ileri sarmayı yalnız o
+      // dosyalara dokunmuyorsa yapar, dokunuyorsa hiçbir şeyi değiştirmeden reddeder
       const ileri = await this.git(proje, ["merge", "--ff-only", `origin/${proje.varsayilanDal}`]);
-      if (ileri.kod !== 0) return { durum: "hata", mesaj: `git merge --ff-only: ${ileri.hata.trim().slice(0, 300)}`, onde, geride };
+      if (ileri.kod !== 0) {
+        if (/local changes|untracked working tree files|would be overwritten/i.test(ileri.hata)) {
+          return {
+            durum: "kirli",
+            mesaj: iki(
+              "Uzakta yeni commit var ama çalışma kopyasındaki kaydedilmemiş değişikliklerle aynı dosyalara dokunduğu için çekilmedi; o işler kaydedilince yeniden denenecek.",
+              "There are new remote commits, but they touch files with unsaved changes in the working copy, so they were not pulled; it will try again once that work is saved.",
+            ),
+            onde,
+            geride,
+          };
+        }
+        return { durum: "hata", mesaj: `git merge --ff-only: ${ileri.hata.trim().slice(0, 300)}`, onde, geride };
+      }
       return { durum: "cekildi", mesaj: iki(`Uzaktan ${geride} commit çekildi.`, `Pulled ${geride} commit(s) from the remote.`), onde: 0, geride: 0 };
     }
     if (geride > 0 && onde > 0) {

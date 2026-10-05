@@ -17,7 +17,7 @@ export const projeler = {
   listedenCikar: "Listeden çıkar",
   cikarEtiket: (ad: string) => `${ad} projesini listeden çıkar`,
   cikarOnay: (ad: string) =>
-    `${ad} ArnOrg listesinden çıkarılır. Repo, .arnorg/ klasörü ve çalışma alanları diskte kalır; aynı yolu yeniden bağlayabilirsiniz.`,
+    `${ad} ArnOrg listesinden çıkarılır. Repo ve .arnorg/ klasörü diskte kalır; aynı yolu yeniden bağlayabilirsiniz.`,
   cikarildi: (ad: string) => `${ad} listeden çıkarıldı. Dosyalara dokunulmadı.`,
   form: {
     ilkBaslik: "İlk projenizi açın",
@@ -32,7 +32,7 @@ export const projeler = {
     ac: "Proje ayarları",
     acEtiket: (ad: string) => `${ilgi(ad)} ayarları`,
     dal: "Çalışma dalı",
-    dalIpucu: "Ajanlar buradan dallanır, onaylı birleştirmeler buraya girer.",
+    dalIpucu: "Ekip bu dalda birlikte çalışır; ArnOrg her görevi buraya commit'ler.",
     dalDegistir: "Dalı değiştir",
     dalDegisti: (dal: string) => `Çalışma dalı ${dal} oldu.`,
     dallarAlinamadi: "Dallar alınamadı",
@@ -49,10 +49,10 @@ export const projeler = {
     githubBagliDegil: "GitHub bağlı değil; depo açmak için önce bağlayın.",
     githubBagla: "Ayarlar'da bağla",
     gonderim: "Gönderim",
-    otomatikGonder: "Onaylı birleştirmeden sonra uzak depoya gönder",
-    otomatikGonderIpucu: "Kapalıyken onaylı işler yalnız bu bilgisayardaki çalışma dalına girer.",
+    otomatikGonder: "Görev kayıtlarından sonra uzak depoya gönder",
+    otomatikGonderIpucu: "Kapalıyken görev kayıtları yalnız bu bilgisayardaki çalışma dalında kalır.",
     otomatikGonderUzakYok: "Uzak depo bağlanınca geçerli olur.",
-    otomatikAcik: "Onaylı birleştirmeler uzak depoya da gönderilecek.",
-    otomatikKapali: "Onaylı birleştirmeler yalnız bu bilgisayarda kalacak.",
+    otomatikAcik: "Görev kayıtları uzak depoya da gönderilecek.",
+    otomatikKapali: "Görev kayıtları yalnız bu bilgisayarda kalacak.",
   },
 };

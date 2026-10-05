@@ -1,4 +1,5 @@
-// Ekip: organizasyon şeması, seçili ajanın ayrıntısı, CEO'nun işe alım teklifleri, işe al
+// Ekip: organizasyon şeması, ortak çalışma (tempo, kim ne üzerinde, son kayıtlar), seçili ajanın ayrıntısı, CEO'nun
+// işe alım teklifleri, işe al
 import type { AjanDurumu } from "@arnorg/ortak";
 import { useEffect, useState } from "react";
 import { AjanAyrinti } from "../bilesenler/ajan/AjanAyrinti";
@@ -7,6 +8,7 @@ import { OrgSemasi } from "../bilesenler/ajan/OrgSemasi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { useTamOtonom } from "../bilesenler/KararYetkisi";
 import { OnayOgesi } from "../bilesenler/OnayOgesi";
+import { OrtakCalismaPaneli } from "../bilesenler/ortak/OrtakCalisma";
 import { Simge } from "../bilesenler/Simge";
 import { useSozluk } from "../dil";
 import { useArayuz } from "../durum/arayuz";
@@ -78,6 +80,7 @@ export function Ekip() {
               ))}
             </ul>
             <OrgSemasi ajanlar={ajanlar} secili={secili?.id ?? null} sec={sec} />
+            <OrtakCalismaPaneli />
 
             {teklifler.length ? (
               <section aria-labelledby="teklif-baslik">

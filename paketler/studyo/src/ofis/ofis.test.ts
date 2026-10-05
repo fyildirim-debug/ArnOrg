@@ -301,7 +301,10 @@ describe("işe göre yer: araç → yer tablosu", () => {
     expect(yer("mcp__arnorg__toplanti_yap", { gundem: "Kargo entegrasyonu" })).toBe("toplanti");
     for (const a of ["not_yaz", "hafiza_kaydet"]) expect(aracYeri(`mcp__arnorg__${a}`), a).toMatchObject({ yer: "arsiv", esik: 1 });
     for (const a of ["not_oku", "notlari_listele", "hafiza_ara", "hafiza_listele"]) expect(aracYeri(`mcp__arnorg__${a}`), a).toMatchObject({ yer: "arsiv", esik: 2 });
-    for (const a of ["kurula_sor", "birlestirme_iste", "ise_al_teklif"]) expect(yer(`mcp__arnorg__${a}`), a).toBe("kurul");
+    for (const a of ["kurula_sor", "ise_al_teklif"]) expect(yer(`mcp__arnorg__${a}`), a).toBe("kurul");
+    // 0.0.8: birleştirme isteği yok; görev kaydı masada kalır
+    expect(aracYeri("mcp__arnorg__birlestirme_iste")).toBeNull();
+    expect(aracYeri("mcp__arnorg__isi_kaydet")).toBeNull();
     expect(yer("mcp__arnorg__rapor_hazirla")).toBe("tahta");
   });
 

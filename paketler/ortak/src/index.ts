@@ -1161,6 +1161,8 @@ export type SunucuOlayi =
   | { tur: "onay.yeni"; onay: Onay }
   | { tur: "onay.sonuc"; onay: Onay }
   | { tur: "gorev.guncellendi"; gorev: Gorev }
+  /** 0.0.8 · Ortak çalışma: görev kaydedildi (commit), kaydın kalite denetimi, dosya kiraları, ekip temposu */
+  | OrtakCalismaOlayi
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
   /** 0.0.8 · Mesajın yeni hâli: seçenekli soru yanıtlandı ve kilitlendi */
   | { tur: "mesaj.guncellendi"; projeId: string; mesaj: Mesaj }
@@ -2034,6 +2036,166 @@ export interface TanitimGuncellemeYaniti {
   ajanId: string;
   ajanAd: string;
 }
+
+// ---------------------------------------------------------------------------
+// 0.0.8 · Ortak çalışma: ekip tek projede, çalışma dalında görev bazlı ve aynı anda çalışır. Kişisel çalışma alanı, dal
+// ve birleştirme yoktur. Çalışanın düzenlediği dosya ona kiralanır (başkası düzenleyemez); görev 'inceleme'ye ya da
+// 'tamam'a geçince ya da çalışan isi_kaydet deyince ArnOrg yalnız o görevin dosyalarını çalışma dalına "<görev kodu>
+// <başlık>" mesajıyla commit'ler ve projenin test komutunu arka planda o commit'te koşar. Tam otonom kipte aynı anda
+// kaç çalışanın çalışacağına (ekip temposu) CEO karar verir; kurulun Ayarlar.esZamanliAjan değeri üst sınırdır.
+// Uçlar: GET /api/projeler/:pid/ortak, GET /api/kayitlar/:kid/fark, POST /api/kayitlar/:kid/yeniden
+// (docs/API.md, "Ortak çalışma")
+// ---------------------------------------------------------------------------
+
+/** Yeni açılabilen onay türleri: 0.0.8'de birleştirme onayı açılmaz (eski birleştirmeler geçmişte okunur kalır) */
+export const GUNCEL_ONAY_TURLERI: OnayTuru[] = ONAY_TURLERI.filter((t) => t !== "birlestirme");
+
+/** arac: Write/Edit/MultiEdit/NotebookEdit · kabuk: komuttaki yönlendirme, tee, sed -i, mv, cp, rm… · iz: komuttan sonra değişen dosya */
+export type KiraKaynagi = "arac" | "kabuk" | "iz";
+
+/** Bir çalışanın düzenlediği dosya: görevi kaydedilene, sahibi durana ya da uzun süre dokunulmayana dek başkası düzenleyemez */
+export interface DosyaKirasi {
+  /** Repo köküne göre yol, / ayraçlı */
+  yol: string;
+  ajanId: string;
+  ajanAd: string;
+  gorevId: string | null;
+  gorevKodu: string | null;
+  baslangic: Zaman;
+  /** Sahibinin dosyaya son dokunduğu an */
+  son: Zaman;
+  kaynak: KiraKaynagi;
+}
+
+/** Kaydın kalite denetimi: kuyrukta → hazirlik → test → gecti / kaldi / zaman_asimi / hata; test komutu yoksa testsiz */
+export type KayitKaliteDurumu = "kuyrukta" | "hazirlik" | "test" | "gecti" | "kaldi" | "zaman_asimi" | "hata" | "testsiz" | "atlandi";
+
+/** Denetimi bitmiş durumlar */
+export const KAYIT_SON_DURUMLARI: KayitKaliteDurumu[] = ["gecti", "kaldi", "zaman_asimi", "hata", "testsiz", "atlandi"];
+
+export interface KayitKalitesi {
+  durum: KayitKaliteDurumu;
+  /** Koşan ya da son koşan komut */
+  komut: string | null;
+  /** Kuyruktayken sırası (çalışan 1. sıradadır); değilse null */
+  sira: number | null;
+  baslangic: Zaman | null;
+  /** Şu anki adımın (hazırlık, test) başladığı an */
+  adimBaslangic: Zaman | null;
+  bitis: Zaman | null;
+  sureMs: number | null;
+  /** Komut çıktısının son kısmı (en çok 300 satır, 64 KB) */
+  cikti: string;
+  /** Kısa açıklama: çıkış kodu, hata nedeni */
+  mesaj: string | null;
+  /** Çalışma dalı bu kayıttan önce de kırmızıydı: kırmızının başladığı kayıt; değilse null */
+  kirmiziKayit: string | null;
+}
+
+/** inceleme / tamam: görev durumu değişti · ara: isi_kaydet · gecis: 0.0.8 geçişinde eski dal ortak projeye alındı */
+export type KayitNedeni = "inceleme" | "tamam" | "ara" | "gecis";
+
+/** Görev kaydı: ArnOrg bir görevin dosyalarını çalışma dalına commit'ledi */
+export interface GorevKaydi {
+  id: string;
+  projeId: string;
+  gorevId: string | null;
+  gorevKodu: string | null;
+  /** Commit konusu: "<görev kodu> <başlık>" */
+  baslik: string;
+  ajanId: string | null;
+  ajanAd: string;
+  commit: string;
+  dal: string;
+  /** Commit'teki dosyalar (repo köküne göre) */
+  dosyalar: string[];
+  eklenen: number;
+  silinen: number;
+  neden: KayitNedeni;
+  zaman: Zaman;
+  kalite: KayitKalitesi;
+}
+
+/** Ekip temposu: aynı anda çalışan (tur işleyen) en çok çalışan sayısı; CEO bu sayıya dahil değildir */
+export interface EkipTemposu {
+  /** Tam otonom kipte CEO'nun seçimi; seçmediyse ya da kurul kipindeyse null */
+  secim: number | null;
+  gerekce: string | null;
+  zaman: Zaman | null;
+  /** Kurulun üst sınırı (Ayarlar.esZamanliAjan; 0 sınırsız) */
+  ustSinir: number;
+  /** Geçerli tempo: kurul kipinde üst sınır, tam otonom kipte CEO'nun seçimi (üst sınırı geçemez); 0 sınırsız */
+  gecerli: number;
+  /** Projede şu an çalışan (tur işleyen ya da karar bekleyen) çalışan sayısı; CEO hariç */
+  calisan: number;
+  /** Eşzamanlı tavan yüzünden sırada bekleyen çalışan sayısı */
+  sirada: number;
+  /** Tempoyu kim belirliyor */
+  belirleyen: "ceo" | "kurul";
+}
+
+/** 0.0.8 geçişinde ortak projeye alınamayan eski çalışma alanı ya da dal: korunur, CEO'ya ve kurula bir kez söylenir */
+export interface EskiCalismaAlani {
+  ajanAd: string;
+  dal: string | null;
+  /** Worktree klasörü (silinmişse null) */
+  yol: string | null;
+  /** kirli: commit'lenmemiş değişiklik var · cakisma: dal çalışma dalıyla temiz birleşmiyor · hata: başka bir sorun */
+  neden: "kirli" | "cakisma" | "hata";
+  ayrinti: string;
+}
+
+/** GET /api/projeler/:pid/ortak */
+export interface OrtakCalismaDurumu {
+  kiralar: DosyaKirasi[];
+  tempo: EkipTemposu;
+  /** Son kayıtlar, yeni önce (en çok 60) */
+  kayitlar: GorevKaydi[];
+  /** 0.0.8 geçişinde korunan eski çalışma alanları */
+  kalanlar: EskiCalismaAlani[];
+}
+
+/**
+ * Görevin dosyaları çalışma dalına commit'lendi. Kısa alanlar kayıttakilerin aynısıdır (Ofis'in onay işareti ve
+ * Pano'nun "kaydedildi" işareti yalnız bunlara bakar); kaydın tamamı ve kalite denetimi kayit alanındadır.
+ */
+export interface GorevKaydiOlayi {
+  tur: "gorev.kaydedildi";
+  projeId: string;
+  gorevId: string | null;
+  gorevKodu: string | null;
+  /** Kaydeden çalışan */
+  ajanId: string | null;
+  /** Commit konusu: "<görev kodu> <başlık>" */
+  mesaj: string;
+  commit: string;
+  /** Commit'teki dosyalar (repo köküne göre) */
+  dosyalar: string[];
+  kayit: GorevKaydi;
+}
+
+/** Kayıttan gorev.kaydedildi olayı */
+export function gorevKaydiOlayi(kayit: GorevKaydi): GorevKaydiOlayi {
+  return {
+    tur: "gorev.kaydedildi",
+    projeId: kayit.projeId,
+    gorevId: kayit.gorevId,
+    gorevKodu: kayit.gorevKodu,
+    ajanId: kayit.ajanId,
+    mesaj: kayit.baslik,
+    commit: kayit.commit,
+    dosyalar: kayit.dosyalar,
+    kayit,
+  };
+}
+
+export type OrtakCalismaOlayi =
+  | GorevKaydiOlayi
+  /** Kaydın kalite denetimi ilerledi ya da bitti */
+  | { tur: "kayit.guncellendi"; projeId: string; kayit: GorevKaydi }
+  /** Projenin dosya kiraları değişti (tam liste) */
+  | { tur: "kira.guncellendi"; projeId: string; kiralar: DosyaKirasi[] }
+  | { tur: "tempo.guncellendi"; projeId: string; tempo: EkipTemposu };
 
 // ---------------------------------------------------------------------------
 // Skiller (0.0.8): depoda duran seçilmiş Claude Code skill kütüphanesi (paketler/cekirdek/skiller, kaynaklar NOTICE.md).

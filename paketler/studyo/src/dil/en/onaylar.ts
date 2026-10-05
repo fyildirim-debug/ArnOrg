@@ -3,7 +3,7 @@ import type { onaylar as tr } from "../tr/onaylar";
 
 export const onaylar: typeof tr = {
   baslik: "Approvals",
-  altBaslik: "Hiring, merges into main and irreversible decisions go through you",
+  altBaslik: "Hiring, the constitution and irreversible decisions go through you",
   tureGore: "Filter by type",
   butunTurler: "All types",
   durum: {
@@ -54,7 +54,7 @@ export const onaylar: typeof tr = {
   },
   etki: {
     iseAlim: (ad: string, rol: string, yonetici: string | null) =>
-      `${ad} joins the team as ${rol} and reports to ${yonetici ?? "the board directly"}; a workspace is set up for them.`,
+      `${ad} joins the team as ${rol} and reports to ${yonetici ?? "the board directly"}; they work in the shared project.`,
     genel: (ajan: string) => `${ajan} gets your decision and goes ahead accordingly; your note is passed on as the answer.`,
     arac: (ajan: string, arac: string) => `${ajan} runs this ${arac} call.`,
     anayasa: (madde: number) => `The constitution takes effect with ${madde} ${madde === 1 ? "article" : "articles"}; everyone, the CEO included, follows it and machine rules are enforced at the gate.`,
@@ -164,7 +164,7 @@ export const onaylar: typeof tr = {
       isten_cikarma: "Proposals to let someone go",
       teslim: "Accepting finished work",
     },
-    aciklama: "Merges, questions and deliveries need your decision, so they're out of scope by default.",
+    aciklama: "Questions and deliveries need your decision, so they're out of scope by default.",
     varsayilan: "Reset to default",
     uyari: (turler: string) => `Auto-approve is on: ${turler} approvals are granted automatically. Each one is recorded in History.`,
     uyariBos: "Auto-approve is on, but the scope is empty; nothing is granted automatically.",

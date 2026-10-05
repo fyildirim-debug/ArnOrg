@@ -1,7 +1,8 @@
 // Eşzamanlı ajan tavanı: aynı anda tur işleyen ajan sayısı bütün projelerde sınırlıdır. Tavan doluyken turu sürmeyen
 // ajana gelen mesaj sıraya girer (FIFO; aynı ajanın mesajları geliş sırasıyla teslim edilir); bir ajan çalışan durumdan
-// çıkınca sıradakiler tavan izin verdikçe teslim edilir. Oturumdan bağımsızdır: durum, sayım ve teslim bağlamdan gelir,
-// böylece Claude Code oturumu açmadan test edilir.
+// çıkınca sıradakiler tavan izin verdikçe teslim edilir. 0.0.8: ajanın projesinin de tavanı olabilir (tam otonom kipte
+// CEO'nun ekip temposu); temposu dolan projenin sıradakileri bekler, başka projelerinkiler önlerinden geçebilir.
+// Oturumdan bağımsızdır: durum, sayım ve teslim bağlamdan gelir, böylece Claude Code oturumu açmadan test edilir.
 import type { AjanDurumu, MesajOnceligi } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 
@@ -40,6 +41,12 @@ export interface EsZamanlilikBaglami<K> {
   durum(ajanId: string): AjanDurumu | null;
   /** Bütün projelerde çalışan ajan sayısı */
   calisanSayisi(): number;
+  /** Ajanın projesinin tavanı (ekip temposu); 0 ya da verilmezse yalnız genel tavan */
+  projeTavani?(ajanId: string): number;
+  /** Ajanın projesinde tempoya sayılan çalışan sayısı */
+  projeCalisani?(ajanId: string): number;
+  /** Ajanın projesi (proje içinde FIFO korunur); verilmezse bütün ajanlar tek proje sayılır */
+  proje?(ajanId: string): string | null;
   /** Ajanın mesajlarını geliş sırasıyla teslim eder; eşzamanlı kısmı ajanı çalışan duruma alır (tavanda yer tutar) */
   teslimEt(ajanId: string, mesajlar: SiradakiMesaj<K>[]): void;
   /** Ajan sıraya girdi (iş açıklaması "Sırada…") ya da sırası düştü */
@@ -74,14 +81,37 @@ export class EsZamanlilik<K = unknown> {
   }
 
   /**
-   * Turu sürmeyen ajana gelen mesaj sıraya girmeli mi? Muaf mesaj (kurul, soru yanıtı) hiç beklemez. Tavan doluysa ya da
-   * önünde bekleyen varsa (FIFO: yer açılınca önce sıradakiler gider) sıraya girer.
+   * Turu sürmeyen ajana gelen mesaj sıraya girmeli mi? Muaf mesaj (kurul, soru yanıtı) hiç beklemez. Genel tavan ya da
+   * ajanın projesinin temposu doluysa, ya da önünde bekleyen varsa (FIFO: yer açılınca önce sıradakiler gider) sıraya
+   * girer. Başka projenin kendi temposu yüzünden bekleyeni önünde sayılmaz.
    */
-  siraGerekli(muaf: boolean): boolean {
+  siraGerekli(muaf: boolean, ajanId?: string): boolean {
     if (muaf) return false;
     const tavan = tavanDegeri(this.b.tavan());
-    if (!tavan) return false;
-    return this.kuyruk.length > 0 || this.b.calisanSayisi() >= tavan;
+    const pt = ajanId ? this.projeTavani(ajanId) : 0;
+    if (!tavan && !pt) return false;
+    if (tavan && this.b.calisanSayisi() >= tavan) return true;
+    if (pt && this.projeCalisani(ajanId!) >= pt) return true;
+    const proje = ajanId ? this.projesi(ajanId) : null;
+    return this.kuyruk.some((m) => (proje !== null && this.projesi(m.ajanId) === proje) || (tavan > 0 && !this.projeDolu(m.ajanId)));
+  }
+
+  private projeTavani(ajanId: string): number {
+    return tavanDegeri(this.b.projeTavani?.(ajanId) ?? 0);
+  }
+
+  private projeCalisani(ajanId: string): number {
+    return this.b.projeCalisani?.(ajanId) ?? 0;
+  }
+
+  private projesi(ajanId: string): string | null {
+    return this.b.proje ? this.b.proje(ajanId) : "";
+  }
+
+  /** Ajanın projesinin temposu dolu mu (tavanı yoksa hiç dolmaz) */
+  private projeDolu(ajanId: string): boolean {
+    const pt = this.projeTavani(ajanId);
+    return pt > 0 && this.projeCalisani(ajanId) >= pt;
   }
 
   ekle(m: SiradakiMesaj<K>): void {
@@ -139,8 +169,20 @@ export class EsZamanlilik<K = unknown> {
     }
     const tavan = tavanDegeri(this.b.tavan());
     let calisan = this.b.calisanSayisi();
-    while (this.kuyruk.length && (!tavan || calisan < tavan)) {
-      this.gonder(this.kuyruk[0]!.ajanId, teslim);
+    /** Proje → bu turda teslim edilen; projenin çalışanı turun başındaki sayıya eklenerek bakılır */
+    const projeTeslim = new Map<string, { baslangic: number; ek: number }>();
+    for (const id of this.siradakiler()) {
+      if (tavan && calisan >= tavan) break;
+      const pt = this.projeTavani(id);
+      if (pt) {
+        const anahtar = this.projesi(id) ?? id;
+        const p = projeTeslim.get(anahtar) ?? { baslangic: this.projeCalisani(id), ek: 0 };
+        projeTeslim.set(anahtar, p);
+        // Temposu dolu proje bekler; sıradaki başka projeler geçebilir
+        if (p.baslangic + p.ek >= pt) continue;
+        p.ek++;
+      }
+      this.gonder(id, teslim);
       // Teslim ajanı hemen çalışan duruma alır; alamadıysa (hata) yine de bir yer sayılır, sonraki yoklamada düzelir
       calisan = Math.max(calisan + 1, this.b.calisanSayisi());
     }

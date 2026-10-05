@@ -77,6 +77,30 @@ describe("uzak depoyla eşitleme", () => {
     expect((await sirket.esitle(proje().id)).durum).toBe("guncel");
   });
 
+  it("ortak çalışma kopyası kirliyken ileri sarma yalnız kaydedilmemiş dosyalara dokunmuyorsa yapılır", async () => {
+    // Çalışanın kaydedilmemiş işi başka bir dosyada: uzaktaki commit yine çekilir, iş yerinde kalır
+    fs.writeFileSync(path.join(proje().yol, "yeni.txt"), "yerelde yarım\n");
+    fs.writeFileSync(path.join(baska, "baska-dosya.txt"), "uzak\n");
+    git(baska, "add", ".");
+    git(baska, "commit", "-q", "-m", "Uzak: başka dosya");
+    git(baska, "push", "-q", "origin", "gelistirme");
+    expect((await sirket.esitle(proje().id)).durum).toBe("cekildi");
+    expect(fs.existsSync(path.join(proje().yol, "baska-dosya.txt"))).toBe(true);
+    expect(fs.readFileSync(path.join(proje().yol, "yeni.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("yerelde yarım\n");
+    // Uzaktaki commit kaydedilmemiş dosyaya dokunuyor: hiçbir şey değişmez
+    fs.writeFileSync(path.join(baska, "yeni.txt"), "uzakta değişti\n");
+    git(baska, "commit", "-q", "-am", "Uzak: yeni.txt");
+    git(baska, "push", "-q", "origin", "gelistirme");
+    const once = git(proje().yol, "rev-parse", "HEAD");
+    const s = await sirket.esitle(proje().id);
+    expect(s.durum).toBe("kirli");
+    expect(git(proje().yol, "rev-parse", "HEAD")).toBe(once);
+    expect(fs.readFileSync(path.join(proje().yol, "yeni.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("yerelde yarım\n");
+    // İş kaydedilmiş gibi: yerel değişiklik geri alınınca çekilir
+    git(proje().yol, "checkout", "--", "yeni.txt");
+    expect((await sirket.esitle(proje().id)).durum).toBe("cekildi");
+  });
+
   it("iki taraf da ilerlediyse dokunmaz, ayrışmayı bildirir", async () => {
     fs.writeFileSync(path.join(baska, "uzak2.txt"), "u\n");
     git(baska, "add", ".");

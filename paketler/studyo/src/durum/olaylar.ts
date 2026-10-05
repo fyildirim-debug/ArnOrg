@@ -10,6 +10,7 @@ import { duzeltmeKaldir, duzeltmeUygula } from "./duzeltmeler";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import { kodDurumuUygula } from "./kodZekasi";
 import { modelKataloguUygula } from "./modeller";
+import { calismaKoku, ortakOlayUygula } from "./ortakCalisma";
 import { mesajYerineKoy } from "./secenek";
 import { islemUygula, kurulumDurumuUygula } from "./kurulum";
 import { zekaOlayiUygula } from "./zeka";
@@ -89,7 +90,7 @@ function depoyaUygula(olay: SunucuOlayi) {
       akisOgesiEkle(oge);
       if (oge.tur === "arac_cagrisi") {
         const ajan = ajanBul(oge.ajanId);
-        const kok = ajan?.calismaAlani;
+        const kok = calismaKoku(ajan);
         // Özet ve araç adı sözlükten parça içerebilir; çizim anında üretilir
         canliEkle({
           id: `a-${oge.id}`,
@@ -251,6 +252,14 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "kod.dizin":
       if (olay.projeId === pid) kodDurumuUygula(olay.projeId, olay.durum);
+      return;
+
+    // 0.0.8 · Ortak çalışma: görev kaydı, kaydın kalite denetimi, dosya kiraları, ekip temposu
+    case "gorev.kaydedildi":
+    case "kayit.guncellendi":
+    case "kira.guncellendi":
+    case "tempo.guncellendi":
+      ortakOlayUygula(olay, pid);
       return;
 
     case "bildirim":

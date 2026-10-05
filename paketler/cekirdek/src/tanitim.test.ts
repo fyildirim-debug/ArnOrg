@@ -1,6 +1,6 @@
-// Tanıtım alanı: kök README.md'nin yayındaki ve taslak hâli, git künyesi, güncelleme isteğinin uzmana ya da CEO'ya
-// gitmesi, canlı tanitim.degisti olayı, rol kataloğu ve CEO talimatındaki satır. Claude Code oturumu açılmaz; git
-// commit'leri testin kendi kimliğiyle atılır.
+// Tanıtım alanı: kök README.md'nin yayındaki (çalışma dalına commit'lenmiş) ve taslak (ortak projede henüz
+// kaydedilmemiş) hâli, git künyesi, güncelleme isteğinin uzmana ya da CEO'ya gitmesi, canlı tanitim.degisti olayı, rol
+// kataloğu ve CEO talimatındaki satır. Claude Code oturumu açılmaz; testin kendi commit'leri kendi kimliğiyle atılır.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,12 +8,12 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { KURUL, rolMetni, type Ajan, type Onay, type Proje, type SunucuOlayi, type TanitimDurumu } from "@arnorg/ortak";
+import { gorevKaydiOlayi, KURUL, rolMetni, type Ajan, type GorevKaydi, type Proje, type SunucuOlayi, type TanitimDurumu } from "@arnorg/ortak";
 import { arnorgAracListesi } from "./arnorg-araclari.js";
 import { Depo } from "./depo.js";
 import { dilKaynagi } from "./dil.js";
-import * as gitIslemleri from "./git.js";
 import { OlayYolu } from "./olaylar.js";
+import { bosKalite } from "./ortak-calisma/kayitlar.js";
 import { ROLLER, rolBul } from "./roller.js";
 import { hazirlikTalimati, Sirket } from "./sirket.js";
 import { sunucuKur } from "./sunucu.js";
@@ -117,36 +117,43 @@ describe("tanıtım durumu", () => {
     expect(await readmeOku(baglantili)).toBeNull();
   });
 
-  it("tanıtım uzmanının alanındaki farklı README.md taslak görünür; birleşince yayına geçer, geride kalan alan taslak sayılmaz", async () => {
+  it("ortak projede henüz kaydedilmemiş README.md taslak görünür; yazanı kiracısıdır; görev kaydedilince yayına geçer", async () => {
     const tuna = sirket.iseAl(pid, { ad: "Tuna", rol: "tanitim" });
     expect(tuna).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "sonnet" });
     expect(tuna.yetenekler).toEqual(expect.arrayContaining(["web_arama", "web_okuma", "github_arastirma"]));
-    const alan = path.join(gecici, "calisma", "tuna");
-    await gitIslemleri.worktreeAc(repo, alan, "arnorg/tuna", "main");
-    depo.ajanGuncelle(tuna.id, { calismaAlani: alan, dal: "arnorg/tuna" });
-    // Alan ana repoyla aynı: taslak yok
+    // Çalışma kopyası çalışma dalıyla aynı: taslak yok
     expect(await durum()).toMatchObject({ icerik: ILK, taslak: null, uzman: { id: tuna.id, ad: "Tuna", durum: "kapali" } });
 
+    // Uzman README.md'yi ortak projede yazar (dosya ona kiralanır)
+    const g = sirket.gorevOlustur(pid, { baslik: "README özellikleri", atananId: tuna.id });
+    await sirket.gorevGuncelle(g.id, { durum: "calisiliyor" });
+    const dosya = path.join(repo, "README.md");
     const yeni = "# Vitrin\n\nSipariş, stok ve kargo tek ekranda.\n\n## Özellikler\n\n- Sipariş listesi\n";
-    fs.writeFileSync(path.join(alan, "README.md"), yeni);
+    await sirket.kapi(tuna.id, "Write", { file_path: dosya, content: yeni });
+    fs.writeFileSync(dosya, yeni);
     const d = await durum();
     expect(d.icerik).toBe(ILK);
     expect(d.taslak).toMatchObject({ ajanId: tuna.id, ajanAd: "Tuna", icerik: yeni });
     expect(new Date(d.taslak!.zaman).toISOString()).toBe(d.taslak!.zaman);
 
-    // Commit'lenip çalışma dalına birleşince taslak kalmaz; künye uzmanın commit'ini gösterir
-    gitc(alan, "add", "README.md");
-    gitc(alan, "commit", "-q", "-m", "README: özellikler");
-    const uzmanCommit = gitc(alan, "rev-parse", "HEAD");
-    gitc(repo, "merge", "-q", "--no-ff", "-m", "arnorg/tuna birleşti", "arnorg/tuna");
+    // ArnOrg görevi kaydedince taslak kalmaz; künye görevin commit'ini gösterir
+    const kayit = await sirket.ortak.gorevKaydet(depo.gorev(g.id)!, "ara");
+    expect(kayit?.dosyalar).toEqual(["README.md"]);
     const sonra = await durum();
     expect(sonra).toMatchObject({ var: true, icerik: yeni, taslak: null });
-    expect(sonra.son).toMatchObject({ commit: uzmanCommit, mesaj: "README: özellikler" });
+    expect(sonra.son).toMatchObject({ commit: kayit!.commit, mesaj: `${g.kod} README özellikleri` });
 
-    // Ana repo ilerledi, uzman README'ye dokunmadı: alandaki eski hâl taslak değildir
-    fs.writeFileSync(path.join(repo, "README.md"), `${yeni}- Kargo takibi\n`);
-    gitc(repo, "commit", "-q", "-m", "README: kargo", "--", "README.md");
-    expect((await durum()).taslak).toBeNull();
+    // README'yi başka bir çalışan düzenliyorsa taslağın yazanı odur (kira sahibi)
+    const mert = sirket.iseAl(pid, { ad: "Mert", rol: "backend" });
+    const g2 = sirket.gorevOlustur(pid, { baslik: "Kurulum bölümü", atananId: mert.id });
+    await sirket.gorevGuncelle(g2.id, { durum: "calisiliyor" });
+    await sirket.kapi(mert.id, "Write", { file_path: dosya, content: `${yeni}\n## Kurulum\n` });
+    fs.writeFileSync(dosya, `${yeni}\n## Kurulum\n`);
+    expect((await durum()).taslak).toMatchObject({ ajanId: mert.id, ajanAd: "Mert" });
+    await sirket.ortak.gorevKaydet(depo.gorev(g2.id)!, "ara");
+    expect(await durum()).toMatchObject({ icerik: `${yeni}\n## Kurulum\n`, taslak: null });
+    depo.gorevGuncelle(g.id, { durum: "tamam" });
+    depo.gorevGuncelle(g2.id, { durum: "tamam" });
   });
 
   it("bilinmeyen proje 404", async () => {
@@ -172,7 +179,8 @@ describe("güncelleme isteği", () => {
       expect(giden).toHaveLength(1);
       expect(giden[0]).toMatchObject({ id: tuna.id, kaynak: { tur: "kurul" } });
       expect(giden[0]!.metin).toContain("Kurulun notu: Ekran görüntüsünü de ekle.");
-      expect(giden[0]!.metin).toContain("birlestirme_iste");
+      expect(giden[0]!.metin).toContain("isi_kaydet");
+      expect(giden[0]!.metin).not.toContain("birlestirme_iste");
       const istendi = depo.deger(TANITIM_ISTEK + pid);
       expect(istendi).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect((await durum()).guncellemeIstendi).toBe(istendi);
@@ -215,25 +223,25 @@ describe("güncelleme isteği", () => {
 });
 
 describe("canlı olay", () => {
-  const onay = (veri: unknown): Onay => ({
-    id: "o1",
+  const kayit = (dosyalar: string[]): GorevKaydi => ({
+    id: "k1",
     projeId: pid,
+    gorevId: null,
+    gorevKodu: "T-9",
+    baslik: "T-9 README",
     ajanId: null,
-    tur: "birlestirme",
-    baslik: "arnorg/tuna → main",
-    ayrinti: "",
-    veri,
-    durum: "onaylandi",
-    olusturma: new Date().toISOString(),
-    sonGecerlilik: null,
-    sonuclanma: new Date().toISOString(),
-    not: null,
-    kararKaynagi: "kurul",
-    kararVerenAd: "Yönetim kurulu",
-    muhatap: "kurul",
+    ajanAd: "Tuna",
+    commit: "0".repeat(40),
+    dal: "main",
+    dosyalar,
+    eklenen: 1,
+    silinen: 0,
+    neden: "inceleme",
+    zaman: new Date().toISOString(),
+    kalite: bosKalite("testsiz"),
   });
 
-  it("kök README.md ana repoda ya da uzmanın alanında değişince ve iş birleşince tek olay yayınlanır", async () => {
+  it("kök README.md ortak projede değişince ve README'li bir görev kaydedilince tek olay yayınlanır", async () => {
     const yol = new OlayYolu();
     const yayinlar: SunucuOlayi[] = [];
     yol.dinle((o) => {
@@ -242,28 +250,23 @@ describe("canlı olay", () => {
     const t = new Tanitim({ depo, olaylar: yol, uzmanaYaz: async () => undefined, ceoyaYaz: async () => undefined, gecikmeMs: 10 });
     try {
       const tuna = depo.ajanAdla(pid, "Tuna")!;
-      const ece = sirket.iseAl(pid, { ad: "Ece", rol: "frontend" });
-      // Ana repoda art arda iki değişiklik: tek olay
-      yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: "ana", yol: "README.md", ajanId: null });
-      yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: "ana", yol: "README.md", ajanId: null });
+      // Ortak projede art arda iki değişiklik: tek olay
+      yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: "ana", yol: "README.md", ajanId: tuna.id });
+      yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: "ana", yol: "readme.md", ajanId: null });
       await bekle(50);
       expect(yayinlar).toEqual([{ tur: "tanitim.degisti", projeId: pid }]);
-      // Alt klasördeki README ve başka rolün alanı yayın açmaz
+      // Alt klasördeki README ve 0.0.7'den kalan kişisel alan yayın açmaz
       yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: "ana", yol: "docs/README.md", ajanId: null });
-      yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: ece.id, yol: "README.md", ajanId: ece.id });
-      await bekle(50);
-      expect(yayinlar).toHaveLength(1);
-      // Uzmanın alanı
       yol.yayinla({ tur: "dosya.degisti", projeId: pid, alan: tuna.id, yol: "README.md", ajanId: tuna.id });
       await bekle(50);
-      expect(yayinlar).toHaveLength(2);
-      // Kalite kapısını geçip birleşen iş yayın açar; kuyruktaki açmaz
-      yol.yayinla({ tur: "onay.sonuc", onay: onay({ ajanId: tuna.id, dal: "arnorg/tuna", ozet: "README", kalite: { durum: "kuyrukta" } }) });
+      expect(yayinlar).toHaveLength(1);
+      // README'siz kayıt açmaz; README'li kayıt açar
+      yol.yayinla(gorevKaydiOlayi(kayit(["src/a.ts"])));
+      await bekle(50);
+      expect(yayinlar).toHaveLength(1);
+      yol.yayinla(gorevKaydiOlayi(kayit(["src/a.ts", "README.md"])));
       await bekle(50);
       expect(yayinlar).toHaveLength(2);
-      yol.yayinla({ tur: "onay.sonuc", onay: onay({ ajanId: tuna.id, dal: "arnorg/tuna", ozet: "README", kalite: { durum: "birlesti" } }) });
-      await bekle(50);
-      expect(yayinlar).toHaveLength(3);
     } finally {
       t.durdur();
     }
@@ -278,7 +281,8 @@ describe("rol ve talimat", () => {
     expect(rolMetni(r, "en")).toMatchObject({ ad: "Product marketer" });
     for (const t of [r.talimat, r.en!.talimat]) {
       expect(t).toContain("README.md");
-      expect(t).toContain("birlestirme_iste");
+      expect(t).toContain("isi_kaydet");
+      expect(t).not.toContain("birlestirme_iste");
       // Web araçlarının adları talimatın yetenek satırlarından gelir: kapalı yetenek anılmasın
       expect(t).not.toMatch(/web_ara|web_oku|github_ara|WebSearch|WebFetch/);
     }

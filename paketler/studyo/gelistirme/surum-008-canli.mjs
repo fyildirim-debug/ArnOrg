@@ -9,18 +9,18 @@
 //   Deniz T-24'te kısa bir düzenleme ve kayıt.
 // Boştaki Mert ve Selin'in masada oturup uzun boşlukta kısa molaya çıkmasını ofis kendisi yapar.
 //
-// gorev.kaydedildi olayının kesin biçimi ortak tiplere tek çalışma alanı işiyle girer; burada Stüdyo'nun tanıdığı
-// alanlarla yayınlanır (src/yardimcilar/gorevKaydi.ts). ARNORG_CANLI_GOSTERI=0 ile tur kapanır (uçlar kalır).
+// Kayıt surum-008-ortak.mjs'in görev kaydıyla yapılır: çalışanın düzenlediği dosyalar ona kiralanır, kayıt onları
+// commit'ler (gorev.kaydedildi, ortak tiplerde GorevKaydiOlayi), kira biter, kalite denetimi koşar. Herkes ortak
+// projede çalışır; yollar projenin köküne göredir. ARNORG_CANLI_GOSTERI=0 ile tur kapanır (uçlar kalır).
 //
 // Geliştirme uçları (yalnız sahte çekirdek; ekran görüntüsü ve deneme için anında):
 //   POST /api/gelistirme/canli/yaz     Ece yoğun düzenler, kaydeder, sonra seyrek okur
-//   POST /api/gelistirme/canli/kayit   Ece T-26'yı kaydeder
+//   POST /api/gelistirme/canli/kayit   Ece üzerindeki görevi kaydeder (görevi yoksa T-26)
 //   POST /api/gelistirme/canli/soru    Burak Kerem'e sorar, yanıt geç gelir
 //   POST /api/gelistirme/canli/izin    Burak'ın komut izni CEO'ya gider
 //
 //   kur(c): sahte-sunucu.mjs'teki rota, db ve yardımcılarla çağrılır (surum-005-*.mjs deseni)
 
-import crypto from "node:crypto";
 import { ceviri } from "./dil.mjs";
 import { V } from "./tohum.mjs";
 
@@ -55,26 +55,16 @@ export function kur(c) {
     return kimlik;
   }
 
-  /** Görevin işi ortak çalışma alanına kaydedildi: Stüdyo'nun tanıdığı biçimde gorev.kaydedildi */
-  function kaydet(ajanId, gorevId, mesaj, dosyaSayisi) {
+  /**
+   * Görevin işi ortak projeye kaydedildi: çalışanın o görev için kiraladığı dosyalar commit'lenir (surum-008-ortak.mjs).
+   * Kaydedilen, çalışanın şu an üzerinde olduğu görevdir (ofis döngüsü görev değiştirir); yoksa verilen görev.
+   */
+  function kaydet(ajanId, gorevId) {
     const a = ajanBul(ajanId);
-    const g = db.gorevler.find((x) => x.id === gorevId);
-    if (!a || !g) return;
+    const g = db.gorevler.find((x) => x.id === (a?.gorevId ?? gorevId));
+    if (!a || !g || !db.ortakCalisma) return;
+    db.ortakCalisma.gorevKaydi(PROJE, a.id, g.id, "ara");
     g.guncelleme = simdi();
-    yay(
-      {
-        tur: "gorev.kaydedildi",
-        projeId: PROJE,
-        gorevId: g.id,
-        gorev: g,
-        ajanId: a.id,
-        mesaj,
-        kimlik: crypto.randomBytes(20).toString("hex"),
-        dosyaSayisi,
-        zaman: simdi(),
-      },
-      PROJE,
-    );
     yay({ tur: "gorev.guncellendi", gorev: g }, PROJE);
   }
 
@@ -84,7 +74,7 @@ export function kur(c) {
   function yogunYazma() {
     const a = calisiyor("ece");
     if (!a) return;
-    const kok = `${V.CALISMA_KOKU}/${a.id}/src`;
+    const kok = `${V.PROJE_KOKU}/src`;
     const dosyalar = ["ekranlar/SiparisListesi.tsx", "ekranlar/SiparisListesi.tsx", "bilesenler/DurumRozeti.tsx", "ekranlar/SiparisListesi.tsx", "api/siparisler.ts", "ekranlar/SiparisListesi.tsx", "bilesenler/BosDurum.tsx"];
     dosyalar.forEach((d, i) => {
       sonra(i * 2100, () => {
@@ -94,7 +84,7 @@ export function kur(c) {
     });
     sonra(dosyalar.length * 2100 + 1500, () => {
       if (!calisiyor(a.id)) return;
-      kaydet(a.id, "g26", ceviri("Sipariş listesi: boş durum ve imleçli sayfalama", "Order list: empty state and cursor pagination"), 4);
+      kaydet(a.id, "g26");
     });
     // Sakin bölüm: yalnız okuma, aralıklar açılır
     [24_000, 31_000, 40_000].forEach((t, i) => {
@@ -183,7 +173,7 @@ export function kur(c) {
   function denizKaydeder() {
     const a = calisiyor("deniz");
     if (!a) return;
-    const kok = `${V.CALISMA_KOKU}/${a.id}/src`;
+    const kok = `${V.PROJE_KOKU}/src`;
     ["api/siparisler/durum.ts", "api/siparisler/durum.test.ts", "api/siparisler/durum.ts"].forEach((d, i) => {
       sonra(i * 3200, () => {
         if (!calisiyor(a.id)) return;
@@ -192,7 +182,7 @@ export function kur(c) {
     });
     sonra(11_000, () => {
       if (!calisiyor(a.id)) return;
-      kaydet(a.id, "g24", ceviri("Sipariş durumu: geçersiz geçişte 422", "Order status: 422 on an invalid transition"), 2);
+      kaydet(a.id, "g24");
     });
   }
 
@@ -201,7 +191,7 @@ export function kur(c) {
     return { tamam: true };
   });
   rota("POST", "/api/gelistirme/canli/kayit", () => {
-    kaydet("ece", "g26", ceviri("Sipariş listesi: boş durum ve imleçli sayfalama", "Order list: empty state and cursor pagination"), 4);
+    kaydet("ece", "g26");
     return { tamam: true };
   });
   rota("POST", "/api/gelistirme/canli/soru", () => {

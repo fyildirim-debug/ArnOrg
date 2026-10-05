@@ -175,8 +175,7 @@ export const api = {
     istek<PolitikaKurali[]>(`${proje(pid)}/politika`, { method: "PUT", govde: kurallar }),
   onaylar: (pid: string, durum?: OnayDurumu) => istek<Onay[]>(`${proje(pid)}/onaylar${sorgu({ durum })}`),
   onayKarari: (oid: string, i: OnayKararIstegi) => istek<Onay>(`/api/onaylar/${k(oid)}`, { method: "POST", govde: i }),
-  // Kalite kapısı: kalan birleştirmeyi testsiz birleştir ya da yeniden dene; dalın hedefe göre farkı; komut önerisi
-  birlestirmeYeniden: (oid: string, testsiz: boolean) => istek<Onay>(`/api/onaylar/${k(oid)}/birlestir`, { method: "POST", govde: { testsiz } }),
+  // Kalite: 0.0.7'den kalan birleştirmede dalın hedefe göre farkı; komut önerisi. Görev kayıtları: api/ortak.ts
   onayFarki: (oid: string) => istek<FarkSonucu>(`/api/onaylar/${k(oid)}/fark`),
   kaliteOnerisi: (pid: string) => istek<KaliteOnerisi>(`${proje(pid)}/kalite-onerisi`),
 

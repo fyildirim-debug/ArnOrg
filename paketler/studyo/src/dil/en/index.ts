@@ -31,6 +31,7 @@ import { tarayici } from "./tarayici";
 import { karar } from "./karar";
 import { secenek } from "./secenek";
 import { tanitim } from "./tanitim";
+import { ortakCalisma } from "./ortakCalisma";
 import { skiller } from "./skiller";
 import { arayuz } from "./arayuz";
 
@@ -66,6 +67,7 @@ export const en: Sozluk = {
   karar,
   secenek,
   tanitim,
+  ortakCalisma,
   skiller,
   arayuz,
 };

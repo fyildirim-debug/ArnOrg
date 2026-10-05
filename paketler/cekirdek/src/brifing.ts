@@ -1,6 +1,7 @@
 // CEO brifingi: kurul Karargâh'taki "Brifing ver" düğmesiyle ya da her gün seçtiği saatte CEO'dan #yonetim'e kısa bir
 // durum özeti ister. Son brifingden bu yana olanlar depodan derlenir, model çağrılmaz: biten, süren, bekleyen ve bloklu
-// görevler, bekleyen onaylar, birleşen dallar ve kalite kapısı sonuçları, ekipteki değişiklikler, abonelik penceresi.
+// görevler, bekleyen onaylar, görev kayıtları ve testleri (0.0.8 ortak çalışma; eski projelerde birleşen dallar da),
+// ekipteki değişiklikler, abonelik penceresi.
 // CEO bu veriyle kurul kaynağıyla uyandırılır (eşzamanlı tavandan muaf); #yonetim'de "yazıyor" görünür, CEO brifingi
 // mesaj_gonder ile oraya yazar. CEO brifingi yazana ya da brifing turu bitene dek (en çok 5 dakika) aynı projede ikinci
 // istek yeni uyandırma açmaz.
@@ -22,7 +23,9 @@ import {
   type BrifingYaniti,
   type Gorev,
   type GunlukBrifingAyari,
+  type GorevKaydi,
   type HesapDurumu,
+  type KayitKaliteDurumu,
   type Onay,
   type OnayTuru,
   type Proje,
@@ -92,6 +95,15 @@ export interface BrifingBirlesmesi {
   mesaj: string | null;
 }
 
+/** 0.0.8: aralıktaki görev kaydı (commit) ve kalite denetimi */
+export interface BrifingKaydi {
+  baslik: string;
+  kim: string;
+  dosya: number;
+  durum: KayitKaliteDurumu;
+  mesaj: string | null;
+}
+
 export interface BrifingVerisi {
   /** Verinin başı: son brifing; hiç brifing yoksa kesimden 7 gün önce */
   baslangic: string;
@@ -107,8 +119,10 @@ export interface BrifingVerisi {
   bekleyen: (BrifingGorevi & { bekledigi: string[] })[];
   /** Kurulun kararını bekleyen onaylar (CEO'nun kararındakiler hariç) */
   onaylar: { tur: OnayTuru; baslik: string }[];
-  /** Bu aralıkta kalite kapısından geçen ya da kalan, reddedilen ve şu an kapıda olan birleştirmeler (yeni önce) */
+  /** Bu aralıkta kalite kapısından geçen ya da kalan, reddedilen ve şu an kapıda olan birleştirmeler (0.0.7 kayıtları) */
   birlesmeler: BrifingBirlesmesi[];
+  /** Bu aralıktaki görev kayıtları ve testleri, eski önce (0.0.8) */
+  kayitlar?: BrifingKaydi[];
   ekip: { katilan: EkipUyesi[]; ayrilan: EkipUyesi[]; modelDegisen: { ad: string; eski: string; yeni: string }[] };
   /** Abonelik pencereleri (okunduysa) ve ayardaki sınırın aşılması */
   pencereler: { ad: string; yuzde: number | null; sifirlanma: string | null }[];
@@ -124,6 +138,8 @@ export interface VeriGirdisi {
   /** Son brifingteki ekip; hiç yoksa null */
   oncekiEkip: EkipUyesi[] | null;
   hesap: Pick<HesapDurumu, "pencereler" | "sinir"> | null;
+  /** Aralıktaki görev kayıtları (ortak çalışma); verilmezse bölüm boş */
+  kayitlar?: GorevKaydi[];
 }
 
 export function ekipIzi(ajanlar: Ajan[]): EkipUyesi[] {
@@ -221,6 +237,7 @@ export function brifingVerisi(g: VeriGirdisi): BrifingVerisi {
       .filter((o) => o.muhatap !== "ceo")
       .map((o) => ({ tur: o.tur, baslik: o.baslik })),
     birlesmeler,
+    kayitlar: (g.kayitlar ?? []).map((k) => ({ baslik: k.baslik, kim: k.ajanAd, dosya: k.dosyalar.length, durum: k.kalite.durum, mesaj: k.kalite.mesaj })),
     ekip: ekipDegisimi(g.oncekiEkip, ajanlar, baslangic),
     pencereler: (g.hesap?.pencereler ?? []).filter((p) => p.yuzde !== null).map((p) => ({ ad: p.ad, yuzde: p.yuzde, sifirlanma: p.sifirlanma })),
     sinir: g.hesap?.sinir ?? null,
@@ -258,6 +275,26 @@ function ajanNotu(d: AjanDurumu | null): string {
   if (d === "karar_bekliyor") return iki(" · ajan kurul kararı bekliyor", " · agent awaiting a board decision");
   if (d === "hata") return iki(" · ajan hata verdi", " · agent hit an error");
   return "";
+}
+
+function kayitMetni(k: BrifingKaydi): string {
+  const ek = k.mesaj ? ` (${kisalt(k.mesaj, 140)})` : "";
+  const dosya = iki(`${k.dosya} dosya`, `${k.dosya} file${k.dosya === 1 ? "" : "s"}`);
+  const durum =
+    k.durum === "gecti"
+      ? iki("testler geçti", "tests passed")
+      : k.durum === "kaldi"
+        ? iki(`testler geçmedi${ek}`, `tests failed${ek}`)
+        : k.durum === "zaman_asimi"
+          ? iki(`testler zaman aşımına uğradı${ek}`, `tests timed out${ek}`)
+          : k.durum === "hata"
+            ? iki(`denetim yapılamadı${ek}`, `check could not run${ek}`)
+            : k.durum === "testsiz"
+              ? iki("test komutu yok", "no test command")
+              : k.durum === "atlandi"
+                ? iki("denetim atlandı", "check skipped")
+                : iki("testler sürüyor", "tests running");
+  return `${k.baslik} · ${k.kim} · ${dosya} · ${durum}`;
 }
 
 function birlesmeMetni(b: BrifingBirlesmesi): string {
@@ -313,7 +350,9 @@ export function veriSatirlari(v: BrifingVerisi): string[] {
     v.bekleyen.map((g) => `${gorev(g)}${g.bekledigi.length ? ` · ${iki("bloklu", "blocked")}: ${g.bekledigi.join(", ")}` : ""}`),
   );
   bolum(iki("Kurulun kararını bekleyen onaylar", "Approvals awaiting the board"), v.onaylar.map((o) => `${onayTuruAdi(o.tur)}: ${kisalt(o.baslik, 140)}`));
-  bolum(iki("Birleşen dallar ve kalite kapısı", "Merges and the quality gate"), v.birlesmeler.map(birlesmeMetni));
+  bolum(iki("Kaydedilen işler ve testleri", "Saved work and its tests"), (v.kayitlar ?? []).map(kayitMetni));
+  // 0.0.7'den kalan birleştirmeler yalnız varsa anılır
+  if (v.birlesmeler.length) bolum(iki("Birleşen dallar ve kalite kapısı", "Merges and the quality gate"), v.birlesmeler.map(birlesmeMetni));
 
   const e = v.ekip;
   const ekip = [
@@ -424,6 +463,8 @@ export interface BrifingBaglami {
   hata?(p: Proje, h: Error): void;
   /** Şimdiki an (testlerde verilir) */
   saat?(): Date;
+  /** Aralıktaki görev kayıtları (0.0.8 ortak çalışma) */
+  kayitlar?(projeId: string, baslangic: string, kesim: string): GorevKaydi[];
 }
 
 /** Hazırlanan brifing */
@@ -502,13 +543,15 @@ export class Brifing {
     if (!ceo) throw new ArnorgHatasi(iki("Bu projede CEO yok; brifing için önce bir CEO işe alın.", "This project has no CEO; hire a CEO before asking for a briefing."), 409);
     if (this.hazirlaniyor(projeId)) return { durum: "hazirlaniyor" };
     const kesim = this.simdi();
+    const son = this.b.depo.deger(BRIFING_SON + projeId);
     const veri = brifingVerisi({
       depo: this.b.depo,
       projeId,
-      son: this.b.depo.deger(BRIFING_SON + projeId),
+      son,
       kesim,
       oncekiEkip: ekipOku(this.b.depo.deger(BRIFING_EKIP + projeId)),
       hesap: this.b.hesap(),
+      kayitlar: this.b.kayitlar?.(projeId, son ?? new Date(kesim.getTime() - ILK_PENCERE_MS).toISOString(), kesim.toISOString()),
     });
     // Uyandırma sürerken gelen ikinci istek de "hazırlanıyor" alır
     const mesgul = ceo.durum === "calisiyor" || ceo.durum === "karar_bekliyor";

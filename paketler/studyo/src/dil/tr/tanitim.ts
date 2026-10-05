@@ -12,9 +12,9 @@ export const tanitim = {
   surumEtiketi: "Gösterilen sürüm",
   yayinda: "Yayında",
   taslak: "Taslak",
-  yayindaYok: "Henüz birleşmiş bir README.md yok",
-  taslakHazir: (ad: string) => `${ilgi(ad)} taslağı hazır; henüz birleşmedi`,
-  taslakNotu: (ad: string) => `${ilgi(ad)} çalışma alanında; henüz birleşmedi, birleşince yayına geçer.`,
+  yayindaYok: "Henüz kaydedilmiş bir README.md yok",
+  taslakHazir: (ad: string) => `${ilgi(ad)} taslağı hazır; henüz kaydedilmedi`,
+  taslakNotu: (ad: string) => `${ad} ortak projede düzenliyor; görevi kaydedilince yayına geçer.`,
   koddaAc: "Kodda aç",
   koddaAcBaslik: "README.md'yi Kod ekranında aç",
   bosReadme: "README.md boş.",
@@ -22,7 +22,7 @@ export const tanitim = {
   /** Künye sütunu: sahibi ve güncelleme isteği */
   kunyeEtiketi: "Sayfa künyesi",
   sahibi: "Sahibi",
-  uzmanMetin: "README.md'yi yazar; teslimlerden ve birleşen işlerden sonra güncel tutar.",
+  uzmanMetin: "README.md'yi yazar; teslimlerden ve kaydedilen işlerden sonra güncel tutar.",
   uzmanYok: "Henüz tanıtım uzmanı yok",
   /** Karar yetkisine göre: tam otonomda CEO uzmanı doğrudan işe alır, kurul kipinde teklif Onaylar'a düşer */
   uzmanYokMetin: (otonom: boolean): string =>

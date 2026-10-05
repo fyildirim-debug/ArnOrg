@@ -14,7 +14,8 @@ import { projeVerisiniYukle, rolleriYukle, useVeri } from "../durum/veri";
 
 type Sonuc = Exclude<OnayDurumu, "bekliyor">;
 
-const TURLER: (OnayTuru | "tumu")[] = ["tumu", "teslim", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "arac"];
+/** 0.0.8'de birleştirme onayı açılmaz; 0.0.7'den kalan birleştirmeler "Bütün türler"de geçmişte okunur */
+const TURLER: (OnayTuru | "tumu")[] = ["tumu", "teslim", "ise_alim", "genel", "anayasa", "isten_cikarma", "arac"];
 /** Vurgu bu süre sonra söner */
 const VURGU_MS = 2400;
 const SONUCLAR: (Sonuc | "tumu")[] = ["tumu", "onaylandi", "reddedildi", "zaman_asimi"];

@@ -12,6 +12,7 @@ import { tarih, token } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { KarakterSecici } from "../KarakterSecici";
 import { AjanAvatar, AjanDurum, IZIN_MODLARI as MODLAR, izinModuAdi, ModelAdi, modelAdi } from "../Kisi";
+import { AjanOrtakSatirlari } from "../ortak/OrtakCalisma";
 import { Simge } from "../Simge";
 import { MesajFormu, OturumDugmeleri } from "./AjanEylemleri";
 import { AjanZekasiBolumu } from "./AjanZekasi";
@@ -105,10 +106,7 @@ function AjanGenel({
             </dd>
           </>
         ) : null}
-        <dt>{t.dal}</dt>
-        <dd>{ajan.dal ? <code>{ajan.dal}</code> : <span className="soluk">{s.genel.henuzYok}</span>}</dd>
-        <dt>{t.calismaAlani}</dt>
-        <dd>{ajan.calismaAlani ? <code>{ajan.calismaAlani}</code> : <span className="soluk">{s.genel.henuzYok}</span>}</dd>
+        <AjanOrtakSatirlari ajan={ajan} />
         <dt>{t.iseAlindi}</dt>
         <dd>{tarih(ajan.olusturma)}</dd>
       </dl>

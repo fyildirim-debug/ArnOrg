@@ -9,6 +9,7 @@ import { akilliZaman, tarih } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu } from "../Durumlar";
+import { GorevKayitlari } from "../ortak/OrtakCalisma";
 import { GorevAlanlari, taslakOlustur, type GorevTaslagi } from "./GorevAlanlari";
 import { acikBagimliliklar } from "./gorevYardimcilari";
 
@@ -153,6 +154,7 @@ export function GorevCekmecesi({ gorev, kapat }: { gorev: Gorev; kapat: () => vo
           </>
         ) : null}
       </dl>
+      <GorevKayitlari gorevId={gorev.id} />
     </Cekmece>
   );
 }

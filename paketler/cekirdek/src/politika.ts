@@ -99,7 +99,7 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     {
       id: "alan-disi-yazma",
       ad: iki("Çalışma alanı dışına yazma", "Writing outside the workspace"),
-      aciklama: iki("Dosya düzenleme araçları yalnız ajanın kendi çalışma alanına ve geçici dizine yazar.", "File editing tools write only to the agent's own workspace and the temp directory."),
+      aciklama: iki("Dosya düzenleme araçları yalnız ekibin ortak çalıştığı projeye ve geçici dizine yazar.", "File editing tools write only inside the project the team shares and the temp directory."),
       karar: "ret",
       hedef: "yol",
       araclar: [...YAZMA_ARACLARI],

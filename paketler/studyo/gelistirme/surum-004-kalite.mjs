@@ -221,6 +221,8 @@ export function kur(c) {
 
   const yayinla = (o) => yay({ tur: "onay.sonuc", onay: o }, o.projeId);
   const guncelle = (o, d) => {
+    // 0.0.8: birleştirme yok; geçişte yarım kalan kapı kaydı surum-008-ortak.mjs'te sonuçlanır
+    if (db.ortakCalisma) return;
     o.veri.kalite = { ...o.veri.kalite, ...d };
     yayinla(o);
   };
@@ -322,6 +324,7 @@ export function kur(c) {
   }
 
   function birlesti(o, pr) {
+    if (db.ortakCalisma) return;
     const k = o.veri.kalite;
     const sure = Math.max(1, Math.round((k.sureMs ?? 0) / 1000));
     const kapi = k.testsiz

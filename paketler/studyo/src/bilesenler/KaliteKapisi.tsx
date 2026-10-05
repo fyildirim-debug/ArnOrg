@@ -1,19 +1,19 @@
-// Kalite kapısı. Onaylanmış birleştirmenin durum satırı: sırası, hazırlık ve testin canlı süresi, sonuç; açılır test
-// çıktısı (son satırlar), kapıda kalan işe "Yeniden dene" ve ikinci adımda onaylatılan "Yine de birleştir". "Farkı aç"
-// dalın hedefe göre farkını çekmecede birleşik fark olarak gösterir. Proje ayarlarında test ve hazırlık komutu ile
-// süre sınırı düzenlenir; package.json'da gerçek bir test betiği varsa tek tıkla doldurulan öneri çıkar.
-import { YENIDEN_BIRLESTIRILEBILIR, type BirlestirmeKalitesi, type FarkSonucu, type KaliteOnerisi, type Onay, type ProjeOzeti } from "@arnorg/ortak";
+// Kalite denetimi. 0.0.7'den kalan birleştirme onayının kalite kapısı satırı (geçmişte okunur kalır; 0.0.8'de
+// birleştirme yok, yeniden deneme ya da testsiz birleştirme de yok): sırası, süresi, sonucu, açılır test çıktısı ve
+// dalın farkı. Fark çekmecesi ve çıktı kutusu görev kayıtlarında da kullanılır (ortak/OrtakCalisma.tsx). Proje
+// ayarlarında test ve hazırlık komutu ile süre sınırı düzenlenir; package.json'da gerçek bir test betiği varsa tek
+// tıkla doldurulan öneri çıkar.
+import type { BirlestirmeKalitesi, FarkSonucu, KaliteOnerisi, Onay, ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { hataMetni } from "../api/istek";
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
 import { bildir } from "../durum/arayuz";
-import { onayUygula, projeUygula, useVeri } from "../durum/veri";
+import { projeUygula, useVeri } from "../durum/veri";
 import { kalanSure, sayi } from "../yardimcilar/bicim";
 import { useIslem, useSimdi } from "../yardimcilar/kancalar";
 import { Cekmece } from "./Cekmece";
 import { Bos, HataKutu, Iskelet } from "./Durumlar";
-import { OnaySor } from "./OnaySor";
 import { Simge } from "./Simge";
 
 /** Birleştirme onayının kalite kapısı kaydı (veri.kalite); kuyruğa hiç girmediyse null */
@@ -24,33 +24,26 @@ export function kaliteKaydi(onay: Onay): BirlestirmeKalitesi | null {
 }
 
 /** Onay verisindeki dal ve hedef */
-function dallar(onay: Onay, anaDal: string | null): { dal: string; hedef: string; sahipId: string | null } {
-  const v = (onay.veri && typeof onay.veri === "object" ? onay.veri : {}) as { dal?: unknown; hedefDal?: unknown; ajanId?: unknown };
+function dallar(onay: Onay, anaDal: string | null): { dal: string; hedef: string } {
+  const v = (onay.veri && typeof onay.veri === "object" ? onay.veri : {}) as { dal?: unknown; hedefDal?: unknown };
   return {
     dal: typeof v.dal === "string" ? v.dal : onay.baslik,
     hedef: typeof v.hedefDal === "string" ? v.hedefDal : (anaDal ?? "main"),
-    sahipId: typeof v.ajanId === "string" ? v.ajanId : null,
   };
 }
 
 const SUREN = new Set(["hazirlik", "test"]);
-const KALAN = new Set(["cakisma", "test_basarisiz", "zaman_asimi", "hata"]);
 
 // ---------------------------------------------------------------------------
-// Onay kartı: durum satırı, çıktı ve kurulun kararları
+// Eski birleştirme onayının durum satırı ve çıktısı (salt okunur)
 // ---------------------------------------------------------------------------
 
 export function KaliteDurumu({ onay, kalite: k }: { onay: Onay; kalite: BirlestirmeKalitesi }) {
   const s = useSozluk();
   const t = s.kalite;
-  const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
-  const { dal, hedef, sahipId } = dallar(onay, anaDal);
-  const sahip = useVeri((d) => (sahipId ? d.ajanlar.find((a) => a.id === sahipId) : undefined));
   const suren = SUREN.has(k.durum);
   const simdi = useSimdi(suren ? 1000 : 60_000);
   const [ciktiAcik, setCiktiAcik] = useState(false);
-  const [testsizSor, setTestsizSor] = useState(false);
-  const { suruyor, calistir } = useIslem();
   const ciktiId = useId();
 
   const ayrinti: string[] = [];
@@ -66,15 +59,6 @@ export function KaliteDurumu({ onay, kalite: k }: { onay: Onay; kalite: Birlesti
   }
   if (k.deneme > 1 && (suren || k.durum === "birlesti")) ayrinti.push(t.deneme(k.deneme));
   const basladi = Date.parse(k.adimBaslangic ?? k.baslangic ?? "");
-  const kalabilir = YENIDEN_BIRLESTIRILEBILIR.includes(k.durum);
-  const sahibeGitti = sahip && (k.durum === "test_basarisiz" || k.durum === "zaman_asimi" || k.durum === "cakisma");
-
-  const yeniden = (testsiz: boolean) =>
-    void calistir(testsiz ? "testsiz" : "yeniden", async () => {
-      onayUygula(await api.birlestirmeYeniden(onay.id, testsiz));
-      setTestsizSor(false);
-      bildir("bilgi", testsiz ? sozluk().kalite.testsizBildirim(dal) : sozluk().kalite.yenidenBildirim(dal));
-    });
 
   return (
     <div className="kalite" data-durum={k.durum}>
@@ -101,33 +85,16 @@ export function KaliteDurumu({ onay, kalite: k }: { onay: Onay; kalite: Birlesti
             </button>
           ) : null}
           <FarkAc onay={onay} />
-          {kalabilir ? (
-            <>
-              <button type="button" className="dugme dugme-kucuk" onClick={() => yeniden(false)} disabled={suruyor !== null} title={t.yenidenDeneIpucu}>
-                {suruyor === "yeniden" ? <span className="doner" aria-hidden="true" /> : <Simge ad="yenile" boyut={12} />}
-                {t.yenidenDene}
-              </button>
-              <button type="button" className="dugme dugme-kucuk dugme-tehlike" onClick={() => setTestsizSor(true)} disabled={suruyor !== null || testsizSor} aria-expanded={testsizSor}>
-                {t.yineDeBirlestir}
-              </button>
-            </>
-          ) : null}
         </div>
       </div>
       {k.mesaj && k.durum !== "birlesti" ? <p className="kalite-mesaj">{k.mesaj}</p> : null}
-      {sahibeGitti ? <p className="kalite-not">{t.sahibeIletildi(sahip.ad)}</p> : null}
-      {testsizSor ? (
-        <OnaySor evet={() => yeniden(true)} vazgec={() => setTestsizSor(false)} evetMetni={t.testsizBirlestir} suruyor={suruyor === "testsiz"}>
-          {t.testsizUyari(hedef)}
-        </OnaySor>
-      ) : null}
       {ciktiAcik && k.cikti ? <Cikti id={ciktiId} metin={k.cikti} etiket={t.ciktiEtiket(k.komut ?? t.cikti)} canli={suren} /> : null}
     </div>
   );
 }
 
 /** Komut çıktısının son satırları; süren işte en alttaysa yeni satırlarla birlikte iner */
-function Cikti({ id, metin, etiket, canli }: { id: string; metin: string; etiket: string; canli: boolean }) {
+export function Cikti({ id, metin, etiket, canli }: { id: string; metin: string; etiket: string; canli: boolean }) {
   const ref = useRef<HTMLPreElement>(null);
   const altta = useRef(true);
   useLayoutEffect(() => {
@@ -152,19 +119,29 @@ function Cikti({ id, metin, etiket, canli }: { id: string; metin: string; etiket
 }
 
 // ---------------------------------------------------------------------------
-// Farkı aç: dalın hedefe göre birleşik farkı (çekmece)
+// Farkı aç: eski birleştirmede dalın hedefe göre birleşik farkı (çekmece)
 // ---------------------------------------------------------------------------
 
 export function FarkAc({ onay, metin }: { onay: Onay; metin?: boolean }) {
   const s = useSozluk();
+  const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
   const [acik, setAcik] = useState(false);
+  const { dal, hedef } = dallar(onay, anaDal);
   return (
     <>
       <button type="button" className={metin ? "metin-dugme" : "dugme dugme-kucuk"} onClick={() => setAcik(true)} aria-haspopup="dialog">
         {metin ? null : <Simge ad="fark" boyut={12} />}
         {s.kalite.farkAc}
       </button>
-      {acik ? <FarkCekmecesi onay={onay} kapat={() => setAcik(false)} /> : null}
+      {acik ? (
+        <FarkCekmecesi
+          baslik={s.kalite.fark.baslik(dal, hedef)}
+          anahtar={onay.id}
+          getir={() => api.onayFarki(onay.id)}
+          bosMetin={s.kalite.fark.yokMetin}
+          kapat={() => setAcik(false)}
+        />
+      ) : null}
     </>
   );
 }
@@ -232,22 +209,38 @@ function Sayilar({ eklenen, silinen }: { eklenen: number; silinen: number }) {
   );
 }
 
-function FarkCekmecesi({ onay, kapat }: { onay: Onay; kapat: () => void }) {
+/**
+ * Birleşik farkı dosyalara ayırıp gösteren çekmece. getir farkı çeker (eski birleştirmede dalın farkı, görev kaydında
+ * commit'in farkı); anahtar değişince yeniden çekilir.
+ */
+export function FarkCekmecesi({
+  baslik,
+  anahtar,
+  getir,
+  bosMetin,
+  kapat,
+}: {
+  baslik: string;
+  anahtar: string;
+  getir: () => Promise<FarkSonucu>;
+  bosMetin: string;
+  kapat: () => void;
+}) {
   const s = useSozluk();
   const t = s.kalite.fark;
-  const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
-  const { dal, hedef } = dallar(onay, anaDal);
   const [fark, setFark] = useState<FarkSonucu | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const [yenile, setYenile] = useState(0);
   const kok = useId();
+  const getirRef = useRef(getir);
+  getirRef.current = getir;
 
   useEffect(() => {
     let iptal = false;
     setFark(null);
     setHata(null);
-    api
-      .onayFarki(onay.id)
+    getirRef
+      .current()
       .then((f) => {
         if (!iptal) setFark(f);
       })
@@ -257,7 +250,7 @@ function FarkCekmecesi({ onay, kapat }: { onay: Onay; kapat: () => void }) {
     return () => {
       iptal = true;
     };
-  }, [onay.id, yenile]);
+  }, [anahtar, yenile]);
 
   const ayrik = useMemo(() => (fark ? farkiAyristir(fark.fark) : null), [fark]);
   const sayilar = useMemo(() => new Map((fark?.dosyalar ?? []).map((d) => [d.yol, d])), [fark]);
@@ -265,11 +258,11 @@ function FarkCekmecesi({ onay, kapat }: { onay: Onay; kapat: () => void }) {
   const silinen = fark?.dosyalar.reduce((n, d) => n + d.silinen, 0) ?? 0;
 
   return (
-    <Cekmece baslik={t.baslik(dal, hedef)} kapat={kapat}>
+    <Cekmece baslik={baslik} kapat={kapat}>
       <div className="fark">
         {!fark && !hata ? <Iskelet satir={10} /> : null}
         {hata ? <HataKutu baslik={t.alinamadi} metin={hata} yeniden={() => setYenile((n) => n + 1)} /> : null}
-        {fark && ayrik && !ayrik.dosyalar.length ? <Bos baslik={t.yok}>{t.yokMetin}</Bos> : null}
+        {fark && ayrik && !ayrik.dosyalar.length ? <Bos baslik={t.yok}>{bosMetin}</Bos> : null}
         {fark && ayrik?.dosyalar.length ? (
           <>
             <nav className="fark-dosyalar" aria-label={t.dosyalar}>

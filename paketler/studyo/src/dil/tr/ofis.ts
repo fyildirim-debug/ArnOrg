@@ -99,7 +99,6 @@ export const ofis = {
     konusuyor: (ad: string) => `${ad} ile konuşuyor`,
     kanalaYaziyor: (kanal: string) => `#${kanal} kanalına yazıyor`,
     incelemeyeGoturuyor: (kod: string) => `${kod} incelemeye götürüyor`,
-    birlesiyor: (kod: string) => `${kod} main'e birleşiyor`,
     arsiveNot: "Arşive not bırakıyor",
     soruSoruyor: (ad: string) => `${ad} ile soru soruyor`,
     toplantiyaGidiyor: "Toplantıya gidiyor",
@@ -135,7 +134,6 @@ export const ofis = {
     tesekkurler: "Teşekkürler, başlıyorum.",
     incelemeyeHazir: (kod: string) => `${kod} incelemeye hazır`,
     bakiyorum: "Bakıyorum.",
-    birlesti: (kod: string) => `${kod} main'e birleşti`,
     notAldi: (baslik: string) => `not aldı: ${baslik}`,
     yanitladim: "Yanıtladım.",
     yanitGelmedi: "Yanıt gelmedi.",
@@ -174,9 +172,7 @@ export const ofis = {
     tamamlandi: (kod: string, ad: string | null) => `${kod} tamamlandı${ad ? ` · ${ad}` : ""}`,
     gorevDurumu: (kod: string, durum: string) => `${kod} → ${durum}`,
     adayKapida: (ad: string) => `Aday kapıda: ${ad}`,
-    birlestirmeBekliyor: (baslik: string) => `${baslik}: kurul onayı bekliyor`,
     onay: (ad: string, baslik: string) => `${ad}: ${baslik}`,
-    birlesti: (kod: string) => `${kod} main'e birleşti`,
     adayKabulEdilmedi: (ad: string) => (ad ? `Aday ${ad} kabul edilmedi` : "Aday kabul edilmedi"),
     onaylandi: (baslik: string) => `${baslik}: onaylandı`,
     reddedildi: (baslik: string) => `${baslik}: reddedildi`,
@@ -190,13 +186,9 @@ export const ofis = {
     teslimGeri: (baslik: string) => `Teslime geri bildirim: ${baslik}`,
     tasarim: (ad: string) => `${ad} stüdyoda tasarım üzerinde`,
     tanitim: (ad: string) => `${ad} stüdyoda tanıtım sayfasını yazıyor`,
-    birlesmeOnay: (kod: string) => `${kod} onaylandı, kalite kapısına girdi`,
-    kaliteTest: (kod: string) => `${kod} kalite kapısında: testler koşuyor`,
-    kaliteKaldi: (kod: string) => `${kod} kalite kapısında kaldı`,
   },
   /** Kaynağı belirsiz kayıtlarda */
   ekip: "Ekip",
-  dal: "Dal",
 
   /** Ekran okuyucu özeti */
   ozet: (calisan: number, parcalar: string[], bekleyen: number) =>

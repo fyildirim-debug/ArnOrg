@@ -1,6 +1,7 @@
-// Karar yetkisi (0.0.7): tam otonom kipte (varsayılan) izinlere, birleştirmelere ve tekliflere CEO karar verir, kurul
-// sonucu görür; CEO kurula yalnız kendi sorusuyla ulaşır. Kurul kipi ve otomatik onay eskisi gibi. Claude Code oturumu açılmaz;
-// CEO'ya giden sistem mesajları uyandir casusuyla okunur.
+// Karar yetkisi (0.0.7; 0.0.8'de birleştirme onayı yok): tam otonom kipte (varsayılan) izinlere ve tekliflere CEO karar
+// verir, kurul sonucu görür; CEO kurula yalnız kendi sorusuyla ulaşır. Biten görev ArnOrg'un kaydıyla CEO'nun incelemesine
+// gider. Kurul kipi ve otomatik onay eskisi gibi. Claude Code oturumu açılmaz; CEO'ya giden sistem mesajları uyandir
+// casusuyla okunur.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +12,7 @@ import type { Ajan, SunucuOlayi } from "@arnorg/ortak";
 import { arnorgAracListesi } from "./arnorg-araclari.js";
 import { Depo } from "./depo.js";
 import { dilKaynagi } from "./dil.js";
+import * as gitIslemleri from "./git.js";
 import { OlayYolu } from "./olaylar.js";
 import { Sirket } from "./sirket.js";
 import { sunucuKur } from "./sunucu.js";
@@ -142,7 +144,7 @@ describe("tam otonom kip: CEO'nun kendi kararları", () => {
 describe("tam otonom kip: çalışanların istekleri CEO'ya gider", () => {
   it("araç izni: CEO'ya kimlik, tür, isteyen ve ayrıntıyla mesaj gider, kurula pencere açılmaz; CEO onaylar, denetim CEO'yu yazar", async () => {
     const { mesajlar } = casus();
-    const kapi = sirket.kapi(ajan("Deniz").id, "Bash", { command: "git push origin arnorg/deniz" });
+    const kapi = sirket.kapi(ajan("Deniz").id, "Bash", { command: "git push origin main" });
     await bekle();
     const onay = bekleyen("arac", ajan("Deniz").id);
     expect(onay.muhatap).toBe("ceo");
@@ -152,15 +154,15 @@ describe("tam otonom kip: çalışanların istekleri CEO'ya gider", () => {
     const mesaj = mesajlar(ceo().id).find((m) => m.includes(kisa(onay.id))) ?? "";
     expect(mesaj).toContain(`Kararını bekleyen onay ${kisa(onay.id)} · Araç çağrısı`);
     expect(mesaj).toContain("İsteyen: Deniz (Backend geliştirici)");
-    expect(mesaj).toContain("git push origin arnorg/deniz");
+    expect(mesaj).toContain("git push origin main");
     expect(mesaj).toContain("mcp__arnorg__onay_karari");
     expect(mesaj).toContain("ana yasaya uyup uymadığını");
-    const r = await arac(ceo().id, "onay_karari", { onay: kisa(onay.id), karar: "onayla", gerekce: "Kendi dalına push; ana yasaya uygun." });
+    const r = await arac(ceo().id, "onay_karari", { onay: kisa(onay.id), karar: "onayla", gerekce: "Kaydedilen işler gönderilsin; ana yasaya uygun." });
     expect(r.hata).toBe(false);
     expect(r.metin).toMatch(/^Onay [0-9a-f]{8} onaylandı \(Araç çağrısı: Deniz · Bash\)\. Gerekçen isteyene iletildi\./);
     await expect(kapi).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: "allow", permissionDecisionReason: "CEO Ada onayladı" } });
-    expect(depo.onay(onay.id)).toMatchObject({ durum: "onaylandi", kararKaynagi: "ceo", kararVerenAd: "Ada", not: "Kendi dalına push; ana yasaya uygun." });
-    expect(depo.denetimKayitlari(pid, 5).some((k) => k.karar === "izin" && k.kural === "Ada (CEO)" && k.neden === "Kendi dalına push; ana yasaya uygun.")).toBe(true);
+    expect(depo.onay(onay.id)).toMatchObject({ durum: "onaylandi", kararKaynagi: "ceo", kararVerenAd: "Ada", not: "Kaydedilen işler gönderilsin; ana yasaya uygun." });
+    expect(depo.denetimKayitlari(pid, 5).some((k) => k.karar === "izin" && k.kural === "Ada (CEO)" && k.neden === "Kaydedilen işler gönderilsin; ana yasaya uygun.")).toBe(true);
   });
 
   it("CEO reddederse gerekçesi çalışana ret nedeni olarak döner", async () => {
@@ -174,36 +176,43 @@ describe("tam otonom kip: çalışanların istekleri CEO'ya gider", () => {
     });
   });
 
-  it("birleştirme isteği CEO'ya gider; CEO reddedince isteyene CEO'nun adı ve notuyla bildirilir", async () => {
-    depo.ajanGuncelle(ajan("Deniz").id, { dal: "arnorg/deniz" });
+  it("biten görevi ArnOrg kaydeder ve CEO'nun incelemesine kaydıyla gönderir; birleştirme onayı açılmaz", async () => {
+    const deniz = ajan("Deniz");
     const { mesajlar } = casus();
-    const r = await arac(ajan("Deniz").id, "birlestirme_iste", { ozet: "Sipariş listesi ve testleri" });
-    expect(r.metin).toMatch(/^Deniz çalışanının arnorg\/deniz dalı için birleştirme CEO Ada'ya sunuldu \(onay [0-9a-f]{8}\)\./);
-    const onay = bekleyen("birlestirme");
-    expect(onay.muhatap).toBe("ceo");
-    expect(pencereler(onay.id)).toEqual([]);
-    expect(mesajlar(ceo().id).find((m) => m.includes(kisa(onay.id)))).toContain("Önce değişikliği calisma_farki ile oku (ajan: Deniz)");
-    await arac(ceo().id, "onay_karari", { onay: kisa(onay.id), karar: "reddet", gerekce: "Testler eksik; liste boşken hata veriyor." });
-    expect(depo.onay(onay.id)).toMatchObject({ durum: "reddedildi", kararKaynagi: "ceo" });
-    expect(mesajlar(ajan("Deniz").id)).toContain("arnorg/deniz birleştirmesi reddedildi (CEO Ada). Not: Testler eksik; liste boşken hata veriyor.");
-  });
-
-  it("çalışan birleştirmeyi istedikten sonra iş incelemeye geçerse CEO'ya bekleyen onay söylenir, yeniden sunması istenmez", async () => {
-    depo.ajanGuncelle(ajan("Deniz").id, { dal: "arnorg/deniz" });
-    const { mesajlar } = casus();
-    const g = sirket.gorevOlustur(pid, { baslik: "Fatura listesi", atananId: ajan("Deniz").id });
+    const g = sirket.gorevOlustur(pid, { baslik: "Sipariş listesi", atananId: deniz.id });
     try {
       await sirket.gorevGuncelle(g.id, { durum: "calisiliyor" });
-      await arac(ajan("Deniz").id, "birlestirme_iste", { ozet: "Fatura listesi ve testleri" });
-      const onay = bekleyen("birlestirme");
+      const dosya = path.join(sirket.proje(pid).yol, "siparis.ts");
+      await sirket.kapi(deniz.id, "Write", { file_path: dosya, content: "export const liste = [];\n" });
+      fs.writeFileSync(dosya, "export const liste = [];\n");
+      expect((await arac(deniz.id, "birlestirme_iste", { ozet: "x" }).catch((h: Error) => h.message))).toBe("araç yok: birlestirme_iste");
       await sirket.gorevGuncelle(g.id, { durum: "inceleme" });
-      const mesaj = mesajlar(ceo().id).find((m) => m.includes(`${g.kod} "Fatura listesi" incelemeye hazır`)) ?? "";
-      expect(mesaj).toContain(`Deniz birleştirmeyi zaten istedi (onay ${kisa(onay.id)}): calisma_farki ile değişiklikleri incele ve onay_karari ile karar ver`);
-      expect(mesaj).not.toContain("birlestirme_iste");
-      await arac(ceo().id, "onay_karari", { onay: kisa(onay.id), karar: "reddet", gerekce: "Boş liste durumu eksik." });
+      const mesaj = mesajlar(ceo().id).find((m) => m.includes(`${g.kod} "Sipariş listesi" incelemeye hazır (Deniz)`)) ?? "";
+      expect(mesaj).toMatch(/Kaydı: [0-9a-f]{7} · 1 dosya \(siparis\.ts\)/);
+      expect(mesaj).toContain(`calisma_farki ile (gorev: ${g.kod}) değişikliği oku; uygunsa görevi 'tamam' durumuna al`);
+      expect(mesaj).not.toMatch(/birle[sş]tir/i);
+      expect(depo.onaylar(pid).some((o) => o.tur === "birlestirme")).toBe(false);
+      const fark = await arac(ceo().id, "calisma_farki", { gorev: g.kod });
+      expect(fark.metin).toContain("+export const liste = [];");
+      expect((await arac(ceo().id, "gorev_guncelle", { gorev: g.kod, durum: "tamam" })).hata).toBe(false);
+      expect(depo.gorev(g.id)?.durum).toBe("tamam");
     } finally {
-      depo.gorevGuncelle(g.id, { durum: "iptal" });
+      if (depo.gorev(g.id)?.durum !== "tamam") depo.gorevGuncelle(g.id, { durum: "iptal" });
     }
+  });
+
+  it("0.0.7'den kalan birleştirme onayı CEO'ya gelirse birleştirmenin kalktığı söylenir; kararı yalnız kayda geçer", async () => {
+    const deniz = ajan("Deniz");
+    const { mesajlar } = casus();
+    const onay = sirket.teklifAc(deniz, "birlestirme", "arnorg/deniz → main", "Eski istek", { ajanId: deniz.id, dal: "arnorg/deniz", ozet: "Eski istek", isteyenId: deniz.id });
+    await sirket.onayIslendi(onay.id);
+    const mesaj = mesajlar(ceo().id).find((m) => m.includes(kisa(onay.id))) ?? "";
+    expect(mesaj).toContain("Bu 0.0.7'den kalan bir birleştirme isteği; artık birleştirme yok.");
+    expect(mesaj).toContain("Reddet ve Deniz'e işini ortak projede görevini 'inceleme'ye alarak kaydetmesini söyle.");
+    const once = (await gitIslemleri.git(sirket.proje(pid).yol, ["rev-parse", "HEAD"])).trim();
+    await arac(ceo().id, "onay_karari", { onay: kisa(onay.id), karar: "reddet", gerekce: "Birleştirme kalktı; görevini incelemeye al." });
+    expect(depo.onay(onay.id)).toMatchObject({ durum: "reddedildi", kararKaynagi: "ceo", kararVerenAd: "Ada" });
+    expect((await gitIslemleri.git(sirket.proje(pid).yol, ["rev-parse", "HEAD"])).trim()).toBe(once);
   });
 
   it("çalışanın sorusu CEO'ya gider; gerekce soran çalışana yanıt olarak döner", async () => {
@@ -340,16 +349,17 @@ describe("talimat", () => {
 describe("kip değişimi", () => {
   it("kurula dönünce CEO'yu bekleyenler kurula açılır, onay_karari kapanır; CEO'ya geçince kendi teklifi kararlaşır, ötekiler toplu mesajla CEO'ya gider", async () => {
     const { mesajlar, uyandir } = casus();
-    await arac(ajan("Deniz").id, "birlestirme_iste", { ozet: "İkinci deneme: testler eklendi" });
-    const birlestirme = bekleyen("birlestirme");
-    expect(birlestirme.muhatap).toBe("ceo");
+    const izin = sirket.kapi(ajan("Deniz").id, "Bash", { command: "sudo apt install ripgrep" });
+    await bekle();
+    const izinOnayi = bekleyen("arac", ajan("Deniz").id);
+    expect(izinOnayi.muhatap).toBe("ceo");
 
     await sirket.projeGuncelle(pid, { kararVeren: "kurul" });
-    expect(depo.onay(birlestirme.id)!.muhatap).toBe("kurul");
-    expect(pencereler(birlestirme.id)).toHaveLength(1);
+    expect(depo.onay(izinOnayi.id)!.muhatap).toBe("kurul");
+    expect(pencereler(izinOnayi.id)).toHaveLength(1);
     expect(genel()).toContain("Kurul karar yetkisini geri aldı: onaylar yeniden kurula gelir.");
     expect(mesajlar(ceo().id).some((m) => m.startsWith("Kurul karar yetkisini geri aldı"))).toBe(true);
-    const kapali = await arac(ceo().id, "onay_karari", { onay: kisa(birlestirme.id), karar: "onayla", gerekce: "uygun görünüyor" });
+    const kapali = await arac(ceo().id, "onay_karari", { onay: kisa(izinOnayi.id), karar: "onayla", gerekce: "uygun görünüyor" });
     expect(kapali.hata).toBe(true);
     expect(kapali.metin).toContain("Karar yetkisi kurulda");
 
@@ -364,15 +374,16 @@ describe("kip değişimi", () => {
     await sirket.projeGuncelle(pid, { kararVeren: "ceo" });
     expect(depo.onay(iseAlim.id)).toMatchObject({ durum: "onaylandi", kararKaynagi: "ceo", kararVerenAd: "Ada" });
     expect(ajan("Selin")).toBeTruthy();
-    expect(depo.onay(birlestirme.id)!.muhatap).toBe("ceo");
-    expect(genel()).toContain("Kurul karar yetkisini CEO Ada'ya bıraktı: izinler, birleştirmeler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları görür.");
+    expect(depo.onay(izinOnayi.id)!.muhatap).toBe("ceo");
+    expect(genel()).toContain("Kurul karar yetkisini CEO Ada'ya bıraktı: izinler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları görür.");
     const devir = mesajlar(ceo().id).find((m) => m.startsWith("Kurul karar yetkisini sana bıraktı")) ?? "";
     expect(devir).toContain("Bekleyen 1 onay artık senin kararını bekliyor:");
-    expect(devir).toContain(`${kisa(birlestirme.id)} · Birleştirme · Deniz (Backend geliştirici)`);
+    expect(devir).toContain(`${kisa(izinOnayi.id)} · Araç çağrısı · Deniz (Backend geliştirici)`);
 
     // Kurul CEO'yu bekleyen onaya da karar verebilir
-    await sirket.onayKarari(birlestirme.id, "reddet", "Önce kalite kapısının test komutunu ekleyin.");
-    expect(depo.onay(birlestirme.id)).toMatchObject({ durum: "reddedildi", kararKaynagi: "kurul" });
+    await sirket.onayKarari(izinOnayi.id, "reddet", "Arama için Grep aracını kullan.");
+    expect(depo.onay(izinOnayi.id)).toMatchObject({ durum: "reddedildi", kararKaynagi: "kurul" });
+    await expect(izin).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
   });
 
   it("kurul kipinde otomatik onay eskisi gibi çalışır ve kararı veren 'otomatik' yazılır", async () => {

@@ -2,8 +2,6 @@
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalGorunenAdi, kanalKimligi, rolMetni, type GorevDurumu, type KodSembolTuru, type Onay } from "@arnorg/ortak";
 import { z } from "zod";
-import { dosyaOku } from "./dosyalar.js";
-import { fark } from "./git.js";
 import { raporOlustur, tokenMetni } from "./gozetmen.js";
 import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
@@ -19,6 +17,7 @@ import type { Sirket } from "./sirket.js";
 import { kisalt, yonelme } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
 import { webAraclari } from "./web/araclar.js";
+import { ortakCalismaAraclari } from "./ortak-calisma/araclar.js";
 import { adresAraclari } from "./adres-araclari.js";
 import { aracAcik } from "./yetenekler.js";
 import { skillAraclari } from "./skill-araclari.js";
@@ -83,10 +82,6 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     if (!a) throw new Error(iki(`"${ad}" adında çalışan yok. Ekibi ekip_listele ile gör.`, `No employee named "${ad}". See the team with ekip_listele.`));
     return a;
   };
-
-  const inceleyebilir = () => yonetici() || ["inceleme", "test", "guvenlik"].includes(rolBul(ben().rol)?.kimlik ?? "");
-  /** Kalite kapısının test komutu (araç açıklamasında anılır) */
-  const testKomutu = sirket.depo.proje(sirket.depo.ajan(ajanId)?.projeId ?? "")?.testKomutu ?? null;
 
   // Karar yetkisi (karar-yetkisi.ts): teklifin sonucu araç çağrıldığı andaki kipe göre söylenir. Tam otonom kipte CEO'nun
   // kendi teklifi hemen onun kararıyla geçer, başkasınınki CEO'ya gider; kurul kipinde kurula
@@ -178,8 +173,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "gorev_ac",
       iki(
-        "Yeni görev açar. Atanan verilir ve baslat=true ise görev 'calisiliyor' olur ve çalışan hemen başlar.",
-        "Opens a new task. If atanan is given and baslat=true, the task becomes 'calisiliyor' (in progress) and the employee starts right away.",
+        "Yeni görev açar. Atanan verilir ve baslat=true ise görev 'calisiliyor' olur ve çalışan hemen başlar; atanan boştaysa ArnOrg planlı görevini de tempo izin verdikçe kendiliğinden başlatır. Açıklamaya görevin dokunacağı dosyaları ya da alanı, etikete rol kimliğini (backend, frontend, test…) yaz.",
+        "Opens a new task. If atanan is given and baslat=true, the task becomes 'calisiliyor' (in progress) and the employee starts right away; if the assignee is idle, ArnOrg also starts a planned task by itself as the pace allows. Put the files or area the task touches in aciklama and the role id (backend, frontend, test…) in etiket.",
       ),
       {
         baslik: z.string().min(3),
@@ -220,8 +215,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "gorev_guncelle",
       iki(
-        "Görevin durumunu, atanan kişisini ya da açıklamasını günceller. İş bitince durum 'inceleme' yapılır; not alanına ne yapıldığını yaz.",
-        "Updates a task's status, assignee or description. When the work is done, set durum to 'inceleme' (review); write what you did in not.",
+        "Görevin durumunu, atanan kişisini ya da açıklamasını günceller. İş bitince durum 'inceleme' yapılır; ArnOrg sahibinin o göreve ait dosyalarını çalışma dalına commit'ler. not alanına ne yapıldığını yaz.",
+        "Updates a task's status, assignee or description. When the work is done, set durum to 'inceleme' (review); ArnOrg commits the owner's files for that task to the working branch. Write what you did in not.",
       ),
       {
         gorev: z.string().describe(iki("Görev kodu, ör. T-12", "Task code, e.g. T-12")),
@@ -237,7 +232,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             return hata(iki("Başkasına atanmış görevin durumunu yalnız yöneticiler ve kod inceleyici değiştirebilir.", "Only managers and the code reviewer can change the status of a task assigned to someone else."));
           }
           const atanan = a.atanan ? ajanBul(a.atanan) : null;
-          const yeni = await sirket.gorevGuncelle(g.id, { durum: a.durum, atananId: atanan?.id }, ajanId);
+          // Not, görevi incelemeden geri çeviren inceleyicinin düzeltme isteği olarak sahibine de gider
+          const yeni = await sirket.gorevGuncelle(g.id, { durum: a.durum, atananId: atanan?.id }, ajanId, a.not ?? null);
           if (a.not) await sirket.mesajGonder(ben().projeId, "muhendislik", ajanId, `${yeni.kod} → ${yeni.durum}: ${a.not}`);
           const kim = yeni.atananId ? ` · ${sirket.depo.ajan(yeni.atananId)?.ad}` : "";
           const kendiIsiBitti = yeni.atananId === ajanId && (yeni.durum === "inceleme" || yeni.durum === "tamam") && yeni.durum !== g.durum;
@@ -359,8 +355,12 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
       { yol: z.string(), icerik: z.string().min(1) },
       (a) =>
         guvenli(() => {
+          // Ortak projede not doğrudan yazılır; bir çalışan aynı notu Edit ile düzenliyorsa (kirası varsa) beklenir
+          const ret = sirket.ortak.notReddi(ben(), a.yol);
+          if (ret) return hata(ret);
           const n = notYaz(proje().yol, a.yol, a.icerik);
           sirket.olaylar.yayinla({ tur: "dosya.degisti", projeId: ben().projeId, alan: "ana", yol: `.arnorg/notlar/${n.yol}`, ajanId });
+          sirket.arnorgCommitPlanla(ben().projeId);
           return metin(iki(`Not kaydedildi: ${n.yol}`, `Note saved: ${n.yol}`));
         }),
     ),
@@ -610,12 +610,12 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     // ---------------- seçenekli soru: kurula seçenek sunma (secenek/araclar.ts) ----------------
     ...secenekAraclari(sirket, ajanId),
-    // ---------------- kod zekâsı (ajanın kendi çalışma alanında) ----------------
+    // ---------------- kod zekâsı (ajanın çalıştığı yerde: 0.0.8'de ekibin ortak projesi) ----------------
     tool(
       "kod_ara",
       iki(
-        "Kod tabanında arar: anlamsal (gömme) + anahtar sözcük + sembol adı. Türkçe ya da İngilizce doğal dille (\"ajanlar arası soru nasıl yönlendiriliyor\") ya da tanımlayıcıyla sorabilirsin. Sonuçlar dosya:başlangıç-bitiş, sembol ve satır numaralı kısa kesittir; kendi çalışma alanında arar. Yeri kesin bilmiyorsan Grep yerine bunu kullan.",
-        "Searches the codebase: semantic (embeddings) + keyword + symbol name. Ask in plain English or Turkish (\"how are questions between agents routed\") or with an identifier. Results are file:start-end, the symbol and a short line-numbered excerpt; it searches your own workspace. Use this instead of Grep when you don't know exactly where to look.",
+        "Kod tabanında arar: anlamsal (gömme) + anahtar sözcük + sembol adı. Türkçe ya da İngilizce doğal dille (\"ajanlar arası soru nasıl yönlendiriliyor\") ya da tanımlayıcıyla sorabilirsin. Sonuçlar dosya:başlangıç-bitiş, sembol ve satır numaralı kısa kesittir; ekibin ortak projesinde arar. Yeri kesin bilmiyorsan Grep yerine bunu kullan.",
+        "Searches the codebase: semantic (embeddings) + keyword + symbol name. Ask in plain English or Turkish (\"how are questions between agents routed\") or with an identifier. Results are file:start-end, the symbol and a short line-numbered excerpt; it searches the project the team shares. Use this instead of Grep when you don't know exactly where to look.",
       ),
       {
         sorgu: z.string().min(2).max(2000).describe(iki("Ne arıyorsun: doğal dil ya da tanımlayıcı", "What you are looking for: plain language or an identifier")),
@@ -696,103 +696,6 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         }),
     ),
     ...kodZekasiAraclari(sirket, ajanId),
-    tool(
-      "calisma_farki",
-      iki("Bir çalışanın çalışma alanındaki değişiklikleri ana dala göre gösterir (git diff). İnceleme için.", "Shows the changes in an employee's workspace against the main branch (git diff). For review."),
-      { ajan: z.string().describe(iki("Çalışan adı", "Employee name")), yol: z.string().optional().describe(iki("Yalnız bu dosya", "Only this file")) },
-      (a) =>
-        guvenli(async () => {
-          if (!inceleyebilir()) return hata(iki("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.", "This tool is for managers and the code review, test and security roles."));
-          const hedef = ajanBul(a.ajan);
-          if (!hedef.calismaAlani) return hata(iki(`${hedef.ad} için çalışma alanı yok.`, `${hedef.ad} has no workspace.`));
-          const f = await fark(hedef.calismaAlani, proje().varsayilanDal, a.yol);
-          const ozet = f.sayilar.map((x) => `${x.yol} +${x.eklenen} -${x.silinen}`).join("\n") || iki("Değişiklik yok.", "No changes.");
-          const govde = f.fark.length > 60_000 ? f.fark.slice(0, 60_000) + iki("\n… (kısaltıldı; dosya bazında yol ile isteyin)", "\n… (truncated; ask per file with yol)") : f.fark;
-          return metin(iki(`Dal: ${hedef.dal} · temel: ${proje().varsayilanDal}\n\nDosyalar:\n${ozet}\n\n${govde}`, `Branch: ${hedef.dal} · base: ${proje().varsayilanDal}\n\nFiles:\n${ozet}\n\n${govde}`));
-        }),
-    ),
-    tool(
-      "calisma_dosyasi",
-      iki("Bir çalışanın çalışma alanından dosya okur.", "Reads a file from an employee's workspace."),
-      { ajan: z.string(), yol: z.string().describe(iki("Çalışma alanı köküne göre yol", "Path relative to the workspace root")) },
-      (a) =>
-        guvenli(() => {
-          if (!inceleyebilir()) return hata(iki("Bu aracı yöneticiler, kod inceleyici, test ve güvenlik rolleri kullanabilir.", "This tool is for managers and the code review, test and security roles."));
-          const hedef = ajanBul(a.ajan);
-          if (!hedef.calismaAlani) return hata(iki(`${hedef.ad} için çalışma alanı yok.`, `${hedef.ad} has no workspace.`));
-          const d = dosyaOku(hedef.calismaAlani, a.yol, null);
-          return metin(d.icerik.length > 80_000 ? d.icerik.slice(0, 80_000) + iki("\n… (kısaltıldı)", "\n… (truncated)") : d.icerik);
-        }),
-    ),
-    tool(
-      "birlestirme_iste",
-      iki(
-        `Bir çalışanın dalını ana dala birleştirmek için onay ister (kurul; tam otonom kipte CEO karar verir, CEO'nun kendi isteği hemen geçerli olur). İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.${testKomutu ? ` Onaylanınca kalite kapısında ${testKomutu} koşar, geçmezse birleşmez; önce aynı komutu kendi çalışma alanında koş.` : ""}`,
-        `Asks for approval to merge an employee's branch into the main branch (the board decides; in fully autonomous mode the CEO decides and the CEO's own request takes effect immediately). As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.${testKomutu ? ` Once approved, the quality gate runs ${testKomutu} and the branch is not merged if it fails; run the same command in your working directory first.` : ""}`,
-      ),
-      {
-        ozet: z.string().min(10).describe(iki("Neler değişti, testler", "What changed, tests")),
-        ajan: z.string().optional().describe(iki("Dalı birleştirilecek çalışanın adı", "Name of the employee whose branch will be merged")),
-      },
-      (a) =>
-        guvenli(async () => {
-          let sahip = a.ajan ? ajanBul(a.ajan) : ben();
-          if (!a.ajan && !sahip.dal) {
-            const adaylar = sirket.depo
-              .gorevler(ben().projeId)
-              .filter((g) => g.durum === "inceleme" && g.atananId)
-              .map((g) => ({ g, ajan: sirket.depo.ajan(g.atananId!) }))
-              .filter((x) => x.ajan?.dal);
-            const tekil = [...new Map(adaylar.map((x) => [x.ajan!.id, x])).values()];
-            if (tekil.length !== 1) {
-              return hata(
-                tekil.length
-                  ? iki(
-                      `Birden çok aday var; ajan alanına birini yaz: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`,
-                      `There are several candidates; put one of them in ajan: ${tekil.map((x) => `${x.ajan!.ad} (${x.g.kod})`).join(", ")}`,
-                    )
-                  : iki(
-                      "Kendi çalışma dalın yok ve incelemede dalı olan görev yok; ajan alanına çalışan adını yaz.",
-                      "You have no working branch and no task in review has a branch; put an employee's name in ajan.",
-                    ),
-              );
-            }
-            sahip = tekil[0]!.ajan!;
-          }
-          if (!sahip.dal) return hata(iki(`${sahip.ad} için çalışma dalı yok.`, `${sahip.ad} has no working branch.`));
-          if (sahip.id !== ajanId && !yonetici() && rolBul(ben().rol)?.kimlik !== "inceleme")
-            return hata(iki("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.", "Only the code reviewer and managers can request a merge for someone else's branch."));
-          const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "birlestirme" && (o.veri as { dal?: string })?.dal === sahip.dal);
-          if (bekleyen) return metin(iki(`${sahip.dal} için birleştirme isteği zaten karar bekliyor (onay ${kisaKimlik(bekleyen.id)}).`, `A merge request for ${sahip.dal} is already waiting for a decision (approval ${kisaKimlik(bekleyen.id)}).`));
-          if (sirket.birlestirmeKuyrugu.suruyorMu(ben().projeId, sahip.dal))
-            return metin(iki(`${sahip.dal} onaylandı ve kalite kapısında (kuyrukta ya da testte); sonuç sana bildirilecek.`, `${sahip.dal} was approved and is at the quality gate (queued or testing); you will be told the result.`));
-          const anaDal = proje().varsayilanDal;
-          const onay = await sonHali(sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${anaDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId }));
-          const kimlik = kisaKimlik(onay.id);
-          if (ceoVerdi(onay)) {
-            return metin(
-              iki(
-                `Karar yetkisi sende olduğundan birleştirme hemen onaylandı (onay ${kimlik}): ${sahip.dal} kalite kapısında; testler geçerse ${anaDal} dalına girer. Sonuç bildirilecek.`,
-                `You hold the decision authority, so the merge was approved immediately (approval ${kimlik}): ${sahip.dal} is at the quality gate; if the tests pass it goes into ${anaDal}. You will be told the result.`,
-              ),
-            );
-          }
-          if (ceoyaGitti(onay)) {
-            return metin(
-              iki(
-                `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme ${ceoya()} sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`,
-                `The merge of ${sahip.ad}'s branch ${sahip.dal} went to ${ceoya()} for a decision (approval ${kimlik}). You will be told the result.`,
-              ),
-            );
-          }
-          return metin(
-            iki(
-              `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`,
-              `The merge of ${sahip.ad}'s branch ${sahip.dal} went to the board for approval (approval ${kimlik}). You will be told the result.`,
-            ),
-          );
-        }),
-    ),
     // ---------------- kendi zekâsı: kişisel hafıza, sözler, beceriler, geçmiş, aktarım ----------------
     tool(
       "kendime_not",
@@ -1093,8 +996,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "onay_karari",
       iki(
-        "Karar yetkisi CEO'dayken (tam otonom) bekleyen bir onaya karar verir: araç izni, birleştirme, işe alım, işten çıkarma, ana yasa, teslim ya da bir çalışanın sorusu (yalnız CEO). Gerekçe zorunludur: isteyene iletilir, soruda yanıt olarak gider. Birleştirmeden önce değişikliği calisma_farki ile oku.",
-        "Decides a pending approval while the CEO holds decision authority (fully autonomous): a tool permission, merge, hire, dismissal, constitution, delivery or an employee's question (CEO only). The reason is required: it is passed on to the requester and, for a question, is the answer. Read a merge with calisma_farki first.",
+        "Karar yetkisi CEO'dayken (tam otonom) bekleyen bir onaya karar verir: araç izni, işe alım, işten çıkarma, ana yasa, teslim ya da bir çalışanın sorusu (yalnız CEO). Gerekçe zorunludur: isteyene iletilir, soruda yanıt olarak gider.",
+        "Decides a pending approval while the CEO holds decision authority (fully autonomous): a tool permission, hire, dismissal, constitution, delivery or an employee's question (CEO only). The reason is required: it is passed on to the requester and, for a question, is the answer.",
       ),
       {
         onay: z.string().min(4).max(64).describe(iki("Onay kimliği ya da ilk 8 karakteri", "The approval id or its first 8 characters")),
@@ -1121,15 +1024,13 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           const ne = `${onayTuruAdi(son.tur)}: ${kisalt(son.baslik, 100)}`;
           if (son.durum !== "onaylandi") return metin(iki(`Onay ${kimlik} reddedildi (${ne}). Gerekçen isteyene iletildi.`, `Approval ${kimlik} was rejected (${ne}). Your reason was passed on to the requester.`));
           const ek =
-            son.tur === "birlestirme"
-              ? iki(" Kalite kapısı testleri koşuyor; sonuç #genel'e ve isteyene bildirilecek.", " The quality gate is running the tests; the result goes to #general and to the requester.")
-              : son.tur === "genel"
-                ? iki(" Yanıtın soran çalışana gitti.", " Your answer went to the employee who asked.")
-                : son.tur === "teslim"
-                  ? iki(" Sonuç kurula iletildi.", " The result was passed to the board.")
-                  : son.tur === "arac"
-                    ? iki(" Çalışan işine devam ediyor.", " The employee is carrying on.")
-                    : "";
+            son.tur === "genel"
+              ? iki(" Yanıtın soran çalışana gitti.", " Your answer went to the employee who asked.")
+              : son.tur === "teslim"
+                ? iki(" Sonuç kurula iletildi.", " The result was passed to the board.")
+                : son.tur === "arac"
+                  ? iki(" Çalışan işine devam ediyor.", " The employee is carrying on.")
+                  : "";
           return metin(iki(`Onay ${kimlik} onaylandı (${ne}). Gerekçen isteyene iletildi.${ek}`, `Approval ${kimlik} was approved (${ne}). Your reason was passed on to the requester.${ek}`));
         }),
     ),
@@ -1171,6 +1072,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     // ---------------- web ve araştırma (web/araclar.ts) ----------------
     ...webAraclari(sirket, ajanId),
+    // ---------------- ortak çalışma: isi_kaydet, calisma_farki, calisma_durumu, ekip_temposu (ortak-calisma/araclar.ts) ----------------
+    ...ortakCalismaAraclari(sirket, ajanId),
     // ---------------- skill kütüphanesi (skill-araclari.ts) ----------------
     ...skillAraclari(sirket, ajanId),
     // ---------------- proje adresleri (adres-araclari.ts) ----------------

@@ -7,6 +7,7 @@ import { AjanAvatar, AjanDurum, izinModuAdi, ModelAdi } from "../bilesenler/Kisi
 import { Simge } from "../bilesenler/Simge";
 import { useSozluk } from "../dil";
 import { git, useArayuz } from "../durum/arayuz";
+import { calismaKoku } from "../durum/ortakCalisma";
 import { ajanAkisiniYukle, useVeri } from "../durum/veri";
 import { token } from "../yardimcilar/bicim";
 
@@ -141,7 +142,7 @@ function Oturum({ ajanId }: { ajanId: string }) {
             </div>
           ) : null}
           {gorunen.map((s) => (
-            <TranskriptSatir key={s.oge.id} satir={s} kok={ajan.calismaAlani} />
+            <TranskriptSatir key={s.oge.id} satir={s} kok={calismaKoku(ajan)} />
           ))}
         </div>
         {yeniSayisi > 0 ? (

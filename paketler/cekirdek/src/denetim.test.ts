@@ -49,8 +49,9 @@ describe("denetim kaydında alt ajan", () => {
     await sirket.kapi(deniz.id, "Read", { file_path: "README.md" }, "arac-1", "alt-ajan-7f3");
     await sirket.kapi(deniz.id, "Read", { file_path: "a.ts" }, "arac-2");
     // Ret ve imza ayıklama da alt ajanı taşır
-    await sirket.kapi(deniz.id, "Bash", { command: "git reset --hard HEAD~1" }, "arac-3", "alt-ajan-7f3");
-    await sirket.kapi(deniz.id, "Bash", { command: 'git commit -m "iş\n\nCo-Authored-By: Claude <noreply@anthropic.com>"' }, "arac-4", "alt-ajan-9c1");
+    await sirket.kapi(deniz.id, "Bash", { command: "git push --force origin main" }, "arac-3", "alt-ajan-7f3");
+    // Ortak projede commit'i ArnOrg atar; imza ayıklama proje dışındaki bir repoda görülür
+    await sirket.kapi(deniz.id, "Bash", { command: 'git -C ../baska commit -m "iş\n\nCo-Authored-By: Claude <noreply@anthropic.com>"' }, "arac-4", "alt-ajan-9c1");
 
     const kayitlar = depo.denetimKayitlari(pid, 10);
     const bul = (aracKimligi: string) => kayitlar.find((k) => k.aracKimligi === aracKimligi);

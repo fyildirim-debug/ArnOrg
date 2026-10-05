@@ -85,6 +85,8 @@ export interface OturumBaglami {
   aracSonrasi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, yanit?: unknown): string | null;
   /** PostToolUseFailure: hatayla ilgili hafıza ya da kaydetme ipucu */
   aracHatasi(arac: string, girdi: Record<string, unknown>, hata: string): string | null;
+  /** 0.0.8 · araç hatayla ya da kesintiyle bitti (yine de dosya yazmış olabilir): ortak çalışmanın izi */
+  aracBasarisiz?(arac: string, girdi: Record<string, unknown>): void;
   /** UserPromptSubmit: yeni mesajla birlikte verilecek hafıza (ekipten yeni kayıtlar, ilgili kayıtlar) */
   turBasi(metin: string): string | null;
   /** SessionStart (compact): sıkıştırmadan sonra unutulmaması gerekenler */
@@ -213,7 +215,9 @@ export class AjanOturumu {
       return ek ? { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: ek } } : {};
     };
     const hataKancasi: HookCallback = async (girdi) => {
-      if (girdi.hook_event_name !== "PostToolUseFailure" || girdi.is_interrupt) return {};
+      if (girdi.hook_event_name !== "PostToolUseFailure") return {};
+      guvenli(() => (this.b.aracBasarisiz?.(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>), null));
+      if (girdi.is_interrupt) return {};
       const ek = guvenli(() => this.b.aracHatasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, girdi.error ?? ""));
       return ek ? { hookSpecificOutput: { hookEventName: "PostToolUseFailure", additionalContext: ek } } : {};
     };

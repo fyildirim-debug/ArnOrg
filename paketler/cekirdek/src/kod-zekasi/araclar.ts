@@ -1,6 +1,6 @@
 // İlgili dosyalar aracı (mcp__arnorg__ilgili_dosyalar): bir dosyanın içe aktarma komşuları ve kodu anlamca yakın
 // dosyalar, nedenleri ve en yakın kod parçasıyla. arnorg-araclari.ts listeye tek satırla yayar; talimat satırı
-// talimat.ts'te kod araçlarının yanına girer. Ajanın kendi çalışma alanında çalışır.
+// talimat.ts'te kod araçlarının yanına girer. Ajanın çalıştığı yerde (0.0.8'de ekibin ortak projesi) çalışır.
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Dil, KodIlgiliDosya, KodIlgiliDosyalar, KodParcaKonumu } from "@arnorg/ortak";
 import { z } from "zod";
@@ -86,8 +86,8 @@ export function kodZekasiAraclari(sirket: Sirket, ajanId: string) {
     tool(
       "ilgili_dosyalar",
       iki(
-        "Bir dosyanın ilgili dosyaları: içe aktardıkları, onu içe aktaranlar ve kodu anlamca yakın dosyalar (gömmelerden; içe aktarma olmasa da aynı işi yapan kod). Her biri nedeni ve en yakın kod parçasıyla gelir. Bir dosyayı değiştirmeden ya da yeni koda başlamadan önce ilgili koda hızla ulaşmak için; kendi çalışma alanında çalışır.",
-        "A file's related files: what it imports, what imports it, and files whose code is semantically close (from embeddings; code doing the same job even without an import). Each comes with its reason and the closest code chunk. Use it to reach related code fast before changing a file or starting new code; it works in your own workspace.",
+        "Bir dosyanın ilgili dosyaları: içe aktardıkları, onu içe aktaranlar ve kodu anlamca yakın dosyalar (gömmelerden; içe aktarma olmasa da aynı işi yapan kod). Her biri nedeni ve en yakın kod parçasıyla gelir. Bir dosyayı değiştirmeden ya da yeni koda başlamadan önce ilgili koda hızla ulaşmak için; ekibin ortak projesinde çalışır.",
+        "A file's related files: what it imports, what imports it, and files whose code is semantically close (from embeddings; code doing the same job even without an import). Each comes with its reason and the closest code chunk. Use it to reach related code fast before changing a file or starting new code; it works in the project the team shares.",
       ),
       {
         dosya: z.string().min(1).max(500).describe(iki("Çalışma alanı köküne göre yol (ör. src/depo.ts)", "Path relative to the workspace root (e.g. src/store.ts)")),

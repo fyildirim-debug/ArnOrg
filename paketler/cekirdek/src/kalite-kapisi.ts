@@ -1,6 +1,7 @@
-// Kalite kapısının araçları: projenin kalıcı kalite çalışma alanı (hedef dala ayrık worktree), dalın orada
-// commit'lenmeden denenmesi, kabukta süre sınırlı komut (zaman aşımında süreç ağacı öldürülür), çıktının son kısmı,
-// dalın hedefe göre farkı ve proje kökündeki package.json'dan tek tıklık komut önerisi.
+// Kalite denetiminin araçları: projenin kalıcı kalite çalışma alanı (denetlenen commit'e ayrık worktree), kabukta süre
+// sınırlı komut (zaman aşımında süreç ağacı öldürülür), çıktının son kısmı, eski birleştirme onaylarında dalın hedefe
+// göre farkı ve proje kökündeki package.json'dan tek tıklık komut önerisi. 0.0.8'de görev kaydının denetimi
+// (ortak-calisma/kalite.ts) bunları kullanır.
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -204,37 +205,10 @@ export async function kaliteAlaniHazirla(repo: string, yol: string, commit: stri
   await gitIslemleri.git(yol, ["clean", "-fdq"]);
 }
 
-/** Alanı son commit'e geri sarar (deneme birleştirmesi bırakılır); hata yutulur */
+/** Alanı son commit'e geri sarar (komutların bıraktığı izlenen değişiklikler atılır); hata yutulur */
 export async function kaliteAlaniniBirak(yol: string): Promise<void> {
   if (!fs.existsSync(path.join(yol, ".git"))) return;
   await gitIslemleri.git(yol, ["reset", "--hard", "-q"]).catch(() => undefined);
-}
-
-export type DenemeSonucu = { tur: "tamam" } | { tur: "cakisma"; dosyalar: string[] } | { tur: "hata"; mesaj: string };
-
-/** Kaynağı kalite alanında commit'lemeden birleştirir (git merge --no-ff --no-commit); çakışmada geri alır */
-export async function denemeBirlestir(yol: string, kaynak: string): Promise<DenemeSonucu> {
-  try {
-    await gitIslemleri.git(yol, ["merge", "--no-ff", "--no-commit", kaynak]);
-    return { tur: "tamam" };
-  } catch (h) {
-    const cakisan = await gitIslemleri.git(yol, ["diff", "--name-only", "--diff-filter=U"]).catch(() => "");
-    await gitIslemleri.git(yol, ["merge", "--abort"], { izinVerilenKodlar: [1, 128] }).catch(() => undefined);
-    const dosyalar = cakisan
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return dosyalar.length ? { tur: "cakisma", dosyalar } : { tur: "hata", mesaj: (h as Error).message };
-  }
-}
-
-/** İki commit arasında değişen yollar (yeniden adlandırma iki yol sayılır) */
-export async function degisenYollar(repo: string, eski: string, yeni: string): Promise<string[]> {
-  const c = await gitIslemleri.git(repo, ["diff", "--name-only", "--no-renames", eski, yeni]);
-  return c
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 /** Kaynağın hedefe göre farkı (ortak atadan kaynağa; yalnız commit'lenmiş değişiklikler) */

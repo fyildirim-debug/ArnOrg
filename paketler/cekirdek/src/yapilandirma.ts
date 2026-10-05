@@ -24,7 +24,8 @@ export const VARSAYILAN_AYARLAR: Ayarlar = {
   denetimSaklamaGun: 90,
   disEditor: process.platform === "win32" ? "code" : "codium",
   tikanmaDakika: 20,
-  esZamanliAjan: 3,
+  // 0.0.8: üst sınır; tam otonom kipte CEO bu sınır içinde ekip temposunu belirler (ortak-calisma/tempo.ts)
+  esZamanliAjan: 8,
   acilistaSurdur: true,
   gorevTokenTavani: 2_000_000,
   besSaatlikSinirYuzde: 90,

@@ -91,13 +91,16 @@ export function KodZekasi() {
           <p>{z.aciklama}</p>
         </div>
         <div className="baslik-eylem kz-eylem">
-          <select className="girdi suzgec-secim" aria-label={z.calismaAlani} value={alan} onChange={(e) => kodAlaniSec(e.target.value)}>
-            {(alanlar.length ? alanlar : [{ kimlik: "ana", ana: true } as CalismaAlani]).map((a) => (
-              <option key={a.kimlik} value={a.kimlik}>
-                {alanAdi(a)}
-              </option>
-            ))}
-          </select>
+          {/* 0.0.8: herkes ortak projede; seçici yalnız geçişten kalan bir alan varsa görünür */}
+          {alanlar.length > 1 ? (
+            <select className="girdi suzgec-secim" aria-label={z.calismaAlani} value={alan} onChange={(e) => kodAlaniSec(e.target.value)}>
+              {alanlar.map((a) => (
+                <option key={a.kimlik} value={a.kimlik}>
+                  {alanAdi(a)}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button type="button" className="dugme" disabled={dizinleniyor || dizinSuruyor(durum)} onClick={() => void dizinle(false)} title={z.yenidenDizinleIpucu}>
             <Simge ad="yenile" />
             {z.yenidenDizinle}

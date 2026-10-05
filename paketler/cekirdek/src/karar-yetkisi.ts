@@ -68,17 +68,18 @@ function isteyenMetni(isteyen: Ajan | null): string {
 function rehber(onay: Onay, ajanAdi: (id: string) => string | null): string {
   switch (onay.tur) {
     case "birlestirme": {
-      const v = onay.veri as { ajanId?: string; dal?: string } | null;
+      // 0.0.7'den kalan istek: 0.0.8'de birleştirme yok, iş ortak projede görev kaydıyla girer
+      const v = onay.veri as { ajanId?: string } | null;
       const sahip = v?.ajanId ? ajanAdi(v.ajanId) : null;
       return iki(
-        `Önce değişikliği calisma_farki ile oku${sahip ? ` (ajan: ${sahip})` : ""}. Onaylarsan kalite kapısı testleri koşar; geçerse ana dala girer.`,
-        `Read the change with calisma_farki first${sahip ? ` (ajan: ${sahip})` : ""}. If you approve, the quality gate runs the tests; if they pass, it goes into the main branch.`,
+        `Bu 0.0.7'den kalan bir birleştirme isteği; artık birleştirme yok. Reddet ve ${sahip ? yonelme(sahip) : "isteyene"} işini ortak projede görevini 'inceleme'ye alarak kaydetmesini söyle.`,
+        `This is a merge request left over from 0.0.7; there are no merges any more. Reject it and tell ${sahip ?? "the requester"} to save the work in the shared project by moving the task to 'inceleme'.`,
       );
     }
     case "arac":
       return iki(
-        "Komutun ne yaptığını ve ana yasaya uyup uymadığını tart; geri alınamaz ya da dışa etkili bir işse (uzak depoya push, yayın, dağıtım, sistem paketi, silme) gerekçeni ona göre yaz. Çalışanın uzak depoya push isteğini görev açıkça gerektirmiyorsa reddet: birleşen işi uzak depoya ArnOrg kendisi gönderir; uzak depo yoksa push zaten tutmaz. Çalışan kararını bekliyor; süre dolarsa reddedilmiş sayılır.",
-        "Judge what the command does and whether it respects the constitution; if it is irreversible or affects the outside world (pushing to a remote, publishing, deploying, system packages, deleting), write your reasoning accordingly. Reject an employee's request to push to a remote unless the task clearly needs it: ArnOrg pushes merged work to the remote itself, and without a remote the push can't work anyway. The employee is waiting for your decision; if time runs out it counts as rejected.",
+        "Komutun ne yaptığını ve ana yasaya uyup uymadığını tart; geri alınamaz ya da dışa etkili bir işse (yayın, dağıtım, sistem paketi, silme) gerekçeni ona göre yaz. Çalışma dalını uzak depoya ArnOrg kendisi gönderir; ortak projede çalışanın git push'u zaten reddedilir. Çalışan kararını bekliyor; süre dolarsa reddedilmiş sayılır.",
+        "Judge what the command does and whether it respects the constitution; if it is irreversible or affects the outside world (publishing, deploying, system packages, deleting), write your reasoning accordingly. ArnOrg pushes the working branch to the remote itself; an employee's git push is denied in the shared project anyway. The employee is waiting for your decision; if time runs out it counts as rejected.",
       );
     case "genel":
       return (onay.veri as { altTur?: unknown } | null)?.altTur === GOREV_TAVANI_ALT_TURU
@@ -138,8 +139,8 @@ export function ceoOnayListesi(onaylar: Onay[], isteyenBul: (id: string | null) 
     ...satirlar,
     "",
     iki(
-      "Her birine mcp__arnorg__onay_karari ile karar ver ve gerekçesini yaz (birleştirmeden önce calisma_farki ile değişikliği oku). Ayrıntıyı bekleyen_onaylar ile görebilirsin.",
-      "Decide each one with mcp__arnorg__onay_karari and write your reasoning (read the change with calisma_farki before a merge). You can see them again with bekleyen_onaylar.",
+      "Her birine mcp__arnorg__onay_karari ile karar ver ve gerekçesini yaz. Ayrıntıyı bekleyen_onaylar ile görebilirsin.",
+      "Decide each one with mcp__arnorg__onay_karari and write your reasoning. You can see them again with bekleyen_onaylar.",
     ),
   ].join("\n");
 }
@@ -148,8 +149,8 @@ export function ceoOnayListesi(onaylar: Onay[], isteyenBul: (id: string | null) 
 export function kipMesaji(kip: KararVeren): string {
   return kip === "ceo"
     ? iki(
-        "Kurul karar yetkisini sana bıraktı: şirket artık tam otonom. Çalışanların onay istekleri (araç izni, birleştirme, işe alım, soru) sana mesaj olarak gelecek; onay_karari ile gerekçeli karar ver. Kendi tekliflerin (işe alım, işten çıkarma, ana yasa, birleştirme) hemen geçerli olur; teslimlerin kurula sonuç olarak gider, kabul bekleme. Kurula yalnız insanın yapabileceği şeyler için kurula_sor ile sor (giriş bilgisi, ödeme, dış hesap, geri alınamaz dış etkiler). Ana yasa ve kalite kapısı yine geçerli.",
-        "The board has handed decision authority to you: the company is now fully autonomous. Employees' approval requests (tool permissions, merges, hires, questions) will come to you as messages; decide them with reasons using onay_karari. Your own proposals (hire, dismissal, constitution, merge) take effect immediately; your deliveries go to the board as results, so don't wait for acceptance. Ask the board with kurula_sor only for what only a human can do (credentials, payments, external accounts, irreversible external effects). The constitution and the quality gate still apply.",
+        "Kurul karar yetkisini sana bıraktı: şirket artık tam otonom. Çalışanların onay istekleri (araç izni, işe alım, soru) sana mesaj olarak gelecek; onay_karari ile gerekçeli karar ver. Kendi tekliflerin (işe alım, işten çıkarma, ana yasa) hemen geçerli olur; teslimlerin kurula sonuç olarak gider, kabul bekleme. Aynı anda kaç çalışanın çalışacağını ekip_temposu ile sen belirlersin. Kurula yalnız insanın yapabileceği şeyler için kurula_sor ile sor (giriş bilgisi, ödeme, dış hesap, geri alınamaz dış etkiler). Ana yasa ve kayıtların kalite denetimi yine geçerli.",
+        "The board has handed decision authority to you: the company is now fully autonomous. Employees' approval requests (tool permissions, hires, questions) will come to you as messages; decide them with reasons using onay_karari. Your own proposals (hire, dismissal, constitution) take effect immediately; your deliveries go to the board as results, so don't wait for acceptance. You decide how many employees work at once with ekip_temposu. Ask the board with kurula_sor only for what only a human can do (credentials, payments, external accounts, irreversible external effects). The constitution and the quality checks of saves still apply.",
       )
     : iki(
         "Kurul karar yetkisini geri aldı: tekliflerin ve çalışanların onay istekleri artık kurulun kararına gider; onay_karari kullanılamaz. Teklifini gerekçesiyle ver ve sonucu bekle.",
@@ -165,31 +166,31 @@ export function kararYetkisiTalimati(b: { kip: KararVeren; ceo: boolean; yonetic
       return en
         ? [
             "## Decision authority: the board",
-            "- Hiring, dismissals, the constitution, merges and deliveries go to the board for approval; tool permissions are asked of the board too. Make each proposal with its reasons and wait for the decision.",
+            "- Hiring, dismissals, the constitution and deliveries go to the board for approval; tool permissions are asked of the board too. Make each proposal with its reasons and wait for the decision.",
           ]
         : [
             "## Karar yetkisi: kurulda",
-            "- İşe alım, işten çıkarma, ana yasa, birleştirme ve teslim kurulun onayına gider; araç izinleri de kurula sorulur. Her teklifi gerekçesiyle ver ve sonucu bekle.",
+            "- İşe alım, işten çıkarma, ana yasa ve teslim kurulun onayına gider; araç izinleri de kurula sorulur. Her teklifi gerekçesiyle ver ve sonucu bekle.",
           ];
     }
     return en
       ? [
           "## Decision authority: yours (fully autonomous)",
-          "- The board has left decisions to you: permissions, merges, hires and the other approvals go through you; the board sees the results.",
-          "- Employees' approval requests (tool permissions, merges, hires, questions, token ceilings) come to you as messages. Decide with mcp__arnorg__onay_karari and write your reasons; list what is waiting with bekleyen_onaylar. Read a merge with calisma_farki first; for a tool permission judge what the command does and whether it respects the constitution; for a question your gerekce is the answer sent back to the asker.",
-          "- Your own proposals (ise_al_teklif, isten_cikar_teklif, anayasa_oner, birlestirme_iste) take effect immediately: be careful and still give your reasons.",
+          "- The board has left decisions to you: permissions, hires, the team pace and the other approvals go through you; the board sees the results.",
+          "- Employees' approval requests (tool permissions, hires, questions, token ceilings) come to you as messages. Decide with mcp__arnorg__onay_karari and write your reasons; list what is waiting with bekleyen_onaylar. For a tool permission judge what the command does and whether it respects the constitution; for a question your gerekce is the answer sent back to the asker.",
+          "- Your own proposals (ise_al_teklif, isten_cikar_teklif, anayasa_oner) take effect immediately: be careful and still give your reasons.",
           "- What you deliver with teslim_et goes to the board as a result: don't wait for acceptance, move on to the next goal. Board feedback comes back to you as work through the CEO chat.",
           "- Bother the board (kurula_sor) only for what only a human can do: credentials or logins, payments, external accounts, legal or irreversible external effects such as deleting production data.",
-          "- The constitution and the quality gate still apply: work the policy denies stays denied, and a merge does not reach the main branch unless the tests pass.",
+          "- The constitution and the quality checks still apply: work the policy denies stays denied, and a task whose save fails the tests goes back to its owner.",
         ]
       : [
           "## Karar yetkisi: sende (tam otonom)",
-          "- Kurul kararları sana bıraktı: izinler, birleştirmeler, işe alımlar ve öteki onaylar senden geçer; kurul sonuçları görür.",
-          "- Çalışanların onay istekleri (araç izni, birleştirme, işe alım, soru, token tavanı) sana mesaj olarak gelir. mcp__arnorg__onay_karari ile karar ver ve gerekçeni yaz; bekleyenleri bekleyen_onaylar ile gör. Birleştirmeden önce değişikliği calisma_farki ile oku; araç izninde komutun ne yaptığını ve ana yasaya uyup uymadığını tart; soruda gerekce metni soran çalışana yanıt olarak gider.",
-          "- Kendi tekliflerin (ise_al_teklif, isten_cikar_teklif, anayasa_oner, birlestirme_iste) hemen geçerli olur: dikkatli ol, gerekçeni yine yaz.",
+          "- Kurul kararları sana bıraktı: izinler, işe alımlar, ekip temposu ve öteki onaylar senden geçer; kurul sonuçları görür.",
+          "- Çalışanların onay istekleri (araç izni, işe alım, soru, token tavanı) sana mesaj olarak gelir. mcp__arnorg__onay_karari ile karar ver ve gerekçeni yaz; bekleyenleri bekleyen_onaylar ile gör. Araç izninde komutun ne yaptığını ve ana yasaya uyup uymadığını tart; soruda gerekce metni soran çalışana yanıt olarak gider.",
+          "- Kendi tekliflerin (ise_al_teklif, isten_cikar_teklif, anayasa_oner) hemen geçerli olur: dikkatli ol, gerekçeni yine yaz.",
           "- teslim_et ile sunduğun iş kurula sonuç olarak gider: kabul bekleme, sıradaki hedefe geç. Kurulun geri bildirimi CEO sohbetinden sana iş olarak gelir.",
           "- Kurulu yalnız insanın yapabileceği şeyler için rahatsız et (kurula_sor): giriş bilgisi ya da oturum açma, ödeme, dış hesaplar, hukuki ya da geri alınamaz dış etkiler (canlı veriyi silmek gibi).",
-          "- Ana yasa ve kalite kapısı yine geçerli: politikanın reddettiği iş reddedilir, birleştirme testler geçmeden ana dala girmez.",
+          "- Ana yasa ve kalite denetimi yine geçerli: politikanın reddettiği iş reddedilir, kaydı testten geçmeyen görev sahibine döner.",
         ];
   }
   if (b.kip === "kurul") return [];
@@ -197,10 +198,10 @@ export function kararYetkisiTalimati(b: { kip: KararVeren; ceo: boolean; yonetic
   return en
     ? [
         "## Decision authority: the CEO (fully autonomous)",
-        `- Requests that need approval (tool permissions, merges, kurula_sor questions${b.yonetici ? ", hiring and dismissal proposals" : ""}) go to ${ceo}, who decides with reasons; they do not go to the board directly. The tool result tells you where your request went.`,
+        `- Requests that need approval (tool permissions, kurula_sor questions${b.yonetici ? ", hiring and dismissal proposals" : ""}) go to ${ceo}, who decides with reasons; they do not go to the board directly. The tool result tells you where your request went.`,
       ]
     : [
         "## Karar yetkisi: CEO'da (tam otonom)",
-        `- Onay gerektiren isteklerin (araç izni, birleştirme, kurula_sor soruları${b.yonetici ? ", işe alım ve işten çıkarma teklifleri" : ""}) ${b.ceoAdi ? `CEO ${yonelme(b.ceoAdi)}` : "CEO'ya"} gider; CEO gerekçesiyle karar verir, kurula doğrudan gitmez. İsteğinin nereye gittiğini aracın sonucu söyler.`,
+        `- Onay gerektiren isteklerin (araç izni, kurula_sor soruları${b.yonetici ? ", işe alım ve işten çıkarma teklifleri" : ""}) ${b.ceoAdi ? `CEO ${yonelme(b.ceoAdi)}` : "CEO'ya"} gider; CEO gerekçesiyle karar verir, kurula doğrudan gitmez. İsteğinin nereye gittiğini aracın sonucu söyler.`,
       ];
 }

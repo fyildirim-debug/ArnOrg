@@ -95,8 +95,8 @@ export class Hatirlatici {
   }
 
   /**
-   * Ajan bir dosyaya yazdı. Aynı dosyayı yakın zamanda başka bir ajan kendi dalında değiştirdiyse
-   * (birleştirmede çakışma çıkabilir) ajana bir kez haber verilir.
+   * Ajan bir dosyaya yazdı. Aynı dosyayı yakın zamanda başka bir ajan değiştirdiyse (ortak projede kirası bitmiş,
+   * işi kaydedilmiş olabilir; değişiklikler birbirini bozmasın) ajana bir kez haber verilir.
    */
   yazmaIzi(ajan: Ajan, goreli: string, simdiMs = Date.now()): string | null {
     if (!goreli || goreli.startsWith("..") || goreli.startsWith(".arnorg/")) return null;
@@ -114,13 +114,13 @@ export class Hatirlatici {
       uyarilan.add(`${goreli}|${digerId}`);
       const gorev = diger.gorevId ? this.depo.gorev(diger.gorevId) : null;
       const dk = Math.max(1, Math.round((simdiMs - zaman) / 60_000));
-      digerleri.push(`${diger.ad} (${iki(`${dk} dk önce`, `${dk} min ago`)}${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""}${diger.dal ? `, ${iki("dal", "branch")} ${diger.dal}` : ""})`);
+      digerleri.push(`${diger.ad} (${iki(`${dk} dk önce`, `${dk} min ago`)}${gorev ? `, ${gorev.kod} ${kisalt(gorev.baslik, 50)}` : ""})`);
     }
     this.cakismaUyarilari.set(ajan.id, uyarilan);
     if (!digerleri.length) return null;
     return iki(
-      `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de kendi dalında değiştirdi. Birleştirmede çakışma çıkabilir; değişikliğin onunkini etkiliyorsa ajana_sor ile sor ya da mesaj_gonder ile haber ver, aynı satırları ikiniz birden değiştirmeyin.`,
-      `[ArnOrg] Heads up: ${digerleri.join(" and ")} also changed ${goreli} on their own branch. The merge may conflict; if your change affects theirs, ask with ajana_sor or let them know with mesaj_gonder, and don't both change the same lines.`,
+      `[ArnOrg] Dikkat: ${goreli} dosyasını ${digerleri.join(" ve ")} de yakın zamanda değiştirdi. Onun değişikliğini bozmadığından emin ol; emin değilsen ajana_sor ile sor ya da mesaj_gonder ile haber ver.`,
+      `[ArnOrg] Heads up: ${digerleri.join(" and ")} also changed ${goreli} recently. Make sure you don't break their change; if unsure, ask with ajana_sor or let them know with mesaj_gonder.`,
     );
   }
 

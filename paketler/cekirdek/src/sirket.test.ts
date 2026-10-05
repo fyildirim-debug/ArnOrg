@@ -267,8 +267,9 @@ describe("imzasız commit kapısı", () => {
   it("Claude imzalı commit'i değiştirilmiş girdiyle geçirir ve denetime yazar", async () => {
     const p = depo.projeler()[0]!;
     const deniz = depo.ajanAdla(p.id, "Deniz")!;
-    const sonuc = await sirket.kapi(deniz.id, "Bash", { command: 'git commit -m "Şema" -m "Co-Authored-By: Claude <noreply@anthropic.com>"' });
-    expect(sonuc).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow", updatedInput: { command: 'git commit -m "Şema"' } } });
+    // Ortak projede commit'i ArnOrg atar; çalışanın commit'i ancak proje dışındaki bir repoda olur
+    const sonuc = await sirket.kapi(deniz.id, "Bash", { command: 'git -C ../baska commit -m "Şema" -m "Co-Authored-By: Claude <noreply@anthropic.com>"' });
+    expect(sonuc).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow", updatedInput: { command: 'git -C ../baska commit -m "Şema"' } } });
     expect(depo.denetimKayitlari(p.id, 5).some((k) => k.karar === "degisti" && k.kural === "İmzasız commit")).toBe(true);
   });
 });

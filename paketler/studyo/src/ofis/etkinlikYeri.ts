@@ -164,12 +164,12 @@ export const YER_TABLOSU: readonly YerKurali[] = [
   { arac: mcp("mesaj_gonder"), girdi: (g) => !!(dize(g.alici) ?? ilkAnma(dize(g.metin))), yer: "kisi", kisi: (g) => dize(g.alici) ?? ilkAnma(dize(g.metin)), kisa: true },
   { arac: mcp("mesaj_gonder", "kanal_oku", "soruyu_yanitla", "ekip_listele", "defter_yaz", "defter_oku", "ajana_sor"), yer: "masa", kisa: true, esik: 3 },
   // İnceleme: incelenen işin sahibinin masası
-  { arac: mcp("calisma_farki", "calisma_dosyasi"), girdi: (g) => !!dize(g.ajan), yer: "kisi", kisi: (g) => dize(g.ajan) },
+  { arac: mcp("calisma_farki"), girdi: (g) => !!dize(g.ajan), yer: "kisi", kisi: (g) => dize(g.ajan) },
   // Not ve hafıza: arşiv (yazmak hemen, okumak iki çağrıda)
   { arac: mcp("not_yaz", "hafiza_kaydet", "hafiza_birlestir", "hafiza_bakim"), yer: "arsiv" },
   { arac: mcp("not_oku", "notlari_listele", "hafiza_ara", "hafiza_listele"), yer: "arsiv", esik: 2 },
-  // Kurul: soru, birleştirme isteği, işe alım teklifi
-  { arac: mcp("kurula_sor", "birlestirme_iste", "ise_al_teklif"), yer: "kurul" },
+  // Kurul: soru, işe alım teklifi
+  { arac: mcp("kurula_sor", "ise_al_teklif"), yer: "kurul" },
   // Rapor: beyaz tahta
   { arac: mcp("rapor_hazirla"), yer: "tahta" },
 ];

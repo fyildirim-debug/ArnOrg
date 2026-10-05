@@ -2,8 +2,8 @@
 // türe göre ayrıntı, onaylanırsa ne olacağı ve karar düğmeleri. Sonuçlananda: sakin, açılır bir geçmiş satırı.
 // Ekip ekranı işe alım tekliflerini de bununla gösterir; dar kapta (container query) tek sütuna iner.
 // Ana yasa önerisinde maddeler ve makine kuralları, işten çıkarmada kim ve devralan, teslimde özet, test adımları,
-// çalıştır komutu, adres ve "Test et" aynı defter düzeninde çizilir. Onaylanmış birleştirmenin altında kalite kapısı
-// satırı (KaliteKapisi.tsx) durur; dalın farkı her zaman açılabilir. Tam otonomda CEO'yu bekleyen onayda kurulun
+// çalıştır komutu, adres ve "Test et" aynı defter düzeninde çizilir. 0.0.7'den kalan birleştirme onayı geçmişte okunur
+// kalır: altında kalite kapısı satırı (KaliteKapisi.tsx) durur, dalın farkı açılabilir. Tam otonomda CEO'yu bekleyen onayda kurulun
 // düğmeleri ikincildir; sonuçlananda kararı veren (CEO, kurul, otomatik) ve gerekçesi görünür (KararYetkisi.tsx).
 import { rolMetni, type Ajan, type AnayasaMaddesi, type Dil, type Gorev, type Onay, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
@@ -13,6 +13,7 @@ import { sozluk, useDil, useSozluk, type Sozluk } from "../dil";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
 import { testiAc, useSohbet } from "../durum/sohbet";
 import { rolModeli, useModelKatalogu } from "../durum/modeller";
+import { calismaKoku } from "../durum/ortakCalisma";
 import { ceoBul, onayUygula, useVeri } from "../durum/veri";
 import type { Varliklar } from "../ofis/varliklar";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
@@ -71,10 +72,8 @@ interface Baglam {
   ajanlar: Ajan[];
   gorevler: Gorev[];
   roller: Rol[];
-  /** Projenin varsayılan dalı: birleştirmenin hedefi veride yoksa */
+  /** Projenin varsayılan dalı: eski birleştirmenin hedefi veride yoksa */
   anaDal: string | null;
-  /** Kalite kapısının test komutu: birleştirme onaylanırsa ne olacağını söyler */
-  testKomutu: string | null;
 }
 
 function useBaglam(): Baglam {
@@ -84,10 +83,9 @@ function useBaglam(): Baglam {
   const gorevler = useVeri((d) => d.gorevler);
   const roller = useVeri((d) => d.roller);
   const anaDal = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.varsayilanDal ?? null);
-  const testKomutu = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.testKomutu ?? null);
   // İşe alım teklifindeki model sürümlü adıyla görünür; katalog gelince yeniden çizilir
   useModelKatalogu();
-  return { s, dil, ajanlar, gorevler, roller, anaDal, testKomutu };
+  return { s, dil, ajanlar, gorevler, roller, anaDal };
 }
 
 function ajanEtiketi(a: Ajan): string {
@@ -287,7 +285,8 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
       kullanilan.add("isteyenId");
       // Kalite kapısının kaydı kartın altındaki durum satırında gösterilir
       kullanilan.add("kalite");
-      etki = b.testKomutu ? s.kalite.etkiTestli(dal ?? onay.baslik, hedef, b.testKomutu) : s.kalite.etkiTestsiz(dal ?? onay.baslik, hedef);
+      // 0.0.8'de birleştirme yok: eski isteğe verilen karar yalnız kayda geçer
+      etki = s.kalite.etkiEski;
       break;
     }
 
@@ -322,7 +321,7 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
 
     case "arac": {
       const arac = dize(v.arac) ?? undefined;
-      const ozet = girdiOzeti(arac, v.girdi, ajan?.calismaAlani);
+      const ozet = girdiOzeti(arac, v.girdi, calismaKoku(ajan));
       const komut = ozet.kod || ozet.metin || (v.girdi !== undefined ? JSON.stringify(v.girdi, null, 2) : "");
       const aciklama = ozet.kod && ozet.metin && ozet.metin !== ozet.kod ? ozet.metin : null;
       // Plan onayında plan ayrıntıdadır; girdi tekrar edilmez

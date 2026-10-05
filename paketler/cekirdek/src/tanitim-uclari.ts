@@ -18,6 +18,11 @@ export function tanitimUclariniKur(app: FastifyInstance, sirket: Sirket): Taniti
     ceoyaYaz: async (projeId, metin) => {
       await sirket.mesajGonder(projeId, "yonetim", KURUL, metin);
     },
+    // Ortak projede README.md'yi kiralayan çalışan taslağın sahibidir (0.0.8)
+    readmeKiracisi: (projeId) => {
+      const k = sirket.ortak.kiralar.sahibi(projeId, "README.md");
+      return k ? { ajanId: k.ajanId, ajanAd: k.ajanAd } : null;
+    },
   });
   const param = (i: FastifyRequest, ad: string): string => String((i.params as Record<string, string>)[ad] ?? "");
 

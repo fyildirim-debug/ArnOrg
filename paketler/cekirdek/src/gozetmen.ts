@@ -59,7 +59,9 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   const denetim = sirket.depo.denetimSayilari(projeId, baslangicAni);
   const bekleyenOnaylar = sirket.depo.onaylar(projeId, "bekliyor");
   const sonuclananlar = sirket.depo.onaylar(projeId).filter((o) => o.durum !== "bekliyor" && (o.sonuclanma ?? "") >= baslangicAni);
-  const birlesenler = sonuclananlar.filter((o) => o.tur === "birlestirme" && o.durum === "onaylandi");
+  // 0.0.8: işler ortak projede görev kaydı olarak çalışma dalına girer (ortak-calisma/)
+  const kayitlar = sirket.ortak.defter.aralikta(projeId, baslangicAni);
+  const kalanKayit = kayitlar.filter((k) => k.kalite.durum === "kaldi" || k.kalite.durum === "zaman_asimi").length;
   const iseAlinanlar = sonuclananlar.filter((o) => o.tur === "ise_alim" && o.durum === "onaylandi");
 
   const baslik = iki(`Durum raporu · ${bugun()}`, `Status report · ${bugun()}`);
@@ -82,8 +84,8 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
   b.push(`${iki("- Denetim", "- Audit")}: ${denetimOzeti.length ? denetimOzeti.join(", ") : iki("kayıt yok", "no records")}`);
   b.push(
     iki(
-      `- Birleştirme: ${birlesenler.length} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`,
-      `- Merges: ${birlesenler.length} · hires: ${iseAlinanlar.length} · pending approvals: ${bekleyenOnaylar.length}`,
+      `- Görev kaydı: ${kayitlar.length}${kalanKayit ? ` (${kalanKayit} testten geçmedi)` : ""} · işe alım: ${iseAlinanlar.length} · bekleyen onay: ${bekleyenOnaylar.length}`,
+      `- Task saves: ${kayitlar.length}${kalanKayit ? ` (${kalanKayit} failed the tests)` : ""} · hires: ${iseAlinanlar.length} · pending approvals: ${bekleyenOnaylar.length}`,
     ),
     "",
   );
@@ -100,7 +102,10 @@ export function raporOlustur(sirket: Sirket, projeId: string, gun = 7): Rapor {
     iki("Bekleyen onaylar", "Pending approvals"),
     bekleyenOnaylar.map((o) => `- ${onayTuruAdi(o.tur)}: ${o.baslik}${o.ajanId ? ` · ${ad(o.ajanId)}` : ""}`),
   );
-  bolum(iki("Birleştirilenler", "Merged"), birlesenler.map((o) => `- ${o.baslik} · ${tarih(o.sonuclanma ?? o.olusturma)}`));
+  bolum(
+    iki("Kaydedilen işler", "Saved work"),
+    kayitlar.map((k) => `- ${k.baslik} · ${k.ajanAd} · ${k.commit.slice(0, 7)} · ${tarih(k.zaman)}${k.kalite.durum === "kaldi" || k.kalite.durum === "zaman_asimi" ? iki(" · testler geçmedi", " · tests failed") : ""}`),
+  );
 
   b.push(iki("## Ekip", "## Team"), "", iki("| Çalışan | Rol | Durum | Dönem kullanımı |", "| Employee | Role | Status | Period usage |"), "|---|---|---|---|");
   for (const a of ajanlar) {
@@ -168,18 +173,8 @@ export class Gozetmen {
       const gorulen = new Set<string>();
       for (const proje of this.sirket.depo.projeler()) {
         const ajanlar = this.sirket.depo.ajanlar(proje.id);
-        const bekleyenBirlestirmeler = [
-          ...this.sirket.depo
-            .onaylar(proje.id, "bekliyor")
-            .filter((o) => o.tur === "birlestirme")
-            .map((o) => (o.veri as { ajanId?: string } | null)?.ajanId),
-          // Onaylanıp kalite kapısında (kuyrukta ya da testte) bekleyen birleştirmeler de
-          ...this.sirket.birlestirmeKuyrugu.surenSahipler(proje.id),
-        ];
         for (const g of this.sirket.depo.gorevler(proje.id)) {
           if (g.durum !== "calisiliyor" && g.durum !== "inceleme") continue;
-          // Birleştirme kurul onayındaysa sıra kurulda; ajan dürtülmez
-          if (g.durum === "inceleme" && g.atananId && bekleyenBirlestirmeler.includes(g.atananId)) continue;
           const sorumlu = this.sorumluBul(g, ajanlar);
           if (!sorumlu) continue;
           gorulen.add(g.id);
@@ -196,7 +191,7 @@ export class Gozetmen {
           t.sonEylem = simdiMs;
           if (t.hatirlatma < HATIRLATMA_SINIRI) {
             t.hatirlatma++;
-            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk, sorumlu), null);
+            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk), null);
             eylemler.push({ tur: "hatirlatma", gorevKodu: g.kod, ajanAd: sorumlu.ad });
             continue;
           }
@@ -245,23 +240,17 @@ export class Gozetmen {
     return ceo && ceo.id !== sorumlu.id ? ceo : null;
   }
 
-  private hatirlatmaMetni(g: Gorev, dk: number, sorumlu: Ajan): string {
+  private hatirlatmaMetni(g: Gorev, dk: number): string {
     if (g.durum === "inceleme") {
-      // Tam otonom kipte birleştirmeye CEO karar verir: inceleyici CEO'ya sunar, CEO'nun kendi isteği hemen geçerli olur
-      const otonom = Boolean(this.sirket.kararCeosu(g.projeId));
-      const sun = !otonom
-        ? iki("birlestirme_iste ile kurula sun", "submit it to the board with birlestirme_iste")
-        : sorumlu.rol === "ceo"
-          ? iki("birlestirme_iste ile birleştir (karar yetkisi sende)", "merge it with birlestirme_iste (you hold the decision authority)")
-          : iki("birlestirme_iste ile CEO'nun onayına sun", "submit it for the CEO's approval with birlestirme_iste");
+      // 0.0.8: birleştirme yok; inceleme görevin kaydını okuyup tamamlamak ya da geri göndermektir
       return iki(
-        `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. calisma_farki ile değişiklikleri incele; uygunsa ${sun}, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz.`,
-        `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review the changes with calisma_farki; if it is ready, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner.`,
+        `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. Kaydını calisma_farki ile (gorev: ${g.kod}) incele; uygunsa görevi 'tamam' durumuna al, değilse 'calisiliyor' durumuna geri al ve sahibine yaz.`,
+        `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review its save with calisma_farki (gorev: ${g.kod}); if it is right, move the task to 'tamam' (done); if not, move it back to 'calisiliyor' and write to its owner.`,
       );
     }
     return iki(
-      `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor görünüyor. İş bittiyse testleri çalıştırıp commit'le ve görevi 'inceleme' durumuna al; sürüyorsa kaldığın yerden devam et; tıkandıysan nedenini mesaj_gonder ile yöneticine yaz.`,
-      `${g.kod} "${g.baslik}" seems not to have moved for ${dk} minutes. If the work is done, run the tests, commit and move the task to 'inceleme' (review); if it is ongoing, continue where you left off; if you are stuck, tell your manager why with mesaj_gonder.`,
+      `${g.kod} "${g.baslik}" ${dk} dakikadır ilerlemiyor görünüyor. İş bittiyse testleri çalıştır ve görevi 'inceleme' durumuna al (ArnOrg dosyalarını kaydeder); sürüyorsa kaldığın yerden devam et; tıkandıysan nedenini mesaj_gonder ile yöneticine yaz.`,
+      `${g.kod} "${g.baslik}" seems not to have moved for ${dk} minutes. If the work is done, run the tests and move the task to 'inceleme' (review); ArnOrg saves its files. If it is ongoing, continue where you left off; if you are stuck, tell your manager why with mesaj_gonder.`,
     );
   }
 }

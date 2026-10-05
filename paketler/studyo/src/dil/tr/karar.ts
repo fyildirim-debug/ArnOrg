@@ -9,7 +9,7 @@ export const karar = {
   ayar: {
     baslik: "Karar yetkisi",
     ceo: "CEO karar verir · tam otonom",
-    ceoAciklama: "İzinler, birleştirmeler ve işe alımlar CEO'dan geçer; siz sonuçları görürsünüz.",
+    ceoAciklama: "İzinler, işe alımlar ve ekip temposu CEO'dan geçer; siz sonuçları görürsünüz.",
     kurul: "Kurul karar verir",
     kurulAciklama: "Onaylar size gelir; otomatik onayda seçtiğiniz türler kendiliğinden verilir.",
     ipucu: "CEO size yalnız insanın yapabileceği şeyler için sorar: giriş bilgisi, ödeme, dış hesap, geri alınamaz işler. Bekleyen bir onaya her zaman siz de karar verebilirsiniz.",
@@ -25,7 +25,7 @@ export const karar = {
     etiket: "Karar yetkisi",
     otonom: "Tam otonom",
     otonomBaslik: (ceo: string | null) => `Kararları ${ceoAdi(ceo)} veriyor`,
-    otonomMetin: "İzinler, birleştirmeler, işe alımlar ve teslimler CEO'dan geçer; her karar gerekçesiyle aşağıda. Bekleyen bir onaya siz de karar verebilirsiniz.",
+    otonomMetin: "İzinler, işe alımlar, teslimler ve ekip temposu CEO'dan geçer; her karar gerekçesiyle aşağıda. Bekleyen bir onaya siz de karar verebilirsiniz.",
     kurul: "Kurul",
     kurulBaslik: "Kararları siz veriyorsunuz",
     kurulMetin: "Onaylar size gelir. CEO'ya bırakırsanız şirket tam otonom ilerler, siz sonuçları görürsünüz.",

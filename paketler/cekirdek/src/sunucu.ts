@@ -37,6 +37,8 @@ import { claudeSurumu, temizOrtam } from "./ortam.js";
 import { raporOlustur } from "./gozetmen.js";
 import { HAFIZA_TURLERI } from "./hafiza.js";
 import { kaliteOnerisi } from "./kalite-kapisi.js";
+import { eskiBirlestirmeFarki } from "./birlestirme-kuyrugu.js";
+import { ortakUclariniKur } from "./ortak-calisma/uclar.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import { secenekUclariniKur } from "./secenek/uclar.js";
@@ -667,9 +669,19 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const g = govde(semalar.onay, i);
     return sirket.onayKarari(param(i, "oid"), g.karar, g.not);
   });
-  // Kalite kapısında kalan birleştirme: testsiz birleştir ya da kapıdan yeniden geçir; dalın hedefe göre farkı
-  app.post("/api/onaylar/:oid/birlestir", async (i) => sirket.birlestirmeKuyrugu.yeniden(param(i, "oid"), z.object({ testsiz: z.boolean() }).parse(i.body ?? {}).testsiz));
-  app.get("/api/onaylar/:oid/fark", async (i) => sirket.birlestirmeKuyrugu.fark(param(i, "oid")));
+  // 0.0.8: birleştirme yok; eski birleştirme onayının farkı geçmişte okunur kalır
+  app.post("/api/onaylar/:oid/birlestir", async () => {
+    throw new ArnorgHatasi(
+      iki(
+        "ArnOrg 0.0.8'de birleştirme yok: ekip ortak projede çalışır, görev kayıtları çalışma dalına commit'lenir ve her kayıttan sonra testler arka planda koşar.",
+        "There are no merges in ArnOrg 0.0.8: the team works in the shared project, task saves are committed to the working branch and the tests run in the background after every save.",
+      ),
+      410,
+    );
+  });
+  app.get("/api/onaylar/:oid/fark", async (i) => eskiBirlestirmeFarki(sirket.depo, param(i, "oid")));
+  // 0.0.8 ortak çalışma: kiralar, tempo, görev kayıtları ve kayıtların kalite denetimi (ortak-calisma/uclar.ts)
+  ortakUclariniKur(app, sirket);
 
   // ---------------- kod ----------------
   const duzenleyen = (tam: string): string | null => {

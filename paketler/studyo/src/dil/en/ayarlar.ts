@@ -46,8 +46,9 @@ export const ayarlar: typeof tr = {
   },
   calismaDuzeni: {
     baslik: "Work rules",
-    esZamanli: "Agents working at once",
-    esZamanliIpucu: "The most agents doing work at the same time, across all projects. When it's full, new work waits in line and starts as a slot opens. 0 means no limit.",
+    esZamanli: "Agents working at once (ceiling)",
+    esZamanliIpucu:
+      "The most agents doing work at the same time, across all projects. In a fully autonomous project the CEO sets the team pace under this ceiling; in board mode this ceiling applies. When it's full, new work waits in line and starts as a slot opens. 0 means no limit.",
     esZamanliHata: "Must be a whole number from 0 to 50.",
     tavan: "Task token ceiling (millions)",
     tavanIpucu: "When a task has used this many tokens, its agent stops and asks for your approval to go on; approving raises the ceiling by the same amount again. 0 turns it off.",

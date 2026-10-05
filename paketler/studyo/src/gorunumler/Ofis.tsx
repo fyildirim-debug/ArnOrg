@@ -129,12 +129,6 @@ export function Ofis() {
       if (d.ajanlar !== o.ajanlar || d.gorevler !== o.gorevler || d.onaylar !== o.onaylar || d.projeYukleme !== o.projeYukleme) ilet(d);
     });
     const olayBirak = ofisOlayDinle((olay) => {
-      // Görev kaydı (0.0.8) ortak olay tipinde henüz yok: biçimine bakarak okunur
-      const kayit = gorevKaydiOku(olay);
-      if (kayit) {
-        motor.gorevKaydedildi(kayit);
-        return;
-      }
       switch (olay.tur) {
         case "mesaj.yeni":
           motor.mesajGeldi(olay.mesaj);
@@ -150,6 +144,16 @@ export function Ofis() {
           break;
         case "bildirim":
           motor.bildirimGeldi(olay.metin, olay.projeId);
+          break;
+        // 0.0.8 · Ortak çalışma: kayıt anı kaydedenin başında ve sunucu odasında, kalite denetimi laboratuvarda oynar
+        case "gorev.kaydedildi": {
+          const ozet = gorevKaydiOku(olay);
+          if (ozet) motor.gorevKaydedildi(ozet);
+          motor.kayitGeldi(olay.kayit);
+          break;
+        }
+        case "kayit.guncellendi":
+          motor.kayitGeldi(olay.kayit);
           break;
       }
     });

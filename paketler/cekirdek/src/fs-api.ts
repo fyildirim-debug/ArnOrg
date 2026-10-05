@@ -500,7 +500,8 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     yalnizAna(g.alan);
     const kok = sirket.alanYolu(param(i, "pid"), g.alan);
     const yollar = yollariDenetle(kok, g.yollar);
-    await gitIslemleri.git(kok, ["add", "-A", "--", ...yollar.map(birebir)]);
+    // Ortak projede bütün git yazmaları projenin git sırasından geçer (0.0.8)
+    await sirket.ortak.git.calistir(param(i, "pid"), () => gitIslemleri.git(kok, ["add", "-A", "--", ...yollar.map(birebir)]));
     return { tamam: true };
   });
 
@@ -509,8 +510,10 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     yalnizAna(g.alan);
     const kok = sirket.alanYolu(param(i, "pid"), g.alan);
     const yollar = yollariDenetle(kok, g.yollar).map(birebir);
-    if (await gitIslemleri.commitVarMi(kok)) await gitIslemleri.git(kok, ["reset", "-q", "HEAD", "--", ...yollar]);
-    else await gitIslemleri.git(kok, ["rm", "--cached", "-r", "-q", "--", ...yollar]);
+    await sirket.ortak.git.calistir(param(i, "pid"), async () => {
+      if (await gitIslemleri.commitVarMi(kok)) await gitIslemleri.git(kok, ["reset", "-q", "HEAD", "--", ...yollar]);
+      else await gitIslemleri.git(kok, ["rm", "--cached", "-r", "-q", "--", ...yollar]);
+    });
     return { tamam: true };
   });
 
@@ -531,7 +534,7 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     }
     if (izlenen.length) {
       for (const y of izlenen) ajanKilidi(guvenliYol(kok, y));
-      await gitIslemleri.git(kok, ["checkout", "-q", "--", ...izlenen.map(birebir)]);
+      await sirket.ortak.git.calistir(pid, () => gitIslemleri.git(kok, ["checkout", "-q", "--", ...izlenen.map(birebir)]));
     }
     for (const y of yollar) degisti(pid, g.alan, y);
     return { tamam: true };
@@ -543,6 +546,7 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     const kok = sirket.alanYolu(param(i, "pid"), g.alan);
     const mesaj = g.mesaj.trim();
     if (!mesaj) throw new ArnorgHatasi(iki("Commit mesajı boş olamaz.", "The commit message cannot be empty."));
+    return sirket.ortak.git.calistir(param(i, "pid"), async () => {
     if (g.tumu) await gitIslemleri.git(kok, ["add", "-A"]);
     // Aşamada değişiklik var mı: diff --cached --quiet değişiklik varsa 1 döner
     const bos = await execFileP("git", ["diff", "--cached", "--quiet"], { cwd: kok, windowsHide: true, env: temizOrtam({ GIT_TERMINAL_PROMPT: "0" }) }).then(
@@ -557,6 +561,7 @@ export function fsUclariniKur(app: FastifyInstance, sirket: Sirket): void {
     await gitIslemleri.git(kok, ["commit", "-q", "-m", mesaj]);
     const commit = (await gitIslemleri.git(kok, ["rev-parse", "HEAD"])).trim();
     return { commit };
+    });
   });
 
 }

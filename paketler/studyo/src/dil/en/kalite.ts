@@ -1,4 +1,4 @@
-// Kalite kapısı (İngilizce)
+// Kalite denetimi (İngilizce)
 import type { BirlestirmeDurumu, DosyaDegisikligi } from "@arnorg/ortak";
 import type { kalite as tr } from "../tr/kalite";
 
@@ -29,25 +29,15 @@ export const kalite: typeof tr = {
   testsiz: "without tests · board decision",
   birlesmedi: "not merged",
   sure,
-  sahibeIletildi: (ad: string) => `${ad} was told, with the output; they will fix it and ask again.`,
   deneme: (n: number) => `attempt ${n}`,
 
   cikti: "Test output",
   ciktiEtiket: (komut: string) => `Last lines of the ${komut} output`,
   ciktiYok: "No output yet.",
   farkAc: "Open diff",
-  yenidenDene: "Try again",
-  yenidenDeneIpucu: "Runs it through the quality gate from the start",
-  yineDeBirlestir: "Merge anyway",
-  testsizUyari: (hedef: string) => `It goes into ${hedef} without passing the tests and is recorded as a merge without tests. The quality gate is skipped for this work.`,
-  testsizBirlestir: "Merge without tests",
-  testsizBildirim: (dal: string) => `${dal} is queued to merge without tests.`,
-  yenidenBildirim: (dal: string) => `${dal} is going through the quality gate again.`,
 
-  etkiTestli: (dal: string, hedef: string, komut: string) =>
-    `It joins the queue; ${dal} is merged with ${hedef} in a clean copy and ${komut} runs. If it passes, it is merged into ${hedef} and tasks in review move to Done; if not, nothing is merged and the branch owner is told.`,
-  etkiTestsiz: (dal: string, hedef: string) =>
-    `It joins the queue; if there are no conflicts, ${dal} is merged into ${hedef} and tasks in review move to Done. The project has no test command; add one in the settings on Projects.`,
+  etkiEski:
+    "A merge request left over from 0.0.7. ArnOrg 0.0.8 has no merges: the team works in the shared project, and ArnOrg commits a task's files when it moves to 'inceleme' (review). Your decision is only recorded.",
 
   fark: {
     baslik: (dal: string, hedef: string) => `Diff · ${dal} → ${hedef}`,
@@ -61,7 +51,7 @@ export const kalite: typeof tr = {
   },
 
   ayar: {
-    baslik: "Quality gate",
+    baslik: "Quality checks",
     test: "Test command",
     testYer: "npm test",
     hazirlik: "Preparation command",
@@ -69,13 +59,14 @@ export const kalite: typeof tr = {
     sure: "Time limit",
     dk: "min",
     ipucu:
-      "Every approved merge is first tried in a clean copy merged with the main branch: preparation, then the tests. Work that fails is not merged. With no test command, only conflicts are checked.",
+      "After every task save, ArnOrg tries that commit in a separate, clean copy in the background: preparation first, then the tests. The team doesn't wait; a task that fails goes back to its owner with the output. With no test command, saves stay untested.",
     sureIpucu: "If preparation and tests don't finish in time, the process is stopped. Ignored files such as node_modules are kept between runs.",
     oneri: "package.json has a test script:",
     oneriHazirlik: (komut: string) => `preparation ${komut}`,
     oneriKullan: "Fill in",
     sureGecersiz: "Enter a whole number from 1 to 240 minutes.",
     tekSatir: "The command must be a single line.",
-    kaydedildi: (komut: string | null) => (komut ? `Quality gate saved: ${komut} will run before merges.` : "Quality gate saved: no test command, only conflicts will be checked."),
+    kaydedildi: (komut: string | null) =>
+      komut ? `Quality checks saved: ${komut} will run after every task save.` : "Quality checks saved: no test command, saves will stay untested.",
   },
 };

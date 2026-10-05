@@ -4,7 +4,7 @@ import { yonelme } from "../../yardimcilar/bicim";
 
 export const onaylar = {
   baslik: "Onaylar",
-  altBaslik: "İşe alım, main'e birleştirme ve geri alınamaz kararlar sizden geçer",
+  altBaslik: "İşe alım, ana yasa ve geri alınamaz kararlar sizden geçer",
   tureGore: "Türe göre süz",
   butunTurler: "Bütün türler",
   durum: {
@@ -60,7 +60,7 @@ export const onaylar = {
   etki: {
     /** yonetici null: doğrudan kurula bağlanır */
     iseAlim: (ad: string, rol: string, yonetici: string | null) =>
-      `${ad}, ${rol} olarak ekibe katılır ve ${yonetici ? yonelme(yonetici) : "doğrudan kurula"} bağlanır; çalışma alanı hazırlanır.`,
+      `${ad}, ${rol} olarak ekibe katılır ve ${yonetici ? yonelme(yonetici) : "doğrudan kurula"} bağlanır; ortak projede çalışır.`,
     genel: (ajan: string) => `${ajan} kararınızı alır ve buna göre ilerler; notunuz yanıt olarak iletilir.`,
     arac: (ajan: string, arac: string) => `${ajan} bu ${arac} çağrısını çalıştırır.`,
     anayasa: (madde: number) => `Ana yasa ${madde} maddeyle yürürlüğe girer; CEO dahil herkes uyar, makine kuralları denetim kapısında uygulanır.`,
@@ -175,7 +175,7 @@ export const onaylar = {
       isten_cikarma: "Ekipten çıkarma teklifleri",
       teslim: "Biten işin kabulü",
     } as Record<OnayTuru, string>,
-    aciklama: "Birleştirme, soru ve teslim sizin kararınızı ister; bu yüzden varsayılan olarak kapsam dışıdır.",
+    aciklama: "Soru ve teslim sizin kararınızı ister; bu yüzden varsayılan olarak kapsam dışıdır.",
     varsayilan: "Varsayılana dön",
     /** turler: dile göre birleştirilmiş tür adları ("İşe alım, Birleştirme ve Ana yasa") */
     uyari: (turler: string) => `Otomatik onay açık: ${turler} onayları kendiliğinden veriliyor. Her biri Geçmiş'te kayıtlı.`,

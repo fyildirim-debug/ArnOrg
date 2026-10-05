@@ -184,7 +184,7 @@ export const kurulum = {
     aciklama: "Açıklama (isteğe bağlı)",
     aciklamaOrnek: "Küçük işletmeler için sipariş ve kargo takibi",
     dal: "Çalışma dalı",
-    dalIpucu: "Ajanlar bu daldan dallanır; onaylı birleştirmeler bu dala girer.",
+    dalIpucu: "Ekip bu dalda birlikte çalışır; ArnOrg her görevi bu dala commit'ler.",
     dalGecersiz: "Geçerli bir dal adı yazın (boşluk, .. ve ~^:?*[ olmadan).",
     github: "GitHub'da da depo aç",
     githubIpucu: "Depo açılır ve proje iskeleti ilk commit'le gönderilir.",

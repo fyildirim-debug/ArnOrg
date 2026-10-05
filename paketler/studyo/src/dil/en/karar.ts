@@ -9,7 +9,7 @@ export const karar: typeof tr = {
   ayar: {
     baslik: "Decision authority",
     ceo: "The CEO decides · fully autonomous",
-    ceoAciklama: "Permissions, merges and hires go through the CEO; you see the results.",
+    ceoAciklama: "Permissions, hires and the team pace go through the CEO; you see the results.",
     kurul: "The board decides",
     kurulAciklama: "Approvals come to you; the types you pick for auto-approval are granted automatically.",
     ipucu: "The CEO only asks you for what only a person can do: credentials, payments, external accounts, irreversible actions. You can still decide any pending approval yourself.",
@@ -23,7 +23,7 @@ export const karar: typeof tr = {
     etiket: "Decision authority",
     otonom: "Fully autonomous",
     otonomBaslik: (ceo) => `${buyuk(ceoAdi(ceo))} makes the decisions`,
-    otonomMetin: "Permissions, merges, hires and deliveries go through the CEO; every decision is listed below with its reason. You can still decide any pending approval yourself.",
+    otonomMetin: "Permissions, hires, deliveries and the team pace go through the CEO; every decision is listed below with its reason. You can still decide any pending approval yourself.",
     kurul: "Board",
     kurulBaslik: "You make the decisions",
     kurulMetin: "Approvals come to you. Leave them to the CEO and the company runs fully autonomously; you see the results.",

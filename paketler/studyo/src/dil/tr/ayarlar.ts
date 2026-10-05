@@ -47,8 +47,9 @@ export const ayarlar = {
   /** Aynı anda çalışan ajan tavanı, görev token tavanı, açılışta yarım kalan işe dönüş */
   calismaDuzeni: {
     baslik: "Çalışma düzeni",
-    esZamanli: "Aynı anda çalışan ajan",
-    esZamanliIpucu: "Bütün projelerde aynı anda iş yapan en çok ajan. Tavan doluyken gelen iş sıraya girer, yer açılınca sırayla başlar. 0 sınırsız.",
+    esZamanli: "Aynı anda çalışan ajan (üst sınır)",
+    esZamanliIpucu:
+      "Bütün projelerde aynı anda iş yapan en çok ajan. Tam otonom projede ekip temposunu CEO bu sınırın altında kendisi belirler; kurul kipinde bu sınır geçerlidir. Sınır doluyken gelen iş sıraya girer, yer açılınca sırayla başlar. 0 sınırsız.",
     esZamanliHata: "0 ile 50 arasında bir tam sayı olmalı.",
     tavan: "Görev token tavanı (milyon)",
     tavanIpucu: "Bir görev bu kadar token işleyince ajanı durur ve sürmesi için onayınız istenir; onaylarsanız tavan bir kat artar. 0 kapalı.",

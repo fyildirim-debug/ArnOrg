@@ -1,7 +1,8 @@
 // Onaylar: otomatik onay kutusu ve kapsamı. İşaretlenince kapsamdaki türlerin onayları kendiliğinden verilir
 // (kayıt yine tutulur) ve bekleyen uygun onaylar da hemen verilir; bu, işaretlemeden önce söylenir.
 // Açıkken ekranın üstünde sakin ama açık bir uyarı satırı durur.
-import { ONAY_TURLERI, VARSAYILAN_OTOMATIK_ONAY_TURLERI, type OnayTuru, type OtomatikOnay } from "@arnorg/ortak";
+// 0.0.8: birleştirme onayı açılmadığından kapsam güncel türlerden seçilir
+import { GUNCEL_ONAY_TURLERI as ONAY_TURLERI, VARSAYILAN_OTOMATIK_ONAY_TURLERI, type OnayTuru, type OtomatikOnay } from "@arnorg/ortak";
 import { useId, useMemo, useRef, useState } from "react";
 import { api } from "../api/uclar";
 import { useDil, useSozluk } from "../dil";

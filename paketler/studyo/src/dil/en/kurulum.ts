@@ -181,7 +181,7 @@ export const kurulum: typeof tr = {
     aciklama: "Description (optional)",
     aciklamaOrnek: "Order and shipping tracking for small businesses",
     dal: "Working branch",
-    dalIpucu: "Agents branch off it; approved merges go into it.",
+    dalIpucu: "The team works on this branch together; ArnOrg commits every task to it.",
     dalGecersiz: "Enter a valid branch name (no spaces, .. or ~^:?*[).",
     github: "Also create a GitHub repository",
     githubIpucu: "The repository is created and the project scaffold is pushed as the first commit.",

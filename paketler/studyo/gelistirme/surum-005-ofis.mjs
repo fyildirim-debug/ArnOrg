@@ -161,7 +161,7 @@ export function kur(c) {
     if (kalsin) {
       sonra(10500, () => dusun(a.id, ceviri("Boş liste mesajı yükleme bitmeden görünüyor; koşulu düzeltip yeniden koşturayım.", "The empty-list message shows before loading ends; let me fix the check and rerun.")));
       sonra(12500, () =>
-        arac(a.id, "Edit", { file_path: `${V.CALISMA_KOKU}/${a.id}/src/siparis/Liste.tsx`, old_string: "siparisler.length === 0", new_string: "!yukleniyor && siparisler.length === 0" }, ceviri("Dosya güncellendi.", "File updated.")),
+        arac(a.id, "Edit", { file_path: `${V.PROJE_KOKU}/src/siparis/Liste.tsx`, old_string: "siparisler.length === 0", new_string: "!yukleniyor && siparisler.length === 0" }, ceviri("Dosya güncellendi.", "File updated.")),
       );
       sonra(21000, () => arac(a.id, "Bash", girdi, gecti, { gecikme: 6500 }));
       return;
@@ -251,6 +251,8 @@ export function kur(c) {
 
   /** Otomatik onaylı birleştirme: kalite kapısı laboratuvarda koşar, geçerse sunucu odasında birleşir */
   function birlestir() {
+    // 0.0.8: birleştirme yok; görev kaydı ve denetimi oynar (surum-008-ortak.mjs)
+    if (db.ortakCalisma) return db.ortakCalisma.gosteriKaydi("g22", "deniz");
     if (db.onaylar.some((o) => o.projeId === PROJE && o.tur === "birlestirme" && o.durum === "onaylandi" && o.veri?.gosteri && !["birlesti", "test_basarisiz", "cakisma", "zaman_asimi", "hata"].includes(o.veri?.kalite?.durum))) return;
     const g = db.gorevler.find((x) => x.id === "g22");
     const o = {
@@ -335,9 +337,9 @@ export function kur(c) {
       Object.assign(a, { durum: "calisiyor", isAciklamasi: a.rol === "tasarim" ? ceviri("Boş durum çizimleri", "Empty state drawings") : ceviri("Kargo firmaları karşılaştırması", "Carrier comparison") });
       ajanYay(a);
       if (a.rol === "tasarim") {
-        sonra(1500, () => arac(a.id, "Write", { file_path: `${V.CALISMA_KOKU}/${a.id}/tasarim/bos-durum.svg`, content: "<svg/>" }, ceviri("Dosya yazıldı.", "File written.")));
-        sonra(5000, () => arac(a.id, "Edit", { file_path: `${V.CALISMA_KOKU}/${a.id}/src/stiller/tokenlar.css`, old_string: "--b-3", new_string: "--b-3" }, ceviri("Dosya güncellendi.", "File updated.")));
-        sonra(9000, () => arac(a.id, "Write", { file_path: `${V.CALISMA_KOKU}/${a.id}/tasarim/siparis-akisi.excalidraw`, content: "{}" }, ceviri("Dosya yazıldı.", "File written.")));
+        sonra(1500, () => arac(a.id, "Write", { file_path: `${V.PROJE_KOKU}/tasarim/bos-durum.svg`, content: "<svg/>" }, ceviri("Dosya yazıldı.", "File written.")));
+        sonra(5000, () => arac(a.id, "Edit", { file_path: `${V.PROJE_KOKU}/src/stiller/tokenlar.css`, old_string: "--b-3", new_string: "--b-3" }, ceviri("Dosya güncellendi.", "File updated.")));
+        sonra(9000, () => arac(a.id, "Write", { file_path: `${V.PROJE_KOKU}/tasarim/siparis-akisi.excalidraw`, content: "{}" }, ceviri("Dosya yazıldı.", "File written.")));
       } else {
         sonra(1500, () => arac(a.id, "mcp__arnorg__web_ara", { sorgu: ceviri("kargo firmaları API karşılaştırması", "shipping carrier API comparison") }, ceviri("8 sonuç.", "8 results.")));
         sonra(6000, () => arac(a.id, "mcp__arnorg__paket_bilgisi", { paket: "@aras-kargo/sdk" }, "0.4.2 · MIT"));
