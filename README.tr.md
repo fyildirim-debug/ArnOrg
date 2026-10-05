@@ -53,9 +53,9 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne 
   - Onay türleri: işe alım, işten çıkarma, ana yasa değişikliği, araç izni, karar (sorular ve token tavanları) ve teslim.
   - Her onay gerekçesini, kimin karar verdiğini ve onaylanırsa ne olacağını gösterir.
   - Kurul karar verirken **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
-- **Tanıtım.** Projenin README.md'si menünün ikinci sırasında kendi sayfasında. Tanıtım uzmanı onu ekibin gerçekten yaptıklarından yazar ve her teslimden sonra günceller; birleşene kadar taslak görünür. **Güncellenmesini iste** yenilenmesini ister.
+- **Tanıtım.** Projenin README.md'si menünün ikinci sırasında kendi sayfasında. Tanıtım uzmanı onu ekibin gerçekten yaptıklarından yazar ve her teslimden sonra günceller; görevi kaydedilene dek düzenlemeleri taslak olarak görünür. **Güncellenmesini iste** yenilenmesini ister.
 - **Girerken test.** Her görev kaydından sonra projenin test komutu ayrı bir kopyada koşar. Geçmeyen kayıt çıktısıyla sahibine döner; dal yeniden yeşillenince #genel'e duyurulur.
-- **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına tavan, görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer.
+- **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına üst sınır (tempoyu bu sınır içinde CEO belirler), görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer. **Mesaiyi durdur** siz ekibe yeniden yazana dek geçerlidir; ArnOrg hiçbir işi kendiliğinden yeniden başlatmaz.
 - **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
 - **İstediğinizde brifing.** **Brifing ver**, CEO'ya ne yapıldığını, ne olduğunu ve sırada ne olduğunu görev kodlarıyla yazdırır. Her gün seçtiğiniz saatte de brifing gelir.
 - **Kendi kanallarınız.** Kanal kurun, çalışanları ekleyin ve siz **Durdur** diyene kadar sırayla, serbestçe konuşsunlar.

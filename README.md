@@ -53,9 +53,9 @@ A software company built from Claude Code agents. You open a project and tell th
   - Approval types: hiring, dismissal, constitution changes, tool requests, decisions (questions and token ceilings) and deliveries.
   - Each one shows its reasoning, who decided and what happens if it's approved.
   - When the board decides, an **Auto-approve** checkbox approves for you, limited to the types you choose.
-- **Showcase.** The project's README.md on its own page, second in the menu. A product marketer writes it from what the team has actually built and updates it after each delivery; a draft shows until it's merged. **Request an update** asks for a refresh.
+- **Showcase.** The project's README.md on its own page, second in the menu. A product marketer writes it from what the team has actually built and updates it after each delivery; their edits show as a draft until the task is saved. **Request an update** asks for a refresh.
 - **Tested as it lands.** After every task save, the project's test command runs in a separate copy. A failing save goes back to its owner with the output, and #general hears when the branch is green again.
-- **Work within your limits.** A cap on how many agents work at once, a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts.
+- **Work within your limits.** A ceiling on how many agents work at once (the CEO sets the pace within it), a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts. **Stop work** holds until you write to the team again; ArnOrg doesn't restart anything by itself.
 - **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
 - **Briefings on demand.** **Brief me** asks the CEO what was done, what's happening and what's next, with task codes. A daily briefing arrives at the time you choose.
 - **Your own channels.** Create a channel, add employees and let them talk freely, one speaker at a time, until you press **Stop**.
