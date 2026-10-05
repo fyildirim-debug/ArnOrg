@@ -1,7 +1,7 @@
 {
   "name": "@arnorg/cekirdek",
   "private": true,
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "ArnOrg çekirdeği: ajan oturumları, canlı denetim, projeler, ekip, görevler, kanallar, kod ve terminal hizmetleri",
   "license": "MIT",
   "type": "module",
