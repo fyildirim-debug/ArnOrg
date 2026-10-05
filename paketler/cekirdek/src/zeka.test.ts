@@ -38,7 +38,8 @@ beforeAll(async () => {
   depo = new Depo(path.join(gecici, "veri", "arnorg.db"));
   sirket = new Sirket(depo, olaylar, yap, () => null, true);
   olaylar.dinle((o) => gelenler.push(o));
-  const p = await sirket.projeOlustur({ ad: "Zekâ", yol: path.join(gecici, "repo"), olustur: true });
+  // Bu dosyadaki onay akışlarına kurul karar verir (tam otonom kip: karar-yetkisi.test.ts)
+  const p = await sirket.projeOlustur({ ad: "Zekâ", yol: path.join(gecici, "repo"), olustur: true, kararVeren: "kurul" });
   pid = p.id;
   sirket.iseAl(pid, { ad: "Deniz", rol: "backend" });
   sirket.iseAl(pid, { ad: "Ece", rol: "frontend" });

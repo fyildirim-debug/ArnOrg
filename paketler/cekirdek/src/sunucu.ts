@@ -86,6 +86,7 @@ const semalar = {
     aciklama: z.string().max(2000).optional(),
     dal: z.string().max(200).optional(),
     github: z.object({ ozel: z.boolean(), sahip: z.string().max(100).optional() }).nullable().optional(),
+    kararVeren: z.enum(["ceo", "kurul"]).optional(),
   }),
   projeGuncelle: z.object({
     ad: z.string().min(1).max(80).optional(),
@@ -94,6 +95,8 @@ const semalar = {
     otomatikGonder: z.boolean().optional(),
     hazirlik: z.enum(["bekliyor", "suruyor", "tamam", "atlandi"]).optional(),
     otomatikOnay: z.object({ etkin: z.boolean(), turler: z.array(z.enum(["arac", "ise_alim", "birlestirme", "genel", "anayasa", "isten_cikarma", "teslim"])) }).optional(),
+    // Karar yetkisi: ceo (tam otonom) ya da kurul
+    kararVeren: z.enum(["ceo", "kurul"]).optional(),
     testKomutu: z.string().max(2000).nullable().optional(),
     hazirlikKomutu: z.string().max(2000).nullable().optional(),
     testZamanAsimiDk: z.number().int().min(1).max(240).optional(),
@@ -642,6 +645,7 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     if (durum && !["bekliyor", "onaylandi", "reddedildi", "zaman_asimi"].includes(durum)) throw new ArnorgHatasi(iki("Geçersiz durum.", "Invalid status."));
     return sirket.depo.onaylar(param(i, "pid"), durum);
   });
+  // Kurulun kararı: tam otonom kipte CEO'yu bekleyen onaya da kurul karar verebilir (kararı veren "kurul" yazılır)
   app.post("/api/onaylar/:oid", async (i) => {
     const g = govde(semalar.onay, i);
     return sirket.onayKarari(param(i, "oid"), g.karar, g.not);

@@ -101,8 +101,10 @@ export interface Proje {
   otomatikGonder: boolean;
   /** CEO ile hazırlık görüşmesi: amaç, ana yasa, ilk işe alımlar */
   hazirlik: HazirlikDurumu;
-  /** Açıkken seçili türdeki onaylar kendiliğinden verilir (kayıt yine tutulur) */
+  /** Açıkken seçili türdeki onaylar kendiliğinden verilir (kayıt yine tutulur); yalnız kararVeren "kurul" iken geçerlidir */
   otomatikOnay: OtomatikOnay;
+  /** Onaylara kim karar verir: CEO (tam otonom; varsayılan) ya da kurul */
+  kararVeren: KararVeren;
   /** Kalite kapısı: onaylı birleştirme ana dala girmeden önce kalite çalışma alanında koşan komut; null ise yalnız birleşebilirlik denetlenir */
   testKomutu: string | null;
   /** Testten önce koşan hazırlık komutu (ör. npm ci); null ise yok */
@@ -116,12 +118,23 @@ export interface OtomatikOnay {
   turler: OnayTuru[];
 }
 
+/**
+ * Karar yetkisi. "ceo": tam otonom; izinlere, birleştirmelere, işe alımlara ve öteki onaylara CEO karar verir, kurul
+ * sonuçları görür (CEO kurula yalnız insanın verebileceği şeyler için kurula_sor ile sorar). "kurul": onaylar kurula
+ * gelir; otomatik onay seçimi bu kipte geçerlidir.
+ */
+export type KararVeren = "ceo" | "kurul";
+export const KARAR_VERENLER: KararVeren[] = ["ceo", "kurul"];
+/** Yeni projelerin ve karar yetkisi kaydı olmayan eski projelerin kipi */
+export const VARSAYILAN_KARAR_VEREN: KararVeren = "ceo";
+
 export type HazirlikDurumu = "bekliyor" | "suruyor" | "tamam" | "atlandi";
 
 export interface ProjeOzeti extends Proje {
   ajanSayisi: number;
   aktifAjanSayisi: number;
   gorevSayilari: Record<GorevDurumu, number>;
+  /** Kurulun kararını bekleyen onaylar (tam otonomda CEO'nun kararındakiler sayılmaz) */
   bekleyenOnay: number;
   /** Bugün işlenen token (tüm ajanlar) */
   bugunToken: number;
@@ -138,6 +151,8 @@ export interface ProjeOlusturIstegi {
   dal?: string;
   /** Yeni repo GitHub'da da açılsın (gh ile); sahip verilmezse giriş yapan hesap */
   github?: { ozel: boolean; sahip?: string } | null;
+  /** Karar yetkisi; verilmezse CEO (tam otonom) */
+  kararVeren?: KararVeren;
 }
 
 /** Proje ayarları (PATCH /api/projeler/:pid) */
@@ -149,6 +164,8 @@ export interface ProjeGuncelleIstegi {
   otomatikGonder?: boolean;
   hazirlik?: HazirlikDurumu;
   otomatikOnay?: OtomatikOnay;
+  /** Karar yetkisi: CEO'ya geçince bekleyen onaylar CEO'ya yönelir, kurula dönünce kurula açılır */
+  kararVeren?: KararVeren;
   /** Kalite kapısı komutları; boş metin ya da null kaldırır */
   testKomutu?: string | null;
   hazirlikKomutu?: string | null;
@@ -556,6 +573,9 @@ export const ONAY_TURU_ADLARI: Record<OnayTuru, string> = {
   teslim: "Teslim",
 };
 
+/** Onayı kim karara bağladı: kurul (kullanıcı), otomatik onay ya da CEO (tam otonom kip) */
+export type KararKaynagi = "kurul" | "otomatik" | "ceo";
+
 export interface Onay {
   id: string;
   projeId: string;
@@ -569,7 +589,14 @@ export interface Onay {
   olusturma: Zaman;
   sonGecerlilik: Zaman | null;
   sonuclanma: Zaman | null;
+  /** Kararı verenin notu ya da gerekçesi */
   not: string | null;
+  /** Kararı kim verdi; bekleyen, süresi dolan ve 0.0.7 öncesi onaylarda null */
+  kararKaynagi: KararKaynagi | null;
+  /** Kararı verenin görünen adı (CEO'da ajanın adı); yoksa null */
+  kararVerenAd: string | null;
+  /** Kararı kim verecek: CEO'ya yönelen onay için kurula pencere açılmaz (kurul yine karar verebilir); 0.0.7 öncesinde null */
+  muhatap: KararVeren | null;
 }
 
 export interface OnayKararIstegi {

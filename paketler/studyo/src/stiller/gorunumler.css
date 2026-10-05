@@ -931,13 +931,13 @@ button.onay-kisi:hover b {
   max-width: 100%;
 }
 
-/* geçmiş: sakin, açılır satırlar */
+/* geçmiş: sakin, açılır satırlar; hükmün altında kararı veren (karar.css) */
 .onay-sonuclandi > details > summary {
   display: grid;
   grid-template-columns: 8.5rem minmax(0, 1fr) auto;
   grid-template-areas:
     "hukum baslik isaret"
-    ". meta isaret"
+    "veren meta isaret"
     ". not isaret";
   column-gap: var(--b-6);
   row-gap: 0.1875rem;
@@ -978,14 +978,18 @@ button.onay-kisi:hover b {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+/* Kararın gerekçesi okunacak metindir: gövde yazısıyla */
 .onay-gecmis-not {
   grid-area: not;
   min-width: 0;
   max-width: 68ch;
   margin-top: 0.125rem;
+  font-family: var(--font-govde);
   font-size: var(--t-xs);
+  line-height: 1.55;
   color: var(--muted);
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 .onay-isaret {
   grid-area: isaret;
@@ -1055,7 +1059,8 @@ button.onay-kisi:hover b {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "baslik baslik isaret"
-      "hukum meta isaret"
+      "hukum veren isaret"
+      "meta meta isaret"
       "not not isaret";
     column-gap: var(--b-3);
   }

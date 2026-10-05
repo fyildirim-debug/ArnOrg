@@ -1,5 +1,6 @@
 // Tanıtım: projenin kök README.md'si, kurulun okuduğu vitrin sayfası. Tanıtım uzmanının henüz birleşmemiş taslağı
-// "Taslak" ile okunur; kurul güncelleme isteyebilir (uzman yoksa istek CEO'ya gider, CEO bir uzman işe alır).
+// "Taslak" ile okunur; kurul güncelleme isteyebilir (uzman yoksa istek CEO'ya gider, CEO bir uzman işe alır: tam otonomda
+// doğrudan, kurul kipinde teklif Onaylar'a düşer).
 // README'deki göreli görseller çekirdeğin dosya ucundan anahtarlı istekle alınır; göreli bağlantılar Kod ekranında,
 // çapalar sayfa içinde açılır. tanitim.degisti olayında, proje ya da ekipteki tanıtım uzmanı değişince yeniden okunur.
 import type { Ajan, TanitimDurumu } from "@arnorg/ortak";
@@ -7,6 +8,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 import { hataMetni } from "../api/istek";
 import { api } from "../api/uclar";
 import { HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { useTamOtonom } from "../bilesenler/KararYetkisi";
 import { gorunumAdi } from "../bilesenler/Gezinti";
 import { AjanDurum, AjanKisi } from "../bilesenler/Kisi";
 import { markdownHtml } from "../bilesenler/Markdown";
@@ -325,6 +327,7 @@ const ReadmeIcerigi = memo(function ReadmeIcerigi({ metin, projeId, alan, dosyaA
 
 function Sahibi({ uzman }: { uzman: TanitimDurumu["uzman"] }) {
   const t = useSozluk().tanitim;
+  const otonom = useTamOtonom();
   // Durum canlı: ajan.guncellendi olaylarıyla güncellenen ekip verisinden
   const ajan = useVeri((d) => (uzman ? d.ajanlar.find((a) => a.id === uzman.id) : undefined));
   return (
@@ -339,7 +342,7 @@ function Sahibi({ uzman }: { uzman: TanitimDurumu["uzman"] }) {
       ) : (
         <dd>
           <b className="tanitim-sahipsiz">{t.uzmanYok}</b>
-          <p className="tanitim-yan-not">{t.uzmanYokMetin}</p>
+          <p className="tanitim-yan-not">{t.uzmanYokMetin(otonom)}</p>
         </dd>
       )}
     </dl>
@@ -350,6 +353,7 @@ function GuncellemeIstegi({ projeId, durum, yenile }: { projeId: string; durum: 
   const s = useSozluk();
   const t = s.tanitim;
   const ceo = useVeri((d) => d.ajanlar.find((a) => a.rol === "ceo"));
+  const otonom = useTamOtonom();
   const [acik, setAcik] = useState(false);
   const [not, setNot] = useState("");
   const [iletilen, setIletilen] = useState<string | null>(null);
@@ -363,7 +367,7 @@ function GuncellemeIstegi({ projeId, durum, yenile }: { projeId: string; durum: 
       setIletilen(y.ajanAd);
       setNot("");
       setAcik(false);
-      bildir("basari", t.istekGitti(y.ajanAd, y.kime === "uzman"));
+      bildir("basari", t.istekGitti(y.ajanAd, y.kime === "uzman", otonom));
       await yenile();
     });
   };
@@ -430,6 +434,7 @@ function IstekNotu({ durum, iletilen }: { durum: TanitimDurumu; iletilen: string
 function BosDurum({ projeId, durum, yenile }: { projeId: string; durum: TanitimDurumu; yenile: () => Promise<void> }) {
   const t = useSozluk().tanitim;
   const ceo: Ajan | undefined = useVeri((d) => d.ajanlar.find((a) => a.rol === "ceo"));
+  const otonom = useTamOtonom();
   const [iletilen, setIletilen] = useState<string | null>(null);
   const { suruyor, calistir } = useIslem();
   const uzman = durum.uzman;
@@ -437,7 +442,7 @@ function BosDurum({ projeId, durum, yenile }: { projeId: string; durum: TanitimD
     void calistir("iste", async () => {
       const y = await api.tanitimGuncelle(projeId);
       setIletilen(y.ajanAd);
-      bildir("basari", t.istekGitti(y.ajanAd, y.kime === "uzman"));
+      bildir("basari", t.istekGitti(y.ajanAd, y.kime === "uzman", otonom));
       await yenile();
     });
 
@@ -455,7 +460,7 @@ function BosDurum({ projeId, durum, yenile }: { projeId: string; durum: TanitimD
             {uzman ? t.uzmanaYazdir(uzman.ad) : t.ceodanIste}
           </button>
         </div>
-        {uzman ? null : <p className="alan-ipucu">{ceo ? t.ceoIpucu(ceo.ad) : t.ceoYok}</p>}
+        {uzman ? null : <p className="alan-ipucu">{ceo ? t.ceoIpucu(ceo.ad, otonom) : t.ceoYok}</p>}
         <IstekNotu durum={durum} iletilen={iletilen} />
       </div>
       {uzman ? (

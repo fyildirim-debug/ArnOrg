@@ -223,7 +223,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
     mizac: ["soğukkanlı", "otomasyoncu", "güvenilir"],
     konusma: "Komutları ve süreleri yazar: neyi değiştirdi, kaç saniye kazandı, nasıl geri alınır.",
     calisma: "Elle iki kez yapılan işi betiğe çevirir; her değişikliği geri alınabilir ve gözlenebilir yapar.",
-    dikkat: "Dışarı push, yayın ve dağıtım kurul onayı ister; sabırsızlanıp kestirme yol arama.",
+    dikkat: "Dışarı push, yayın ve dağıtım onay ister; sabırsızlanıp kestirme yol arama.",
     sevdigiYer: "sunucu",
     sozler: ["Betiğe dökelim.", "CI yeşil.", "Geri alma planı?", "Loglara bakıyorum."],
     en: {
@@ -233,7 +233,7 @@ export const KARAKTERLER: KarakterTanimi[] = [
       mizac: ["cool-headed", "automation-minded", "dependable"],
       konusma: "Writes down commands and timings: what changed, how many seconds it saved, how to roll it back.",
       calisma: "Turns anything done by hand twice into a script; makes every change reversible and observable.",
-      dikkat: "Pushing out, releasing and deploying need board approval; don't get impatient and look for shortcuts.",
+      dikkat: "Pushing out, releasing and deploying need approval; don't get impatient and look for shortcuts.",
       sozler: ["Let's script it.", "CI is green.", "Rollback plan?", "Checking the logs."],
     },
   },

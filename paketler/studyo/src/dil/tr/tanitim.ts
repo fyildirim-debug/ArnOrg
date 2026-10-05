@@ -24,7 +24,11 @@ export const tanitim = {
   sahibi: "Sahibi",
   uzmanMetin: "README.md'yi yazar; teslimlerden ve birleşen işlerden sonra güncel tutar.",
   uzmanYok: "Henüz tanıtım uzmanı yok",
-  uzmanYokMetin: "İstek CEO'ya gider: CEO bir Tanıtım uzmanı işe almayı önerir, teklif Onaylar'a düşer; uzman README.md'yi yazar.",
+  /** Karar yetkisine göre: tam otonomda CEO uzmanı doğrudan işe alır, kurul kipinde teklif Onaylar'a düşer */
+  uzmanYokMetin: (otonom: boolean): string =>
+    otonom
+      ? "İstek CEO'ya gider: CEO bir Tanıtım uzmanını doğrudan işe alır; uzman README.md'yi yazar."
+      : "İstek CEO'ya gider: CEO bir Tanıtım uzmanı işe almayı önerir, teklif Onaylar'a düşer; uzman README.md'yi yazar.",
   guncellenmesiniIste: "Güncellenmesini iste",
   notEtiketi: "Not (isteğe bağlı)",
   notIpucu: "Ör. yeni sipariş ekranını ve ekran görüntüsünü ekle",
@@ -32,13 +36,14 @@ export const tanitim = {
   gonder: "İsteği gönder",
   istendi: (zaman: string) => `Son istek · ${zaman}`,
   iletildi: (ad: string) => `${yonelme(ad)} iletildi`,
-  istekGitti: (ad: string, uzman: boolean) => (uzman ? `İstek ${yonelme(ad)} iletildi.` : `İstek ${yonelme(ad)} iletildi; tanıtım uzmanı işe almayı önerecek.`),
+  istekGitti: (ad: string, uzman: boolean, otonom: boolean) =>
+    uzman ? `İstek ${yonelme(ad)} iletildi.` : otonom ? `İstek ${yonelme(ad)} iletildi; bir tanıtım uzmanı işe alacak.` : `İstek ${yonelme(ad)} iletildi; tanıtım uzmanı işe almayı önerecek.`,
   /** README.md yokken */
   bosBaslik: "Tanıtım sayfası henüz yok",
   bosMetin:
     "Kurul projeyi burada, kök README.md'den okur: ne yaptığı, kimin için olduğu, öne çıkan özellikleri, kurulumu ve yol haritası. Sayfayı bir Tanıtım uzmanı yazar ve teslimlerden sonra güncel tutar.",
   ceodanIste: "CEO'dan tanıtım uzmanı iste",
-  ceoIpucu: (ad: string) => `${ad} bir uzman işe almayı önerir; teklif Onaylar'a düşer.`,
+  ceoIpucu: (ad: string, otonom: boolean) => (otonom ? `${ad} bir uzmanı doğrudan işe alır; karar yetkisi CEO'da.` : `${ad} bir uzman işe almayı önerir; teklif Onaylar'a düşer.`),
   uzmanaYazdir: (ad: string) => `README.md'yi ${yonelme(ad)} yazdır`,
   ceoYok: "Bu projede CEO yok; önce Ekip'ten bir CEO işe alın.",
 };

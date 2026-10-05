@@ -32,6 +32,8 @@ import {
   type HesapDurumu,
   type IzinModu,
   type Karar,
+  type KararKaynagi,
+  type KararVeren,
   type KullanimOzeti,
   type KurulBildirimi,
   type Mesaj,
@@ -62,6 +64,20 @@ import { karakterBul, karakterMetni, karakterSec } from "@arnorg/ortak/karakterl
 import { Hatirlatici, oncekiYanit, tercihGibi, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
 import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type SiradakiMesaj } from "./es-zamanlilik.js";
 import { GorevTavani } from "./gorev-tavani.js";
+import {
+  ceoKarari,
+  ceoKendiNotu,
+  ceoOnayListesi,
+  ceoOnayMesaji,
+  kararOznesi,
+  kararSahibiEtiketi,
+  kararVerenAdi,
+  kipMesaji,
+  kisaKimlik,
+  KURUL_KARARI,
+  notCumlesi,
+  type KararSahibi,
+} from "./karar-yetkisi.js";
 import { MesaiyeDonus } from "./mesaiye-donus.js";
 import { OzelKanallar } from "./ozel-kanallar.js";
 import type { BrifingKaynagi, BrifingYaniti } from "@arnorg/ortak";
@@ -120,11 +136,34 @@ const KULLANICI_KILIDI_MS = 30_000;
 const HATIRLATMA_ARAC_ARALIGI = 25;
 const HATIRLATMA_SURE_MS = 30 * 60_000;
 
-/** Kurulun kararı; zamanAsimi: süre doldu (not metnine bakılmaz, not onayın açıldığı dilde yazılır) */
+/** Kurulun (ya da tam otonom kipte CEO'nun) kararı; zamanAsimi: süre doldu (not metnine bakılmaz, not onayın açıldığı dilde yazılır) */
 export interface KurulKarari {
   izin: boolean;
   not: string | null;
   zamanAsimi?: true;
+  /** Kararı kim verdi: kurul, otomatik onay ya da CEO; süre dolunca ve kapanışta yok */
+  kaynak?: KararKaynagi;
+  /** Kararı verenin görünen adı (CEO'da ajanın adı) */
+  verenAd?: string;
+}
+
+/** Tam otonom kipte CEO'nun kendi açtığı ve hemen geçerli olan onaylar (genel: kurula soru ve token tavanı kurula gider) */
+const CEO_KENDI_KARARI: OnayTuru[] = ["ise_alim", "isten_cikarma", "anayasa", "birlestirme", "arac", "teslim"];
+/** CEO bu durumdayken karar veremez; onaylar kurula düşer */
+const CEO_KARAR_VEREMEZ: AjanDurumu[] = ["duraklatildi", "hata"];
+/** CEO boşa çıkınca kendisini bu kadar süredir bekleyen onaylar (her biri bir kez) hatırlatılır */
+const CEO_HATIRLATMA_MS = 2 * 60_000;
+
+/** Denetim kaydında kararı veren (kural sütunu): "Yönetim kurulu", "Ada (CEO)", "Otomatik onay"; süre dolduysa "Süre doldu" */
+function denetimKarari(k: KurulKarari): string {
+  return k.zamanAsimi ? iki("Süre doldu", "Timed out") : kararSahibiEtiketi(k.kaynak, k.verenAd);
+}
+
+/** Ajana dönen ret metni: kim izin vermedi ve notu; süre dolduysa kimseyi anmaz */
+function retMetni(k: KurulKarari): string {
+  if (k.zamanAsimi) return iki("İzin verilmedi: karar süresi içinde gelmedi.", "Not allowed: no decision came in time.");
+  const veren = kararVerenAdi(k.kaynak, k.verenAd);
+  return iki(`${veren} izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `${veren} did not allow it.${k.not ? ` Note: ${k.not}` : ""}`);
 }
 
 interface BekleyenKarar {
@@ -141,6 +180,10 @@ export interface Pencere {
 export class Sirket {
   private oturumlar = new Map<string, AjanOturumu>();
   private bekleyenKararlar = new Map<string, BekleyenKarar>();
+  /** Yeni onayın ilk işlenişi (otomatik onay, CEO kararı ya da kurula bildirim); araç sonucunu bekleyebilsin diye */
+  private readonly onayIsleri = new Map<string, Promise<void>>();
+  /** CEO boşa çıkınca bir kez hatırlatılmış, onu bekleyen onaylar */
+  private readonly ceoyaHatirlatilan = new Set<string>();
   private bostaZamanlayicilari = new Map<string, NodeJS.Timeout>();
   private uyandirmalar = new Map<string, number[]>();
   private akisSayaci = 0;
@@ -490,7 +533,8 @@ export class Sirket {
       ajanSayisi: ajanlar.length,
       aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
       gorevSayilari: sayilar,
-      bekleyenOnay: this.depo.onaylar(id, "bekliyor").length,
+      // Kurulun kararını bekleyenler: tam otonomda CEO'nun kararındakiler kurulun işi değildir
+      bekleyenOnay: this.depo.onaylar(id, "bekliyor").filter((o) => o.muhatap !== "ceo").length,
       bugunToken: this.depo.projeTokeni(id, bugun()),
     };
   }
@@ -554,6 +598,7 @@ export class Sirket {
       uzakAdres: await gitIslemleri.uzakAdresi(kok),
       otomatikGonder: true,
       hazirlik: "bekliyor",
+      kararVeren: istek.kararVeren === "kurul" ? "kurul" : "ceo",
     });
     this.depo.politikaYaz(proje.id, varsayilanKurallar());
 
@@ -598,7 +643,7 @@ export class Sirket {
     return this.projeOzeti(proje.id);
   }
 
-  /** Proje ayarları: ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık durumu */
+  /** Proje ayarları: ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık durumu, otomatik onay, karar yetkisi */
   async projeGuncelle(id: string, istek: ProjeGuncelleIstegi): Promise<ProjeOzeti> {
     const p = this.proje(id);
     const alanlar: Parameters<Depo["projeGuncelle"]>[1] = {};
@@ -621,6 +666,9 @@ export class Sirket {
         this.duyur(id, alanlar.otomatikOnay.etkin ? iki("Kurul otomatik onayı açtı; seçili türdeki onaylar kendiliğinden verilecek.", "The board turned on auto-approval; approvals of the selected types will be granted automatically.") : iki("Kurul otomatik onayı kapattı.", "The board turned off auto-approval."));
       }
     }
+    // Karar yetkisi: değişince bekleyen onaylar yeni muhataba yönelir (kararKipiDegisti)
+    const kipDegisti = istek.kararVeren !== undefined && istek.kararVeren !== p.kararVeren;
+    if (kipDegisti) alanlar.kararVeren = istek.kararVeren;
     if (istek.varsayilanDal !== undefined && istek.varsayilanDal.trim() !== p.varsayilanDal) {
       const dal = istek.varsayilanDal.trim();
       const kirli = (await gitIslemleri.git(p.yol, ["status", "--porcelain", "--untracked-files=no"])).trim();
@@ -630,12 +678,14 @@ export class Sirket {
       alanlar.varsayilanDal = dal;
       this.kanalMesaji(id, "genel", { id: ARNORG_GONDEREN, ad: "ArnOrg" }, iki(`Çalışma dalı ${dal} oldu. Yeni işler bu daldan açılır, onaylı birleştirmeler bu dala girer.`, `The working branch is now ${dal}. New work branches off it and approved merges go into it.`));
     }
-    const kalite = kaliteDuyurusu(p, this.depo.projeGuncelle(id, alanlar));
+    const yeni = this.depo.projeGuncelle(id, alanlar);
+    const kalite = kaliteDuyurusu(p, yeni);
     if (kalite) this.duyur(id, kalite);
-    // Otomatik onay açıkken bekleyen uygun onaylar da verilir
-    if (bekleyenleriOnayla && alanlar.otomatikOnay) {
+    if (kipDegisti) await this.kararKipiDegisti(id, yeni.kararVeren);
+    // Otomatik onay (yalnız kurul kipinde) açıkken kurulu bekleyen uygun onaylar da verilir
+    else if (bekleyenleriOnayla && alanlar.otomatikOnay && yeni.kararVeren === "kurul") {
       for (const o of this.depo.onaylar(id, "bekliyor")) {
-        if (alanlar.otomatikOnay.turler.includes(o.tur)) await this.onayKarari(o.id, "onayla", undefined, true).catch(() => undefined);
+        if (o.muhatap !== "ceo" && alanlar.otomatikOnay.turler.includes(o.tur)) await this.onayKarari(o.id, "onayla", undefined, { kaynak: "otomatik" }).catch(() => undefined);
       }
     }
     this.projeYayinla(id);
@@ -931,7 +981,7 @@ export class Sirket {
     });
   }
 
-  /** Dönemsel hatırlatmanın metni: kimlik, açık işler, sözler, ana yasa */
+  /** Dönemsel hatırlatmanın metni: kimlik, açık işler, sözler, ana yasa; tam otonom kipte CEO'ya kararını bekleyen onaylar */
   private hatirlatma(ajan: Ajan): string {
     const k = karakterBul(ajan.karakter);
     const gorevler = this.depo
@@ -940,7 +990,19 @@ export class Sirket {
       .slice(0, 5)
       .map((g) => ({ kod: g.kod, baslik: g.baslik, durum: g.durum }));
     const sozler = this.depo.sozler(ajan.projeId, { verenId: ajan.id, durum: "acik", sinir: 5 }).map((s) => ({ kime: s.aliciAd, metin: s.metin }));
-    return hatirlatmaMetni({ ajan, rol: rolBul(ajan.rol) ?? undefined, lakap: k ? karakterMetni(k, dil()).lakap : null, gorevler, sozler, anayasaKisa: anayasaKisa(this.anayasa(ajan.projeId)), dil: dil(), kisiselBos: this.zeka.kisisel(ajan).length === 0 });
+    // Süresi olmayan istekler (başkasının işe alım ve birleştirme isteği) unutulmasın
+    const bekleyenOnaylar = ajan.rol === "ceo" ? this.ceoyuBekleyenler(ajan.projeId).map((o) => ({ kimlik: kisaKimlik(o.id), baslik: o.baslik })) : [];
+    return hatirlatmaMetni({
+      ajan,
+      rol: rolBul(ajan.rol) ?? undefined,
+      lakap: k ? karakterMetni(k, dil()).lakap : null,
+      gorevler,
+      sozler,
+      anayasaKisa: anayasaKisa(this.anayasa(ajan.projeId)),
+      dil: dil(),
+      kisiselBos: this.zeka.kisisel(ajan).length === 0,
+      bekleyenOnaylar,
+    });
   }
 
   /** Tur başı: hafıza, ekipten haberler (bağ kancaları), ana yasa değiştiyse yeni hâli */
@@ -1066,9 +1128,16 @@ export class Sirket {
     await this.teslimEt(a, [...this.esZamanlilik.ajaninkileriAl(id), { ajanId: id, metin, oncelik, kaynak }]);
   }
 
-  /** Kurulun mesajı ve bir ajanın sorusunu yanıtlamak için uyandırılan ajan tavanlardan muaftır: soran beklerken çalışan sayılır, sorulan sırada kalırsa ikisi kilitlenir */
+  /**
+   * Kurulun mesajı ve bir ajanın sorusunu yanıtlamak için uyandırılan ajan tavanlardan muaftır: soran beklerken çalışan
+   * sayılır, sorulan sırada kalırsa ikisi kilitlenir. Tam otonom kipte kararını bekleyen onay olan CEO da aynı nedenle muaftır.
+   */
   private tavandanMuaf(a: Ajan, kaynak: MesajKaynagi): boolean {
-    return kaynak.tur === "kurul" || this.depo.sorular(a.projeId, { soruluId: a.id, durum: "bekliyor", sinir: 1 }).length > 0;
+    return (
+      kaynak.tur === "kurul" ||
+      this.depo.sorular(a.projeId, { soruluId: a.id, durum: "bekliyor", sinir: 1 }).length > 0 ||
+      (a.rol === "ceo" && this.ceoyuBekleyenler(a.projeId).length > 0)
+    );
   }
 
   /** Mesajları geliş sırasıyla ajana verir; oturum kapalıysa açar. Ajan hemen çalışan sayılır: tavandaki yeri çalışma alanı hazırlanırken de tutulur */
@@ -1239,6 +1308,8 @@ export class Sirket {
           ),
         ).catch(() => undefined);
       }
+      // Tam otonom kipte süresi olmayan istekler (başkasının işe alım ve birleştirme isteği) unutulmasın
+      if (onceki.rol === "ceo") this.ceoyaBekleyenleriHatirlat(onceki);
       this.bostaZamanlayicilari.set(
         ajanId,
         setTimeout(() => {
@@ -1254,6 +1325,8 @@ export class Sirket {
     }
     this.ajanYayinla(ajanId);
     if (onceki.durum !== durum) this.projeYayinla(onceki.projeId);
+    // Tam otonom kipte CEO karar veremez olunca (duraklatıldı, hatayla durdu) onu bekleyen onaylar kurula düşer
+    if (onceki.rol === "ceo" && CEO_KARAR_VEREMEZ.includes(durum) && !CEO_KARAR_VEREMEZ.includes(onceki.durum)) this.ceoOnaylariniKurulaDevret(onceki.projeId);
     // Çalışan durumdan çıkan ajan tavanda yer açar: sıradakiler teslim edilir
     this.esZamanlilik.durumDegisti(ajanId, onceki.durum, durum);
   }
@@ -1372,10 +1445,11 @@ export class Sirket {
     if (sonuc.karar === "sor") {
       this.denetimKaydet(ajan, arac, girdi, "sor", sonuc.kural, sonuc.neden, aracKimligi, altAjan);
       const k = await this.kararBekle(ajan, "arac", `${ajan.ad} · ${arac}`, girdiOzeti(arac, girdi), { arac, girdi, kural: sonuc.kural, aracKimligi });
-      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi, altAjan);
-      if (!k.izin) return this.ret(iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`));
+      this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", denetimKarari(k), k.not, aracKimligi, altAjan);
+      if (!k.izin) return this.ret(retMetni(k));
       this.yazmaKaydet(ajanId, cwd, arac, girdi);
-      return this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki("Yönetim kurulu onayladı", "The board approved") } };
+      const veren = kararVerenAdi(k.kaynak, k.verenAd);
+      return this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan) ?? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: iki(`${veren} onayladı`, `${veren} approved`) } };
     }
     this.yazmaKaydet(ajanId, cwd, arac, girdi);
     const imzasiz = this.imzasiz(ajan, arac, girdi, aracKimligi, altAjan);
@@ -1441,30 +1515,35 @@ export class Sirket {
     const baslik = planMi ? iki(`${ajan.ad} · Plan onayı`, `${ajan.ad} · Plan approval`) : iki(`${ajan.ad} · ${arac} izni istiyor`, `${ajan.ad} · requests ${arac}`);
     const ayrinti = planMi ? String(girdi.plan ?? "") : girdiOzeti(arac, girdi);
     const k = await this.kararBekle(ajan, "arac", baslik, ayrinti, { arac, girdi, kural: iki("Claude Code izin sorusu", "Claude Code permission prompt"), aracKimligi });
-    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", iki("Yönetim kurulu", "Board"), k.not, aracKimligi, altAjan);
-    return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: iki(`Yönetim kurulu izin vermedi.${k.not ? ` Not: ${k.not}` : ""}`, `The board did not allow it.${k.not ? ` Note: ${k.not}` : ""}`) };
+    this.denetimKaydet(ajan, arac, girdi, k.izin ? "izin" : "ret", denetimKarari(k), k.not, aracKimligi, altAjan);
+    return k.izin ? { behavior: "allow", updatedInput: girdi } : { behavior: "deny", message: retMetni(k) };
   }
 
-  /** Onay açar ve kurulun kararını bekler; süre dolarsa ret */
+  // ===================================================================
+  // Onaylar ve karar yetkisi: tam otonom kipte (kararVeren "ceo") CEO karar verir, kurul kipinde kurul
+  // ===================================================================
+
+  /** Onay açar ve kararı bekler (kurul ya da tam otonom kipte CEO); süre dolarsa ret */
   kararBekle(ajan: Ajan | null, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown, projeId?: string): Promise<KurulKarari> {
     const sure = this.yapilandirma.ayarlar.onaySuresiSn;
+    const pid = ajan?.projeId ?? projeId!;
     const onay = this.depo.onayEkle({
-      projeId: ajan?.projeId ?? projeId!,
+      projeId: pid,
       ajanId: ajan?.id ?? null,
       tur,
       baslik,
       ayrinti,
       veri,
       sonGecerlilik: new Date(Date.now() + sure * 1000).toISOString(),
+      muhatap: this.muhatapBul(pid, ajan, tur),
     });
     this.olaylar.yayinla({ tur: "onay.yeni", onay });
     this.projeYayinla(onay.projeId);
     if (ajan) this.durumDegisti(ajan.id, "karar_bekliyor", iki(`Onay bekliyor: ${kisalt(baslik, 60)}`, `Awaiting approval: ${kisalt(baslik, 60)}`));
-    // Bekleyen karar kaydedildikten sonra işlenir (otomatik onay hemen çözer)
-    setImmediate(() => this.onayGeldi(onay, ajan));
-    return new Promise((coz) => {
+    const karar = new Promise<KurulKarari>((coz) => {
       const zamanlayici = setTimeout(() => {
         this.bekleyenKararlar.delete(onay.id);
+        this.ceoyaHatirlatilan.delete(onay.id);
         const not = iki("Süre doldu", "Timed out");
         const son = this.depo.onaySonuclandir(onay.id, "zaman_asimi", not);
         this.olaylar.yayinla({ tur: "onay.sonuc", onay: son });
@@ -1481,23 +1560,96 @@ export class Sirket {
         },
       });
     });
+    // Bekleyen karar kaydedildikten sonra işlenir (otomatik onay ve CEO'nun kendi kararı hemen çözer)
+    this.onayIsle(onay, ajan);
+    return karar;
   }
 
-  /** Beklemeden karar isteği açar (işe alım, birleştirme teklifleri) */
+  /** Beklemeden karar isteği açar (işe alım, birleştirme, ana yasa, teslim teklifleri) */
   teklifAc(ajan: Ajan, tur: OnayTuru, baslik: string, ayrinti: string, veri: unknown): Onay {
-    const onay = this.depo.onayEkle({ projeId: ajan.projeId, ajanId: ajan.id, tur, baslik, ayrinti, veri, sonGecerlilik: null });
+    const onay = this.depo.onayEkle({ projeId: ajan.projeId, ajanId: ajan.id, tur, baslik, ayrinti, veri, sonGecerlilik: null, muhatap: this.muhatapBul(ajan.projeId, ajan, tur) });
     this.olaylar.yayinla({ tur: "onay.yeni", onay });
     this.projeYayinla(ajan.projeId);
-    setImmediate(() => this.onayGeldi(onay, ajan));
+    this.onayIsle(onay, ajan);
     return onay;
   }
 
-  /** Yeni onay: otomatik onay açıksa hemen verilir; değilse kurula her ekranda açılır pencere gider */
-  private onayGeldi(onay: Onay, ajan: Ajan | null): void {
+  /** Yeni onayın ilk işlenişi bir sonraki döngüde başlar; onayIslendi ile beklenebilir */
+  private onayIsle(onay: Onay, ajan: Ajan | null): void {
+    const is = new Promise<void>((coz) =>
+      setImmediate(() => {
+        this.onayGeldi(onay, ajan)
+          .catch((h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId }))
+          .finally(() => {
+            this.onayIsleri.delete(onay.id);
+            coz();
+          });
+      }),
+    );
+    this.onayIsleri.set(onay.id, is);
+  }
+
+  /** Onayın ilk işlenişi (otomatik onay, CEO kararı ya da kurula bildirim) bitince son hâli; araçlar sonucu buna göre söyler */
+  async onayIslendi(onayId: string): Promise<Onay | null> {
+    await this.onayIsleri.get(onayId);
+    return this.depo.onay(onayId);
+  }
+
+  /** Projenin CEO'su (karar verip veremediğine bakılmaz) */
+  ceoBul(projeId: string): Ajan | null {
+    return this.depo.ajanlar(projeId).find((a) => a.rol === "ceo") ?? null;
+  }
+
+  /** Tam otonom kipte karar verecek CEO: proje CEO kipinde, CEO var, duraklatılmamış ve hatayla durmamış; yoksa null (kurula düşer) */
+  kararCeosu(projeId: string): Ajan | null {
+    if (this.depo.proje(projeId)?.kararVeren !== "ceo") return null;
+    const ceo = this.ceoBul(projeId);
+    return ceo && !CEO_KARAR_VEREMEZ.includes(ceo.durum) ? ceo : null;
+  }
+
+  /** Tam otonom kipte CEO'nun kararını bekleyen onaylar, en eskisi önce */
+  ceoyuBekleyenler(projeId: string): Onay[] {
+    if (this.depo.proje(projeId)?.kararVeren !== "ceo") return [];
+    return this.depo
+      .onaylar(projeId, "bekliyor")
+      .filter((o) => o.muhatap === "ceo")
+      .reverse();
+  }
+
+  /** Onayın muhatabı: tam otonom kipte CEO (CEO'nun kendi kurula sorusu ve token tavanı hariç); CEO karar veremiyorsa ve kurul kipinde kurul */
+  private muhatapBul(projeId: string, ajan: Ajan | null, tur: OnayTuru): KararVeren {
+    const ceo = this.kararCeosu(projeId);
+    if (!ceo || !ajan) return "kurul";
+    return ajan.id === ceo.id && tur === "genel" ? "kurul" : "ceo";
+  }
+
+  /** Bekleyen onayın muhatabını yazar ve yayınlar; değişmediyse dokunmaz */
+  private muhatapYaz(onay: Onay, muhatap: KararVeren): Onay {
+    if (onay.muhatap === muhatap) return onay;
+    const yeni = this.depo.onayMuhatabiYaz(onay.id, muhatap) ?? onay;
+    this.olaylar.yayinla({ tur: "onay.sonuc", onay: yeni });
+    return yeni;
+  }
+
+  /** Yeni onay: muhatabı CEO ise (karar verebiliyorsa) CEO'ya yönelir; değilse kurul akışı */
+  private async onayGeldi(onay: Onay, ajan: Ajan | null): Promise<void> {
+    const guncel = this.depo.onay(onay.id);
+    if (!this.depo.proje(onay.projeId) || guncel?.durum !== "bekliyor") return;
+    if (guncel.muhatap === "ceo") {
+      const ceo = this.kararCeosu(onay.projeId);
+      if (ceo) return this.ceoyaYonelt(guncel, ajan, ceo);
+      // Bu arada CEO karar veremez oldu (duraklatıldı, hata, kip değişti): kurula düşer
+      return this.kurulAkisi(this.muhatapYaz(guncel, "kurul"), ajan);
+    }
+    return this.kurulAkisi(guncel, ajan);
+  }
+
+  /** Kurul akışı: kurul kipinde otomatik onay kapsamındaysa hemen verilir; değilse kurula her ekranda açılır pencere gider */
+  private async kurulAkisi(onay: Onay, ajan: Ajan | null): Promise<void> {
     const p = this.depo.proje(onay.projeId);
-    if (!p || this.depo.onay(onay.id)?.durum !== "bekliyor") return;
-    if (p.otomatikOnay.etkin && p.otomatikOnay.turler.includes(onay.tur)) {
-      void this.onayKarari(onay.id, "onayla", undefined, true).catch((h) =>
+    if (!p) return;
+    if (p.kararVeren === "kurul" && p.otomatikOnay.etkin && p.otomatikOnay.turler.includes(onay.tur)) {
+      await this.onayKarari(onay.id, "onayla", undefined, { kaynak: "otomatik" }).catch((h) =>
         this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId }),
       );
       return;
@@ -1506,25 +1658,82 @@ export class Sirket {
     this.kurulaBildir(ajan, onay.projeId, tur, onay.baslik, kisalt(onay.ayrinti, 800), onay.id);
   }
 
-  /** Kurulun onay kararı */
-  async onayKarari(onayId: string, karar: "onayla" | "reddet", not?: string, otomatik = false): Promise<Onay> {
+  /** Tam otonom kip: CEO'nun kendi teklifi hemen onun kararıyla geçer; başkasınınki CEO'ya mesaj olarak gider (kurula pencere açılmaz) */
+  private async ceoyaYonelt(onay: Onay, ajan: Ajan | null, ceo: Ajan): Promise<void> {
+    if (ajan?.id === ceo.id && CEO_KENDI_KARARI.includes(onay.tur)) {
+      await this.onayKarari(onay.id, "onayla", ceoKendiNotu(), ceoKarari(ceo)).catch((h) =>
+        this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId }),
+      );
+      return;
+    }
+    void this.sistemMesaji(ceo.id, ceoOnayMesaji(onay, ajan, (id) => this.depo.ajan(id)?.ad ?? null));
+  }
+
+  /** Karar yetkisi değişti: duyurulur, CEO'ya yetkisi söylenir, bekleyen onaylar yeni muhataplarına yönelir */
+  private async kararKipiDegisti(projeId: string, kip: KararVeren): Promise<void> {
+    const ceo = this.ceoBul(projeId);
+    this.duyur(
+      projeId,
+      kip === "ceo"
+        ? iki(
+            `Kurul karar yetkisini ${ceo ? `CEO ${yonelme(ceo.ad)}` : "CEO'ya"} bıraktı: izinler, birleştirmeler, işe alımlar ve öteki onaylar artık CEO'dan geçer; kurul sonuçları görür.`,
+            `The board handed decision authority to ${ceo ? `CEO ${ceo.ad}` : "the CEO"}: permissions, merges, hires and the other approvals now go through the CEO; the board sees the results.`,
+          )
+        : iki("Kurul karar yetkisini geri aldı: onaylar yeniden kurula gelir.", "The board took decision authority back: approvals come to the board again."),
+    );
+    const ceoya: Onay[] = [];
+    for (const o of this.depo.onaylar(projeId, "bekliyor").reverse()) {
+      const ajan = o.ajanId ? this.depo.ajan(o.ajanId) : null;
+      const muhatap = this.muhatapBul(projeId, ajan, o.tur);
+      // 0.0.7 öncesi bekleyen onaylar kurula açılmıştı
+      if ((o.muhatap ?? "kurul") === muhatap) continue;
+      const guncel = this.muhatapYaz(o, muhatap);
+      if (muhatap === "kurul") await this.kurulAkisi(guncel, ajan);
+      else if (ceo && ajan?.id === ceo.id) await this.ceoyaYonelt(guncel, ajan, ceo);
+      else ceoya.push(guncel);
+    }
+    if (ceo) void this.sistemMesaji(ceo.id, [kipMesaji(kip), ...(ceoya.length ? [ceoOnayListesi(ceoya, (id) => (id ? this.depo.ajan(id) : null))] : [])].join("\n\n"));
+  }
+
+  /** CEO karar veremez oldu (duraklatıldı ya da hatayla durdu): onu bekleyen onaylar kurula düşer, pencereleri açılır */
+  private ceoOnaylariniKurulaDevret(projeId: string): void {
+    for (const o of this.ceoyuBekleyenler(projeId)) {
+      const ajan = o.ajanId ? this.depo.ajan(o.ajanId) : null;
+      void this.kurulAkisi(this.muhatapYaz(o, "kurul"), ajan);
+    }
+  }
+
+  /** CEO boşa çıktı: onu bir süredir bekleyen ve henüz hatırlatılmamış onaylar bir kez hatırlatılır */
+  private ceoyaBekleyenleriHatirlat(ceo: Ajan): void {
+    const esik = Date.now() - CEO_HATIRLATMA_MS;
+    const liste = this.ceoyuBekleyenler(ceo.projeId).filter((o) => !this.ceoyaHatirlatilan.has(o.id) && Date.parse(o.olusturma) <= esik);
+    if (!liste.length) return;
+    for (const o of liste) this.ceoyaHatirlatilan.add(o.id);
+    void this.sistemMesaji(ceo.id, ceoOnayListesi(liste, (id) => (id ? this.depo.ajan(id) : null), true));
+  }
+
+  /** Onay kararı: kurul (Stüdyo; varsayılan), otomatik onay ya da tam otonom kipte CEO (onay_karari) */
+  async onayKarari(onayId: string, karar: "onayla" | "reddet", not?: string, veren: KararSahibi = KURUL_KARARI): Promise<Onay> {
     const onay = this.depo.onay(onayId);
     if (!onay) throw bulunamadi("Onay", "Approval");
     if (onay.durum !== "bekliyor") throw new ArnorgHatasi(iki("Bu onay zaten sonuçlanmış.", "This approval has already been decided."), 409);
     const izin = karar === "onayla";
+    const otomatik = veren.kaynak === "otomatik";
     const temizNot = not?.trim() || (otomatik ? iki("Otomatik onay", "Auto-approved") : null);
-    const onaylayan = otomatik ? iki("Otomatik onay", "Auto-approval") : iki("Yönetim kurulu", "The board");
-    const son = this.depo.onaySonuclandir(onayId, izin ? "onaylandi" : "reddedildi", temizNot);
+    const verenAd = veren.ad ?? kararSahibiEtiketi(veren.kaynak);
+    const son = this.depo.onaySonuclandir(onayId, izin ? "onaylandi" : "reddedildi", temizNot, { kaynak: veren.kaynak, ad: verenAd });
     this.olaylar.yayinla({ tur: "onay.sonuc", onay: son });
+    this.ceoyaHatirlatilan.delete(onayId);
     const bekleyen = this.bekleyenKararlar.get(onayId);
-    if (bekleyen) bekleyen.coz({ izin, not: temizNot });
+    if (bekleyen) bekleyen.coz({ izin, not: temizNot, kaynak: veren.kaynak, verenAd });
 
+    const sahip: KararSahibi = { kaynak: veren.kaynak, ad: verenAd };
     try {
-      if (onay.tur === "ise_alim") await this.iseAlimSonucu(onay, izin, temizNot);
-      else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot);
-      else if (onay.tur === "anayasa") await this.anayasaSonucu(onay, izin, temizNot, onaylayan);
-      else if (onay.tur === "isten_cikarma") await this.istenCikarmaSonucu(onay, izin, temizNot, onaylayan);
-      else if (onay.tur === "teslim") await this.teslimSonucu(onay, izin, temizNot, !not?.trim() && otomatik);
+      if (onay.tur === "ise_alim") await this.iseAlimSonucu(onay, izin, temizNot, sahip);
+      else if (onay.tur === "birlestirme") await this.birlestirmeSonucu(onay, izin, temizNot, sahip);
+      else if (onay.tur === "anayasa") await this.anayasaSonucu(onay, izin, temizNot, sahip);
+      else if (onay.tur === "isten_cikarma") await this.istenCikarmaSonucu(onay, izin, temizNot, sahip);
+      else if (onay.tur === "teslim") await this.teslimSonucu(onay, izin, temizNot, sahip, !not?.trim() && otomatik);
     } catch (h) {
       this.olaylar.yayinla({ tur: "bildirim", seviye: "hata", metin: (h as Error).message, projeId: onay.projeId });
     }
@@ -1532,11 +1741,20 @@ export class Sirket {
     return this.depo.onay(onayId)!;
   }
 
-  private async iseAlimSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
+  /** Tam otonom kipte CEO kendi teklifine karar verdi: sonucu aracın yanıtında görür, ayrıca mesaj gönderilmez */
+  private kendiKarari(onay: Onay, veren: KararSahibi): boolean {
+    return veren.kaynak === "ceo" && !!onay.ajanId && this.depo.ajan(onay.ajanId)?.rol === "ceo";
+  }
+
+  private async iseAlimSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi): Promise<void> {
     const veri = onay.veri as AjanIseAlIstegi & { yoneticiAd?: string | null };
     const teklifEden = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
+    const kendi = this.kendiKarari(onay, veren);
     if (!izin) {
-      if (teklifEden) await this.sistemMesaji(teklifEden.id, iki(`İşe alım teklifin reddedildi: ${veri.ad} (${veri.rol}).${not ? ` Kurulun notu: ${not}` : ""}`, `Your hiring proposal was rejected: ${veri.ad} (${veri.rol}).${not ? ` The board's note: ${not}` : ""}`));
+      if (teklifEden && !kendi) {
+        const notu = notCumlesi(veren, not);
+        await this.sistemMesaji(teklifEden.id, iki(`İşe alım teklifin reddedildi: ${veri.ad} (${veri.rol}).${notu}`, `Your hiring proposal was rejected: ${veri.ad} (${veri.rol}).${notu}`));
+      }
       return;
     }
     let yoneticiId = veri.yoneticiId ?? null;
@@ -1549,25 +1767,36 @@ export class Sirket {
       { tur: "uzmanlik", baslik: `${yeni.ad} · ${rolAdi}`, metin: kisalt(onay.ayrinti.split("\n\n")[0] ?? onay.ayrinti, 600), etiketler: [yeni.rol], onem: 3 },
       { ajan: null, ad: "ArnOrg" },
     );
-    if (teklifEden)
+    if (teklifEden && !kendi) {
+      const notu = notCumlesi(veren, not);
       await this.sistemMesaji(
         teklifEden.id,
         iki(
-          `İşe alım onaylandı: ${yeni.ad} (${rolAdi}) ekipte.${not ? ` Kurulun notu: ${not}` : ""} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`,
-          `Hire approved: ${yeni.ad} (${rolAdi}) is on the team.${not ? ` The board's note: ${not}` : ""} They start working once you assign them a task and move it to 'calisiliyor'.`,
+          `İşe alım onaylandı: ${yeni.ad} (${rolAdi}) ekipte.${notu} Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`,
+          `Hire approved: ${yeni.ad} (${rolAdi}) is on the team.${notu} They start working once you assign them a task and move it to 'calisiliyor'.`,
         ),
       );
+    }
   }
 
-  private async anayasaSonucu(onay: Onay, izin: boolean, not: string | null, onaylayan: string): Promise<void> {
+  private async anayasaSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi): Promise<void> {
     const veri = onay.veri as { maddeler?: unknown };
     const oneren = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
+    const kendi = this.kendiKarari(onay, veren);
     if (!izin) {
-      if (oneren) await this.sistemMesaji(oneren.id, iki(`Ana yasa önerin reddedildi.${not ? ` Kurulun notu: ${not}` : ""} Kurulla #yonetim kanalında konuşup düzelt ve yeniden öner.`, `Your constitution proposal was rejected.${not ? ` The board's note: ${not}` : ""} Discuss it with the board in #ceo, fix it and propose again.`));
+      if (oneren && !kendi) {
+        const notu = notCumlesi(veren, not);
+        await this.sistemMesaji(
+          oneren.id,
+          veren.kaynak === "ceo"
+            ? iki(`Ana yasa önerin reddedildi.${notu} CEO ile konuşup düzelt ve yeniden öner.`, `Your constitution proposal was rejected.${notu} Discuss it with the CEO, fix it and propose again.`)
+            : iki(`Ana yasa önerin reddedildi.${notu} Kurulla #yonetim kanalında konuşup düzelt ve yeniden öner.`, `Your constitution proposal was rejected.${notu} Discuss it with the board in #ceo, fix it and propose again.`),
+        );
+      }
       return;
     }
-    const yeni = this.anayasaGuncelle(onay.projeId, veri.maddeler, onaylayan);
-    if (oneren) await this.sistemMesaji(oneren.id, iki(`Ana yasa onaylandı (sürüm ${yeni.surum}). Artık herkes uyuyor; ekibe kısaca duyur.`, `The constitution was approved (version ${yeni.surum}). Everyone follows it now; announce it briefly to the team.`));
+    const yeni = this.anayasaGuncelle(onay.projeId, veri.maddeler, kararSahibiEtiketi(veren.kaynak, veren.ad));
+    if (oneren && !kendi) await this.sistemMesaji(oneren.id, iki(`Ana yasa onaylandı (sürüm ${yeni.surum}). Artık herkes uyuyor; ekibe kısaca duyur.`, `The constitution was approved (version ${yeni.surum}). Everyone follows it now; announce it briefly to the team.`));
   }
 
   /**
@@ -1606,40 +1835,82 @@ export class Sirket {
     return { devralan: aktarilan };
   }
 
-  private async istenCikarmaSonucu(onay: Onay, izin: boolean, not: string | null, onaylayan: string): Promise<void> {
+  private async istenCikarmaSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi): Promise<void> {
     const veri = onay.veri as { ajanId: string; devralanId?: string | null; ad?: string };
     const oneren = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
+    const kendi = this.kendiKarari(onay, veren);
     if (!izin) {
-      if (oneren) await this.sistemMesaji(oneren.id, iki(`${veri.ad ?? "Çalışan"} için işten çıkarma teklifin reddedildi.${not ? ` Kurulun notu: ${not}` : ""}`, `Your proposal to let ${veri.ad ?? "the employee"} go was rejected.${not ? ` The board's note: ${not}` : ""}`));
+      if (oneren && !kendi) {
+        const notu = notCumlesi(veren, not);
+        await this.sistemMesaji(oneren.id, iki(`${veri.ad ?? "Çalışan"} için işten çıkarma teklifin reddedildi.${notu}`, `Your proposal to let ${veri.ad ?? "the employee"} go was rejected.${notu}`));
+      }
       return;
     }
     if (!this.depo.ajan(veri.ajanId)) return;
-    const { devralan } = await this.istenCikar(veri.ajanId, veri.devralanId ?? null, onaylayan);
-    if (oneren && this.depo.ajan(oneren.id)) {
+    const { devralan } = await this.istenCikar(veri.ajanId, veri.devralanId ?? null, kararSahibiEtiketi(veren.kaynak, veren.ad));
+    if (oneren && !kendi && this.depo.ajan(oneren.id)) {
       await this.sistemMesaji(oneren.id, iki(`${veri.ad ?? "Çalışan"} ekipten çıkarıldı.${devralan ? ` İşleri ${yonelme(devralan.ad)} devredildi.` : ""} Planı buna göre güncelle.`, `${veri.ad ?? "The employee"} was let go.${devralan ? ` Their work went to ${devralan.ad}.` : ""} Update the plan accordingly.`));
     }
   }
 
-  /** otomatikNot: not, kurulun yazdığı değil otomatik onayın notu (duyuruda gösterilmez) */
-  private async teslimSonucu(onay: Onay, izin: boolean, not: string | null, otomatikNot = false): Promise<void> {
+  /**
+   * Teslimin sonucu. Kurul kipinde kurul dener; kabul ya da geri bildirim. Tam otonom kipte CEO'nun kabul ettiği teslim
+   * kurula sonuç olarak iletilir (karar düğmesiz bilgi penceresi) ve CEO sıradaki hedefe geçer.
+   * otomatikNot: not, kurulun yazdığı değil otomatik onayın notu (duyuruda gösterilmez)
+   */
+  private async teslimSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi, otomatikNot = false): Promise<void> {
     const veri = onay.veri as { baslik?: string; ozet?: string };
     const oneren = onay.ajanId ? this.depo.ajan(onay.ajanId) : null;
     const baslik = veri.baslik ?? onay.baslik;
+    const ceoVerdi = veren.kaynak === "ceo";
     if (izin) {
       const kurulNotu = otomatikNot ? null : not;
-      this.duyur(onay.projeId, iki(`Kurul teslimi kabul etti: ${baslik}.${kurulNotu ? ` Not: ${kurulNotu}` : ""}`, `The board accepted the delivery: ${baslik}.${kurulNotu ? ` Note: ${kurulNotu}` : ""}`));
+      this.duyur(
+        onay.projeId,
+        ceoVerdi
+          ? iki(`Teslim: ${baslik} — sonuç kurula iletildi.`, `Delivery: ${baslik} — the result was passed to the board.`)
+          : iki(`Kurul teslimi kabul etti: ${baslik}.${kurulNotu ? ` Not: ${kurulNotu}` : ""}`, `The board accepted the delivery: ${baslik}.${kurulNotu ? ` Note: ${kurulNotu}` : ""}`),
+      );
       this.hafiza.yaz(onay.projeId, { tur: "ozet", baslik: iki(`Teslim: ${kisalt(baslik, 100)}`, `Delivery: ${kisalt(baslik, 100)}`), metin: kisalt(veri.ozet ?? onay.ayrinti, 800), etiketler: ["teslim"], onem: 3 }, { ajan: oneren, ad: "ArnOrg" });
-      if (oneren) await this.sistemMesaji(oneren.id, iki(`Kurul teslimi kabul etti: ${baslik}.${not ? ` Not: ${not}` : ""} Sıradaki hedefi planla ya da kurula ne yapılacağını sor.`, `The board accepted the delivery: ${baslik}.${not ? ` Note: ${not}` : ""} Plan the next goal or ask the board what comes next.`));
+      if (!ceoVerdi) {
+        if (oneren) await this.sistemMesaji(oneren.id, iki(`Kurul teslimi kabul etti: ${baslik}.${not ? ` Not: ${not}` : ""} Sıradaki hedefi planla ya da kurula ne yapılacağını sor.`, `The board accepted the delivery: ${baslik}.${not ? ` Note: ${not}` : ""} Plan the next goal or ask the board what comes next.`));
+        return;
+      }
+      // Kurul sonucu görür: özet, test adımları, çalıştırma komutu ve adres; onay sonuçlandığı için karar düğmesi yoktur
+      this.kurulaBildir(oneren ?? this.ceoBul(onay.projeId), onay.projeId, "teslim", onay.baslik, onay.ayrinti, onay.id);
+      if (oneren?.rol === "ceo") {
+        await this.sistemMesaji(
+          oneren.id,
+          iki(
+            `"${baslik}" teslimi kurula sonuç olarak iletildi. Kabul bekleme; sıradaki hedefe geç. Kurulun geri bildirimi olursa CEO sohbetinden sana iş olarak gelir.`,
+            `The "${baslik}" delivery was passed to the board as a result. Don't wait for acceptance; move on to the next goal. If the board has feedback, it will come to you as work through the CEO chat.`,
+          ),
+        );
+      } else if (oneren) {
+        const notu = notCumlesi(veren, not);
+        await this.sistemMesaji(oneren.id, iki(`CEO "${baslik}" teslimini kabul etti; sonuç kurula iletildi.${notu}`, `The CEO accepted the "${baslik}" delivery; the result was passed to the board.${notu}`));
+      }
       return;
     }
-    this.duyur(onay.projeId, iki(`Kurul teslimi denedi ve geri bildirim verdi: ${not ?? "ayrıntı yok"}`, `The board tried the delivery and gave feedback: ${not ?? "no details"}`));
+    const ozne = kararOznesi(veren.kaynak, veren.ad);
+    this.duyur(
+      onay.projeId,
+      ceoVerdi
+        ? iki(`${ozne} teslimi değerlendirdi ve geri bildirim verdi: ${not ?? "ayrıntı yok"}`, `${ozne} reviewed the delivery and gave feedback: ${not ?? "no details"}`)
+        : iki(`Kurul teslimi denedi ve geri bildirim verdi: ${not ?? "ayrıntı yok"}`, `The board tried the delivery and gave feedback: ${not ?? "no details"}`),
+    );
     if (oneren) {
       await this.sistemMesaji(
         oneren.id,
-        iki(
-          `Kurul "${baslik}" teslimini denedi ve geri bildirim verdi:\n${not ?? "(not yok)"}\n\nGeri bildirimi görevlere çevir, ilgili kişilere ata; düzelince yeniden teslim_et ile sun.`,
-          `The board tried the "${baslik}" delivery and gave feedback:\n${not ?? "(no note)"}\n\nTurn the feedback into tasks and assign them; once fixed, submit again with teslim_et.`,
-        ),
+        ceoVerdi
+          ? iki(
+              `${ozne} "${baslik}" teslimini değerlendirdi ve geri bildirim verdi:\n${not ?? "(not yok)"}\n\nGeri bildirimi görevlere çevir, ilgili kişilere ata; düzelince yeniden teslim_et ile sun.`,
+              `${ozne} reviewed the "${baslik}" delivery and gave feedback:\n${not ?? "(no note)"}\n\nTurn the feedback into tasks and assign them; once fixed, submit again with teslim_et.`,
+            )
+          : iki(
+              `Kurul "${baslik}" teslimini denedi ve geri bildirim verdi:\n${not ?? "(not yok)"}\n\nGeri bildirimi görevlere çevir, ilgili kişilere ata; düzelince yeniden teslim_et ile sun.`,
+              `The board tried the "${baslik}" delivery and gave feedback:\n${not ?? "(no note)"}\n\nTurn the feedback into tasks and assign them; once fixed, submit again with teslim_et.`,
+            ),
       );
     }
   }
@@ -1673,12 +1944,14 @@ export class Sirket {
     return this.brifing.iste(projeId, kaynak);
   }
 
-  private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null): Promise<void> {
+  private async birlestirmeSonucu(onay: Onay, izin: boolean, not: string | null, veren: KararSahibi): Promise<void> {
     const veri = onay.veri as { ajanId: string; dal: string; ozet: string; isteyenId?: string };
     const sahip = this.depo.ajan(veri.ajanId);
     const isteyen = veri.isteyenId ? this.depo.ajan(veri.isteyenId) : sahip;
     if (!izin) {
-      if (isteyen) await this.sistemMesaji(isteyen.id, iki(`${veri.dal} birleştirmesi reddedildi.${not ? ` Not: ${not}` : ""}`, `The merge of ${veri.dal} was rejected.${not ? ` Note: ${not}` : ""}`));
+      // Tam otonom kipte reddeden CEO anılır: "arnorg/deniz birleştirmesi reddedildi (CEO Ada)."
+      const kim = veren.kaynak === "ceo" ? ` (${kararOznesi(veren.kaynak, veren.ad)})` : "";
+      if (isteyen) await this.sistemMesaji(isteyen.id, iki(`${veri.dal} birleştirmesi reddedildi${kim}.${not ? ` Not: ${not}` : ""}`, `The merge of ${veri.dal} was rejected${kim}.${not ? ` Note: ${not}` : ""}`));
       return;
     }
     // Kalite kapısı: iş projenin birleştirme kuyruğuna girer; sırası gelince kalite çalışma alanında test edilir,
@@ -1910,11 +2183,37 @@ export class Sirket {
     const hedef = inceleyici ?? ajanlar.find((a) => a.rol === "ceo");
     if (!hedef) return;
     const dal = sahip?.dal ? iki(` Dal: ${sahip.dal}.`, ` Branch: ${sahip.dal}.`) : "";
+    // Tam otonom kipte birleştirmeye CEO karar verir: inceleyici CEO'ya sunar, CEO'nun kendi isteği hemen geçerli olur
+    const otonom = Boolean(this.kararCeosu(g.projeId));
+    // Sahibi birleştirmeyi zaten istediyse ve karar CEO'daysa yeniden sunulmaz: CEO bekleyen onayı onay_karari ile karara bağlar
+    const istenen =
+      otonom && !inceleyici && sahip?.dal
+        ? this.depo.onaylar(g.projeId, "bekliyor").find((o) => o.tur === "birlestirme" && o.muhatap === "ceo" && (o.veri as { dal?: unknown } | null)?.dal === sahip.dal)
+        : undefined;
+    if (istenen && sahip) {
+      const kimlik = kisaKimlik(istenen.id);
+      await this.uyandir(
+        hedef.id,
+        iki(
+          `${g.kod} "${g.baslik}" incelemeye hazır (${sahip.ad}).${dal} ${sahip.ad} birleştirmeyi zaten istedi (onay ${kimlik}): calisma_farki ile değişiklikleri incele ve onay_karari ile karar ver; reddedersen gerekçen ${yonelme(sahip.ad)} iletilir.`,
+          `${g.kod} "${g.baslik}" is ready for review (${sahip.ad}).${dal} ${sahip.ad} has already asked for the merge (approval ${kimlik}): review the changes with calisma_farki and decide with onay_karari; if you reject it, your reasoning goes to ${sahip.ad}.`,
+        ),
+        null,
+      );
+      return;
+    }
+    const sun = otonom
+      ? inceleyici
+        ? iki("birlestirme_iste ile CEO'nun onayına sun", "submit it for the CEO's approval with birlestirme_iste")
+        : iki("birlestirme_iste ile birleştir (karar yetkisi sende; hemen geçerli olur ve kalite kapısından geçer)", "merge it with birlestirme_iste (you have the decision authority: it takes effect immediately and goes through the quality gate)")
+      : inceleyici
+        ? iki("birlestirme_iste ile kurul onayına sun", "submit it for the board's approval with birlestirme_iste")
+        : iki("birlestirme_iste ile kurula sun", "submit it to the board with birlestirme_iste");
     await this.uyandir(
       hedef.id,
       iki(
-        `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? "calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa birlestirme_iste ile kurul onayına sun, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz." : "calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir."}`,
-        `${g.kod} "${g.baslik}" is ready for review (${sahip?.ad ?? "unassigned"}).${dal} ${inceleyici ? "Read the changes with calisma_farki and the files with calisma_dosyasi; if all is well, submit it for the board's approval with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner." : "Review the changes with calisma_farki (read files with calisma_dosyasi if needed); if it is ready, submit it to the board with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner. If reviews come up often, consider hiring a code reviewer."}`,
+        `${g.kod} "${g.baslik}" incelemeye hazır (${sahip?.ad ?? "atanmamış"}).${dal} ${inceleyici ? `calisma_farki ile değişiklikleri, calisma_dosyasi ile dosyaları oku; sorun yoksa ${sun}, varsa görevi 'calisiliyor' durumuna geri al ve sahibine yaz.` : `calisma_farki ile değişiklikleri incele (gerekirse calisma_dosyasi ile dosya oku); uygunsa ${sun}, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz. Sık inceleme gerekiyorsa bir kod inceleyici almayı değerlendir.`}`,
+        `${g.kod} "${g.baslik}" is ready for review (${sahip?.ad ?? "unassigned"}).${dal} ${inceleyici ? `Read the changes with calisma_farki and the files with calisma_dosyasi; if all is well, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner.` : `Review the changes with calisma_farki (read files with calisma_dosyasi if needed); if it is ready, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner. If reviews come up often, consider hiring a code reviewer.`}`,
       ),
       null,
     );

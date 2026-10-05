@@ -7,7 +7,8 @@
 // çalışma alanında henüz birleşmemiş bir taslağı vardır. Arnex Web Sitesi'nde README ve uzman yoktur (boş durum).
 // İstek Defne'ye gider: Defne stüdyoda birkaç saniye yazar, taslağı güncellenir, tanitim.degisti yayınlanır.
 // Uzmanı olmayan projede istek #yonetim'e kurulun mesajı olarak yazılır; CEO bir Tanıtım uzmanı için işe alım
-// teklifi açar (Onaylar'dan onaylanınca ekibe katılır). Kurul README.md'yi Kod ekranında kaydedince de olay gider.
+// teklifi açar (kurul kipinde Onaylar'dan onaylanınca, tam otonomda CEO'nun kendi kararıyla hemen ekibe katılır;
+// surum-007-otonom.mjs). Kurul README.md'yi Kod ekranında kaydedince de olay gider.
 
 import { ceviri } from "./dil.mjs";
 import { V } from "./tohum.mjs";
@@ -500,20 +501,27 @@ export function kur(c) {
     }, YAZMA_MS);
   }
 
-  /** CEO yanıtlar ve bir Tanıtım uzmanı için işe alım teklifi açar (Onaylar'dan onaylanınca ekibe katılır) */
+  /** CEO yanıtlar ve bir Tanıtım uzmanı için işe alım teklifi açar (kurul kipinde Onaylar'dan onaylanınca, tam otonomda hemen katılır) */
   function ceoTeklifAcar(pid, ceo) {
     if (db.onaylar.some((o) => o.projeId === pid && o.tur === "ise_alim" && o.durum === "bekliyor" && o.veri?.rol === ROL.kimlik)) return;
     yay({ tur: "kanal.yaziyor", projeId: pid, kanal: "yonetim", ajanId: ceo.id, ad: ceo.ad, yaziyor: true }, pid);
     setTimeout(() => {
       yay({ tur: "kanal.yaziyor", projeId: pid, kanal: "yonetim", ajanId: ceo.id, ad: ceo.ad, yaziyor: false }, pid);
+      // Tam otonomda karar yetkisi CEO'da: teklif hemen geçerli olur
+      const otonom = projeGerekli(pid).kararVeren === "ceo";
       mesajEkle(
         pid,
         "yonetim",
         ceo.id,
-        ceviri(
-          "Anlaşıldı. Tanıtım için Mira'yı (Tanıtım uzmanı) öneriyorum; teklif Onaylar'da. Onaylarsanız README.md'yi yazmasını isteyeceğim.",
-          "Understood. I'm proposing Mira as our Product marketer; the proposal is in Approvals. Once you approve, I'll ask her to write README.md.",
-        ),
+        otonom
+          ? ceviri(
+              "Anlaşıldı. Tanıtım için Mira'yı (Tanıtım uzmanı) işe alıyorum; katılınca README.md'yi yazmasını isteyeceğim.",
+              "Understood. I'm hiring Mira as our Product marketer; once she joins, I'll ask her to write README.md.",
+            )
+          : ceviri(
+              "Anlaşıldı. Tanıtım için Mira'yı (Tanıtım uzmanı) öneriyorum; teklif Onaylar'da. Onaylarsanız README.md'yi yazmasını isteyeceğim.",
+              "Understood. I'm proposing Mira as our Product marketer; the proposal is in Approvals. Once you approve, I'll ask her to write README.md.",
+            ),
       );
       const o = {
         id: yeniKimlik("o"),

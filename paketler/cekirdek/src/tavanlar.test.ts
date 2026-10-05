@@ -31,7 +31,8 @@ beforeAll(() => {
   const olaylar = new OlayYolu();
   sirket = new Sirket(depo, olaylar, yap, () => null, true);
   olaylar.dinle((o) => gelenler.push(o));
-  pid = depo.projeEkle({ ad: "Tavan", yol: path.join(gecici, "repo"), aciklama: "", varsayilanDal: "main" }).id;
+  // Tavan onaylarına kurul karar verir (tam otonom kipte çalışanınkine CEO: karar-yetkisi.test.ts)
+  pid = depo.projeEkle({ ad: "Tavan", yol: path.join(gecici, "repo"), aciklama: "", varsayilanDal: "main", kararVeren: "kurul" }).id;
   sirket.iseAl(pid, { ad: "Ada", rol: "ceo" });
   sirket.iseAl(pid, { ad: "Deniz", rol: "backend" });
   sirket.iseAl(pid, { ad: "Elif", rol: "frontend" });

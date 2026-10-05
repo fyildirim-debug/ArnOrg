@@ -109,7 +109,7 @@ export function varsayilanKurallar(): PolitikaKurali[] {
     {
       id: "disari-gonderim",
       ad: iki("Dışarı gönderim ve yayın", "Pushing and publishing"),
-      aciklama: iki("Uzak depoya push, paket yayını, dağıtım ve altyapı değişikliği yönetim kurulu onayı ister.", "Pushing to a remote, publishing packages, deploying and changing infrastructure need the board's approval."),
+      aciklama: iki("Uzak depoya push, paket yayını, dağıtım ve altyapı değişikliği onay ister (kurul; tam otonom kipte CEO).", "Pushing to a remote, publishing packages, deploying and changing infrastructure need approval (the board, or the CEO in fully autonomous mode)."),
       karar: "sor",
       hedef: "komut",
       araclar: [],

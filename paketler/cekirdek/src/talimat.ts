@@ -1,9 +1,11 @@
 // Ajan talimatı (sistem istemine eklenen bölüm), seçilen dilde. Sıra önbellek için kararlı tutulur:
-// kimlik ve ana yasa en başta; ardından global standartlar, rol, ortak kurallar, kanallar, hafıza araçları,
-// ekip ve bağlar, kişisel hafıza (donmuş anlık görüntü), beceriler, proje hafızası, kişilik ve ek talimat.
+// kimlik ve ana yasa en başta; ardından global standartlar, rol, ortak kurallar, kanallar, karar yetkisi (oturum
+// başındaki kipe göre), hafıza araçları, ekip ve bağlar, kişisel hafıza (donmuş anlık görüntü), beceriler, proje hafızası,
+// kişilik ve ek talimat.
 import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type Proje, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
+import { kararYetkisiTalimati } from "./karar-yetkisi.js";
 import { rolBul } from "./roller.js";
 import { tanitimTalimati } from "./tanitim.js";
 import { kisalt } from "./yardimci.js";
@@ -73,6 +75,43 @@ export function talimatOlustur(b: TalimatBaglami): string {
   const yoneticiMetni = b.yonetici ? `${b.yonetici.ad} (${rolAdi(b.yonetici, rolBul(b.yonetici.rol) ?? undefined, b.dil)})` : en ? "the board of directors" : "Yönetim kurulu";
   const ekipListesi = b.ekip.map((a) => `- ${a.ad} (${rolAdi(a, rolBul(a.rol) ?? undefined, b.dil)})`).join("\n") || (en ? "- No other employees yet." : "- Henüz başka çalışan yok.");
   const beceriDizini = b.beceriler.slice(0, 15).map((x) => `- ${x.ad}: ${kisalt(x.aciklama, 140)}`);
+  // Karar yetkisi oturum başındaki kipe göre; CEO'su olmayan projede onaylar kurula gider
+  const ceoAjani = ceo ? ajan : (b.ekip.find((a) => a.rol === "ceo") ?? null);
+  const kip = proje.kararVeren === "ceo" && ceoAjani ? "ceo" : "kurul";
+  const kararBolumu = kararYetkisiTalimati({ kip, ceo, yonetici, ceoAdi: ceoAjani?.ad ?? null }, b.dil);
+  const teklifSonu =
+    kip === "kurul"
+      ? en
+        ? "both go to the board for approval."
+        : "ikisi de kurul onayına gider."
+      : ceo
+        ? en
+          ? "you have the decision authority, so both take effect immediately."
+          : "karar yetkisi sende olduğundan ikisi de hemen geçerli olur."
+        : en
+          ? "both go to the CEO for a decision."
+          : "ikisi de CEO'nun kararına gider.";
+  // Ortak kurallarda soru ve dışarı gönderim: tam otonomda çalışanın sorusu ve izni CEO'ya gider, CEO'nunki kendi kararıdır
+  const soruKurali =
+    kip === "ceo" && !ceo
+      ? en
+        ? "- If you need a decision or permission, use mcp__arnorg__kurula_sor; in fully autonomous mode the CEO answers it."
+        : "- Karar ya da izin gerekiyorsa mcp__arnorg__kurula_sor kullan; tam otonom kipte CEO yanıtlar."
+      : en
+        ? "- If you need the board, use mcp__arnorg__kurula_sor."
+        : "- Yönetim kuruluna soru gerekiyorsa mcp__arnorg__kurula_sor kullan.";
+  const gonderimOnayi =
+    kip === "kurul"
+      ? en
+        ? "need the board's approval"
+        : "kurul onayı ister"
+      : ceo
+        ? en
+          ? "go through approval (you decide)"
+          : "onaydan geçer (karar sende)"
+        : en
+          ? "need the CEO's approval"
+          : "CEO'nun onayını ister";
 
   if (en) {
     return [
@@ -91,10 +130,10 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "- Write in English. Be brief and clear. No emoji, check marks or decorative symbols; plain text only.",
       "- Before starting, read the relevant notes with mcp__arnorg__notlari_listele and not_oku. Record decisions with not_yaz under notlar/kararlar/.",
       "- Keep your task status current with mcp__arnorg__gorev_guncelle. When the work is done move it to 'inceleme' (review) and summarise what you did.",
-      "- If you need the board, use mcp__arnorg__kurula_sor.",
+      soruKurali,
       "- The mcp__arnorg__* tools are your own tools; call them directly. If one is not loaded yet, load it with ToolSearch (for example select:mcp__arnorg__birlestirme_iste) and then call it by name right away.",
       "- Every tool call passes ArnOrg's gate. Do not try to force a denied call another way; read the reason and ask for permission with kurula_sor if needed.",
-      `- Only write inside your own working directory. Pushing to a remote, releasing and deploying need the board's approval; ArnOrg pushes the approved work on ${proje.varsayilanDal} itself.`,
+      `- Only write inside your own working directory. Pushing to a remote, releasing and deploying ${gonderimOnayi}; ArnOrg pushes the approved work on ${proje.varsayilanDal} itself.`,
       '- Commit your code; messages say what changed. Never add Co-Authored-By, "Generated with Claude Code" or any other Claude signature to a commit message.',
       ...(proje.testKomutu
         ? [
@@ -112,7 +151,8 @@ export function talimatOlustur(b: TalimatBaglami): string {
       ceo
         ? `- The board talks with you one-on-one in ${kanal("yonetim")}. Answer messages from there in ${kanal("yonetim")} (kanal: "yonetim"), quickly and briefly, like a live chat. For an important suggestion, request or permission use mcp__arnorg__kurula_bildir: the board sees it on any screen. When the work is ready for the board to try, use mcp__arnorg__teslim_et with test steps.`
         : `- The board talks one-on-one only with the CEO in ${kanal("yonetim")}; bring things for the board to your manager or ${kanal("genel")}.`,
-      yonetici ? "- As the project evolves, propose hiring with ise_al_teklif when the team is short and propose letting someone go with isten_cikar_teklif when a role is no longer needed; both go to the board for approval." : "",
+      yonetici ? `- As the project evolves, propose hiring with ise_al_teklif when the team is short and propose letting someone go with isten_cikar_teklif when a role is no longer needed; ${teklifSonu}` : "",
+      ...(kararBolumu.length ? ["", ...kararBolumu] : []),
       "",
       "## Remembering and thinking together",
       "- You have your own lasting intelligence. Never forget your assigned work, your promises or who you are. ArnOrg reminds you of these from time to time; act on the reminders.",
@@ -158,10 +198,10 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "- Türkçe yaz. Kısa ve net ol. Emoji, onay işareti ya da süsleme simgesi kullanma; düz metin yaz.",
     "- İşe başlamadan mcp__arnorg__notlari_listele ve not_oku ile ilgili notları oku. Kararları not_yaz ile notlar/kararlar/ altına yaz.",
     "- Görevin durumunu mcp__arnorg__gorev_guncelle ile güncel tut. İş bitince 'inceleme' durumuna al ve ne yaptığını özetle.",
-    "- Yönetim kuruluna soru gerekiyorsa mcp__arnorg__kurula_sor kullan.",
+    soruKurali,
     "- mcp__arnorg__* araçları senin araçların; doğrudan çağır. Henüz yüklenmemişse ToolSearch ile yükle (ör. select:mcp__arnorg__birlestirme_iste), sonra hemen adıyla çağır.",
     "- Her araç çağrın ArnOrg denetiminden geçer. Reddedilen bir çağrıyı başka yoldan zorlamaya çalışma; nedeni oku, gerekiyorsa kurula_sor ile izin iste.",
-    `- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım kurul onayı ister; ${proje.varsayilanDal} dalındaki onaylı işi uzak depoya ArnOrg kendisi gönderir.`,
+    `- Yalnız kendi çalışma dizinine yaz. Uzak depoya push, yayın ve dağıtım ${gonderimOnayi}; ${proje.varsayilanDal} dalındaki onaylı işi uzak depoya ArnOrg kendisi gönderir.`,
     '- Kodu commit\'le; mesajlar Türkçe ve ne değiştiğini söyler. Commit mesajına Co-Authored-By, "Generated with Claude Code" ya da başka bir Claude imzası ekleme.',
     ...(proje.testKomutu
       ? [
@@ -179,7 +219,8 @@ export function talimatOlustur(b: TalimatBaglami): string {
     ceo
       ? `- Kurul seninle ${kanal("yonetim")} kanalında bire bir konuşur. Oradan gelen mesajı ${kanal("yonetim")} kanalında (kanal: "yonetim") hızlı ve kısa yanıtla; canlı sohbet gibi. Önemli bir öneri, istek ya da yetki gerekiyorsa mcp__arnorg__kurula_bildir kullan: kurul hangi ekranda olursa olsun görür. İş kurulun deneyebileceği hâle gelince test adımlarıyla mcp__arnorg__teslim_et kullan.`
       : `- Kurul yalnız CEO ile ${kanal("yonetim")} kanalında bire bir konuşur; kurula iletilecek şeyi yöneticine ya da ${kanal("genel")} kanalına yaz.`,
-    yonetici ? "- Proje ilerledikçe ekip yetmiyorsa ise_al_teklif ile işe alım, bir role artık gerek kalmadıysa isten_cikar_teklif ile işten çıkarma öner; ikisi de kurul onayına gider." : "",
+    yonetici ? `- Proje ilerledikçe ekip yetmiyorsa ise_al_teklif ile işe alım, bir role artık gerek kalmadıysa isten_cikar_teklif ile işten çıkarma öner; ${teklifSonu}` : "",
+    ...(kararBolumu.length ? ["", ...kararBolumu] : []),
     "",
     "## Unutmamak ve birlikte düşünmek",
     "- Kendine ait kalıcı bir zekân var. Sana verilen işleri, verdiğin sözleri ve kim olduğunu asla unutma. ArnOrg bunları ara ara hatırlatır; hatırlatmalara göre davran.",
@@ -220,6 +261,8 @@ export function hatirlatmaMetni(h: {
   dil: Dil;
   /** Kişisel hafıza boşsa ilk satırı yazması hatırlatılır */
   kisiselBos?: boolean;
+  /** Tam otonom kipte CEO'nun kararını bekleyen onaylar (kısa kimlik ve başlık) */
+  bekleyenOnaylar?: { kimlik: string; baslik: string }[];
 }): string {
   const en = h.dil === "en";
   const rolim = rolAdi(h.ajan, h.rol, h.dil);
@@ -231,6 +274,12 @@ export function hatirlatmaMetni(h: {
   if (h.gorevler.length) satirlar.push(`${en ? "Your work" : "Üzerindeki işler"}: ${h.gorevler.map((g) => `${g.kod} ${kisalt(g.baslik, 60)} (${g.durum})`).join("; ")}`);
   else satirlar.push(en ? "No task is assigned to you right now; do not open new work on your own, report to your manager." : "Şu an sana atanmış görev yok; kendiliğinden yeni iş açma, yöneticine durumunu bildir.");
   if (h.sozler.length) satirlar.push(`${en ? "Open promises" : "Açık sözlerin"}: ${h.sozler.map((s) => `${s.kime}: ${kisalt(s.metin, 80)}`).join("; ")}`);
+  if (h.bekleyenOnaylar?.length) {
+    const liste = h.bekleyenOnaylar.slice(0, 6).map((o) => `${o.kimlik} ${kisalt(o.baslik, 70)}`);
+    const kalan = h.bekleyenOnaylar.length - liste.length;
+    const ek = kalan > 0 ? (en ? ` and ${kalan} more` : ` ve ${kalan} tane daha`) : "";
+    satirlar.push(`${en ? "Approvals waiting for your decision (decide with onay_karari)" : "Kararını bekleyen onaylar (onay_karari ile karar ver)"}: ${liste.join("; ")}${ek}`);
+  }
   if (h.anayasaKisa) satirlar.push(`${en ? "Constitution" : "Ana yasa"}: ${h.anayasaKisa}`);
   // Kısa öz değerlendirme: söz, beceri, kişisel hafıza; sonra defter
   satirlar.push(

@@ -225,6 +225,9 @@ describe("canlı olay", () => {
     sonGecerlilik: null,
     sonuclanma: new Date().toISOString(),
     not: null,
+    kararKaynagi: "kurul",
+    kararVerenAd: "Yönetim kurulu",
+    muhatap: "kurul",
   });
 
   it("kök README.md ana repoda ya da uzmanın alanında değişince ve iş birleşince tek olay yayınlanır", async () => {
@@ -316,10 +319,12 @@ describe("rol ve talimat", () => {
     expect(hazirlikTalimati("Yeni Ekip")).toContain("Tanıtım uzmanı (rol: tanitim)");
   });
 
+  type Arac = { name: string; inputSchema: Record<string, z.ZodType>; handler: (a: Record<string, unknown>, e: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> };
+
   it("işe alım teklifi tanıtım uzmanı rolünü bilir; onaylanınca uzman ekibe katılır", async () => {
-    const p4 = await sirket.projeOlustur({ ad: "Teklif", yol: path.join(gecici, "repo4"), olustur: true });
+    // Kurul kipi: teklif Onaylar'da kurulun kararını bekler
+    const p4 = await sirket.projeOlustur({ ad: "Teklif", yol: path.join(gecici, "repo4"), olustur: true, kararVeren: "kurul" });
     const ceo = ceoBul(p4.id);
-    type Arac = { name: string; inputSchema: Record<string, z.ZodType>; handler: (a: Record<string, unknown>, e: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> };
     const ise = (arnorgAracListesi(sirket, ceo.id) as unknown as Arac[]).find((t) => t.name === "ise_al_teklif")!;
     expect(z.toJSONSchema(z.object(ise.inputSchema))).toMatchObject({ properties: { rol: { description: expect.stringContaining("tanitim") } } });
     const sonuc = await ise.handler({ ad: "Lale", rol: "tanitim", gerekce: "Kurul projeyi Tanıtım alanından okuyacak; README.md'yi yazacak biri gerek." }, {});
@@ -329,5 +334,19 @@ describe("rol ve talimat", () => {
     await sirket.onayKarari(teklif.id, "onayla");
     expect(depo.ajanAdla(p4.id, "Lale")).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "sonnet" });
     expect((await durum(p4.id)).uzman).toMatchObject({ ad: "Lale" });
+  });
+
+  it("tam otonomda CEO tanıtım uzmanını doğrudan işe alır; teklif onay beklemez", async () => {
+    const p5 = await sirket.projeOlustur({ ad: "Otonom", yol: path.join(gecici, "repo5"), olustur: true });
+    expect(p5.kararVeren).toBe("ceo");
+    const ceo = ceoBul(p5.id);
+    const ise = (arnorgAracListesi(sirket, ceo.id) as unknown as Arac[]).find((t) => t.name === "ise_al_teklif")!;
+    const sonuc = await ise.handler({ ad: "Mira", rol: "tanitim", gerekce: "Kurul projeyi Tanıtım alanından okuyacak; README.md'yi yazacak biri gerek." }, {});
+    expect(sonuc.isError).toBeFalsy();
+    expect(sonuc.content[0]!.text).toContain("hemen geçerli oldu");
+    expect(depo.onaylar(p5.id, "bekliyor")).toEqual([]);
+    expect(depo.onaylar(p5.id).find((o) => o.tur === "ise_alim")).toMatchObject({ durum: "onaylandi", kararKaynagi: "ceo", kararVerenAd: ceo.ad });
+    expect(depo.ajanAdla(p5.id, "Mira")).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı" });
+    expect((await durum(p5.id)).uzman).toMatchObject({ ad: "Mira" });
   });
 });

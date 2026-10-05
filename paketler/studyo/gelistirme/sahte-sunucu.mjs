@@ -24,6 +24,7 @@ import { kur as surum005Yetenek } from "./surum-005-yetenek.mjs";
 import { kur as surum005Tarayici } from "./surum-005-tarayici.mjs";
 import { kur as surum005Ofis } from "./surum-005-ofis.mjs";
 import { kur as surum007Tanitim } from "./surum-007-tanitim.mjs";
+import { kur as surum007Otonom } from "./surum-007-otonom.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -90,7 +91,7 @@ function projeOzeti(p) {
     ajanSayisi: ajanlar.length,
     aktifAjanSayisi: ajanlar.filter((a) => a.durum === "calisiyor" || a.durum === "karar_bekliyor").length,
     gorevSayilari,
-    bekleyenOnay: db.onaylar.filter((o) => o.projeId === p.id && o.durum === "bekliyor").length,
+    bekleyenOnay: db.onaylar.filter((o) => o.projeId === p.id && o.durum === "bekliyor" && o.muhatap !== "ceo").length,
     bugunToken: ajanlar.reduce((t, a) => t + a.bugunToken, 0),
   };
 }
@@ -2155,6 +2156,8 @@ surum005Tarayici({ rota, db, yay, Hata, simdi, yeniKimlik, proje, projeGerekli, 
 surum005Ofis({ db, yay, akisEkle, mesajEkle, ajanBul, projeAjanlari, simdi, yeniKimlik, projeYay });
 // 0.0.7: Tanıtım alanı: README.md vitrini, Defne'nin taslağı, güncelleme isteği (surum-007-tanitim.mjs)
 surum007Tanitim({ rota, rotalar, db, yay, mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, projeYay, Hata, simdi, yeniKimlik });
+// 0.0.7: karar yetkisi: tam otonomda onaylara CEO karar verir, kurul sonuçları görür (surum-007-otonom.mjs)
+surum007Otonom({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), mesajEkle, akisEkle, ajanBul, projeAjanlari, proje, projeGerekli, projeOzeti, projeYay, Hata, simdi, yeniKimlik });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

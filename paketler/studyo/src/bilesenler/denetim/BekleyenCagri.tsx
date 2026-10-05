@@ -1,4 +1,5 @@
-// Karar bekleyen araç çağrısı: komut, kural, geri sayım, izin ver / reddet
+// Karar bekleyen araç çağrısı: komut, kural, geri sayım, izin ver / reddet. Tam otonomda karar CEO'dadır; kurulun
+// düğmeleri ikincil kalır, kurul yine de karar verebilir.
 import type { Onay } from "@arnorg/ortak";
 import { useState } from "react";
 import { api } from "../../api/uclar";
@@ -8,6 +9,8 @@ import { onayUygula, useVeri } from "../../durum/veri";
 import { aracAdi, girdiOzeti } from "../../yardimcilar/arac";
 import { akilliZaman, kalanSure } from "../../yardimcilar/bicim";
 import { useIslem, useSimdi } from "../../yardimcilar/kancalar";
+import { CeoKararVeriyor } from "../KararYetkisi";
+import { ceoyuBekliyor } from "../kararVeren";
 import { AjanAvatar } from "../Kisi";
 
 /**
@@ -41,6 +44,7 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
   const oran = bitis && bitis > baslangic ? Math.max(0, Math.min(1, (bitis - simdi) / (bitis - baslangic))) : null;
   const doldu = kalan !== null && kalan <= 0;
   const acil = kalan !== null && kalan < 30_000;
+  const ceoda = ceoyuBekliyor(onay);
 
   const karar = (k: "onayla" | "reddet") =>
     calistir(k, async () => {
@@ -57,10 +61,14 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
         </span>
       ) : null}
       <div className="bekleyen-ust">
-        <span className="durum durum-karar_bekliyor">
-          <i aria-hidden="true" />
-          {s.genel.ajanDurumu.karar_bekliyor}
-        </span>
+        {ceoda ? (
+          <CeoKararVeriyor ipucu={false} />
+        ) : (
+          <span className="durum durum-karar_bekliyor">
+            <i aria-hidden="true" />
+            {s.genel.ajanDurumu.karar_bekliyor}
+          </span>
+        )}
         {kalan !== null ? (
           <span className={`bekleyen-kalan sayi${acil ? " vurgu" : ""}`} role="timer" aria-live="off">
             {doldu ? t.doldu : t.kaldi(kalanSure(kalan))}
@@ -92,7 +100,7 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
           disabled={doldu}
         />
         <div className="dugme-satir">
-          <button type="button" className="dugme dugme-ana" onClick={() => void karar("onayla")} disabled={suruyor !== null || doldu}>
+          <button type="button" className={`dugme${ceoda ? "" : " dugme-ana"}`} onClick={() => void karar("onayla")} disabled={suruyor !== null || doldu}>
             {suruyor === "onayla" ? <span className="doner" aria-hidden="true" /> : null}
             {t.izinVer}
           </button>
@@ -100,6 +108,7 @@ export function BekleyenCagri({ onay }: { onay: Onay }) {
             {suruyor === "reddet" ? <span className="doner" aria-hidden="true" /> : null}
             {t.reddet}
           </button>
+          {ceoda ? <span className="karar-ceo-ipucu">{s.karar.bekliyorIpucu}</span> : null}
         </div>
       </div>
     </article>

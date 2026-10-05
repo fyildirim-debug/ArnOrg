@@ -131,7 +131,8 @@ function depoyaUygula(olay: SunucuOlayi) {
         sinif: o.durum === "bekliyor" ? "sor" : o.durum === "onaylandi" ? "ok" : "ret",
         hedef: (sz) => `${sz.genel.onayTuru[o.tur]} · ${o.baslik}`,
       });
-      if (olay.tur === "onay.yeni" && o.durum === "bekliyor" && o.tur === "arac") {
+      // Tam otonomda CEO'ya yönelen araç izni kurulu uyarmaz
+      if (olay.tur === "onay.yeni" && o.durum === "bekliyor" && o.tur === "arac" && o.muhatap !== "ceo") {
         bildir("uyari", sozluk().bildirim.kararBekliyor(ajan?.ad ?? null, kisalt(o.baslik, 60)));
       }
       return;

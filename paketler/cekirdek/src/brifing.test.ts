@@ -51,6 +51,7 @@ function proje(p: Partial<Proje> = {}): Proje {
     otomatikGonder: true,
     hazirlik: "tamam",
     otomatikOnay: { etkin: false, turler: [] },
+    kararVeren: "ceo",
     testKomutu: null,
     hazirlikKomutu: null,
     testZamanAsimiDk: 20,
@@ -100,7 +101,7 @@ function gorev(no: number, g: Partial<Gorev> & Pick<Gorev, "durum">): Gorev {
 }
 
 function onay(id: string, o: Partial<Onay> & Pick<Onay, "tur" | "durum">): Onay {
-  return { id, projeId: PID, ajanId: null, baslik: id, ayrinti: "", veri: null, olusturma: iso(9, 25, 10), sonGecerlilik: null, sonuclanma: null, not: null, ...o };
+  return { id, projeId: PID, ajanId: null, baslik: id, ayrinti: "", veri: null, olusturma: iso(9, 25, 10), sonGecerlilik: null, sonuclanma: null, not: null, kararKaynagi: null, kararVerenAd: null, muhatap: null, ...o };
 }
 
 let mesajSayaci = 0;
@@ -165,6 +166,8 @@ describe("brifing veri özeti", () => {
     const kalite = (durum: string, bitis: string | null, ek: Record<string, unknown> = {}) => ({ kalite: { durum, bitis, testsiz: false, testYok: false, komut: "npm test", sureMs: 102_000, mesaj: null, ...ek } });
     d.onaylar.push(
       onay("ise", { tur: "ise_alim", durum: "bekliyor", baslik: "İşe alım: Nil · Test mühendisi" }),
+      // Tam otonomda CEO'nun kararındaki onay kurulu beklemez; brifingin onay bölümüne girmez
+      onay("ceoda", { tur: "arac", durum: "bekliyor", baslik: "Bash · git push", muhatap: "ceo" }),
       onay("b1", { tur: "birlestirme", durum: "onaylandi", veri: { ajanId: "deniz", dal: "arnorg/deniz", ...kalite("birlesti", iso(10, 3, 16)) } }),
       onay("b2", { tur: "birlestirme", durum: "onaylandi", veri: { ajanId: "elif", dal: "arnorg/elif", ...kalite("test_basarisiz", iso(10, 4, 7), { mesaj: "Çıkış kodu 1" }) } }),
       onay("b3", { tur: "birlestirme", durum: "onaylandi", veri: { ajanId: "deniz", dal: "arnorg/eski", ...kalite("birlesti", iso(10, 2, 16)) } }),

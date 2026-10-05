@@ -3,7 +3,7 @@
 //
 //   kütüphanede web araştırması (WebSearch, WebFetch, web_oku, github_ara, arastirma_kaydet) ve bulguyu kanala yazma,
 //   laboratuvarda test koşusu (geçen ya da kalan çıktısıyla) ve derleme/tür denetimi,
-//   CEO'nun stüdyoda kurula teslimi (teslim_et; teslim onayı, bir süre sonra gösteri adına kabul),
+//   CEO'nun stüdyoda kurula teslimi (teslim_et; teslim onayı, bir süre sonra gösteri adına kabul; tam otonomda sonuç olarak),
 //   görevi bitirme (kutlama), otomatik onaylı birleştirme (kalite kapısı: laboratuvar ve sunucu odası),
 //   işe alım (yeni çalışan kapıdan girer, stüdyoda tasarım işi yapar) ve tur sonunda işten çıkarma (kapıdan çıkar).
 //
@@ -187,7 +187,14 @@ export function kur(c) {
     const ozet = ceviri("Liste, sayfalama ve durum rozetleri hazır; testler yeşil.", "The list, pagination and status badges are ready; tests are green.");
     dusun(a.id, ceviri("Bu hâli kurula gösterilebilir; teslim edeyim.", "This is ready to show the board; let me deliver it."));
     sonra(1500, () => {
-      arac(a.id, "mcp__arnorg__teslim_et", { baslik, ozet, test_adimlari: adimlar, calistir: "npm run dev", adres: "http://localhost:5173" }, ceviri("Teslim kurula sunuldu.", "The delivery went to the board."));
+      // Tam otonomda teslim kurula sonuç olarak gider (surum-007-otonom.mjs): kabul beklenmez
+      const otonom = db.projeler.find((p) => p.id === PROJE)?.kararVeren === "ceo";
+      arac(
+        a.id,
+        "mcp__arnorg__teslim_et",
+        { baslik, ozet, test_adimlari: adimlar, calistir: "npm run dev", adres: "http://localhost:5173" },
+        otonom ? ceviri("Teslim kurula sonuç olarak iletildi; kabul bekleme.", "The delivery was passed to the board as a result; don't wait for acceptance.") : ceviri("Teslim kurula sunuldu.", "The delivery went to the board."),
+      );
       const o = {
         id: yeniKimlik("o"),
         projeId: PROJE,
@@ -205,7 +212,7 @@ export function kur(c) {
       db.onaylar.unshift(o);
       yay({ tur: "onay.yeni", onay: o }, PROJE);
       projeYay(PROJE);
-      mesajEkle(PROJE, GENEL, a.id, ceviri(`Teslim hazır: ${baslik}. Kurul deneyip geri bildirim verecek.`, `Delivery ready: ${baslik}. The board will try it and give feedback.`));
+      if (!otonom) mesajEkle(PROJE, GENEL, a.id, ceviri(`Teslim hazır: ${baslik}. Kurul deneyip geri bildirim verecek.`, `Delivery ready: ${baslik}. The board will try it and give feedback.`));
       // Karar gelmezse gösteri kabul eder (kutlama görünsün)
       sonra(38000, () => {
         if (o.durum !== "bekliyor") return;

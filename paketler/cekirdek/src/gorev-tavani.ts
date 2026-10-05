@@ -1,13 +1,15 @@
 // Görev token tavanı: ajanın işlediği token o anki görevine (ajan.gorevId) yazılır ve görev başına tutulur. Görevin
 // toplamı tavanı (kurulun yükselttiği görev tavanı, yoksa Ayarlar.gorevTokenTavani) aşınca ajanın turu kesilir, ajan
-// "duraklatildi" olur ve kurula `genel` onay (alt tür gorev_token_tavani) açılır. Onaylanırsa görevin tavanı bir kat artar
+// "duraklatildi" olur ve `genel` onay (alt tür gorev_token_tavani) açılır; kurul karar verir, tam otonom kipte çalışanınkine
+// CEO (CEO'nun kendi tavanı yine kurula gider). Onaylanırsa görevin tavanı bir kat artar
 // ve ajan kaldığı yerden sürer; reddedilirse ajan durur, yöneticisine görevi bölmesi ya da yeniden planlaması için sistem
 // mesajı gider. Karar beklerken ajana gelen mesajlar tutulur (kurul ve soru yanıtı geçer) ve iş araçları kapalıdır.
 // Tek turda tur sınırına (maxTurns) ulaşan ajanın yöneticisine de buradan haber verilir.
 import { GOREV_TAVANI_ALT_TURU, type Ajan, type AjanDurumu, type GorevTavaniOnayVerisi, type Onay, type SunucuOlayi } from "@arnorg/ortak";
 import type { Depo } from "./depo.js";
 import { iki } from "./dil.js";
-import { kisalt } from "./yardimci.js";
+import { kararOznesi } from "./karar-yetkisi.js";
+import { ilgi, kisalt } from "./yardimci.js";
 
 /** Anahtar-değer kaydı: görev başına işlenen token ve yükseltilmiş tavan */
 const KAYIT_ONEKI = "gorev-token:";
@@ -154,10 +156,22 @@ export class GorevTavani {
     const d = this.durdurulanlar.get(ajanId);
     if (!d) return null;
     const kod = this.b.depo.gorev(d.gorevId)?.kod;
+    if (this.ceodaMi(ajanId, d.onayId)) {
+      return iki(
+        `${kod ?? "Görevin"} token tavanını aştı; CEO'nun kararı bekleniyor. Başka iş aracı çağırma: gelen bir soruyu ArnOrg araçlarıyla yanıtlayabilirsin, sonra dur. CEO onaylarsa ArnOrg seni kaldığın yerden uyandıracak.`,
+        `${kod ?? "Your task"} went over its token ceiling; the CEO's decision is pending. Don't call any other work tools: you may answer a question with the ArnOrg tools, then stop. If the CEO approves, ArnOrg will wake you where you left off.`,
+      );
+    }
     return iki(
       `${kod ?? "Görevin"} token tavanını aştı; kurulun kararı bekleniyor. Başka iş aracı çağırma: gelen bir soruyu ArnOrg araçlarıyla yanıtlayabilirsin, sonra dur. Kurul onaylarsa ArnOrg seni kaldığın yerden uyandıracak.`,
       `${kod ?? "Your task"} went over its token ceiling; the board's decision is pending. Don't call any other work tools: you may answer a question with the ArnOrg tools, then stop. If the board approves, ArnOrg will wake you where you left off.`,
     );
+  }
+
+  /** Tavan onayı tam otonom kipte CEO'nun kararında mı (CEO'nun kendi tavanı ve CEO karar veremezken kurulda) */
+  private ceodaMi(ajanId: string, onayId: string): boolean {
+    const a = this.b.depo.ajan(ajanId);
+    return !!a && this.b.depo.onaylar(a.projeId).some((o) => o.id === onayId && o.durum === "bekliyor" && o.muhatap === "ceo");
   }
 
   /** Olay yolu: görev tavanı onayının sonucu */
@@ -222,8 +236,14 @@ export class GorevTavani {
       `${a.ad} has processed ${kisaToken(toplam)} tokens on ${g.kod} "${kisalt(g.baslik, 120)}"; the task's ceiling is ${kisaToken(tavan)}. The agent has stopped and is waiting for your decision. If you approve, the ceiling becomes ${kisaToken(yeniTavan)} and ${a.ad} picks up where they left off. If you reject, ${a.ad} stays stopped${yonetici ? ` and ${yonetici.ad} is asked to split or re-plan the task` : ""}.`,
     );
     const veri: GorevTavaniOnayVerisi = { altTur: GOREV_TAVANI_ALT_TURU, ajanId: a.id, gorevId, gorevKodu: g.kod, toplam: Math.round(toplam), tavan, yeniTavan };
-    this.b.akisNotu(a.id, iki(`${g.kod} görevinin token tavanı aşıldı (${oran}); tur kesildi, kurulun kararı bekleniyor.`, `${g.kod} went over its token ceiling (${oran}); the turn was cut and the board's decision is pending.`));
-    d.onayId = this.b.onayAc(a, baslik, ayrinti, veri).id;
+    const onay = this.b.onayAc(a, baslik, ayrinti, veri);
+    d.onayId = onay.id;
+    this.b.akisNotu(
+      a.id,
+      onay.muhatap === "ceo"
+        ? iki(`${g.kod} görevinin token tavanı aşıldı (${oran}); tur kesildi, CEO'nun kararı bekleniyor.`, `${g.kod} went over its token ceiling (${oran}); the turn was cut and the CEO's decision is pending.`)
+        : iki(`${g.kod} görevinin token tavanı aşıldı (${oran}); tur kesildi, kurulun kararı bekleniyor.`, `${g.kod} went over its token ceiling (${oran}); the turn was cut and the board's decision is pending.`),
+    );
   }
 
   private sonuc(onay: Onay, v: GorevTavaniOnayVerisi): void {
@@ -233,6 +253,9 @@ export class GorevTavani {
     const tutulan = bu ? d.tutulan : [];
     const ek = (baslik: string) => (tutulan.length ? `\n\n${baslik}:\n${tutulan.map((m) => `- ${m}`).join("\n")}` : "");
     const a = this.b.depo.ajan(v.ajanId);
+    // Kararı veren: kurul ya da tam otonom kipte CEO (karar-yetkisi.ts)
+    const ceo = onay.kararKaynagi === "ceo";
+    const ozne = kararOznesi(onay.kararKaynagi, onay.kararVerenAd);
     if (onay.durum === "onaylandi") {
       const k = this.kayit(v.gorevId);
       const temel = this.b.temelTavan();
@@ -244,27 +267,29 @@ export class GorevTavani {
       this.b.sistemMesaji(
         a.id,
         iki(
-          `Kurul ${v.gorevKodu} görevinin token tavanını ${kisaToken(yeni)} yaptı. Kaldığın yerden devam et.${ek("Bu sürede gelen mesajlar")}`,
-          `The board raised the token ceiling of ${v.gorevKodu} to ${kisaToken(yeni)}. Continue where you left off.${ek("Messages that came in meanwhile")}`,
+          `${ozne} ${v.gorevKodu} görevinin token tavanını ${kisaToken(yeni)} yaptı. Kaldığın yerden devam et.${ek("Bu sürede gelen mesajlar")}`,
+          `${ozne} raised the token ceiling of ${v.gorevKodu} to ${kisaToken(yeni)}. Continue where you left off.${ek("Messages that came in meanwhile")}`,
         ),
       );
       return;
     }
     // Reddedildi: ajan durur; görevi bölmek ya da yeniden planlamak yöneticisine düşer
     if (!a) return;
-    this.b.durumYaz(a.id, "duraklatildi", iki("Görev token tavanı aşıldı; kurul sürdürmedi", "Task token ceiling exceeded; the board stopped it"));
+    this.b.durumYaz(a.id, "duraklatildi", ceo ? iki("Görev token tavanı aşıldı; CEO sürdürmedi", "Task token ceiling exceeded; the CEO stopped it") : iki("Görev token tavanı aşıldı; kurul sürdürmedi", "Task token ceiling exceeded; the board stopped it"));
     const yonetici = yoneticisi(a, this.b.depo.ajanlar(a.projeId));
     if (!yonetici) return;
     const g = this.b.depo.gorev(v.gorevId);
     const baslik = g ? `${g.kod} "${kisalt(g.baslik, 80)}"` : v.gorevKodu;
     const oran = `${kisaToken(v.toplam)} / ${kisaToken(v.tavan)}`;
-    const kurulNotu = kisalt(onay.not?.trim() ?? "", 400);
-    const not = kurulNotu ? iki(` (kurulun notu: ${kurulNotu})`, ` (the board's note: ${kurulNotu})`) : "";
+    const kararNotu = kisalt(onay.not?.trim() ?? "", 400);
+    const ceoAdi = onay.kararVerenAd ?? "CEO";
+    const not = !kararNotu ? "" : ceo ? iki(` (CEO ${ilgi(ceoAdi)} notu: ${kararNotu})`, ` (CEO ${ceoAdi}'s note: ${kararNotu})`) : iki(` (kurulun notu: ${kararNotu})`, ` (the board's note: ${kararNotu})`);
+    const reddeden = ceo ? ozne : iki("kurul", "the board");
     this.b.sistemMesaji(
       yonetici.id,
       iki(
-        `${a.ad}, ${baslik} görevinde token tavanını aştı (${oran}); kurul sürdürmeyi onaylamadı${not} ve ${a.ad} durdu. Görevi daha küçük görevlere böl ya da yeniden planla (gorev_olustur, gorev_guncelle); ${a.ad} yeni bir iş atanınca yeniden başlar.${ek(`${a.ad} durmuşken ona gelen mesajlar`)}`,
-        `${a.ad} went over the token ceiling on ${baslik} (${oran}); the board did not approve going on${not} and ${a.ad} has stopped. Split the task into smaller ones or re-plan it (gorev_olustur, gorev_guncelle); ${a.ad} starts again once new work is assigned.${ek(`Messages sent to ${a.ad} while stopped`)}`,
+        `${a.ad}, ${baslik} görevinde token tavanını aştı (${oran}); ${reddeden} sürdürmeyi onaylamadı${not} ve ${a.ad} durdu. Görevi daha küçük görevlere böl ya da yeniden planla (gorev_olustur, gorev_guncelle); ${a.ad} yeni bir iş atanınca yeniden başlar.${ek(`${a.ad} durmuşken ona gelen mesajlar`)}`,
+        `${a.ad} went over the token ceiling on ${baslik} (${oran}); ${reddeden} did not approve going on${not} and ${a.ad} has stopped. Split the task into smaller ones or re-plan it (gorev_olustur, gorev_guncelle); ${a.ad} starts again once new work is assigned.${ek(`Messages sent to ${a.ad} while stopped`)}`,
       ),
     );
   }

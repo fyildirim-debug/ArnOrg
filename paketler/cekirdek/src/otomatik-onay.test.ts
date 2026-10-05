@@ -21,7 +21,8 @@ describe("otomatik onayın varsayılan kapsamı", () => {
     const yap = new Yapilandirma(path.join(gecici, "veri"));
     depo = new Depo(path.join(gecici, "veri", "arnorg.db"));
     sirket = new Sirket(depo, new OlayYolu(), yap, () => null, true);
-    const p = await sirket.projeOlustur({ ad: "Kapsam", yol: path.join(gecici, "repo"), olustur: true });
+    // Otomatik onay kurul kipinde geçerlidir; tam otonom kipte onaylara CEO karar verir
+    const p = await sirket.projeOlustur({ ad: "Kapsam", yol: path.join(gecici, "repo"), olustur: true, kararVeren: "kurul" });
     pid = p.id;
     ceo = depo.ajanlar(pid).find((a) => a.rol === "ceo")!;
   });

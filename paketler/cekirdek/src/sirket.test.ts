@@ -36,7 +36,9 @@ afterAll(() => {
 
 describe("proje", () => {
   it("yeni repo açar, iskelet kurar, CEO'yu işe alır", async () => {
-    const p = await sirket.projeOlustur({ ad: "Deneme", yol: path.join(gecici, "repo"), olustur: true, aciklama: "Test projesi" });
+    // Bu dosyadaki onaylara kurul karar verir (tam otonom kip: karar-yetkisi.test.ts)
+    const p = await sirket.projeOlustur({ ad: "Deneme", yol: path.join(gecici, "repo"), olustur: true, aciklama: "Test projesi", kararVeren: "kurul" });
+    expect(p.kararVeren).toBe("kurul");
     expect(p.ajanSayisi).toBe(1);
     expect(fs.existsSync(path.join(p.yol, ".arnorg", "notlar", "vizyon.md"))).toBe(true);
     expect(fs.existsSync(path.join(p.yol, ".arnorg", "ekip", "ada.md"))).toBe(true);
@@ -103,7 +105,8 @@ describe("onaylar", () => {
     const beklenen = sirket.kararBekle(deniz, "arac", "Deniz · Bash", "git push origin main", { arac: "Bash" });
     const bekleyen = depo.onaylar(p.id, "bekliyor").find((x) => x.tur === "arac")!;
     await sirket.onayKarari(bekleyen.id, "reddet", "PR açsın");
-    await expect(beklenen).resolves.toEqual({ izin: false, not: "PR açsın" });
+    await expect(beklenen).resolves.toEqual({ izin: false, not: "PR açsın", kaynak: "kurul", verenAd: "Yönetim kurulu" });
+    expect(depo.onay(bekleyen.id)).toMatchObject({ durum: "reddedildi", kararKaynagi: "kurul", kararVerenAd: "Yönetim kurulu", muhatap: "kurul" });
   });
 });
 

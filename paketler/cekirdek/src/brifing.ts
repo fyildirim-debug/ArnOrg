@@ -105,7 +105,7 @@ export interface BrifingVerisi {
   suren: (BrifingGorevi & { durum: "calisiliyor" | "inceleme"; sureMs: number; ajanDurumu: AjanDurumu | null })[];
   /** Bekleyen ve planlanmış görevler; önce bloklular (bitmemiş bağımlılık), sonra atanmamışlar */
   bekleyen: (BrifingGorevi & { bekledigi: string[] })[];
-  /** Kurulun kararını bekleyen onaylar */
+  /** Kurulun kararını bekleyen onaylar (CEO'nun kararındakiler hariç) */
   onaylar: { tur: OnayTuru; baslik: string }[];
   /** Bu aralıkta kalite kapısından geçen ya da kalan, reddedilen ve şu an kapıda olan birleştirmeler (yeni önce) */
   birlesmeler: BrifingBirlesmesi[];
@@ -215,7 +215,11 @@ export function brifingVerisi(g: VeriGirdisi): BrifingVerisi {
     biten,
     suren,
     bekleyen,
-    onaylar: g.depo.onaylar(g.projeId, "bekliyor").map((o) => ({ tur: o.tur, baslik: o.baslik })),
+    // Tam otonomda CEO'nun kararındaki onaylar kurulu beklemez; onları CEO kendisi karara bağlar
+    onaylar: g.depo
+      .onaylar(g.projeId, "bekliyor")
+      .filter((o) => o.muhatap !== "ceo")
+      .map((o) => ({ tur: o.tur, baslik: o.baslik })),
     birlesmeler,
     ekip: ekipDegisimi(g.oncekiEkip, ajanlar, baslangic),
     pencereler: (g.hesap?.pencereler ?? []).filter((p) => p.yuzde !== null).map((p) => ({ ad: p.ad, yuzde: p.yuzde, sifirlanma: p.sifirlanma })),

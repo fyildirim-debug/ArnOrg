@@ -26,6 +26,7 @@ import { brifing } from "./brifing";
 import { modeller } from "./modeller";
 import { yetenek } from "./yetenek";
 import { tarayici } from "./tarayici";
+import { karar } from "./karar";
 import { tanitim } from "./tanitim";
 
 export const tr = {
@@ -56,6 +57,7 @@ export const tr = {
   modeller,
   yetenek,
   tarayici,
+  karar,
   tanitim,
 };
 

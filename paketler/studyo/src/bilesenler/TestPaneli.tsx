@@ -224,7 +224,7 @@ export function TestPaneli({ onayId, kapat }: { onayId: string; kapat: () => voi
             <span aria-hidden="true">·</span>
             <time dateTime={onay.olusturma}>{akilliZaman(onay.olusturma)}</time>
           </p>
-          {!bekliyor ? <p className="test-sonuc">{t.sonuclandi(s.onaylar.durum[onay.durum])}</p> : null}
+          {!bekliyor ? <p className="test-sonuc">{onay.kararKaynagi === "ceo" ? s.karar.teslimSonucu(onay.kararVerenAd) : t.sonuclandi(s.onaylar.durum[onay.durum])}</p> : null}
         </header>
 
         {ozet ? (

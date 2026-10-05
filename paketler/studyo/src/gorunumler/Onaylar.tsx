@@ -1,9 +1,11 @@
 // Onaylar: bekleyen kararlar üstte (süresi azalan önce, sonra en uzun bekleyen), sonuçlananlar altta sakin bir geçmişte.
-// Türe göre süzgeç iki bölüme de uygulanır; geçmiş ayrıca sonuca göre süzülür. Başlığın yanında otomatik onay kutusu;
-// açıkken başlığın altında uyarı satırı. Önemli an penceresinden "Onaylar'da aç" gelince o onay görünür kılınıp vurgulanır.
+// Türe göre süzgeç iki bölüme de uygulanır; geçmiş ayrıca sonuca göre süzülür. Başlığın altında karar yetkisi şeridi:
+// tam otonomda kararları CEO verir (kurul yine her bekleyene karar verebilir), kurul kipinde başlığın yanında otomatik
+// onay kutusu ve açıkken uyarı satırı. Önemli an penceresinden "Onaylar'da aç" gelince o onay görünür kılınıp vurgulanır.
 import type { Onay, OnayDurumu, OnayTuru } from "@arnorg/ortak";
 import { useEffect, useMemo, useState } from "react";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { KararYetkisiSeridi, useTamOtonom } from "../bilesenler/KararYetkisi";
 import { OnayOgesi } from "../bilesenler/OnayOgesi";
 import { OtomatikOnayKutusu, OtomatikOnayUyarisi } from "../bilesenler/OtomatikOnay";
 import { useSozluk } from "../dil";
@@ -38,6 +40,8 @@ export function Onaylar() {
   const onaylar = useVeri((d) => d.onaylar);
   const yukleme = useVeri((d) => d.projeYukleme);
   const projeHatasi = useVeri((d) => d.projeHatasi);
+  // Tam otonomda otomatik onay kullanılmaz; şerit kimin karar verdiğini söyler
+  const otonom = useTamOtonom();
   const [tur, setTur] = useState<OnayTuru | "tumu">("tumu");
   const [sonuc, setSonuc] = useState<Sonuc | "tumu">("tumu");
   const [gecmisSiniri, setGecmisSiniri] = useState(GECMIS_SAYFA);
@@ -92,10 +96,10 @@ export function Onaylar() {
       <div className="baslik">
         <div className="baslik-metin">
           <h1>{t.baslik}</h1>
-          <p>{t.altBaslik}</p>
+          <p>{otonom ? s.karar.altBaslik : t.altBaslik}</p>
         </div>
         <div className="baslik-eylem onay-baslik-eylem">
-          <OtomatikOnayKutusu />
+          {otonom ? null : <OtomatikOnayKutusu />}
           <select
             className="secim suzgec-secim"
             aria-label={t.tureGore}
@@ -114,7 +118,8 @@ export function Onaylar() {
         </div>
       </div>
 
-      <OtomatikOnayUyarisi />
+      <KararYetkisiSeridi />
+      {otonom ? null : <OtomatikOnayUyarisi />}
 
       {ilkYukleme ? <Iskelet satir={6} /> : null}
       {yuklenemedi ? <HataKutu metin={projeHatasi ?? t.alinamadi} yeniden={() => void projeVerisiniYukle()} /> : null}
@@ -133,7 +138,7 @@ export function Onaylar() {
               </ul>
             ) : (
               <Bos kucuk baslik={tur === "tumu" ? t.bekleyenYok : t.turdeBekleyenYok}>
-                {tur === "tumu" ? t.bekleyenYokMetin : t.suzgeciDegistirin}
+                {tur === "tumu" ? (otonom ? s.karar.bekleyenYokMetin : t.bekleyenYokMetin) : t.suzgeciDegistirin}
               </Bos>
             )}
           </section>
@@ -181,7 +186,7 @@ export function Onaylar() {
               </>
             ) : (
               <Bos kucuk baslik={sonuclananlar.length || tur !== "tumu" ? t.suzgecteYok : t.gecmisYok}>
-                {sonuclananlar.length || tur !== "tumu" ? t.suzgeciDegistirin : t.gecmisYokMetin}
+                {sonuclananlar.length || tur !== "tumu" ? t.suzgeciDegistirin : otonom ? s.karar.gecmisYokMetin : t.gecmisYokMetin}
               </Bos>
             )}
           </section>

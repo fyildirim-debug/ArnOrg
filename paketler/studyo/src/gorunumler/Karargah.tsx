@@ -8,6 +8,7 @@ import { CeoSohbeti } from "../bilesenler/CeoSohbeti";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
 import { EkipTablosu } from "../bilesenler/EkipTablosu";
 import { GorevDagilimi } from "../bilesenler/GorevDagilimi";
+import { ceoyuBekliyor, kuruluBekleyen } from "../bilesenler/kararVeren";
 import { AjanAvatar, AjanDurum } from "../bilesenler/Kisi";
 import { Markdown } from "../bilesenler/Markdown";
 import { ajanaGit, bildir, git } from "../durum/arayuz";
@@ -42,8 +43,10 @@ export function Karargah() {
     return s;
   }, [gorevler]);
   const etkinGorev = gorevler.filter((g) => g.durum !== "iptal").length;
-  const bekleyenOnay = onaylar.filter((o) => o.durum === "bekliyor" && o.tur !== "arac").length;
-  const bekleyenArac = onaylar.filter((o) => o.durum === "bekliyor" && o.tur === "arac").length;
+  // Kurulun kararını bekleyenler; tam otonomda CEO'yu bekleyenler ayrıca anılır
+  const bekleyenOnay = kuruluBekleyen(onaylar, (t) => t !== "arac");
+  const bekleyenArac = kuruluBekleyen(onaylar, (t) => t === "arac");
+  const ceoyuBekleyen = onaylar.filter(ceoyuBekliyor).length;
 
   if (yukleme === "yukleniyor" && ajanlar.length === 0) {
     return (
@@ -80,7 +83,7 @@ export function Karargah() {
           <KullanimPaneli />
           <div className="dugme-satir">
             <button type="button" className={`dugme${bekleyenOnay ? " dugme-ana" : ""}`} onClick={() => git("onaylar")}>
-              {bekleyenOnay ? k.onayBekleyen(bekleyenOnay) : k.onayYok}
+              {bekleyenOnay ? k.onayBekleyen(bekleyenOnay) : ceoyuBekleyen ? s.karar.ceoKararVeriyor(ceoyuBekleyen) : k.onayYok}
             </button>
             {bekleyenArac ? (
               <button type="button" className="dugme" onClick={() => git("denetim")}>

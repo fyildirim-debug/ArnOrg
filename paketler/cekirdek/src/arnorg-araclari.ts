@@ -1,6 +1,6 @@
 // Ajanların ArnOrg ile konuştuğu süreç içi MCP araçları (mcp__arnorg__*)
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalGorunenAdi, kanalKimligi, rolMetni, type GorevDurumu, type KodSembolTuru } from "@arnorg/ortak";
+import { ARNORG_SURUMU, GOREV_DURUMLARI, KOD_SEMBOL_TURU_ADLARI, kanalGorunenAdi, kanalKimligi, rolMetni, type GorevDurumu, type KodSembolTuru, type Onay } from "@arnorg/ortak";
 import { z } from "zod";
 import { dosyaOku } from "./dosyalar.js";
 import { fark } from "./git.js";
@@ -11,6 +11,7 @@ import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.j
 import { maddeleriDenetle } from "./anayasa.js";
 import { aracGirdisiniOnar } from "./arac-girdisi.js";
 import { dil, iki } from "./dil.js";
+import { ceoKarari, kararOznesi, kisaKimlik, onayTuruAdi } from "./karar-yetkisi.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Sirket } from "./sirket.js";
 import { kisalt, yonelme } from "./yardimci.js";
@@ -81,6 +82,16 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
   const inceleyebilir = () => yonetici() || ["inceleme", "test", "guvenlik"].includes(rolBul(ben().rol)?.kimlik ?? "");
   /** Kalite kapısının test komutu (araç açıklamasında anılır) */
   const testKomutu = sirket.depo.proje(sirket.depo.ajan(ajanId)?.projeId ?? "")?.testKomutu ?? null;
+
+  // Karar yetkisi (karar-yetkisi.ts): teklifin sonucu araç çağrıldığı andaki kipe göre söylenir. Tam otonom kipte CEO'nun
+  // kendi teklifi hemen onun kararıyla geçer, başkasınınki CEO'ya gider; kurul kipinde kurula
+  /** Teklifin ilk işlenişi (otomatik onay, CEO kararı ya da kurula bildirim) bitince son hâli */
+  const sonHali = async (onay: Onay): Promise<Onay> => (await sirket.onayIslendi(onay.id)) ?? onay;
+  const ceoVerdi = (o: Onay) => o.durum === "onaylandi" && o.kararKaynagi === "ceo";
+  const ceoyaGitti = (o: Onay) => o.durum === "bekliyor" && o.muhatap === "ceo";
+  const ceoAdi = () => sirket.ceoBul(ben().projeId)?.ad ?? "CEO";
+  /** "CEO Ada'ya" / "CEO Ada" */
+  const ceoya = () => iki(`CEO ${yonelme(ceoAdi())}`, `CEO ${ceoAdi()}`);
 
   const araclar = [
     tool(
@@ -258,8 +269,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "ise_al_teklif",
       iki(
-        "Yeni çalışan için yönetim kuruluna gerekçeli işe alım teklifi verir (yalnız yöneticiler). Kurul onaylarsa çalışan ekibe katılır ve sana haber verilir.",
-        "Proposes hiring a new employee to the board, with reasons (managers only). If the board approves, the employee joins the team and you are told.",
+        "Yeni çalışan için gerekçeli işe alım teklifi verir (yalnız yöneticiler). Kararı kurul verir; tam otonom kipte CEO verir ve CEO'nun kendi teklifi hemen geçerli olur. Onaylanınca çalışan ekibe katılır ve sana haber verilir.",
+        "Proposes hiring a new employee, with reasons (managers only). The board decides; in fully autonomous mode the CEO decides and the CEO's own proposal takes effect immediately. Once approved, the employee joins the team and you are told.",
       ),
       {
         ad: z.string().min(2).max(40).describe(iki("Türkçe bir ad, ör. Deniz", "A first name, e.g. Ada")),
@@ -270,13 +281,13 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         talimat_eki: z.string().optional(),
       },
       (a) =>
-        guvenli(() => {
+        guvenli(async () => {
           if (!yonetici()) return hata(iki("İşe alım teklifini yalnız CEO ve CTO verebilir.", "Only the CEO and CTO can propose a hire."));
           const rol = rolBul(a.rol);
           if (!rol || rol.kimlik === "ceo") return hata(iki("Geçersiz rol.", "Invalid role."));
           if (sirket.depo.ajanAdla(ben().projeId, a.ad)) return hata(iki(`${a.ad} adında bir çalışan zaten var; başka bir ad seç.`, `There is already an employee named ${a.ad}; pick another name.`));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "ise_alim" && (o.veri as { ad?: string })?.ad?.toLowerCase() === a.ad.toLowerCase());
-          if (bekleyen) return metin(iki(`${a.ad} için teklif zaten kurulda bekliyor.`, `A proposal for ${a.ad} is already waiting for the board.`));
+          if (bekleyen) return metin(iki(`${a.ad} için teklif zaten karar bekliyor (onay ${kisaKimlik(bekleyen.id)}).`, `A proposal for ${a.ad} is already waiting for a decision (approval ${kisaKimlik(bekleyen.id)}).`));
           const rolAdi = rolMetni(rol, dil()).ad;
           const veri = {
             ad: a.ad,
@@ -285,13 +296,32 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             talimatEki: a.talimat_eki,
             yoneticiAd: a.yonetici ?? ben().ad,
           };
-          sirket.teklifAc(
-            ben(),
-            "ise_alim",
-            iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
-            `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
-            veri,
+          const onay = await sonHali(
+            sirket.teklifAc(
+              ben(),
+              "ise_alim",
+              iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
+              `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd}`,
+              veri,
+            ),
           );
+          const kimlik = kisaKimlik(onay.id);
+          if (ceoVerdi(onay)) {
+            return metin(
+              iki(
+                `Karar yetkisi sende olduğundan işe alım hemen geçerli oldu: ${a.ad} (${rolAdi}) ekipte (onay ${kimlik}). Görev atayıp 'calisiliyor' durumuna aldığında çalışmaya başlar.`,
+                `You hold the decision authority, so the hire took effect immediately: ${a.ad} (${rolAdi}) is on the team (approval ${kimlik}). They start working once you assign them a task and move it to 'calisiliyor'.`,
+              ),
+            );
+          }
+          if (ceoyaGitti(onay)) {
+            return metin(
+              iki(
+                `Teklif ${ceoya()} gitti: ${a.ad} (${rolAdi}) (onay ${kimlik}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`,
+                `The proposal went to ${ceoya()}: ${a.ad} (${rolAdi}) (approval ${kimlik}). You will be told the decision; carry on with other work meanwhile.`,
+              ),
+            );
+          }
           return metin(
             iki(
               `Teklif yönetim kuruluna sunuldu: ${a.ad} (${rolAdi}). Karar verilince sana haber verilecek; beklerken başka işlerine devam et.`,
@@ -549,17 +579,26 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "kurula_sor",
       iki(
-        "Yönetim kuruluna soru sorar ve yanıtı bekler (en çok onay süresi kadar). Yanıt gelmezse varsayılan davranışla devam et.",
-        "Asks the board a question and waits for the answer (at most the approval timeout). If no answer comes, carry on with the default behavior.",
+        "Karar ya da izin gerektiren bir soru sorar ve yanıtı bekler (en çok onay süresi kadar). Soru kurula gider; tam otonom kipte çalışanların sorusunu CEO yanıtlar. Yanıt gelmezse varsayılan davranışla devam et.",
+        "Asks a question that needs a decision or permission and waits for the answer (at most the approval timeout). It goes to the board; in fully autonomous mode the CEO answers employees' questions. If no answer comes, carry on with the default behavior.",
       ),
       { soru: z.string().min(5), secenekler: z.array(z.string()).default([]) },
       (a) =>
         guvenli(async () => {
           const ayrinti = a.secenekler.length ? `${a.soru}\n\n${iki("Seçenekler", "Options")}:\n${a.secenekler.map((s, i) => `${i + 1}. ${s}`).join("\n")}` : a.soru;
+          // Tam otonom kipte çalışanın sorusunu CEO yanıtlar; CEO'nun kendi sorusu kurula gider
+          const ceoYanitlar = Boolean(sirket.kararCeosu(ben().projeId)) && rolBul(ben().rol)?.kimlik !== "ceo";
           const k = await sirket.kararBekle(ben(), "genel", iki(`${ben().ad} soruyor: ${kisalt(a.soru, 80)}`, `${ben().ad} asks: ${kisalt(a.soru, 80)}`), ayrinti, { soru: a.soru, secenekler: a.secenekler });
           // Süre dolması metinden değil kararın kendisinden anlaşılır (not, onayın açıldığı dilde yazılır)
-          if (k.zamanAsimi) return metin(iki("Kurul süre içinde yanıt vermedi. Varsayılan ve güvenli olan yolla devam et.", "The board did not answer in time. Carry on the default, safe way."));
-          return metin(iki(`Kurul ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`, `The board ${k.izin ? "approved" : "rejected"}.${k.not ? ` Answer: ${k.not}` : ""}`));
+          if (k.zamanAsimi) {
+            return metin(
+              ceoYanitlar
+                ? iki("CEO süre içinde yanıt vermedi. Varsayılan ve güvenli olan yolla devam et.", "The CEO did not answer in time. Carry on the default, safe way.")
+                : iki("Kurul süre içinde yanıt vermedi. Varsayılan ve güvenli olan yolla devam et.", "The board did not answer in time. Carry on the default, safe way."),
+            );
+          }
+          const ozne = kararOznesi(k.kaynak, k.verenAd);
+          return metin(iki(`${ozne} ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`, `${ozne} ${k.izin ? "approved" : "rejected"}.${k.not ? ` Answer: ${k.not}` : ""}`));
         }),
     ),
     // ---------------- kod zekâsı (ajanın kendi çalışma alanında) ----------------
@@ -678,15 +717,15 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "birlestirme_iste",
       iki(
-        `Bir çalışanın dalını ana dala birleştirmek için kurul onayı ister. İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.${testKomutu ? ` Onaylanınca kalite kapısında ${testKomutu} koşar, geçmezse birleşmez; önce aynı komutu kendi çalışma alanında koş.` : ""}`,
-        `Asks the board to approve merging an employee's branch into the main branch. As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.${testKomutu ? ` Once approved, the quality gate runs ${testKomutu} and the branch is not merged if it fails; run the same command in your working directory first.` : ""}`,
+        `Bir çalışanın dalını ana dala birleştirmek için onay ister (kurul; tam otonom kipte CEO karar verir, CEO'nun kendi isteği hemen geçerli olur). İnceleyen (CEO, CTO, kod inceleyici) için ajan alanına dalı birleştirilecek çalışanın adını yaz; boş bırakılırsa incelemedeki tek görevin sahibi seçilir.${testKomutu ? ` Onaylanınca kalite kapısında ${testKomutu} koşar, geçmezse birleşmez; önce aynı komutu kendi çalışma alanında koş.` : ""}`,
+        `Asks for approval to merge an employee's branch into the main branch (the board decides; in fully autonomous mode the CEO decides and the CEO's own request takes effect immediately). As a reviewer (CEO, CTO, code reviewer), put the name of the employee whose branch should be merged in ajan; if empty, the owner of the only task in review is picked.${testKomutu ? ` Once approved, the quality gate runs ${testKomutu} and the branch is not merged if it fails; run the same command in your working directory first.` : ""}`,
       ),
       {
         ozet: z.string().min(10).describe(iki("Neler değişti, testler", "What changed, tests")),
         ajan: z.string().optional().describe(iki("Dalı birleştirilecek çalışanın adı", "Name of the employee whose branch will be merged")),
       },
       (a) =>
-        guvenli(() => {
+        guvenli(async () => {
           let sahip = a.ajan ? ajanBul(a.ajan) : ben();
           if (!a.ajan && !sahip.dal) {
             const adaylar = sirket.depo
@@ -714,14 +753,32 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           if (sahip.id !== ajanId && !yonetici() && rolBul(ben().rol)?.kimlik !== "inceleme")
             return hata(iki("Başkasının dalı için birleştirmeyi yalnız kod inceleyici ve yöneticiler isteyebilir.", "Only the code reviewer and managers can request a merge for someone else's branch."));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "birlestirme" && (o.veri as { dal?: string })?.dal === sahip.dal);
-          if (bekleyen) return metin(iki(`${sahip.dal} için birleştirme isteği zaten kurulda bekliyor.`, `A merge request for ${sahip.dal} is already waiting for the board.`));
+          if (bekleyen) return metin(iki(`${sahip.dal} için birleştirme isteği zaten karar bekliyor (onay ${kisaKimlik(bekleyen.id)}).`, `A merge request for ${sahip.dal} is already waiting for a decision (approval ${kisaKimlik(bekleyen.id)}).`));
           if (sirket.birlestirmeKuyrugu.suruyorMu(ben().projeId, sahip.dal))
             return metin(iki(`${sahip.dal} onaylandı ve kalite kapısında (kuyrukta ya da testte); sonuç sana bildirilecek.`, `${sahip.dal} was approved and is at the quality gate (queued or testing); you will be told the result.`));
-          const onay = sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${proje().varsayilanDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId });
+          const anaDal = proje().varsayilanDal;
+          const onay = await sonHali(sirket.teklifAc(ben(), "birlestirme", `${sahip.dal} → ${anaDal}`, a.ozet, { ajanId: sahip.id, dal: sahip.dal, ozet: a.ozet, isteyenId: ajanId }));
+          const kimlik = kisaKimlik(onay.id);
+          if (ceoVerdi(onay)) {
+            return metin(
+              iki(
+                `Karar yetkisi sende olduğundan birleştirme hemen onaylandı (onay ${kimlik}): ${sahip.dal} kalite kapısında; testler geçerse ${anaDal} dalına girer. Sonuç bildirilecek.`,
+                `You hold the decision authority, so the merge was approved immediately (approval ${kimlik}): ${sahip.dal} is at the quality gate; if the tests pass it goes into ${anaDal}. You will be told the result.`,
+              ),
+            );
+          }
+          if (ceoyaGitti(onay)) {
+            return metin(
+              iki(
+                `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme ${ceoya()} sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`,
+                `The merge of ${sahip.ad}'s branch ${sahip.dal} went to ${ceoya()} for a decision (approval ${kimlik}). You will be told the result.`,
+              ),
+            );
+          }
           return metin(
             iki(
-              `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`,
-              `The merge of ${sahip.ad}'s branch ${sahip.dal} went to the board for approval (approval ${onay.id.slice(0, 8)}). You will be told the result.`,
+              `${sahip.ad} çalışanının ${sahip.dal} dalı için birleştirme kurul onayına sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`,
+              `The merge of ${sahip.ad}'s branch ${sahip.dal} went to the board for approval (approval ${kimlik}). You will be told the result.`,
             ),
           );
         }),
@@ -857,8 +914,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "anayasa_oner",
       iki(
-        "Ana yasanın yeni hâlini kurul onayına sunar (yalnız yöneticiler). Bütün maddeleri ver: var olanları da koruyarak. Makineyle denetlenebilecek maddeye kural ekle (hedef: komut, yol, url ya da arac; desenler: düzenli ifadeler; karar: ret ya da sor).",
-        "Submits the new version of the constitution for the board's approval (managers only). Give all articles, keeping existing ones. Add a rule to articles a machine can check (hedef: komut, yol, url or arac; desenler: regular expressions; karar: ret or sor).",
+        "Ana yasanın yeni hâlini onaya sunar (yalnız yöneticiler; kurul, tam otonom kipte CEO karar verir). Bütün maddeleri ver: var olanları da koruyarak. Makineyle denetlenebilecek maddeye kural ekle (hedef: komut, yol, url ya da arac; desenler: düzenli ifadeler; karar: ret ya da sor).",
+        "Submits the new version of the constitution for approval (managers only; the board decides, or the CEO in fully autonomous mode). Give all articles, keeping existing ones. Add a rule to articles a machine can check (hedef: komut, yol, url or arac; desenler: regular expressions; karar: ret or sor).",
       ),
       {
         maddeler: z
@@ -874,14 +931,25 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         gerekce: z.string().min(5).max(2000),
       },
       (a) =>
-        guvenli(() => {
+        guvenli(async () => {
           if (!yonetici()) return hata(iki("Ana yasayı yalnız yöneticiler önerebilir; önerini yöneticine ilet.", "Only managers can propose the constitution; pass your suggestion to your manager."));
           const maddeler = maddeleriDenetle(a.maddeler.map((m) => ({ ...m, kural: m.kural ?? null })));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "anayasa");
-          if (bekleyen) return hata(iki("Kurulda bekleyen bir ana yasa önerisi zaten var; sonucunu bekle.", "A constitution proposal is already waiting for the board; wait for the decision."));
+          if (bekleyen) return hata(iki(`Karar bekleyen bir ana yasa önerisi zaten var (onay ${kisaKimlik(bekleyen.id)}); sonucunu bekle.`, `A constitution proposal is already waiting for a decision (approval ${kisaKimlik(bekleyen.id)}); wait for the result.`));
           const ayrinti = [a.gerekce, "", ...maddeler.map((m) => `${m.no}. ${m.baslik} — ${m.metin}${m.kural ? ` [${m.kural.hedef}: ${m.kural.desenler.join(", ")} → ${m.kural.karar}]` : ""}`)].join("\n");
-          const onay = sirket.teklifAc(ben(), "anayasa", iki(`Ana yasa önerisi · ${maddeler.length} madde`, `Constitution proposal · ${maddeler.length} articles`), ayrinti, { maddeler, gerekce: a.gerekce });
-          return metin(iki(`Ana yasa önerisi kurula sunuldu (onay ${onay.id.slice(0, 8)}). Sonuç sana bildirilecek.`, `The constitution proposal went to the board (approval ${onay.id.slice(0, 8)}). You will be told the result.`));
+          const onay = await sonHali(sirket.teklifAc(ben(), "anayasa", iki(`Ana yasa önerisi · ${maddeler.length} madde`, `Constitution proposal · ${maddeler.length} articles`), ayrinti, { maddeler, gerekce: a.gerekce }));
+          const kimlik = kisaKimlik(onay.id);
+          if (ceoVerdi(onay)) {
+            const surum = sirket.anayasa(ben().projeId).surum;
+            return metin(
+              iki(
+                `Karar yetkisi sende olduğundan ana yasa hemen yürürlüğe girdi (sürüm ${surum}, onay ${kimlik}). Artık herkes uyuyor; ekibe kısaca duyur.`,
+                `You hold the decision authority, so the constitution took effect immediately (version ${surum}, approval ${kimlik}). Everyone follows it now; announce it briefly to the team.`,
+              ),
+            );
+          }
+          if (ceoyaGitti(onay)) return metin(iki(`Ana yasa önerisi ${ceoya()} sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`, `The constitution proposal went to ${ceoya()} (approval ${kimlik}). You will be told the result.`));
+          return metin(iki(`Ana yasa önerisi kurula sunuldu (onay ${kimlik}). Sonuç sana bildirilecek.`, `The constitution proposal went to the board (approval ${kimlik}). You will be told the result.`));
         }),
     ),
     // ---------------- global zekâ ----------------
@@ -937,8 +1005,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     tool(
       "teslim_et",
       iki(
-        "Kurulun deneyebileceği bir sonucu teslim eder (yalnız yöneticiler): ne bitti, nasıl test edilir, çalıştırma komutu ya da adres. Kurul dener, kabul eder ya da geri bildirim verir; geri bildirim sana iş olarak döner.",
-        "Delivers a result the board can try (managers only): what is done, how to test it, a run command or address. The board tries it and accepts or gives feedback; feedback comes back to you as work.",
+        "Kurulun deneyebileceği bir sonucu teslim eder (yalnız yöneticiler): ne bitti, nasıl test edilir, çalıştırma komutu ya da adres. Kurul dener, kabul eder ya da geri bildirim verir; geri bildirim sana iş olarak döner. Tam otonom kipte CEO'nun teslimi kurula sonuç olarak gider (kabul beklenmez), ötekilerin teslimini CEO değerlendirir.",
+        "Delivers a result the board can try (managers only): what is done, how to test it, a run command or address. The board tries it and accepts or gives feedback; feedback comes back to you as work. In fully autonomous mode the CEO's delivery goes to the board as a result (no acceptance needed) and the CEO assesses everyone else's.",
       ),
       {
         baslik: z.string().min(3).max(160),
@@ -948,24 +1016,38 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         adres: z.string().max(500).optional().describe(iki("Açılacak adres, ör. http://localhost:5173", "An address to open, e.g. http://localhost:5173")),
       },
       (a) =>
-        guvenli(() => {
+        guvenli(async () => {
           if (!yonetici()) return hata(iki("Teslimi yöneticiler yapar; işin bittiğini yöneticine bildir.", "Managers make deliveries; tell your manager the work is done."));
           if (a.adres && !/^https?:\/\//i.test(a.adres)) return hata(iki("Adres http:// ya da https:// ile başlamalı.", "The address must start with http:// or https://."));
           const ayrinti = [a.ozet, "", iki("Test adımları:", "Test steps:"), ...a.test_adimlari.map((x, i) => `${i + 1}. ${x}`), a.calistir ? `\n${iki("Çalıştır", "Run")}: ${a.calistir}` : "", a.adres ? `${iki("Adres", "Address")}: ${a.adres}` : ""].filter(Boolean).join("\n");
-          const onay = sirket.teklifAc(ben(), "teslim", iki(`Teslim: ${a.baslik}`, `Delivery: ${a.baslik}`), ayrinti, { baslik: a.baslik, ozet: a.ozet, testAdimlari: a.test_adimlari, calistir: a.calistir ?? null, adres: a.adres ?? null, dal: proje().varsayilanDal });
-          sirket.duyur(ben().projeId, iki(`Teslim hazır: ${a.baslik}. Kurul test edip geri bildirim verecek.`, `Delivery ready: ${a.baslik}. The board will test it and give feedback.`));
-          return metin(iki(`Teslim kurula sunuldu (onay ${onay.id.slice(0, 8)}). Kurul test edince sonucu sana bildirilecek.`, `The delivery went to the board (approval ${onay.id.slice(0, 8)}). You will be told once the board has tested it.`));
+          const acilan = sirket.teklifAc(ben(), "teslim", iki(`Teslim: ${a.baslik}`, `Delivery: ${a.baslik}`), ayrinti, { baslik: a.baslik, ozet: a.ozet, testAdimlari: a.test_adimlari, calistir: a.calistir ?? null, adres: a.adres ?? null, dal: proje().varsayilanDal });
+          // Duyuru kararın önünde gider; CEO'nun kendi teslimi tam otonom kipte hemen kabul edilir ve sonucu ayrıca duyurulur
+          const ceoKendisi = rolBul(ben().rol)?.kimlik === "ceo";
+          if (acilan.muhatap !== "ceo") sirket.duyur(ben().projeId, iki(`Teslim hazır: ${a.baslik}. Kurul test edip geri bildirim verecek.`, `Delivery ready: ${a.baslik}. The board will test it and give feedback.`));
+          else if (!ceoKendisi) sirket.duyur(ben().projeId, iki(`Teslim hazır: ${a.baslik}. CEO değerlendirecek.`, `Delivery ready: ${a.baslik}. The CEO will review it.`));
+          const onay = await sonHali(acilan);
+          const kimlik = kisaKimlik(onay.id);
+          if (ceoVerdi(onay)) {
+            return metin(
+              iki(
+                `Teslim kurula sonuç olarak iletildi (onay ${kimlik}). Kabul bekleme; sıradaki hedefe geç. Kurulun geri bildirimi olursa CEO sohbetinden sana iş olarak gelir.`,
+                `The delivery was passed to the board as a result (approval ${kimlik}). Don't wait for acceptance; move on to the next goal. If the board has feedback, it will come to you as work through the CEO chat.`,
+              ),
+            );
+          }
+          if (ceoyaGitti(onay)) return metin(iki(`Teslim ${ceoya()} sunuldu (onay ${kimlik}). CEO değerlendirince sonucu sana bildirilecek.`, `The delivery went to ${ceoya()} (approval ${kimlik}). You will be told once the CEO has reviewed it.`));
+          return metin(iki(`Teslim kurula sunuldu (onay ${kimlik}). Kurul test edince sonucu sana bildirilecek.`, `The delivery went to the board (approval ${kimlik}). You will be told once the board has tested it.`));
         }),
     ),
     tool(
       "isten_cikar_teklif",
       iki(
-        "Artık gerek kalmayan bir çalışan için kurula gerekçeli işten çıkarma teklifi verir (yalnız yöneticiler). Onaylanırsa açık işleri ve bildikleri devralana (verilmezse yöneticisine) geçer.",
-        "Proposes letting go of an employee who is no longer needed, with reasons (managers only). If approved, their open work and knowledge go to the successor (or their manager).",
+        "Artık gerek kalmayan bir çalışan için gerekçeli işten çıkarma teklifi verir (yalnız yöneticiler; kurul, tam otonom kipte CEO karar verir). Onaylanırsa açık işleri ve bildikleri devralana (verilmezse yöneticisine) geçer.",
+        "Proposes letting go of an employee who is no longer needed, with reasons (managers only; the board decides, or the CEO in fully autonomous mode). If approved, their open work and knowledge go to the successor (or their manager).",
       ),
       { ad: z.string().min(1), gerekce: z.string().min(10).max(2000), devralan: z.string().optional().describe(iki("İşleri devralacak çalışan", "Who takes over the work")) },
       (a) =>
-        guvenli(() => {
+        guvenli(async () => {
           if (!yonetici()) return hata(iki("İşten çıkarma teklifini yalnız yöneticiler verebilir.", "Only managers can propose a dismissal."));
           const hedef = ajanBul(a.ad);
           if (hedef.rol === "ceo") return hata(iki("CEO işten çıkarılamaz.", "The CEO cannot be dismissed."));
@@ -973,16 +1055,97 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           const devralan = a.devralan ? ajanBul(a.devralan) : null;
           if (devralan?.id === hedef.id) return hata(iki("Devralan, çıkarılan kişi olamaz.", "The successor cannot be the person being let go."));
           const bekleyen = sirket.depo.onaylar(ben().projeId, "bekliyor").find((o) => o.tur === "isten_cikarma" && (o.veri as { ajanId?: string })?.ajanId === hedef.id);
-          if (bekleyen) return metin(iki(`${hedef.ad} için teklif zaten kurulda bekliyor.`, `A proposal for ${hedef.ad} is already waiting for the board.`));
+          if (bekleyen) return metin(iki(`${hedef.ad} için teklif zaten karar bekliyor (onay ${kisaKimlik(bekleyen.id)}).`, `A proposal for ${hedef.ad} is already waiting for a decision (approval ${kisaKimlik(bekleyen.id)}).`));
           const acikIs = sirket.depo.gorevler(ben().projeId).filter((g) => g.atananId === hedef.id && g.durum !== "tamam" && g.durum !== "iptal").length;
-          sirket.teklifAc(
-            ben(),
-            "isten_cikarma",
-            iki(`İşten çıkarma: ${hedef.ad} · ${hedef.rolAdi}`, `Dismissal: ${hedef.ad} · ${hedef.rolAdi}`),
-            `${a.gerekce}\n\n${iki("Açık iş", "Open tasks")}: ${acikIs} · ${iki("Devralan", "Successor")}: ${devralan?.ad ?? iki("yöneticisi", "their manager")}`,
-            { ajanId: hedef.id, ad: hedef.ad, devralanId: devralan?.id ?? null, gerekce: a.gerekce },
+          const onay = await sonHali(
+            sirket.teklifAc(
+              ben(),
+              "isten_cikarma",
+              iki(`İşten çıkarma: ${hedef.ad} · ${hedef.rolAdi}`, `Dismissal: ${hedef.ad} · ${hedef.rolAdi}`),
+              `${a.gerekce}\n\n${iki("Açık iş", "Open tasks")}: ${acikIs} · ${iki("Devralan", "Successor")}: ${devralan?.ad ?? iki("yöneticisi", "their manager")}`,
+              { ajanId: hedef.id, ad: hedef.ad, devralanId: devralan?.id ?? null, gerekce: a.gerekce },
+            ),
           );
+          const kimlik = kisaKimlik(onay.id);
+          if (ceoVerdi(onay)) {
+            return metin(
+              iki(
+                `Karar yetkisi sende olduğundan işten çıkarma hemen geçerli oldu: ${hedef.ad} ekipten ayrıldı, açık işleri ve bildikleri devralana geçti (onay ${kimlik}). Planı buna göre güncelle.`,
+                `You hold the decision authority, so the dismissal took effect immediately: ${hedef.ad} left the team and their open work and knowledge went to the successor (approval ${kimlik}). Update the plan accordingly.`,
+              ),
+            );
+          }
+          if (ceoyaGitti(onay)) return metin(iki(`Teklif ${ceoya()} gitti: ${hedef.ad} (onay ${kimlik}). Karar verilince haber verilecek.`, `The proposal went to ${ceoya()}: ${hedef.ad} (approval ${kimlik}). You will be told the decision.`));
           return metin(iki(`Teklif kurula sunuldu: ${hedef.ad}. Karar verilince haber verilecek.`, `The proposal went to the board: ${hedef.ad}. You will be told the decision.`));
+        }),
+    ),
+    // ---------------- karar yetkisi: tam otonom kipte CEO'nun onay kararları ----------------
+    tool(
+      "onay_karari",
+      iki(
+        "Karar yetkisi CEO'dayken (tam otonom) bekleyen bir onaya karar verir: araç izni, birleştirme, işe alım, işten çıkarma, ana yasa, teslim ya da bir çalışanın sorusu (yalnız CEO). Gerekçe zorunludur: isteyene iletilir, soruda yanıt olarak gider. Birleştirmeden önce değişikliği calisma_farki ile oku.",
+        "Decides a pending approval while the CEO holds decision authority (fully autonomous): a tool permission, merge, hire, dismissal, constitution, delivery or an employee's question (CEO only). The reason is required: it is passed on to the requester and, for a question, is the answer. Read a merge with calisma_farki first.",
+      ),
+      {
+        onay: z.string().min(4).max(64).describe(iki("Onay kimliği ya da ilk 8 karakteri", "The approval id or its first 8 characters")),
+        karar: z.enum(["onayla", "reddet"]),
+        gerekce: z.string().min(5).max(2000).describe(iki("Kararın gerekçesi; isteyene iletilir", "The reason for the decision; passed on to the requester")),
+      },
+      (a) =>
+        guvenli(async () => {
+          const c = ben();
+          if (rolBul(c.rol)?.kimlik !== "ceo") return hata(iki("Onaylara yalnız CEO karar verir; isteğini CEO'ya ilet.", "Only the CEO decides approvals; pass your request to the CEO."));
+          if (proje().kararVeren !== "ceo") return hata(iki("Karar yetkisi kurulda: onaylara kurul karar verir. Teklifini gerekçesiyle ver ve sonucu bekle.", "Decision authority is with the board: the board decides approvals. Make your proposal with reasons and wait for the decision."));
+          const aranan = a.onay.trim();
+          const adaylar = sirket.depo.onaylar(c.projeId, "bekliyor").filter((o) => o.id === aranan || o.id.startsWith(aranan));
+          if (adaylar.length > 1) return hata(iki(`Birden çok bekleyen onay ${aranan} ile başlıyor; kimliğin daha uzun bir kısmını yaz.`, `Several pending approvals start with ${aranan}; give a longer part of the id.`));
+          const onay = adaylar[0];
+          if (!onay) {
+            const eski = sirket.depo.onaylar(c.projeId).find((o) => o.id === aranan || o.id.startsWith(aranan));
+            if (eski) return hata(iki(`Onay ${kisaKimlik(eski.id)} artık karar beklemiyor (${eski.durum}).`, `Approval ${kisaKimlik(eski.id)} is no longer waiting for a decision (${eski.durum}).`));
+            return hata(iki(`Bekleyen onaylar arasında ${aranan} yok; bekleyenleri bekleyen_onaylar ile gör.`, `No pending approval ${aranan}; list the pending ones with bekleyen_onaylar.`));
+          }
+          if (onay.ajanId === c.id && onay.tur === "genel") return hata(iki("Bu senin kurula sorun ya da token tavanı onayın; ona kurul karar verir.", "This is your own question to the board or your token ceiling approval; the board decides it."));
+          const son = await sirket.onayKarari(onay.id, a.karar, a.gerekce, ceoKarari(c));
+          const kimlik = kisaKimlik(son.id);
+          const ne = `${onayTuruAdi(son.tur)}: ${kisalt(son.baslik, 100)}`;
+          if (son.durum !== "onaylandi") return metin(iki(`Onay ${kimlik} reddedildi (${ne}). Gerekçen isteyene iletildi.`, `Approval ${kimlik} was rejected (${ne}). Your reason was passed on to the requester.`));
+          const ek =
+            son.tur === "birlestirme"
+              ? iki(" Kalite kapısı testleri koşuyor; sonuç #genel'e ve isteyene bildirilecek.", " The quality gate is running the tests; the result goes to #general and to the requester.")
+              : son.tur === "genel"
+                ? iki(" Yanıtın soran çalışana gitti.", " Your answer went to the employee who asked.")
+                : son.tur === "teslim"
+                  ? iki(" Sonuç kurula iletildi.", " The result was passed to the board.")
+                  : son.tur === "arac"
+                    ? iki(" Çalışan işine devam ediyor.", " The employee is carrying on.")
+                    : "";
+          return metin(iki(`Onay ${kimlik} onaylandı (${ne}). Gerekçen isteyene iletildi.${ek}`, `Approval ${kimlik} was approved (${ne}). Your reason was passed on to the requester.${ek}`));
+        }),
+    ),
+    tool(
+      "bekleyen_onaylar",
+      iki(
+        "Projede karar bekleyen onayları listeler: kimlik, tür, isteyen, başlık, ne zaman açıldığı ve kararı kimin vereceği (CEO ya da kurul).",
+        "Lists the project's pending approvals: id, type, requester, title, when it was opened and who decides (the CEO or the board).",
+      ),
+      {},
+      () =>
+        guvenli(() => {
+          const liste = sirket.depo.onaylar(ben().projeId, "bekliyor").reverse();
+          if (!liste.length) return metin(iki("Bekleyen onay yok.", "No pending approvals."));
+          const simdiMs = Date.now();
+          return metin(
+            liste
+              .map((o) => {
+                const isteyen = o.ajanId ? (sirket.depo.ajan(o.ajanId)?.ad ?? "?") : "ArnOrg";
+                const dk = Math.max(0, Math.round((simdiMs - Date.parse(o.olusturma)) / 60_000));
+                const sure = dk < 60 ? iki(`${dk} dk`, `${dk} min`) : iki(`${Math.round(dk / 60)} sa`, `${Math.round(dk / 60)} h`);
+                const kim = o.muhatap === "ceo" ? iki("CEO karar verecek", "waits on the CEO") : iki("kurul karar verecek", "waits on the board");
+                return `${kisaKimlik(o.id)} · ${onayTuruAdi(o.tur)} · ${isteyen} · ${kisalt(o.baslik, 100)} · ${iki(`${sure} önce açıldı`, `opened ${sure} ago`)} · ${kim}`;
+              })
+              .join("\n"),
+          );
         }),
     ),
     tool(

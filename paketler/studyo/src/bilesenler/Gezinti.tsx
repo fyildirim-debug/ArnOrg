@@ -5,6 +5,7 @@ import { git, PROJESIZ_GORUNUMLER, useArayuz, type Gorunum } from "../durum/aray
 import { useHafiza } from "../durum/hafiza";
 import { useVeri } from "../durum/veri";
 import { kanallarOkunmamis } from "../yardimcilar/kanallar";
+import { kuruluBekleyen } from "./kararVeren";
 import { Simge, type SimgeAdi } from "./Simge";
 
 interface Oge {
@@ -46,8 +47,9 @@ export function Gezinti() {
   const projeVar = useVeri((d) => d.aktifProjeId !== null);
   const onaylar = useVeri((d) => d.onaylar);
   const okunmamis = useVeri((d) => d.okunmamis);
-  const bekleyenArac = onaylar.filter((o) => o.durum === "bekliyor" && o.tur === "arac").length;
-  const bekleyenDiger = onaylar.filter((o) => o.durum === "bekliyor" && o.tur !== "arac").length;
+  // Rozetler kurulun kararını bekleyenleri sayar; tam otonomda CEO'yu bekleyenler sayılmaz
+  const bekleyenArac = kuruluBekleyen(onaylar, (t) => t === "arac");
+  const bekleyenDiger = kuruluBekleyen(onaylar, (t) => t !== "arac");
   // CEO ile bire bir sohbetin okunmamışları Kanallar'a sayılmaz (Karargâh'ta görünür)
   const okunmamisToplam = kanallarOkunmamis(okunmamis);
   const bekleyenSoru = useHafiza((d) => (d.projeId === useVeri.getState().aktifProjeId ? d.sorular.filter((s) => s.durum === "bekliyor").length : 0));

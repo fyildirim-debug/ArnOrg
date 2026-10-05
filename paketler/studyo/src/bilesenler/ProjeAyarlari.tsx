@@ -1,5 +1,6 @@
-// Proje ayarları: çalışma dalı (yerel ve uzak dallar), uzak depo (GitHub bağlantısı, eşitleme, GitHub'da depo açma),
-// onaylı birleştirmeden sonra uzak depoya gönderim ve kalite kapısı. Projeler ekranında satırın altında açılır.
+// Proje ayarları: karar yetkisi (CEO tam otonom ya da kurul), çalışma dalı (yerel ve uzak dallar), uzak depo (GitHub
+// bağlantısı, eşitleme, GitHub'da depo açma), onaylı birleştirmeden sonra uzak depoya gönderim ve kalite kapısı.
+// Projeler ekranında satırın altında açılır.
 import type { EsitlemeSonucu, ProjeDallari, ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useState } from "react";
 import { hataMetni } from "../api/istek";
@@ -13,6 +14,7 @@ import { useIslem } from "../yardimcilar/kancalar";
 import { DalSecici, type DalSecenegi } from "./DalSecici";
 import { DisBaglanti } from "./DisBaglanti";
 import { KaliteAyari } from "./KaliteKapisi";
+import { KararYetkisiAyari } from "./KararYetkisi";
 import { dalAdiGecerliMi } from "./kurulumYardimcilari";
 import { GorunurlukSecimi, SahipSecimi } from "./ProjeAcici";
 import { Simge } from "./Simge";
@@ -112,6 +114,8 @@ export function ProjeAyarlari({ proje, id }: { proje: ProjeOzeti; id?: string })
 
   return (
     <div className="proje-ayar" id={k}>
+      <KararYetkisiAyari proje={proje} k={k} />
+
       <section className="proje-ayar-satir" aria-labelledby={`${k}-dal`}>
         <h3 id={`${k}-dal`}>{t.dal}</h3>
         <div className="proje-ayar-icerik">

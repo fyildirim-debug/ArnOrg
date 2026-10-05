@@ -98,7 +98,7 @@ describe("araç açıklamaları", () => {
     expect(z.toJSONSchema(z.object(en.inputSchema))).toMatchObject({ properties: { ad: { description: "A first name, e.g. Ada" } } });
     turkce();
     const tr = araclar(ceo().id).find((t) => t.name === "ise_al_teklif")!;
-    expect(tr.description).toMatch(/^Yeni çalışan için yönetim kuruluna/);
+    expect(tr.description).toMatch(/^Yeni çalışan için gerekçeli işe alım teklifi/);
     expect(z.toJSONSchema(z.object(tr.inputSchema))).toMatchObject({ properties: { ad: { description: "Türkçe bir ad, ör. Deniz" } } });
   });
 });
@@ -218,7 +218,8 @@ describe("hatalar ve sonuçlar", () => {
   });
 
   it("otomatik onaylanan teslimin duyurusunda otomatik onay notu yazılmaz", async () => {
-    await sirket.projeGuncelle(pid, { otomatikOnay: { etkin: true, turler: ["teslim"] } });
+    // Otomatik onay kurul kipinde geçerlidir
+    await sirket.projeGuncelle(pid, { kararVeren: "kurul", otomatikOnay: { etkin: true, turler: ["teslim"] } });
     const r = await arac(ceo().id, "teslim_et", { baslik: "Login page", ozet: "Users can sign in with email.", test_adimlari: ["Open /login", "Sign in"] });
     expect(r.metin).toMatch(/^The delivery went to the board \(approval [0-9a-f]{8}\)\./);
     await bekle(50);
@@ -227,7 +228,7 @@ describe("hatalar ve sonuçlar", () => {
     expect(genel).toContain("The board accepted the delivery: Login page.");
     expect(genel.some((m) => m.includes("Auto-approved"))).toBe(false);
     expect(depo.onaylar(pid).find((o) => o.tur === "teslim")).toMatchObject({ baslik: "Delivery: Login page", durum: "onaylandi", not: "Auto-approved" });
-    await sirket.projeGuncelle(pid, { otomatikOnay: { etkin: false, turler: [] } });
+    await sirket.projeGuncelle(pid, { kararVeren: "ceo", otomatikOnay: { etkin: false, turler: [] } });
   });
 });
 

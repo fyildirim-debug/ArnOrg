@@ -2,6 +2,7 @@
 // Sağ üstte yığın: en yeni üstte, aynı anda en çok üçü (telefonda biri) görünür, gerisi "+N". Odak çalınmaz;
 // yeni pencere gizli bir bölgeden kibarca duyurulur. Eylemler: Onaylar'da aç, uygun türlerde doğrudan karar (ret notuyla),
 // teslimde Test et, öneri/istek/bilgide CEO'ya yanıt, kapat. İlk pencerede masaüstü bildirim izni sorulur.
+// Tam otonomda CEO'nun kabul ettiği teslim sonuç olarak gelir: karar düğmesi yok; denenir, geri bildirim CEO'ya yazılır.
 // Teslim test paneli de buradan çizilir: kabukta her ekranda duran tek yer burası.
 import type { KurulBildirimi, OnayTuru } from "@arnorg/ortak";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,7 @@ import {
 import { kurulBildirimiKapat, onayUygula, useVeri } from "../durum/veri";
 import { akilliZaman, goreli } from "../yardimcilar/bicim";
 import { useIslem, useMedya, useSimdi } from "../yardimcilar/kancalar";
+import { kararVereni } from "./kararVeren";
 import { AjanAvatar } from "./Kisi";
 import { Simge } from "./Simge";
 import { TestPaneli } from "./TestPaneli";
@@ -126,6 +128,8 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
   // Kısaltılmış görünümde boş satırlar yer harcamaz
   const metin = acik ? k.metin : k.metin.replace(/\n\s*\n/g, "\n");
   const bekliyor = onay?.durum === "bekliyor";
+  // Tam otonom: CEO teslimi kabul etti, kurul sonucu görür (karar zaten verildi; kabul ya da geri bildirim düğmesi yok)
+  const sonucTeslim = !!onay && onay.tur === "teslim" && !bekliyor && kararVereni(onay) === "ceo";
   const dogrudan = !!onay && bekliyor && DOGRUDAN.includes(onay.tur);
   const teslim = !!k.onayId && (onay ? onay.tur === "teslim" : k.tur === "teslim");
   const arac = !!k.onayId && (onay ? onay.tur === "arac" : k.tur === "yetki");
@@ -142,7 +146,7 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
 
   return (
     <article
-      className={`kb kb-${k.tur}${EYLEMLI.includes(k.tur) || k.eylem ? " kb-eylemli" : ""}`}
+      className={`kb kb-${k.tur}${(EYLEMLI.includes(k.tur) && !sonucTeslim) || k.eylem ? " kb-eylemli" : ""}`}
       aria-labelledby={baslikId}
       onKeyDown={(e) => {
         if (e.key === "Escape" && !e.defaultPrevented) {
@@ -185,7 +189,9 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
         </>
       ) : null}
 
-      {onay && !bekliyor ? (
+      {onay && sonucTeslim ? (
+        <p className="kb-sonuc kb-sonuc-onaylandi">{s.karar.teslimSonucu(onay.kararVerenAd)}</p>
+      ) : onay && !bekliyor ? (
         <p className={`kb-sonuc kb-sonuc-${onay.durum}`}>{b.sonuc(s.onaylar.durum[onay.durum], akilliZaman(onay.sonuclanma ?? onay.olusturma))}</p>
       ) : null}
 
@@ -220,10 +226,10 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
         </form>
       ) : (
         <div className="kb-eylem">
-          {teslim && k.onayId && (!onay || bekliyor) ? (
+          {teslim && k.onayId && (!onay || bekliyor || sonucTeslim) ? (
             <button
               type="button"
-              className="dugme dugme-ana dugme-kucuk"
+              className={`dugme dugme-kucuk${sonucTeslim ? "" : " dugme-ana"}`}
               onClick={() => {
                 testiAc(k.onayId!);
                 kapat();
@@ -231,6 +237,18 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
             >
               <Simge ad="oynat" boyut={11} />
               {b.testEt}
+            </button>
+          ) : null}
+          {sonucTeslim ? (
+            <button
+              type="button"
+              className="dugme dugme-kucuk"
+              onClick={() => {
+                ceoyaYanitYaz(k.baslik);
+                kapat();
+              }}
+            >
+              {s.karar.geriBildirimYaz}
             </button>
           ) : null}
           {dogrudan && onay ? (

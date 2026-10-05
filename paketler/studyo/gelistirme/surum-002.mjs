@@ -368,13 +368,13 @@ export function kur(c) {
       const acildi = govde.otomatikOnay.etkin && !pr.otomatikOnay.etkin;
       pr.otomatikOnay = { etkin: Boolean(govde.otomatikOnay.etkin), turler: govde.otomatikOnay.turler ?? [] };
       mesajEkle(pr.id, "genel", "arnorg", pr.otomatikOnay.etkin ? ceviri("Kurul otomatik onayı açtı; seçili türdeki onaylar kendiliğinden verilecek.", "The board turned on auto-approval; approvals of the selected types will be granted automatically.") : ceviri("Kurul otomatik onayı kapattı.", "The board turned off auto-approval."));
-      if (pr.otomatikOnay.etkin) for (const o of db.onaylar) if (o.projeId === pr.id && o.durum === "bekliyor" && pr.otomatikOnay.turler.includes(o.tur)) otomatikOnayla(o);
+      if (pr.otomatikOnay.etkin && pr.kararVeren !== "ceo") for (const o of db.onaylar) if (o.projeId === pr.id && o.durum === "bekliyor" && pr.otomatikOnay.turler.includes(o.tur)) otomatikOnayla(o);
     }
     projeYay(pr.id);
     return projeOzeti(pr);
   });
   function otomatikOnayla(o) {
-    Object.assign(o, { durum: "onaylandi", sonuclanma: simdi(), not: ceviri("Otomatik onay", "Auto-approved") });
+    Object.assign(o, { durum: "onaylandi", sonuclanma: simdi(), not: ceviri("Otomatik onay", "Auto-approved"), kararKaynagi: "otomatik", kararVerenAd: ceviri("Otomatik onay", "Auto-approval") });
     yay({ tur: "onay.sonuc", onay: o }, o.projeId);
     projeYay(o.projeId);
   }
@@ -553,8 +553,10 @@ export function kur(c) {
   yayDinle((olay) => {
     if (olay.tur !== "onay.yeni" || olay.onay.durum !== "bekliyor") return;
     const o = olay.onay;
+    // 0.0.7: CEO'nun kararına giden onay kurula açılmaz; otomatik onay yalnız kurul kipinde (surum-007-otonom.mjs)
+    if (o.muhatap === "ceo") return;
     const pr = proje(o.projeId);
-    if (pr?.otomatikOnay?.etkin && pr.otomatikOnay.turler.includes(o.tur)) {
+    if (pr?.kararVeren !== "ceo" && pr?.otomatikOnay?.etkin && pr.otomatikOnay.turler.includes(o.tur)) {
       setTimeout(() => otomatikOnayla(o), 300);
       return;
     }
@@ -656,7 +658,9 @@ export function kur(c) {
   c.onaySonucuDinle((o) => {
     if (o.tur !== "anayasa" || o.durum !== "onaylandi" || !o.veri?.maddeler) return;
     const eski = anayasalar[o.projeId] ?? { surum: 0 };
-    const yeni = { surum: eski.surum + 1, guncelleme: simdi(), onaylayan: o.not === ceviri("Otomatik onay", "Auto-approved") ? ceviri("Otomatik onay", "Auto-approval") : ceviri("Yönetim kurulu", "The board"), maddeler: o.veri.maddeler };
+    // Onaylayan: tam otonomda CEO (çekirdekteki kararSahibiEtiketi gibi "Ada (CEO)"), otomatik onay ya da kurul
+    const onaylayan = o.kararKaynagi === "ceo" ? `${o.kararVerenAd ?? "CEO"} (CEO)` : o.not === ceviri("Otomatik onay", "Auto-approved") ? ceviri("Otomatik onay", "Auto-approval") : ceviri("Yönetim kurulu", "The board");
+    const yeni = { surum: eski.surum + 1, guncelleme: simdi(), onaylayan, maddeler: o.veri.maddeler };
     anayasalar[o.projeId] = yeni;
     yay({ tur: "anayasa.guncellendi", projeId: o.projeId, anayasa: yeni }, o.projeId);
   });

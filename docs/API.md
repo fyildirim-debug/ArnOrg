@@ -73,8 +73,8 @@ Masaüstü uygulamasında klasör seçimi sistemin penceresiyle yapılır (`wind
 |---|---|---|---|
 | GET | `/api/projeler` | — | `ProjeOzeti[]` |
 | POST | `/api/projeler` | `ProjeOlusturIstegi` | `ProjeOzeti` (yol verilmezse `~/ArnOrg/<ad>`; `dal` çalışma dalı; `github` verilirse GitHub'da depo da açılır) |
-| GET | `/api/projeler/:pid` | — | `ProjeOzeti` |
-| PATCH | `/api/projeler/:pid` | `ProjeGuncelleIstegi` | `ProjeOzeti` (ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık, otomatik onay) |
+| GET | `/api/projeler/:pid` | — | `ProjeOzeti` (`bekleyenOnay` kurulun kararını bekleyenleri sayar; tam otonomda CEO'nun kararındakiler sayılmaz) |
+| PATCH | `/api/projeler/:pid` | `ProjeGuncelleIstegi` | `ProjeOzeti` (ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık, otomatik onay, karar yetkisi `kararVeren`) |
 | GET | `/api/projeler/:pid/dallar` | — | `ProjeDallari` (yerel ve uzak dallar, çalışma dalı) |
 | POST | `/api/projeler/:pid/esitle` | `{gonder?}` | `EsitlemeSonucu` (uzaktan getirir; ağaç temizse ileri sarar, `gonder` ya da otomatik gönderimde yerel commit'leri gönderir; ayrışmada dokunmaz) |
 | POST | `/api/projeler/:pid/github` | `{ozel, sahip?}` | `ProjeOzeti` (GitHub'da depo açar, `origin` yapar ve gönderir) |
@@ -498,7 +498,21 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 - **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
 - **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
 - **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar.
+- **Karar yetkisi (0.0.7):** tam otonom kipte (`Proje.kararVeren: "ceo"`) onaylar kurula pencere açmaz, CEO'ya gider; ayrıntı aşağıda.
 - **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken ya da serbest konuşmada sırası geldiğinde; yazıyor göstergesi), `kanal.guncellendi` (`{projeId, kanal}`: kurulun kanalı kuruldu, üyeleri ya da konuşma durumu değişti), `kanal.silindi` (`{projeId, kanal}`).
+
+## Karar yetkisi (0.0.7)
+
+`Proje.kararVeren`: `"ceo"` (tam otonom, varsayılan; yeni ve var olan projeler) ya da `"kurul"`. `POST /api/projeler` ve `PATCH /api/projeler/:pid` gövdesinde verilebilir; başka değer 400. Kodu `paketler/cekirdek/src/karar-yetkisi.ts` ve `sirket.ts`.
+
+- **Muhatap:** onay açılırken `Onay.muhatap` yazılır: tam otonomda `"ceo"` (CEO'nun kendi `genel` onayları, yani kurula sorusu ve kendi görev token tavanı hariç), kurul kipinde, CEO yokken ya da CEO duraklatılmış veya hatayla durmuşken `"kurul"`. 0.0.7 öncesi bekleyen onaylarda `null` (kurula açılmışlardır). Muhatap değişince `onay.sonuc` yayınlanır (onay bekler durumda kalır).
+- **CEO'nun kendi teklifi** (`ise_alim`, `isten_cikarma`, `anayasa`, `birlestirme`, `arac`, `teslim`) hemen onun kararıyla onaylanır, notu "CEO kararı (tam otonom)"; birleştirme yine kalite kapısından geçer, politikadaki `ret` yine reddeder. Teslim kurula sonuç olarak iletilir: #genel'e "Teslim: … — sonuç kurula iletildi.", karar düğmesiz `kurul.bildirimi` (`tur: "teslim"`, `onayId` sonuçlanmış onayı gösterir), CEO'ya sıradaki hedefe geçmesi söylenir.
+- **Başkasının onayı** kurula pencere açmaz; CEO'ya sistem mesajı gider (kısa kimlik, tür, isteyen, başlık, en çok 1500 karakter ayrıntı ve türe göre rehber). CEO `onay_karari` ile karar verir (`onay`: tam ya da ilk 8 karakter, `karar`: `onayla` \| `reddet`, `gerekce`: 5–2000 karakter; gerekçe isteyene iletilir, soruda yanıt olur). `bekleyen_onaylar` projede bekleyenleri ve kimin karar vereceğini listeler. Süre dolarsa ret olur. CEO'nun hatırlatmasında ve boşa çıkınca (2 dakikadan uzun bekleyenler, onay başına bir kez) bekleyenler anılır; onu bekleyen onay varken CEO eşzamanlı ajan tavanından muaftır. CEO duraklatılır ya da hatayla durursa onu bekleyen onaylar kurula düşer.
+- **Kurul** her bekleyen onaya yine `POST /api/onaylar/:oid` ile karar verebilir; kararı veren kurul olur.
+- **Kararı veren:** `Onay.kararKaynagi` (`"kurul"` \| `"otomatik"` \| `"ceo"`; bekleyen, süresi dolan ve 0.0.7 öncesi onaylarda `null`) ve `Onay.kararVerenAd` ("Yönetim kurulu", "Otomatik onay" ya da CEO'nun adı). Denetim kaydının kuralı kararı vereni yazar ("Yönetim kurulu", "Otomatik onay", "Ada (CEO)"; süre dolunca "Süre doldu"); sonuç mesajları da vereni anar ("CEO Ada onayladı", "CEO Ada'nın notu: …").
+- **Otomatik onay** yalnız kurul kipinde işler.
+- **Kip değişimi:** #genel'e duyurulur, CEO'ya sistem mesajıyla söylenir; bekleyen onaylar yeni muhataplarına yönelir (CEO'ya geçince CEO'nun kendi teklifleri kararlaşır, ötekiler tek mesajla CEO'ya gider; kurula geçince pencereleri açılır).
+- **Talimat:** CEO'ya ve çalışanlara kipe göre bir karar yetkisi bölümü eklenir; ortak kurallardaki soru ve dışarı gönderim satırları da kipe göre yazılır.
 
 ## Rapor ve tıkanma koruması
 

@@ -196,7 +196,7 @@ export class Gozetmen {
           t.sonEylem = simdiMs;
           if (t.hatirlatma < HATIRLATMA_SINIRI) {
             t.hatirlatma++;
-            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk), null);
+            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk, sorumlu), null);
             eylemler.push({ tur: "hatirlatma", gorevKodu: g.kod, ajanAd: sorumlu.ad });
             continue;
           }
@@ -245,11 +245,18 @@ export class Gozetmen {
     return ceo && ceo.id !== sorumlu.id ? ceo : null;
   }
 
-  private hatirlatmaMetni(g: Gorev, dk: number): string {
+  private hatirlatmaMetni(g: Gorev, dk: number, sorumlu: Ajan): string {
     if (g.durum === "inceleme") {
+      // Tam otonom kipte birleştirmeye CEO karar verir: inceleyici CEO'ya sunar, CEO'nun kendi isteği hemen geçerli olur
+      const otonom = Boolean(this.sirket.kararCeosu(g.projeId));
+      const sun = !otonom
+        ? iki("birlestirme_iste ile kurula sun", "submit it to the board with birlestirme_iste")
+        : sorumlu.rol === "ceo"
+          ? iki("birlestirme_iste ile birleştir (karar yetkisi sende)", "merge it with birlestirme_iste (you hold the decision authority)")
+          : iki("birlestirme_iste ile CEO'nun onayına sun", "submit it for the CEO's approval with birlestirme_iste");
       return iki(
-        `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. calisma_farki ile değişiklikleri incele; uygunsa birlestirme_iste ile kurula sun, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz.`,
-        `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review the changes with calisma_farki; if it is ready, submit it to the board with birlestirme_iste; if not, move the task back to 'calisiliyor' and write to its owner.`,
+        `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. calisma_farki ile değişiklikleri incele; uygunsa ${sun}, değilse görevi 'calisiliyor' durumuna geri al ve sahibine yaz.`,
+        `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review the changes with calisma_farki; if it is ready, ${sun}; if not, move the task back to 'calisiliyor' and write to its owner.`,
       );
     }
     return iki(

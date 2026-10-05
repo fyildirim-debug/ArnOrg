@@ -9,6 +9,8 @@ import type {
   GorevDurumu,
   IzinModu,
   Kanal,
+  KararKaynagi,
+  KararVeren,
   Mesaj,
   Onay,
   OnayDurumu,
@@ -30,7 +32,7 @@ import type {
   ZekaGunlukTuru,
   YetenekKimligi,
 } from "@arnorg/ortak";
-import { VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
+import { VARSAYILAN_KARAR_VEREN, VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { duzeltmeGocu } from "./duzeltmeler.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
@@ -287,6 +289,13 @@ export class Depo {
     if (!projeSutunlari.includes("test_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_komutu TEXT");
     if (!projeSutunlari.includes("hazirlik_komutu")) this.db.exec("ALTER TABLE projeler ADD COLUMN hazirlik_komutu TEXT");
     if (!projeSutunlari.includes("test_zaman_asimi_dk")) this.db.exec("ALTER TABLE projeler ADD COLUMN test_zaman_asimi_dk REAL NOT NULL DEFAULT 20");
+    // 0.0.7: karar yetkisi (ceo: tam otonom, kurul); var olan projeler de CEO'ya geçer
+    if (!projeSutunlari.includes("karar_veren")) this.db.exec("ALTER TABLE projeler ADD COLUMN karar_veren TEXT NOT NULL DEFAULT 'ceo'");
+    // 0.0.7: onayı kimin karara bağladığı (kurul, otomatik, ceo) ve adı; bekleyen onayın muhatabı (ceo ya da kurul)
+    const onaySutunlari = (this.db.prepare("PRAGMA table_info(onaylar)").all() as Satir[]).map((s) => String(s.name));
+    if (!onaySutunlari.includes("karar_kaynagi")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_kaynagi TEXT");
+    if (!onaySutunlari.includes("karar_veren_ad")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_veren_ad TEXT");
+    if (!onaySutunlari.includes("muhatap")) this.db.exec("ALTER TABLE onaylar ADD COLUMN muhatap TEXT");
     // Kurul ile CEO'nun bire bir kanalı her projede bulunur
     this.db.prepare("INSERT OR IGNORE INTO kanallar (proje_id, ad, aciklama) SELECT id, 'yonetim', 'Yönetim kurulu ile CEO''nun bire bir sohbeti' FROM projeler").run();
     // 0.0.5: kurulun kurduğu kanallar (özel); üyeler ajan kimlikleri (JSON), serbest konuşmanın durumu ve konusu
@@ -330,12 +339,12 @@ export class Depo {
 
   // ---------------- projeler ----------------
 
-  projeEkle(p: Pick<Proje, "ad" | "yol" | "aciklama" | "varsayilanDal"> & Partial<Pick<Proje, "uzakAdres" | "otomatikGonder" | "hazirlik">>): Proje {
+  projeEkle(p: Pick<Proje, "ad" | "yol" | "aciklama" | "varsayilanDal"> & Partial<Pick<Proje, "uzakAdres" | "otomatikGonder" | "hazirlik" | "kararVeren">>): Proje {
     const id = kimlik();
     const olusturma = simdi();
     this.db
-      .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam");
+      .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik, karar_veren) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam", p.kararVeren ?? VARSAYILAN_KARAR_VEREN);
     // Kanal açıklaması proje açıldığı andaki dilde yazılır (API sistem kanallarını geçerli dilde gösterir)
     for (const [ad, aciklama] of [
       ["genel", iki("Şirket geneli: brief, rapor, duyuru", "Company-wide: brief, reports, announcements")],
@@ -349,7 +358,7 @@ export class Depo {
 
   projeGuncelle(
     id: string,
-    alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay" | "testKomutu" | "hazirlikKomutu" | "testZamanAsimiDk">>,
+    alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay" | "kararVeren" | "testKomutu" | "hazirlikKomutu" | "testZamanAsimiDk">>,
   ): Proje {
     const sutunlar: Record<string, string> = {
       ad: "ad",
@@ -359,6 +368,7 @@ export class Depo {
       otomatikGonder: "otomatik_gonder",
       hazirlik: "hazirlik",
       otomatikOnay: "otomatik_onay",
+      kararVeren: "karar_veren",
       testKomutu: "test_komutu",
       hazirlikKomutu: "hazirlik_komutu",
       testZamanAsimiDk: "test_zaman_asimi_dk",
@@ -391,6 +401,7 @@ export class Depo {
       hazirlik: (String(s.hazirlik ?? "tamam") as Proje["hazirlik"]),
       // Hiç ayarlanmamış projede kutu işaretlenince varsayılan türler geçerli olsun
       otomatikOnay: jsonOku<OtomatikOnay>(s.otomatik_onay as string | null, { etkin: false, turler: [...VARSAYILAN_OTOMATIK_ONAY_TURLERI] }),
+      kararVeren: s.karar_veren === "kurul" ? "kurul" : "ceo",
       testKomutu: (s.test_komutu as string | null) ?? null,
       hazirlikKomutu: (s.hazirlik_komutu as string | null) ?? null,
       testZamanAsimiDk: Number(s.test_zaman_asimi_dk ?? 20) || 20,
@@ -788,16 +799,19 @@ export class Depo {
       sonGecerlilik: (s.son_gecerlilik as string | null) ?? null,
       sonuclanma: (s.sonuclanma as string | null) ?? null,
       not: (s.not_metni as string | null) ?? null,
+      kararKaynagi: (s.karar_kaynagi as KararKaynagi | null) ?? null,
+      kararVerenAd: (s.karar_veren_ad as string | null) ?? null,
+      muhatap: (s.muhatap as KararVeren | null) ?? null,
     };
   }
 
-  onayEkle(o: Omit<Onay, "id" | "olusturma" | "durum" | "sonuclanma" | "not">): Onay {
+  onayEkle(o: Omit<Onay, "id" | "olusturma" | "durum" | "sonuclanma" | "not" | "kararKaynagi" | "kararVerenAd" | "muhatap"> & { muhatap?: KararVeren | null }): Onay {
     const id = kimlik();
     this.db
       .prepare(
-        "INSERT INTO onaylar (id, proje_id, ajan_id, tur, baslik, ayrinti, veri, durum, olusturma, son_gecerlilik) VALUES (?, ?, ?, ?, ?, ?, ?, 'bekliyor', ?, ?)",
+        "INSERT INTO onaylar (id, proje_id, ajan_id, tur, baslik, ayrinti, veri, durum, olusturma, son_gecerlilik, muhatap) VALUES (?, ?, ?, ?, ?, ?, ?, 'bekliyor', ?, ?, ?)",
       )
-      .run(id, o.projeId, o.ajanId, o.tur, o.baslik, o.ayrinti, JSON.stringify(o.veri ?? null), simdi(), o.sonGecerlilik);
+      .run(id, o.projeId, o.ajanId, o.tur, o.baslik, o.ayrinti, JSON.stringify(o.veri ?? null), simdi(), o.sonGecerlilik, o.muhatap ?? null);
     return this.onay(id)!;
   }
 
@@ -813,9 +827,18 @@ export class Depo {
     return (satirlar as Satir[]).map((s) => this.onaySatiri(s));
   }
 
-  onaySonuclandir(id: string, durum: OnayDurumu, not: string | null): Onay {
-    this.db.prepare("UPDATE onaylar SET durum = ?, sonuclanma = ?, not_metni = ? WHERE id = ? AND durum = 'bekliyor'").run(durum, simdi(), not, id);
+  /** Bekleyen onayı sonuçlandırır; veren: kararı kim verdi (süre dolunca yok) */
+  onaySonuclandir(id: string, durum: OnayDurumu, not: string | null, veren?: { kaynak: KararKaynagi; ad: string | null }): Onay {
+    this.db
+      .prepare("UPDATE onaylar SET durum = ?, sonuclanma = ?, not_metni = ?, karar_kaynagi = ?, karar_veren_ad = ? WHERE id = ? AND durum = 'bekliyor'")
+      .run(durum, simdi(), not, veren?.kaynak ?? null, veren?.ad ?? null, id);
     return this.onay(id)!;
+  }
+
+  /** Bekleyen onayın muhatabını değiştirir (karar yetkisi değişti, CEO duraklatıldı) */
+  onayMuhatabiYaz(id: string, muhatap: KararVeren): Onay | null {
+    this.db.prepare("UPDATE onaylar SET muhatap = ? WHERE id = ? AND durum = 'bekliyor'").run(muhatap, id);
+    return this.onay(id);
   }
 
   /** Sonuçlanmış onayın verisini değiştirir (birleştirmenin kalite kapısı kaydı) */

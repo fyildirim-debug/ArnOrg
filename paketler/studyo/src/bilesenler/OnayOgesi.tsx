@@ -3,7 +3,8 @@
 // Ekip ekranı işe alım tekliflerini de bununla gösterir; dar kapta (container query) tek sütuna iner.
 // Ana yasa önerisinde maddeler ve makine kuralları, işten çıkarmada kim ve devralan, teslimde özet, test adımları,
 // çalıştır komutu, adres ve "Test et" aynı defter düzeninde çizilir. Onaylanmış birleştirmenin altında kalite kapısı
-// satırı (KaliteKapisi.tsx) durur; dalın farkı her zaman açılabilir.
+// satırı (KaliteKapisi.tsx) durur; dalın farkı her zaman açılabilir. Tam otonomda CEO'yu bekleyen onayda kurulun
+// düğmeleri ikincildir; sonuçlananda kararı veren (CEO, kurul, otomatik) ve gerekçesi görünür (KararYetkisi.tsx).
 import { rolMetni, type Ajan, type AnayasaMaddesi, type Dil, type Gorev, type Onay, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { useId, useState, type ReactNode } from "react";
@@ -18,6 +19,8 @@ import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { akilliZaman, goreli, kalanSure, sayi } from "../yardimcilar/bicim";
 import { useIslem, useSimdi } from "../yardimcilar/kancalar";
 import { FarkAc, KaliteDurumu, kaliteKaydi } from "./KaliteKapisi";
+import { CeoKararVeriyor, KararVerenEtiketi } from "./KararYetkisi";
+import { ceoyuBekliyor, kararGerekcesi, kararVereni } from "./kararVeren";
 import { KarakterPortresi, useKarakterKatalogu } from "./KarakterSecici";
 import { AjanAvatar, modelAdi } from "./Kisi";
 import { anayasaVerisi, ilkParagraf, istenCikarmaVerisi, TESLIM_ALANLARI, teslimVerisi } from "./onayVerisi";
@@ -539,6 +542,7 @@ export function OnayKararDugmeleri({
   aciklayan,
   kilitli,
   tehlikeli,
+  ikincil,
 }: {
   onay: Onay;
   onayMetni?: string;
@@ -547,6 +551,8 @@ export function OnayKararDugmeleri({
   kilitli?: boolean;
   /** Onay geri alınamaz bir iş yapıyor (işten çıkarma): onay düğmesi tehlike görünümünde */
   tehlikeli?: boolean;
+  /** Karar CEO'da (tam otonom): kurulun düğmeleri ikincil görünür */
+  ikincil?: boolean;
 }) {
   const s = useSozluk();
   const [not, setNot] = useState("");
@@ -576,7 +582,7 @@ export function OnayKararDugmeleri({
       <div className="onay-karar-dugmeler">
         <button
           type="button"
-          className={`dugme onay-dugme ${tehlikeli ? "dugme-tehlike" : "dugme-ana"}`}
+          className={`dugme onay-dugme${tehlikeli ? " dugme-tehlike" : ikincil ? "" : " dugme-ana"}`}
           onClick={() => void karar("onayla")}
           disabled={kapali}
           aria-describedby={aciklayan}
@@ -638,9 +644,11 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
   const ceoAdi = useVeri((d) => ceoBul(d.ajanlar)?.ad) ?? ajan?.ad ?? s.genel.arnorg;
   // Görev token tavanı onayı: tür, kim ve karar düğmeleri kendi adlarıyla
   const ozel = onay.tur === "genel" && tokenTavaniVerisi(onay.veri) ? t.tokenTavani : null;
+  // Tam otonom: karar CEO'da; kurul yine karar verebilir, düğmeleri ikincil
+  const ceoda = ceoyuBekliyor(onay);
 
   return (
-    <li id={`onay-${onay.id}`} className={`onay onay-bekliyor${acil ? " onay-acil" : ""}${vurgulu ? " onay-vurgulu" : ""}`} data-tur={onay.tur}>
+    <li id={`onay-${onay.id}`} className={`onay onay-bekliyor${acil ? " onay-acil" : ""}${vurgulu ? " onay-vurgulu" : ""}${ceoda ? " onay-ceoda" : ""}`} data-tur={onay.tur}>
       <span className="onay-tur">{ozel?.tur ?? s.genel.onayTuru[onay.tur]}</span>
       <h3 className="onay-baslik" id={baslikId}>
         {onay.baslik}
@@ -660,6 +668,12 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
         <time dateTime={onay.olusturma} title={akilliZaman(onay.olusturma)}>
           {goreli(onay.olusturma, simdi)}
         </time>
+        {ceoda ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <CeoKararVeriyor ipucu={false} />
+          </>
+        ) : null}
       </p>
       <div className="onay-icerik">
         {g.gerekce ? <p className="onay-gerekce">{g.gerekce}</p> : null}
@@ -668,6 +682,7 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
           <span className="onay-etki-ad">{ozel?.sonra ?? t.sonra[onay.tur]}</span> {g.etki}
           {sureli ? ` ${t.etki.sureli}` : ""}
         </p>
+        {ceoda ? <p className="karar-ceo-ipucu">{s.karar.bekliyorIpucu}</p> : null}
         {onay.tur === "arac" ? (
           // Araç çağrısının kararı, geri sayımı ve notuyla Denetim'de verilir
           <div className="onay-karar">
@@ -687,25 +702,37 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
             aciklayan={baslikId}
             kilitli={doldu}
             onDugme={
-              <button type="button" className="dugme dugme-ana onay-dugme" onClick={() => testiAc(onay.id)} aria-describedby={baslikId}>
+              <button type="button" className={`dugme onay-dugme${ceoda ? "" : " dugme-ana"}`} onClick={() => testiAc(onay.id)} aria-describedby={baslikId}>
                 <Simge ad="oynat" boyut={12} />
                 {s.sohbet.bildirim.testEt}
               </button>
             }
           />
         ) : (
-          <OnayKararDugmeleri onay={onay} onayMetni={ozel?.surdur ?? t.fiil[onay.tur]} retMetni={ozel?.durdur} aciklayan={baslikId} kilitli={doldu} tehlikeli={onay.tur === "isten_cikarma"} />
+          <OnayKararDugmeleri
+            onay={onay}
+            onayMetni={ozel?.surdur ?? t.fiil[onay.tur]}
+            retMetni={ozel?.durdur}
+            aciklayan={baslikId}
+            kilitli={doldu}
+            tehlikeli={onay.tur === "isten_cikarma"}
+            ikincil={ceoda}
+          />
         )}
       </div>
     </li>
   );
 }
 
-/** Geçmiş satırı: sonuç, başlık, tür · isteyen · karar anı ve kurulun notu; açılınca gerekçe ve ayrıntı */
+/** Geçmiş satırı: sonuç, kararı veren, başlık, tür · isteyen · karar anı ve kararın notu ya da gerekçesi; açılınca ayrıntı */
 function SonuclananOnay({ onay }: { onay: Onay }) {
   const s = useSozluk();
   const t = s.onaylar;
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === onay.ajanId));
+  const ceoId = useVeri((d) => d.ajanlar.find((a) => a.rol === "ceo")?.id ?? null);
+  const veren = kararVereni(onay);
+  // Süre dolması hükümde yazılı; not aynı şeyi söylüyorsa tekrar edilmez
+  const gerekce = veren === "zaman_asimi" ? null : kararGerekcesi(onay, ceoId);
   const [acik, setAcik] = useState(false);
   const zaman = onay.sonuclanma ?? onay.olusturma;
   const kisi = ajan?.ad ?? (onay.ajanId ? t.bilinmeyenAjan : s.genel.arnorg);
@@ -719,10 +746,11 @@ function SonuclananOnay({ onay }: { onay: Onay }) {
         <summary>
           <span className="onay-hukum">{t.durum[onay.durum]}</span>
           <span className="onay-gecmis-baslik">{onay.baslik}</span>
+          {veren && veren !== "zaman_asimi" ? <KararVerenEtiketi onay={onay} /> : null}
           <span className="onay-gecmis-meta">
             {s.genel.onayTuru[onay.tur]} · {kisi} · <time dateTime={zaman}>{akilliZaman(zaman)}</time>
           </span>
-          {onay.not ? <span className="onay-gecmis-not">{t.not(onay.not)}</span> : null}
+          {gerekce ? <span className="onay-gecmis-not">{veren === "ceo" ? s.karar.gerekce(gerekce) : t.not(gerekce)}</span> : null}
           <Simge ad="sag" boyut={12} className="onay-isaret" />
         </summary>
         {acik ? <SonucAyrintisi onay={onay} ajan={ajan} /> : null}
@@ -733,12 +761,15 @@ function SonuclananOnay({ onay }: { onay: Onay }) {
 }
 
 function SonucAyrintisi({ onay, ajan }: { onay: Onay; ajan: Ajan | undefined }) {
+  const s = useSozluk();
   const g = useOnayGorunumu(onay, ajan);
-  if (!g.gerekce && !g.alanlar.length) return null;
+  // Kararı veren ayrıntının başında; süre dolduysa da ("Süre doldu") görünür
+  const alanlar: Alan[] = kararVereni(onay) ? [{ k: "kararVeren", etiket: s.karar.veren.etiket, deger: <KararVerenEtiketi onay={onay} /> }, ...g.alanlar] : g.alanlar;
+  if (!g.gerekce && !alanlar.length) return null;
   return (
     <div className="onay-gecmis-ic">
       {g.gerekce ? <p className="onay-gerekce">{g.gerekce}</p> : null}
-      <AlanListesi alanlar={g.alanlar} />
+      <AlanListesi alanlar={alanlar} />
     </div>
   );
 }

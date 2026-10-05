@@ -63,7 +63,8 @@ beforeAll(async () => {
   depo = new Depo(path.join(gecici, "veri", "arnorg.db"));
   sirket = new Sirket(depo, olaylar, yap, () => null, true);
   olaylar.dinle((o) => gelenler.push(o));
-  const p = await sirket.projeOlustur({ ad: "Kalite", yol: path.join(gecici, "repo"), olustur: true });
+  // Birleştirmelere kurul karar verir (tam otonom kipte CEO: karar-yetkisi.test.ts)
+  const p = await sirket.projeOlustur({ ad: "Kalite", yol: path.join(gecici, "repo"), olustur: true, kararVeren: "kurul" });
   projeId = p.id;
   repo = p.yol;
   for (const [ad, icerik] of Object.entries(BETIKLER)) fs.writeFileSync(path.join(repo, ad), icerik);
