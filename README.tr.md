@@ -2,7 +2,7 @@
 
 [English](README.md) · **Türkçe**
 
-Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne istediğinizi CEO'ya anlatırsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır, kararları verir ve size rapor verir. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
+Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne istediğinizi CEO'ya anlatırsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır, kararları verir ve size rapor verir. Bütün ekip projenin kendisinde, aynı anda ve görev görev çalışır. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
 
 ![Karargâh](docs/gorseller/tr/karargah.png)
 
@@ -10,7 +10,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne 
 
 - **Windows ve Linux'ta masaüstü uygulaması**, ayrıca sunucu modu.
 - **Açık kaynak**, [MIT lisansıyla](LICENSE). Masaüstü uygulaması kendini bu deponun sürümlerinden günceller.
-- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 5 saatlik ve haftalık pencere kullanımı görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
+- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 5 saatlik ve haftalık pencere kullanımı ile açık projede ekibin harcadığı token görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
 - **Yönlendirmeli ilk açılış.** Kurulum asistanı sizi adım adım götürür:
   - Claude Code kurulumu ve girişi (tarayıcıdan giriş; istenirse kodu yapıştırma);
   - git ve git kimliğiniz;
@@ -40,19 +40,27 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne 
   - Her ajan, rolü ve yetkisi kapsamındaki kuralları alır.
   - Her kuralı görebilir, düzenleyebilir ya da kapatabilirsiniz.
 - **Karargâh.** #yonetim'de CEO ile bire bir sohbet; yazıyor göstergesi ve tıklanabilir bağlantılarla canlı kanallar. #genel, işin başladığını, incelemeye girdiğini ve bittiğini duyurur.
-- **CEO karar verir, siz sonucu görürsünüz.** Varsayılan olarak şirket tam otonom çalışır. İzinler, birleştirmeler, işe alımlar ve öteki onaylar CEO'dan geçer; her karar gerekçesiyle listelenir. CEO size yalnız bir insanın yapması gerekenler için gelir: giriş bilgileri, ödemeler, dış hesaplar. Bekleyen bir onaya isterseniz kendiniz karar verirsiniz ya da projeyi ayarlarından **Kurul karar verir** kipine döndürürsünüz.
+- **CEO karar verir, siz sonucu görürsünüz.** Varsayılan olarak şirket tam otonom çalışır. İzinler, işe alımlar ve öteki onaylar CEO'dan geçer; her karar gerekçesiyle listelenir. CEO size yalnız bir insanın yapması gerekenler için gelir: giriş bilgileri, ödemeler, dış hesaplar. Bekleyen bir onaya isterseniz kendiniz karar verirsiniz ya da projeyi ayarlarından **Kurul karar verir** kipine döndürürsünüz.
+- **Tek proje, tek ekip, hep birlikte.** Herkes projenin kendisinde, çalışma dalında, aynı anda ve görev görev çalışır. Kişisel dal yok, birleştirilecek bir şey yok; bu yüzden birleştirme hiç sorulmaz:
+  - birinin düzenlediği dosya görevi kaydedilene dek onundur; bu sürede başkası düzenleyemez, başkasının işine dokunacak git komutları reddedilir;
+  - görev incelemeye geçince ArnOrg yalnız o görevin dosyalarını sizin git kimliğinizle "T-3 Başlık" olarak commit'ler; testler arka planda koşar, geçmeyen kayıt çıktısıyla sahibine döner;
+  - aynı anda kaç kişinin çalışacağına kurulun üst sınırı içinde (varsayılan 8) CEO karar verir; boşa çıkan çalışan sıradaki işine kendiliğinden başlar, işi olmayanlar CEO'ya söylenir;
+  - **Ekip** kimin ne üzerinde çalıştığını, tuttuğu dosyaları, tempoyu ve son kayıtları test sonuçlarıyla gösterir.
+- **Konuşmalarda görsel ve dosya.** CEO sohbetinde ve kanallarda görsel ve dosya ekleyin: ataç düğmesi, sürükle-bırak ya da yapıştır. Ajanlar görselleri görür, dosyaları okur ve kendileri de paylaşır (ekran görüntüleri, raporlar, belgeler). Görseller bir görüntüleyicide açılır; dosyalar açılıp indirilebilen kartlar olarak görünür.
+- **Seçerek yanıtlayın.** Bir ajan size seçenekli bir soru sorduğunda seçenekleri mesajın altında işaretlersiniz: tek ya da çoklu seçim, isteğe bağlı bir notla.
+- **Her işe alıma skill.** aitmpl.com kataloğundan seçilmiş 37 Claude Code skilli (MIT ya da Apache-2.0): hata ayıklama, test, kod incelemesi, API ve veritabanı tasarımı, mimari, erişilebilirlik, arayüz tasarımı, güvenlik, CI/CD, yazım, araştırma ve pazarlama. CEO her yeni çalışana rolüne uyan skilleri verir; işe alım formunda ve çalışanın sayfasında değiştirebilirsiniz.
 - **Onaylar.**
-  - Onay türleri: işe alım, işten çıkarma, main'e birleştirme, ana yasa değişikliği, araç izni ve teslim.
+  - Onay türleri: işe alım, işten çıkarma, ana yasa değişikliği, araç izni, karar (sorular ve token tavanları) ve teslim.
   - Her onay gerekçesini, kimin karar verdiğini ve onaylanırsa ne olacağını gösterir.
   - Kurul karar verirken **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
 - **Tanıtım.** Projenin README.md'si menünün ikinci sırasında kendi sayfasında. Tanıtım uzmanı onu ekibin gerçekten yaptıklarından yazar ve her teslimden sonra günceller; birleşene kadar taslak görünür. **Güncellenmesini iste** yenilenmesini ister.
-- **Girmeden önce test.** Onaylanan birleştirmeler proje başına bir kuyruktan ve kalite kapısından geçer: dal ayrı bir çalışma alanında birleştirilir ve projenin test komutu koşar. Yalnız testleri geçen iş dalınıza girer; onay kartı test çıktısını ve farkı gösterir.
+- **Girerken test.** Her görev kaydından sonra projenin test komutu ayrı bir kopyada koşar. Geçmeyen kayıt çıktısıyla sahibine döner; dal yeniden yeşillenince #genel'e duyurulur.
 - **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına tavan, görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer.
 - **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
 - **İstediğinizde brifing.** **Brifing ver**, CEO'ya ne yapıldığını, ne olduğunu ve sırada ne olduğunu görev kodlarıyla yazdırır. Her gün seçtiğiniz saatte de brifing gelir.
 - **Kendi kanallarınız.** Kanal kurun, çalışanları ekleyin ve siz **Durdur** diyene kadar sırayla, serbestçe konuşsunlar.
-- **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir.
-- **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
+- **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir. Tarayıcı projenin çalışan adreslerini de listeler; listeyi ajanlar güncel tutar, tıklayınca açılır.
+- **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Bir ekip arkadaşına sormak için masasına gider, karar için CEO'nun masasında bekler, arada kısa mola verir. Bir kişiye tıklayınca ne yaptığını gösteren kart açılır. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
 - **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5); yeni CEO'lar Fable kullanır.
 - **Kendini günceller:** bu deponun sürümlerinden.
 - **Önemli anlar her ekranda.** Hangi ekranda olursanız olun açılır pencere gelir. Pencere arkadaysa masaüstü bildirimi de gelir ve görev çubuğu yanıp söner.
@@ -60,11 +68,10 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne 
 - **Teslim.** Proje bitince CEO test adımları, çalıştırma komutu ve adresle teslim eder. Geri bildiriminiz CEO'ya iş olarak döner.
 - **0.0.1'den gelenler:**
   - `.arnorg/` altında proje hafızası;
-  - her ajana ayrı git çalışma alanı; main'e yalnız onaylanıp kalite kapısını geçen iş girer;
   - kurallar, araya girme ve kesmeyle canlı denetim;
   - Ofis: şirketin canlı 2D hâli;
   - yerleşik VS Code tezgâhı;
-  - makinede çalışan kod zekâsı;
+  - makinede çalışan kod zekâsı; içe aktarmaların ve anlamca birbirine yakın dosyaların grafiğiyle;
   - tıkanma koruması ve dönem raporu.
 
   Ajan commit'leri sizin git kimliğinizle atılır; Claude imzası eklenmez.
@@ -76,12 +83,15 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne 
 |---|---|
 | İlk açılış | ![İlk açılış](docs/gorseller/tr/ilk-kurulum.png) |
 | Ofis | ![Ofis](docs/gorseller/tr/ofis.png) |
+| Ortak çalışma | ![Ortak çalışma](docs/gorseller/tr/ortak-calisma.png) |
+| CEO sohbetinde görsel ve dosya | ![Görsel ve dosya](docs/gorseller/tr/ekler.png) |
 | Kanallar | ![Kanallar](docs/gorseller/tr/kanallar.png) |
 | Tanıtım | ![Tanıtım](docs/gorseller/tr/tanitim.png) |
 | Onaylar | ![Onaylar](docs/gorseller/tr/onaylar.png) |
 | Zekâ | ![Zekâ](docs/gorseller/tr/zeka.png) |
 | GitHub'dan aç | ![GitHub'dan aç](docs/gorseller/tr/github.png) |
 | Ekip ve ajan paneli | ![Ekip](docs/gorseller/tr/ekip.png) |
+| Tarayıcı ve proje adresleri | ![Tarayıcı](docs/gorseller/tr/tarayici.png) |
 | Kod zekâsı | ![Kod zekâsı](docs/gorseller/tr/kod-zekasi.png) |
 | Kod (VS Code tezgâhı) | ![Kod](docs/gorseller/tr/kod.png) |
 
@@ -121,13 +131,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.7                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.7.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.7 -m "ArnOrg 0.0.7"
-git push origin main v0.0.7            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.8                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.8.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.8 -m "ArnOrg 0.0.8"
+git push origin main v0.0.8            # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.7` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.8` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 İş akışı sürümü bu depoda yayınlar; kurulu uygulamalar da güncellemeyi burada arar. `WIN_IMZA` Actions değişkeni ve imza sağlayıcısının sırları tanımlıysa Windows paketleri imzalanır (SSL.com eSigner, DigiCert KeyLocker ya da başka bir araç); değilse imzasız yayınlanır.
 

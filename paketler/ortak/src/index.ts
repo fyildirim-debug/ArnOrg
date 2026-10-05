@@ -2,7 +2,7 @@
 // Çekirdek (arnorg-server) ile Stüdyo (arayüz) arasında paylaşılan tipler ve sabitler.
 // Bu dosya tek başına durur; başka dosyaya göreli import yapmaz.
 
-export const ARNORG_SURUMU = "0.0.7";
+export const ARNORG_SURUMU = "0.0.8";
 
 // ---------------------------------------------------------------------------
 // Genel

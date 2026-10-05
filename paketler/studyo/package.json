@@ -1,7 +1,7 @@
 {
   "name": "@arnorg/studyo",
   "private": true,
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "ArnOrg Stüdyo: React arayüzü",
   "license": "MIT",
   "type": "module",

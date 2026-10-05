@@ -2,7 +2,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A software company built from Claude Code agents. You open a project and tell the CEO what you want; the CEO agent writes the plan, hires the team, hands out the work, makes the decisions and reports back to you. Every tool call of every agent passes through ArnOrg's gate.
+A software company built from Claude Code agents. You open a project and tell the CEO what you want; the CEO agent writes the plan, hires the team, hands out the work, makes the decisions and reports back to you. The whole team works in the project itself, at the same time, task by task. Every tool call of every agent passes through ArnOrg's gate.
 
 ![Headquarters](docs/gorseller/en/karargah.png)
 
@@ -10,7 +10,7 @@ A software company built from Claude Code agents. You open a project and tell th
 
 - **Desktop app for Windows and Linux**, plus a server mode.
 - **Open source** under the [MIT license](LICENSE). The desktop app updates itself from this repository's releases.
-- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
+- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage and the tokens the open project's team has spent. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
 - **Guided first run.** A setup assistant walks you through:
   - installing and signing in to Claude Code (browser sign-in, paste the code back if asked);
   - git and your git identity;
@@ -40,19 +40,27 @@ A software company built from Claude Code agents. You open a project and tell th
   - Each agent receives the rules within its role and authority.
   - You can review, edit or switch off any rule.
 - **Headquarters.** A one-to-one chat with the CEO in #ceo and live channels with typing indicators and clickable links. #general announces when work starts, goes to review and finishes.
-- **The CEO decides, you see the results.** By default the company runs fully autonomously. Permissions, merges, hires and the other approvals go through the CEO, and every decision is listed with its reason. The CEO asks you only for what a person has to do: sign-ins, payments, external accounts. You can decide any pending approval yourself, or switch a project back to **The board decides** in its settings.
+- **The CEO decides, you see the results.** By default the company runs fully autonomously. Permissions, hires and the other approvals go through the CEO, and every decision is listed with its reason. The CEO asks you only for what a person has to do: sign-ins, payments, external accounts. You can decide any pending approval yourself, or switch a project back to **The board decides** in its settings.
+- **One project, one team, all at once.** Everyone works in the project itself, on its working branch, at the same time and task by task. There are no personal branches and nothing to merge, so no merge is ever asked about:
+  - a file someone is editing stays theirs until their task is saved; nobody else can edit it meanwhile, and git commands that would touch others' work are refused;
+  - when a task goes to review, ArnOrg commits just that task's files as "T-3 Title" with your git identity; the tests run in the background, and a failing save goes back to its owner with the output;
+  - the CEO decides how many people work at once, up to the board's limit (8 by default); an employee who becomes idle starts their next task by themselves, and the CEO hears who has nothing to do;
+  - **Team** shows who is working on what, the files they hold, the pace and the latest saves with their test results.
+- **Images and files in conversations.** Attach images and files in the CEO chat and in channels: the paperclip, drag and drop, or paste. Agents see the images and read the files, and share their own (screenshots, reports, documents). Images open in a viewer; files show as cards you can open or download.
+- **Answer by choosing.** When an agent asks you something with options, pick them under the message: one choice or several, with an optional note.
+- **Skills for every hire.** A library of 37 Claude Code skills, chosen from the aitmpl.com catalogue (MIT or Apache-2.0): debugging, testing, code review, API and database design, architecture, accessibility, interface design, security, CI/CD, writing, research and marketing. The CEO gives each new employee the skills that fit the role; you can change them in the hire form and on the employee's page.
 - **Approvals.**
-  - Approval types: hiring, dismissal, merges to main, constitution changes, tool requests and deliveries.
+  - Approval types: hiring, dismissal, constitution changes, tool requests, decisions (questions and token ceilings) and deliveries.
   - Each one shows its reasoning, who decided and what happens if it's approved.
   - When the board decides, an **Auto-approve** checkbox approves for you, limited to the types you choose.
 - **Showcase.** The project's README.md on its own page, second in the menu. A product marketer writes it from what the team has actually built and updates it after each delivery; a draft shows until it's merged. **Request an update** asks for a refresh.
-- **Tested before it lands.** Approved merges go through a per-project queue and a quality gate: the branch is merged in a separate workspace and the project's test command runs. Only work that passes reaches your branch; the approval card shows the test output and the diff.
+- **Tested as it lands.** After every task save, the project's test command runs in a separate copy. A failing save goes back to its owner with the output, and #general hears when the branch is green again.
 - **Work within your limits.** A cap on how many agents work at once, a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts.
 - **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
 - **Briefings on demand.** **Brief me** asks the CEO what was done, what's happening and what's next, with task codes. A daily briefing arrives at the time you choose.
 - **Your own channels.** Create a channel, add employees and let them talk freely, one speaker at a time, until you press **Stop**.
-- **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks.
-- **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
+- **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks. The Browser also lists your project's running addresses, which the agents keep current; click one to open it.
+- **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. They walk over to ask a teammate, wait at the CEO's desk for a decision and take short breaks. Click a person for a card with what they're doing. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
 - **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code; new CEOs use Fable.
 - **Updates itself** from this repository's releases.
 - **Important moments reach you anywhere.** A pop-up appears on whichever screen you're on. When the window is in the background, you also get a desktop notification and the taskbar flashes.
@@ -60,11 +68,10 @@ A software company built from Claude Code agents. You open a project and tell th
 - **Delivery.** When the project is done, the CEO hands it over with test steps, the run command and the address. Your feedback goes back to the CEO as work.
 - **Everything else from 0.0.1:**
   - per-project memory under `.arnorg/`;
-  - a git worktree per agent; only approved work that passes the quality gate reaches the main branch;
   - live audit with policies, interjection and stopping;
   - the Office, a live 2D view of the company;
   - a built-in VS Code workbench;
-  - local code intelligence;
+  - local code intelligence, with a graph of imports and of files that belong together in meaning;
   - a stall guard and period reports.
   
   Agent commits use your git identity; no Claude signature is added.
@@ -76,12 +83,15 @@ A software company built from Claude Code agents. You open a project and tell th
 |---|---|
 | First run | ![First run](docs/gorseller/en/ilk-kurulum.png) |
 | Office | ![Office](docs/gorseller/en/ofis.png) |
+| Shared work | ![Shared work](docs/gorseller/en/ortak-calisma.png) |
+| Images and files in the CEO chat | ![Images and files](docs/gorseller/en/ekler.png) |
 | Channels | ![Channels](docs/gorseller/en/kanallar.png) |
 | Showcase | ![Showcase](docs/gorseller/en/tanitim.png) |
 | Approvals | ![Approvals](docs/gorseller/en/onaylar.png) |
 | Intelligence | ![Intelligence](docs/gorseller/en/zeka.png) |
 | Open from GitHub | ![Open from GitHub](docs/gorseller/en/github.png) |
 | Team and agent panel | ![Team](docs/gorseller/en/ekip.png) |
+| Browser and project addresses | ![Browser](docs/gorseller/en/tarayici.png) |
 | Code intelligence | ![Code intelligence](docs/gorseller/en/kod-zekasi.png) |
 | Code (VS Code workbench) | ![Code](docs/gorseller/en/kod.png) |
 
@@ -121,13 +131,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.7                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.7.md and commit
-git tag -a v0.0.7 -m "ArnOrg 0.0.7"
-git push origin main v0.0.7            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.8                 # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.8.md and commit
+git tag -a v0.0.8 -m "ArnOrg 0.0.8"
+git push origin main v0.0.8            # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.7` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.8` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 The workflow publishes the release in this repository, which is also where installed apps look for updates. Windows packages are signed when the `WIN_IMZA` Actions variable and the signing provider's secrets are set (SSL.com eSigner, DigiCert KeyLocker or any other tool); otherwise they're published unsigned.
 
