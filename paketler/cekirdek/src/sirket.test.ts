@@ -228,6 +228,11 @@ describe("gözetmen", () => {
     const g = depo.gorevler(p.id).find((x) => x.durum === "calisiliyor" && x.atananId === deniz.id)!;
     const uyandir = vi.spyOn(sirket, "uyandir").mockResolvedValue(true);
     const dk = 60_000;
+    // Görev sürümü güncelleme anıdır: art arda iki güncelleme aynı milisaniyeye düşmesin (hızlı makinede)
+    const guncelle = async (aciklama: string) => {
+      await new Promise((coz) => setTimeout(coz, 5));
+      await sirket.gorevGuncelle(g.id, { aciklama });
+    };
     try {
       const gozetmen = new Gozetmen(sirket);
       depo.ajanGuncelle(deniz.id, { durum: "bosta" });
@@ -239,14 +244,14 @@ describe("gözetmen", () => {
       // İkinci hatırlatma kurulun tıkanma eşiğiyle
       expect(await gozetmen.denetle(t0 + 10 * dk)).toEqual([]);
       // Görev güncellenince yine hızlı; saatte ikinciden sonra eşik kurulunki
-      await sirket.gorevGuncelle(g.id, { aciklama: "Bir" });
+      await guncelle("Bir");
       expect((await gozetmen.denetle(t0 + 11 * dk)).map((e) => e.tur)).toEqual(["hatirlatma"]);
-      await sirket.gorevGuncelle(g.id, { aciklama: "İki" });
+      await guncelle("İki");
       expect(await gozetmen.denetle(t0 + 15 * dk)).toEqual([]);
       expect((await gozetmen.denetle(t0 + 21 * dk)).map((e) => e.tur)).toEqual(["hatirlatma"]);
       expect(String(uyandir.mock.calls.at(-1)?.[1])).toContain("dakikadır ilerlemiyor");
       // Kurulun durdurduğu çalışan dürtülmez
-      await sirket.gorevGuncelle(g.id, { aciklama: "Üç" });
+      await guncelle("Üç");
       sirket.ajanDurdur(deniz.id);
       expect(await gozetmen.denetle(t0 + 3 * 60 * dk)).toEqual([]);
     } finally {
