@@ -38,6 +38,7 @@ import {
   type KurulBildirimi,
   type Mesaj,
   type MesajOnceligi,
+  type MesajSecimi,
   type Onay,
   type OnayTuru,
   type PolitikaKurali,
@@ -2360,8 +2361,9 @@ export class Sirket {
     await this.uyandir(ajanId, metin, null);
   }
 
-  kanalMesaji(projeId: string, kanal: string, gonderen: { id: string; ad: string }, metin: string, anilanlar: string[] = []): Mesaj {
-    const mesaj = this.depo.mesajEkle({ projeId, kanal, gonderenId: gonderen.id, gonderenAd: gonderen.ad, metin, anilanlar });
+  /** secim: seçenekli sorunun seçenekleri (secenek/index.ts); mesajla birlikte yazılır, ilk olayda görünür */
+  kanalMesaji(projeId: string, kanal: string, gonderen: { id: string; ad: string }, metin: string, anilanlar: string[] = [], secim?: MesajSecimi): Mesaj {
+    const mesaj = this.depo.mesajEkle({ projeId, kanal, gonderenId: gonderen.id, gonderenAd: gonderen.ad, metin, anilanlar, ...(secim ? { secim } : {}) });
     // Yanıtını yazan ajanın "yazıyor" göstergesi biter
     if (this.yaziyorlar.get(gonderen.id)?.kanal === kanal) this.yaziyorBitir(gonderen.id);
     this.olaylar.yayinla({ tur: "mesaj.yeni", mesaj });

@@ -9,6 +9,7 @@ import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
 import { kodZekasiAraclari } from "./kod-zekasi/araclar.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
+import { secenekAraclari } from "./secenek/araclar.js";
 import { maddeleriDenetle } from "./anayasa.js";
 import { aracGirdisiniOnar } from "./arac-girdisi.js";
 import { dil, iki } from "./dil.js";
@@ -607,6 +608,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           return metin(iki(`${ozne} ${k.izin ? "onayladı" : "reddetti"}.${k.not ? ` Yanıt: ${k.not}` : ""}`, `${ozne} ${k.izin ? "approved" : "rejected"}.${k.not ? ` Answer: ${k.not}` : ""}`));
         }),
     ),
+    // ---------------- seçenekli soru: kurula seçenek sunma (secenek/araclar.ts) ----------------
+    ...secenekAraclari(sirket, ajanId),
     // ---------------- kod zekâsı (ajanın kendi çalışma alanında) ----------------
     tool(
       "kod_ara",

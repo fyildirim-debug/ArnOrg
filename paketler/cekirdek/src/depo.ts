@@ -12,6 +12,7 @@ import type {
   KararKaynagi,
   KararVeren,
   Mesaj,
+  MesajSecimi,
   Onay,
   OnayDurumu,
   OnayTuru,
@@ -304,6 +305,9 @@ export class Depo {
     if (!onaySutunlari.includes("karar_kaynagi")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_kaynagi TEXT");
     if (!onaySutunlari.includes("karar_veren_ad")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_veren_ad TEXT");
     if (!onaySutunlari.includes("muhatap")) this.db.exec("ALTER TABLE onaylar ADD COLUMN muhatap TEXT");
+    // 0.0.8: seçenekli sorunun seçenekleri ve kurulun yanıtı (JSON; düz mesajda boş)
+    const mesajSutunlari = (this.db.prepare("PRAGMA table_info(mesajlar)").all() as Satir[]).map((s) => String(s.name));
+    if (!mesajSutunlari.includes("secim")) this.db.exec("ALTER TABLE mesajlar ADD COLUMN secim TEXT");
     // Kurul ile CEO'nun bire bir kanalı her projede bulunur
     this.db.prepare("INSERT OR IGNORE INTO kanallar (proje_id, ad, aciklama) SELECT id, 'yonetim', 'Yönetim kurulu ile CEO''nun bire bir sohbeti' FROM projeler").run();
     // 0.0.5: kurulun kurduğu kanallar (özel); üyeler ajan kimlikleri (JSON), serbest konuşmanın durumu ve konusu
@@ -705,12 +709,14 @@ export class Depo {
     const mesaj: Mesaj = { id: kimlik(), zaman: simdi(), ...m };
     this.kanalEkle(m.projeId, m.kanal);
     this.db
-      .prepare("INSERT INTO mesajlar (id, proje_id, kanal, gonderen_id, gonderen_ad, metin, anilanlar, zaman) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(mesaj.id, mesaj.projeId, mesaj.kanal, mesaj.gonderenId, mesaj.gonderenAd, mesaj.metin, JSON.stringify(mesaj.anilanlar), mesaj.zaman);
+      .prepare("INSERT INTO mesajlar (id, proje_id, kanal, gonderen_id, gonderen_ad, metin, anilanlar, zaman, secim) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(mesaj.id, mesaj.projeId, mesaj.kanal, mesaj.gonderenId, mesaj.gonderenAd, mesaj.metin, JSON.stringify(mesaj.anilanlar), mesaj.zaman, mesaj.secim ? JSON.stringify(mesaj.secim) : null);
     return mesaj;
   }
 
   private mesajSatiri(s: Satir): Mesaj {
+    // 0.0.8: seçenekli sorunun seçenekleri ve yanıtı yalnız seçenekli mesajda alan olarak gelir
+    const secim = jsonOku<MesajSecimi | null>(s.secim as string | null, null);
     return {
       id: String(s.id),
       projeId: String(s.proje_id),
@@ -720,6 +726,7 @@ export class Depo {
       metin: String(s.metin),
       anilanlar: jsonOku<string[]>(s.anilanlar as string, []),
       zaman: String(s.zaman),
+      ...(secim ? { secim } : {}),
     };
   }
 
@@ -728,6 +735,17 @@ export class Depo {
       .prepare("SELECT * FROM mesajlar WHERE proje_id = ? AND kanal = ? ORDER BY zaman DESC, rowid DESC LIMIT ?")
       .all(projeId, kanal, sinir) as Satir[];
     return satirlar.reverse().map((s) => this.mesajSatiri(s));
+  }
+
+  mesaj(id: string): Mesaj | null {
+    const s = this.db.prepare("SELECT * FROM mesajlar WHERE id = ?").get(id) as Satir | undefined;
+    return s ? this.mesajSatiri(s) : null;
+  }
+
+  /** Mesajın seçeneklerini ve kurulun yanıtını yazar (seçenekli sorular); null alanı kaldırır */
+  mesajSecimiYaz(id: string, secim: MesajSecimi | null): Mesaj | null {
+    this.db.prepare("UPDATE mesajlar SET secim = ? WHERE id = ?").run(secim ? JSON.stringify(secim) : null, id);
+    return this.mesaj(id);
   }
 
   // ---------------- denetim ----------------

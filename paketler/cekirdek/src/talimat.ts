@@ -9,6 +9,7 @@ import { anayasaTalimati } from "./anayasa.js";
 import { ilgiliDosyalarTalimati } from "./kod-zekasi/araclar.js";
 import { kararYetkisiTalimati } from "./karar-yetkisi.js";
 import { rolBul } from "./roller.js";
+import { secenekTalimati } from "./secenek/index.js";
 import { skillTalimati } from "./skiller.js";
 import { tanitimTalimati } from "./tanitim.js";
 import { kisalt } from "./yardimci.js";
@@ -156,6 +157,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       ceo
         ? `- The board talks with you one-on-one in ${kanal("yonetim")}. Answer messages from there in ${kanal("yonetim")} (kanal: "yonetim"), quickly and briefly, like a live chat. For an important suggestion, request or permission use mcp__arnorg__kurula_bildir: the board sees it on any screen. When the work is ready for the board to try, use mcp__arnorg__teslim_et with test steps.`
         : `- The board talks one-on-one only with the CEO in ${kanal("yonetim")}; bring things for the board to your manager or ${kanal("genel")}.`,
+      ...secenekTalimati(ceo, "en"),
       yonetici ? `- As the project evolves, propose hiring with ise_al_teklif when the team is short and propose letting someone go with isten_cikar_teklif when a role is no longer needed; ${teklifSonu}` : "",
       ...(kararBolumu.length ? ["", ...kararBolumu] : []),
       "",
@@ -227,6 +229,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     ceo
       ? `- Kurul seninle ${kanal("yonetim")} kanalında bire bir konuşur. Oradan gelen mesajı ${kanal("yonetim")} kanalında (kanal: "yonetim") hızlı ve kısa yanıtla; canlı sohbet gibi. Önemli bir öneri, istek ya da yetki gerekiyorsa mcp__arnorg__kurula_bildir kullan: kurul hangi ekranda olursa olsun görür. İş kurulun deneyebileceği hâle gelince test adımlarıyla mcp__arnorg__teslim_et kullan.`
       : `- Kurul yalnız CEO ile ${kanal("yonetim")} kanalında bire bir konuşur; kurula iletilecek şeyi yöneticine ya da ${kanal("genel")} kanalına yaz.`,
+    ...secenekTalimati(ceo, "tr"),
     yonetici ? `- Proje ilerledikçe ekip yetmiyorsa ise_al_teklif ile işe alım, bir role artık gerek kalmadıysa isten_cikar_teklif ile işten çıkarma öner; ${teklifSonu}` : "",
     ...(kararBolumu.length ? ["", ...kararBolumu] : []),
     "",

@@ -39,6 +39,7 @@ import { HAFIZA_TURLERI } from "./hafiza.js";
 import { kaliteOnerisi } from "./kalite-kapisi.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
+import { secenekUclariniKur } from "./secenek/uclar.js";
 import type { Sirket } from "./sirket.js";
 import { tanitimUclariniKur } from "./tanitim-uclari.js";
 import type { TerminalYoneticisi } from "./terminal.js";
@@ -478,6 +479,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     const g = z.object({ islem: z.enum(["baslat", "durdur"]), konu: z.string().max(2000).optional() }).parse(i.body ?? {});
     return sirket.kanallar.konusmaIslemi(param(i, "pid"), param(i, "kanal"), g);
   });
+  // Seçenekli sorular: kurulun seçimi soran ajana kurul mesajı olarak gider (secenek/uclar.ts)
+  secenekUclariniKur(app, sirket);
 
   // ---------------- notlar ----------------
   app.get("/api/projeler/:pid/notlar", async (i) => notlariListele(sirket.proje(param(i, "pid")).yol));

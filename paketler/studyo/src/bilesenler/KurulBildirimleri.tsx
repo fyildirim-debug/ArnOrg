@@ -26,11 +26,13 @@ import { akilliZaman, goreli } from "../yardimcilar/bicim";
 import { useIslem, useMedya, useSimdi } from "../yardimcilar/kancalar";
 import { kararVereni } from "./kararVeren";
 import { AjanAvatar } from "./Kisi";
+import { OnaySecimi } from "./secenek/OnaySecimi";
+import { onaySecenekleri, onaySorusu } from "../yardimcilar/secenek";
 import { Simge } from "./Simge";
 import { TestPaneli } from "./TestPaneli";
 import { ZenginMetin } from "./ZenginMetin";
 
-/** Pencereden doğrudan karar verilebilen onaylar; araç çağrısı Denetim'de, teslim testte, soru ve işten çıkarma Onaylar'da verilir */
+/** Pencereden doğrudan karar verilebilen onaylar; araç çağrısı Denetim'de, teslim testte, seçeneksiz soru ve işten çıkarma Onaylar'da verilir (seçenekli soru pencerede seçilir) */
 const DOGRUDAN: OnayTuru[] = ["ise_alim", "birlestirme", "anayasa"];
 /** Kurulun dikkatini isteyen türler: üst çizgi mercan kalır */
 const EYLEMLI = ["onay", "yetki", "teslim", "istek"];
@@ -125,9 +127,12 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
   // Onayın türü, pencerenin türünden farklı bir şey söylüyorsa yanında anılır ("Onay · Ana yasa"; "Teslim · Teslim" değil)
   const turAdi = b.tur[k.tur] ?? k.tur;
   const altTur = onay && onay.tur !== "genel" && s.genel.onayTuru[onay.tur].toLocaleLowerCase() !== turAdi.toLocaleLowerCase() ? s.genel.onayTuru[onay.tur] : null;
-  // Kısaltılmış görünümde boş satırlar yer harcamaz
-  const metin = acik ? k.metin : k.metin.replace(/\n\s*\n/g, "\n");
   const bekliyor = onay?.durum === "bekliyor";
+  // Kurula sorunun seçenekleri pencerede seçilir (secenek/OnaySecimi); metinde yalnız soru kalır, başlıkta tam duruyorsa o da
+  const secenekli = !!onay && bekliyor && onaySecenekleri(onay).length > 0;
+  const soru = secenekli ? onaySorusu(onay) : null;
+  // Kısaltılmış görünümde boş satırlar yer harcamaz
+  const metin = secenekli ? (soru && !k.baslik.includes(soru) ? soru : "") : acik ? k.metin : k.metin.replace(/\n\s*\n/g, "\n");
   // Tam otonom: CEO teslimi kabul etti, kurul sonucu görür (karar zaten verildi; kabul ya da geri bildirim düğmesi yok)
   const sonucTeslim = !!onay && onay.tur === "teslim" && !bekliyor && kararVereni(onay) === "ceo";
   const dogrudan = !!onay && bekliyor && DOGRUDAN.includes(onay.tur);
@@ -176,7 +181,7 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
       <h3 className="kb-baslik" id={baslikId}>
         {k.baslik}
       </h3>
-      {k.metin ? (
+      {metin ? (
         <>
           <p className={`kb-metin${acik ? " kb-metin-acik" : ""}`} ref={metinRef}>
             <ZenginMetin metin={metin} />
@@ -188,6 +193,8 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
           ) : null}
         </>
       ) : null}
+
+      {secenekli ? <OnaySecimi onay={onay} sikisik sonra={kapat} /> : null}
 
       {onay && sonucTeslim ? (
         <p className="kb-sonuc kb-sonuc-onaylandi">{s.karar.teslimSonucu(onay.kararVerenAd)}</p>

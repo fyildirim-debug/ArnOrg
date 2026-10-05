@@ -142,6 +142,19 @@ Kurul mesajında `@Ad` ile anılan ajan uyanır ve mesajı alır. `#genel` kanal
 - Üye uyanamazsa, oturumu hata verirse ya da 4 dk içinde kanala yazmazsa sıradakine geçilir; turu kanala yazmadan biterse (kuyrukta başka turu yoksa) 15 sn sonra geçilir. Üyelerin hepsi art arda yanıt vermezse, iki üyeden aza düşülürse ya da abonelik sınırına gelinirse konuşma kendiliğinden durur ve kanala kısa bir ArnOrg duyurusu düşer.
 - Mesaiyi durdur, projenin silinmesi ve ArnOrg'un kapanması konuşmaları durdurur; açılışta bütün konuşmalar `durdu` başlar.
 
+## Seçenekli sorular (0.0.8)
+
+Ajan kurula seçenek sunarken `secenekli_sor` aracıyla sorar: `soru`, `secenekler` (2–12; her biri metin ya da `{metin, aciklama?}`), `coklu` (varsayılan false), `serbest_yanit` (varsayılan true), `kanal?`. Soru kurulun bulunduğu kanala yazılır: CEO için `#yonetim` (kurulun kanalında yanıt yazıyorsa orası), ötekiler için yanıt yazdığı kurul kanalı ya da `#genel`. `#yonetim` yalnız CEO'nundur; ekip kanallarına sorulamaz. Mesajın `metin`i düz metin yedeğidir (soru, numaralı seçenekler, çoklu seçimde "Birden çok seçilebilir."); seçenekler `Mesaj.secim` (`MesajSecimi`) alanındadır ve ilk `mesaj.yeni` olayıyla gelir. Araç yanıt beklemez; yanıtı bekleyen aynı soru yeniden açılmaz. Kodu `paketler/cekirdek/src/secenek/`.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| POST | `/api/mesajlar/:mid/secim` | `SecimYanitIstegi` `{secilenler: number[] (1 tabanlı), not?}` | `SecimYanitSonucu` `{soru, yanit}`; seçeneksiz mesaj ve yanıtlanmış soru 409, geçersiz seçim 400 |
+
+- **Seçim:** tek seçimde en çok bir numara; seçenek seçmeden yalnız `not` ile yanıt `serbestYanit` sorularda geçer. Soru önce kilitlenir (`secim.yanit = {secilenler, not, zaman}`) ve `mesaj.guncellendi` (`{projeId, mesaj}`) yayınlanır; sonra seçim kurulun mesajı olarak aynı kanala yazılır: "Kurulun seçimi: 1) …; 3) … · Not: …" (seçenek seçilmediyse "Kurulun yanıtı: …"). Mesaj her kurul mesajı gibi yönlenir: `#yonetim`'de CEO'ya gider; öteki kanallarda soran `@Ad` ile anılır ve uyanır. Mesaj yazılamazsa kilit kalkar.
+- **Düz metinden ("Seçerek yanıtla"):** `#yonetim`'de ajanın düz metinle yazdığı numaralı liste ve soru da bu uçla yanıtlanır. Liste ortak'taki `metindekiSecenekler` ile bulunur (Stüdyo düğmeyi aynı işlevle ve kurul o mesajdan sonra yazmadıysa gösterir): 1'den sırayla artan 2–12 madde, `1)`, `1.` ya da `1-` biçiminde satır başlarında ya da satır içinde (ilk madde iki nokta ya da cümle sonundan, ötekiler virgül, noktalı virgül ya da bağlaçtan sonra), madde en çok 300 karakter; mesaj soruyla biter (listeden sonraki en çok 400 karakterlik kısım soru işaretiyle biter ya da liste sondaysa ondan önceki cümle sorudur). Seçenekler çoklu seçimlidir, yalnız yazıyla yanıt yoktur; seçim mesaja `kaynak: "metin"` olarak yazılır.
+- **Kurula soru (`kurula_sor`):** `genel` onayın `veri.secenekler`'i Onaylar'da ve açılır pencerede seçilir; seçilen seçenek `POST /api/onaylar/:oid` notu olur ("2) Seçenek — not"), Reddet notu gerekçe yapar.
+- **Talimat:** CEO'ya ve kurulla konuşan ajanlara seçenek sunarken `secenekli_sor` (birden çok seçilebiliyorsa `coklu: true`) kullanmaları söylenir.
+
 ## Notlar
 
 | Yöntem | Yol | Gövde | Yanıt |

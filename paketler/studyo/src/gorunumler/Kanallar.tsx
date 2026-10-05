@@ -13,7 +13,7 @@ import { KanalCekmecesi } from "../bilesenler/kanal/KanalCekmecesi";
 import { KonusmaSeridi } from "../bilesenler/kanal/KonusmaSeridi";
 import { GonderenAvatar } from "../bilesenler/Kisi";
 import { gunEtiketi, gunlereAyir } from "../bilesenler/mesajGruplari";
-import { MesajMetni } from "../bilesenler/MesajMetni";
+import { SecenekliMesaj } from "../bilesenler/secenek/SecenekliMesaj";
 import { Simge } from "../bilesenler/Simge";
 import { KIMSE_YAZMIYOR, YaziyorGostergesi } from "../bilesenler/YaziyorGostergesi";
 import { useDil, useSozluk } from "../dil";
@@ -274,7 +274,7 @@ function MesajSatiri({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: boo
             </small>
           </div>
         ) : null}
-        <MesajMetni metin={mesaj.metin} />
+        <SecenekliMesaj mesaj={mesaj} />
       </div>
     </li>
   );

@@ -490,6 +490,8 @@ export interface Mesaj {
   /** Mesajda @ ile anılan ajan kimlikleri */
   anilanlar: string[];
   zaman: Zaman;
+  /** 0.0.8 · Seçenekli soru: seçenekler ve kurulun yanıtı (bkz. "Seçenekli sorular"); düz mesajda yok */
+  secim?: MesajSecimi;
 }
 
 // ---------------------------------------------------------------------------
@@ -1160,6 +1162,8 @@ export type SunucuOlayi =
   | { tur: "onay.sonuc"; onay: Onay }
   | { tur: "gorev.guncellendi"; gorev: Gorev }
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
+  /** 0.0.8 · Mesajın yeni hâli: seçenekli soru yanıtlandı ve kilitlendi */
+  | { tur: "mesaj.guncellendi"; projeId: string; mesaj: Mesaj }
   | { tur: "kullanim"; projeId: string; ajanId: string; bugunToken: number; toplamToken: number }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
   /** Claude Code'un model listesi değişti (giriş, kurulum ya da plan değişince yeniden okunur) */
@@ -2154,3 +2158,222 @@ export interface ProjeAdresi {
 
 /** Canlı olay: projenin adres listesi değişti; tam liste gelir (eklenme sırasıyla) */
 export type ProjeAdresleriOlayi = { tur: "adresler.guncellendi"; projeId: string; adresler: ProjeAdresi[] };
+
+// ---------------------------------------------------------------------------
+// Seçenekli sorular (0.0.8): ajan kurula seçenek sunarken secenekli_sor aracıyla sorar; seçenekler mesajın altında
+// seçilir (tek seçimde radyo düğmeleri, seçenek çoksa açılır liste; çoklu seçimde onay kutuları) ve kurulun seçimi soran
+// ajana kurul mesajı olarak döner. Ajanın #yonetim'e düz metinle yazdığı numaralı liste ve soru da "Seçerek yanıtla" ile
+// aynı uçtan yanıtlanır (liste metindekiSecenekler ile bulunur). Uç: POST /api/mesajlar/:mid/secim (docs/API.md,
+// "Seçenekli sorular"); olay: mesaj.guncellendi
+// ---------------------------------------------------------------------------
+
+/** Seçenekli sorunun bir seçeneği */
+export interface SoruSecenegi {
+  metin: string;
+  /** Kısa açıklama; yoksa null */
+  aciklama: string | null;
+}
+
+/** Kurulun seçenekli soruya yanıtı */
+export interface SecimYaniti {
+  /** Seçilen seçeneklerin 1 tabanlı numaraları, artan sırada; yalnız yazıyla verilen yanıtta boş */
+  secilenler: number[];
+  /** Kurulun notu ya da seçeneklerin dışındaki yanıtı; yoksa null */
+  not: string | null;
+  zaman: Zaman;
+}
+
+/** Mesajın seçenekleri ve kurulun yanıtı; yanıt gelince soru kilitlenir */
+export interface MesajSecimi {
+  /** arac: ajanın secenekli_sor ile sorduğu soru · metin: ajanın düz metindeki numaralı listesi ("Seçerek yanıtla") */
+  kaynak: "arac" | "metin";
+  /** Sorunun kendisi (araçta); düz metinde null, mesajın metni okunur */
+  soru: string | null;
+  secenekler: SoruSecenegi[];
+  /** Birden çok seçenek seçilebilir */
+  coklu: boolean;
+  /** Seçenek seçmeden yalnız yazıyla da yanıt verilebilir */
+  serbestYanit: boolean;
+  /** Henüz yanıtlanmadıysa null */
+  yanit: SecimYaniti | null;
+}
+
+/** POST /api/mesajlar/:mid/secim gövdesi */
+export interface SecimYanitIstegi {
+  /** Seçilen seçeneklerin 1 tabanlı numaraları; serbest yanıtta boş olabilir */
+  secilenler: number[];
+  /** Not ya da (serbest yanıtta) seçeneklerin dışındaki yanıt */
+  not?: string;
+}
+
+/** POST /api/mesajlar/:mid/secim yanıtı: kilitlenen soru ve kurulun soran ajana giden mesajı */
+export interface SecimYanitSonucu {
+  soru: Mesaj;
+  yanit: Mesaj;
+}
+
+/** Sınırlar: soru 2–12 seçeneklidir (düz metindeki liste de); metinler karakter */
+export const SECENEK_SINIRLARI = { enAz: 2, enCok: 12, metin: 300, aciklama: 400, soru: 4000, not: 4000 } as const;
+
+/** Listeden sonra gelebilecek en uzun soru kısmı (karakter); daha uzunsa soru listeye ait sayılmaz */
+const SORU_KISMI_SINIRI = 400;
+/** Soru işaretiyle biter; ardından kapanan tırnak, parantez ya da Markdown vurgusu olabilir */
+const SORU_SONU = /[?？][\s"'”’»)\]*_]*$/u;
+/** Listeden hemen önceki soru: "Hangisiyle başlayalım?" ya da "Hangisiyle başlayalım?:" */
+const SORU_ONCESI = /[?？][\s"'”’»)\]*_:]*$/u;
+/** Satır başındaki madde: "1) metin", "1. metin", "1- metin", "**1.** metin" */
+const SATIR_MADDESI = /^[ \t]*(?:\*\*)?(\d{1,2})(\)|\.|[ \t]?[-–])(?:\*\*)?[ \t]+(\S.*)$/u;
+/** Satır içindeki madde işareti: sözcüğün, sürümün ya da kodun parçası olmayan "1)", "1." ya da "1-" ve ardından boşluk */
+const SATIR_ICI_ISARET = /(?<![\p{L}\p{N}_.,/-])(\d{1,2})(\)|\.|[ \t]?[-–])(?=[ \t]+\S)/gu;
+/** Satır içi listenin ilk işaretinden önce: metnin ya da satırın başı, iki nokta, cümle sonu, açılan parantez */
+const ILK_AYRAC = /(?:^|[\n:;.!?？(—–])$/u;
+/** Sonraki işaretten önce: virgül, noktalı virgül, nokta, satır sonu ya da bağlaç ("…, ve 3) …", "… or 3) …") */
+const SONRAKI_AYRAC = /(?:[,;.\n]|(?:^|[\s,])(?:ve|veya|ya da|yahut|and|or))$/iu;
+/** Satır içi listenin son maddesinin bittiği yer: cümle sonu (ardından büyük harf, rakam, tırnak, satır ya da metin sonu) ya da satır sonu */
+const SON_MADDE_SONU = /[.!?？](?=[ \t]+[\p{Lu}\p{N}"“'(]|[ \t]*(?:\n|$))|\n/u;
+
+type MaddeBicimi = ")" | "." | "-";
+const maddeBicimi = (isaret: string): MaddeBicimi => (isaret.trim() === ")" ? ")" : isaret.trim() === "." ? "." : "-");
+
+/** Bulunan liste: maddeler ve listenin metindeki başlangıcı ve sonu (karakter) */
+interface ListeAdayi {
+  maddeler: string[];
+  bas: number;
+  son: number;
+}
+
+/** Madde metni: Markdown vurgusu, sondaki ayraçlar, bağlaç ve nokta atılır */
+function maddeTemizle(ham: string): string {
+  let m = ham
+    .replace(/\*\*|__|`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  for (let once = ""; once !== m; ) {
+    once = m;
+    m = m
+      .replace(/[\s,;:]+$/u, "")
+      .replace(/(?:^|[\s,])(?:ve|veya|ya da|yahut|and|or)$/iu, "")
+      .trim();
+  }
+  return m.replace(/\.+$/u, "").trim();
+}
+
+/** Satır başlarındaki numaralı liste: 1'den sırayla artan, aynı biçimde maddeler; maddeler arasında tek boş satır ve girintili devam satırları olabilir */
+function satirListesi(metin: string): ListeAdayi | null {
+  const satirlar = metin.split("\n");
+  const baslar: number[] = [];
+  let konum = 0;
+  for (const s of satirlar) {
+    baslar.push(konum);
+    konum += s.length + 1;
+  }
+  type Blok = { bas: number; son: number; maddeler: string[]; bicim: MaddeBicimi };
+  const bloklar: Blok[] = [];
+  let blok: Blok | null = null;
+  let bos = 0;
+  for (let i = 0; i < satirlar.length; i++) {
+    const satir = satirlar[i]!;
+    const m = SATIR_MADDESI.exec(satir);
+    if (m) {
+      const n = Number(m[1]);
+      const bicim = maddeBicimi(m[2]!);
+      if (blok && n === blok.maddeler.length + 1 && bicim === blok.bicim) {
+        blok.maddeler.push(m[3]!);
+        blok.son = i;
+      } else {
+        if (blok) bloklar.push(blok);
+        blok = n === 1 ? { bas: i, son: i, maddeler: [m[3]!], bicim } : null;
+      }
+      bos = 0;
+    } else if (blok) {
+      if (!satir.trim()) {
+        if (++bos > 1) {
+          bloklar.push(blok);
+          blok = null;
+        }
+      } else if (/^[ \t]{2,}\S/.test(satir)) {
+        // Girintili satır maddenin devamıdır; seçeneğin metnine girmez
+        blok.son = i;
+        bos = 0;
+      } else {
+        bloklar.push(blok);
+        blok = null;
+      }
+    }
+  }
+  if (blok) bloklar.push(blok);
+  const son = bloklar.filter((b) => b.maddeler.length >= 2).at(-1);
+  if (!son) return null;
+  return { maddeler: son.maddeler, bas: baslar[son.bas]!, son: baslar[son.son]! + satirlar[son.son]!.length };
+}
+
+/**
+ * Satır içindeki numaralı liste: "…öneriyorum: 1) a, 2) b, 3) c. …". İşaretler 1'den sırayla artar, ilki iki nokta ya da
+ * cümle sonundan, ötekiler virgül, noktalı virgül ya da bağlaçtan sonra gelir. Her biçimin ("1)", "1.", "1-") listesi ayrı
+ * izlenir: başka biçimdeki işaret maddenin metnidir ("1) 2. kat, 2) …"). Sırası ya da ayracı tutmayan aynı biçimdeki işaret
+ * o listeyi belirsiz kılar. Birden çok liste varsa en son biten döner.
+ */
+function satirIciListe(metin: string): ListeAdayi | null {
+  type Isaret = { bas: number; son: number; n: number };
+  const kosular = new Map<MaddeBicimi, Isaret[]>();
+  const biten: Isaret[][] = [];
+  const bitir = (b: MaddeBicimi) => {
+    const k = kosular.get(b);
+    if (k && k.length >= 2) biten.push(k);
+    kosular.delete(b);
+  };
+  for (const m of metin.matchAll(SATIR_ICI_ISARET)) {
+    const x: Isaret = { bas: m.index, son: m.index + m[0].length, n: Number(m[1]) };
+    const bicim = maddeBicimi(m[2]!);
+    const oncesi = metin.slice(Math.max(0, x.bas - 16), x.bas).replace(/[ \t]+$/u, "");
+    if (x.n === 1) {
+      bitir(bicim);
+      if (ILK_AYRAC.test(oncesi)) kosular.set(bicim, [x]);
+      continue;
+    }
+    const kosu = kosular.get(bicim);
+    if (!kosu) continue;
+    const ayniParagraf = !/\n[ \t]*\n/u.test(metin.slice(kosu[kosu.length - 1]!.son, x.bas));
+    if (x.n === kosu.length + 1 && ayniParagraf && SONRAKI_AYRAC.test(oncesi)) kosu.push(x);
+    else kosular.delete(bicim);
+  }
+  for (const b of [...kosular.keys()]) bitir(b);
+  const liste = biten.sort((a, b) => b[b.length - 1]!.bas - a[a.length - 1]!.bas)[0];
+  if (!liste) return null;
+  const maddeler: string[] = [];
+  for (let i = 0; i < liste.length - 1; i++) maddeler.push(metin.slice(liste[i]!.son, liste[i + 1]!.bas));
+  const sonIsaret = liste[liste.length - 1]!;
+  const kalan = metin.slice(sonIsaret.son);
+  const bitis = SON_MADDE_SONU.exec(kalan);
+  const sonMadde = bitis ? bitis.index : kalan.length;
+  maddeler.push(kalan.slice(0, sonMadde));
+  return { maddeler, bas: liste[0]!.bas, son: sonIsaret.son + sonMadde };
+}
+
+/**
+ * Ajanın kurula düz metinle yazdığı mesajdaki seçenek listesi ("Seçerek yanıtla"); yoksa null. Temkinlidir:
+ * - liste 1'den başlayıp sırayla artan 2–12 maddedir; "1)", "1." ya da "1-" biçiminde, satır başlarında ya da satır
+ *   içinde (ilk madde iki nokta ya da cümle sonundan sonra, ötekiler virgül, noktalı virgül ya da bağlaçtan sonra);
+ * - mesaj bir soruyla biter: listeden sonraki kısa kısım (en çok 400 karakter) soru işaretiyle biter ya da liste mesajın
+ *   sonundaysa ondan hemen önceki cümle sorudur ("Hangisiyle başlayalım?\n1. …");
+ * - birden çok liste varsa en son biten sayılır; maddeler en çok 300 karakterdir.
+ * Yalnız kurula (CEO sohbetinde) yazılan ajan mesajlarında kullanılır; çağıran bunu denetler.
+ */
+export function metindekiSecenekler(metin: string): string[] | null {
+  const duz = metin.replace(/\r\n?/g, "\n").trim();
+  if (!duz || duz.length > 8000) return null;
+  // Aynı yerde biten iki aday varsa satır listesi önce gelir (devam satırları onda doğru ayrılır)
+  const adaylar = [satirListesi(duz), satirIciListe(duz)].filter((a): a is ListeAdayi => a !== null);
+  const aday = adaylar.sort((a, b) => b.son - a.son)[0];
+  if (!aday) return null;
+  const maddeler = aday.maddeler.map(maddeTemizle);
+  if (maddeler.length < SECENEK_SINIRLARI.enAz || maddeler.length > SECENEK_SINIRLARI.enCok) return null;
+  if (!maddeler.every((m) => m.length > 0 && m.length <= SECENEK_SINIRLARI.metin && /[\p{L}\p{N}]/u.test(m))) return null;
+  // Listeyi kapatan nokta ya da ünlem sorunun parçası sayılmaz
+  const sonrasi = duz
+    .slice(aday.son)
+    .replace(/^[\s.!;,]+/u, "")
+    .trim();
+  const soru = sonrasi ? sonrasi.length <= SORU_KISMI_SINIRI && SORU_SONU.test(sonrasi) : SORU_ONCESI.test(duz.slice(0, aday.bas).trim());
+  return soru ? maddeler : null;
+}

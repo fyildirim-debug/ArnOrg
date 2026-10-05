@@ -10,6 +10,7 @@ import { duzeltmeKaldir, duzeltmeUygula } from "./duzeltmeler";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
 import { kodDurumuUygula } from "./kodZekasi";
 import { modelKataloguUygula } from "./modeller";
+import { mesajYerineKoy } from "./secenek";
 import { islemUygula, kurulumDurumuUygula } from "./kurulum";
 import { zekaOlayiUygula } from "./zeka";
 import {
@@ -170,6 +171,11 @@ function depoyaUygula(olay: SunucuOlayi) {
       }
       return;
     }
+
+    // Seçenekli soru yanıtlandı: soru yerinde kilitlenir (okunmamış sayılmaz)
+    case "mesaj.guncellendi":
+      if (olay.projeId === pid) mesajYerineKoy(olay.mesaj);
+      return;
 
     case "kullanim": {
       if (olay.projeId !== pid) return;

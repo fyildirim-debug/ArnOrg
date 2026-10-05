@@ -119,7 +119,6 @@ export const onaylar: typeof tr = {
   dosya: (n: number) => `${n} ${n === 1 ? "file" : "files"}`,
   rolVarsayilani: "role default",
   karakterOtomatik: "Automatic · picked by role",
-  secenekIpucu: "Write your pick in the note; it goes to the agent as the answer.",
 
   anayasa: {
     kural: "Machine rule",

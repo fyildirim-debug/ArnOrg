@@ -21,6 +21,7 @@ import { Bos, HataKutu, Iskelet } from "./Durumlar";
 import { AjanAvatar, AjanDurum } from "./Kisi";
 import { alintiyla, gunEtiketi, gunlereAyir } from "./mesajGruplari";
 import { MesajMetni } from "./MesajMetni";
+import { SecenekliMesaj } from "./secenek/SecenekliMesaj";
 import { Simge } from "./Simge";
 import { KIMSE_YAZMIYOR, YaziyorGostergesi } from "./YaziyorGostergesi";
 
@@ -216,7 +217,7 @@ function SohbetMesaji({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: bo
             <time dateTime={mesaj.zaman}>{saat(mesaj.zaman)}</time>
           </p>
         ) : null}
-        <div className="sohbet-metin">{brifing ? <BrifingMesaji brifing={brifing} /> : <MesajMetni metin={mesaj.metin} />}</div>
+        <div className="sohbet-metin">{brifing ? <BrifingMesaji brifing={brifing} /> : <SecenekliMesaj mesaj={mesaj} />}</div>
       </div>
     </li>
   );

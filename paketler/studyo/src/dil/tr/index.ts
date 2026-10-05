@@ -27,6 +27,7 @@ import { modeller } from "./modeller";
 import { yetenek } from "./yetenek";
 import { tarayici } from "./tarayici";
 import { karar } from "./karar";
+import { secenek } from "./secenek";
 import { tanitim } from "./tanitim";
 import { skiller } from "./skiller";
 import { arayuz } from "./arayuz";
@@ -60,6 +61,7 @@ export const tr = {
   yetenek,
   tarayici,
   karar,
+  secenek,
   tanitim,
   skiller,
   arayuz,

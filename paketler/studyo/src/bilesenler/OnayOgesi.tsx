@@ -24,6 +24,8 @@ import { ceoyuBekliyor, kararGerekcesi, kararVereni } from "./kararVeren";
 import { KarakterPortresi, useKarakterKatalogu } from "./KarakterSecici";
 import { AjanAvatar, modelAdi } from "./Kisi";
 import { anayasaVerisi, ilkParagraf, istenCikarmaVerisi, TESLIM_ALANLARI, teslimVerisi } from "./onayVerisi";
+import { OnaySecenekListesi, OnaySecimi } from "./secenek/OnaySecimi";
+import { onaySecenekleri } from "../yardimcilar/secenek";
 import { Simge } from "./Simge";
 import { TeslimKarari } from "./TestPaneli";
 import { kisaToken, TavanOlcer, TOKEN_TAVANI_ALANLARI, tokenTavaniVerisi } from "./TokenTavani";
@@ -306,21 +308,9 @@ function gorunumKur(onay: Onay, ajan: Ajan | undefined, b: Baglam, katalog: Varl
       kullanilan.add("soru");
       const secenekler = Array.isArray(v.secenekler) ? v.secenekler.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
       if (secenekler.length) {
-        ekle({
-          k: "secenekler",
-          etiket: t.alan.secenekler,
-          deger: (
-            <>
-              <ol className="onay-secenekler">
-                {secenekler.map((x, i) => (
-                  <li key={i}>{x}</li>
-                ))}
-              </ol>
-              <small className="onay-ipucu">{t.secenekIpucu}</small>
-            </>
-          ),
-          genis: true,
-        });
+        // Bekleyen soruda seçenekler karar alanında seçilir (secenek/OnaySecimi); sonuçlananda seçilen işaretli
+        if (onay.durum === "bekliyor") kullanilan.add("secenekler");
+        else ekle({ k: "secenekler", etiket: t.alan.secenekler, deger: <OnaySecenekListesi onay={onay} secenekler={secenekler} />, genis: true });
       } else kullanilan.add("secenekler");
       if (typeof v.gorevId === "string") {
         ekle({ k: "gorevId", etiket: t.alan.gorevId, deger: <GorevBagi id={v.gorevId} gorevler={b.gorevler} />, genis: true });
@@ -708,6 +698,9 @@ function BekleyenOnay({ onay }: { onay: Onay }) {
               </button>
             }
           />
+        ) : onaySecenekleri(onay).length ? (
+          // Kurula sorunun seçenekleri: seçilen seçenek soran çalışana yanıt olarak gider
+          <OnaySecimi onay={onay} aciklayan={baslikId} kilitli={doldu} ikincil={ceoda} />
         ) : (
           <OnayKararDugmeleri
             onay={onay}

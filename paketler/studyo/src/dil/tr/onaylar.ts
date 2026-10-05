@@ -128,7 +128,6 @@ export const onaylar = {
   dosya: (n: number) => `${n} dosya`,
   rolVarsayilani: "rol varsayılanı",
   karakterOtomatik: "Otomatik · role göre seçilir",
-  secenekIpucu: "Seçiminizi nota yazın; not ajana yanıt olarak gider.",
 
   /** Ana yasa önerisi: maddeler ve denetim kapısında uygulanan makine kuralları */
   anayasa: {
