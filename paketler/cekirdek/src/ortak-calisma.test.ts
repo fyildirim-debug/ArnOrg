@@ -7,7 +7,7 @@ import path from "node:path";
 import type { HookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { KAYIT_SON_DURUMLARI, type Ajan, type Gorev, type GorevKaydi, type SunucuOlayi } from "@arnorg/ortak";
+import { KAYIT_SON_DURUMLARI, KURUL, type Ajan, type Gorev, type GorevKaydi, type SunucuOlayi } from "@arnorg/ortak";
 import { arnorgAracListesi } from "./arnorg-araclari.js";
 import { Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
@@ -595,6 +595,118 @@ describe("iş dağıtımı", () => {
       sirket.ortak.isDagitimi = false;
     }
   });
+});
+
+describe("kurulun durdurması ve işsiz çalışanlar", () => {
+  it("Mesaiyi durdur ve Durdur'dan sonra ArnOrg iş başlatmaz; kurul yazınca ya da başlatınca sürer; durdurma kalıcıdır", async () => {
+    const p = await sirket.projeOlustur({ ad: "Durdurma", yol: path.join(gecici, "durdurma"), olustur: true });
+    const ali = sirket.iseAl(p.id, { ad: "Ali", rol: "backend" });
+    const ayse = sirket.iseAl(p.id, { ad: "Ayse", rol: "frontend" });
+    const g1 = sirket.gorevOlustur(p.id, { baslik: "Sipariş API'si", atananId: ali.id, durum: "planlandi" });
+    const mesaj = vi.spyOn(sirket, "ajanaMesaj").mockResolvedValue(undefined);
+    sirket.ortak.isDagitimi = true;
+    try {
+      // Mesaiyi durdur: boşa çıkan çalışana iş başlamaz, durdurma veri dizininde saklanır
+      sirket.tumunuDurdur(p.id);
+      expect(sirket.mesaiDurduMu(p.id)).toBe(true);
+      expect(sirket.kurulDurdurduMu(ali.id)).toBe(true);
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([]);
+      expect(depo.gorev(g1.id)?.durum).toBe("planlandi");
+      expect(JSON.parse(depo.deger("kurul-durdurdu") ?? "{}").projeler).toContain(p.id);
+
+      // Kurul CEO'ya yazdı: mesai sürer, planlı iş başlar
+      await sirket.mesajGonder(p.id, "yonetim", KURUL, "Devam edin, plana göre ilerleyin.");
+      expect(sirket.mesaiDurduMu(p.id)).toBe(false);
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([g1.kod]);
+      expect(depo.gorev(g1.id)).toMatchObject({ durum: "calisiliyor", atananId: ali.id });
+
+      // Durdur (tek çalışan): ona yeni iş başlamaz; anmasız bir kurul mesajı onu sürdürmez
+      sirket.ajanDurdur(ayse.id);
+      const g2 = sirket.gorevOlustur(p.id, { baslik: "Yönetim sayfası arayüzü", atananId: ayse.id, durum: "planlandi" });
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([]);
+      await sirket.mesajGonder(p.id, "genel", KURUL, "Herkese kolay gelsin.");
+      expect(sirket.kurulDurdurduMu(ayse.id)).toBe(true);
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([]);
+      // Kurul onu başlattı: sürer
+      await sirket.ajanBaslat(ayse.id);
+      expect(sirket.kurulDurdurduMu(ayse.id)).toBe(false);
+      expect(await sirket.ortak.isDagit(p.id)).toEqual([g2.kod]);
+      expect(mesaj).toHaveBeenCalled();
+    } finally {
+      sirket.ortak.isDagitimi = false;
+    }
+  });
+
+  it("yapacak işi olmayan boştaki çalışanlar CEO'ya bir kez ve toplu söylenir; iş alıp yeniden boşa çıkan yine söylenir", async () => {
+    const p = await sirket.projeOlustur({ ad: "Issiz", yol: path.join(gecici, "issiz"), olustur: true });
+    const ali = sirket.iseAl(p.id, { ad: "Ali", rol: "backend" });
+    sirket.iseAl(p.id, { ad: "Nil", rol: "yazar" });
+    sirket.iseAl(p.id, { ad: "Cem", rol: "cto" });
+    const patron = ceo(p.id);
+    const { mesajlar } = casus();
+    sirket.ortak.isDagitimi = true;
+    try {
+      // CTO'nun boşta olması olağandır; CEO boşta: uyandırılır
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual(["Ali", "Nil"]);
+      const not = mesajlar(patron.id).at(-1) ?? "";
+      expect(not).toContain("Boşta ve yapacak işi olmayan çalışanlar: Ali (");
+      expect(not).toContain("Nil (");
+      expect(not).not.toContain("Cem");
+      // Aynı kişiler için yinelenmez
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual([]);
+
+      // Ali'ye iş verildi: işsiz değil; iş bitip yeniden boşa çıkınca yine söylenir. CEO çalışıyorsa haber olarak
+      const g = sirket.gorevOlustur(p.id, { baslik: "Sipariş API'si", atananId: ali.id, durum: "planlandi" });
+      expect(sirket.ortak.issizler(p.id).map((a) => a.ad)).toEqual(["Nil"]);
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual([]);
+      depo.gorevGuncelle(g.id, { durum: "tamam" });
+      depo.ajanGuncelle(patron.id, { durum: "calisiyor" });
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual(["Ali", "Nil"]);
+      expect(sirket.zeka.haberleriAl(patron.id).join("\n")).toContain("Boşta ve yapacak işi olmayan çalışanlar: Ali (");
+
+      // Mesai durduysa söylenmez
+      depo.ajanGuncelle(patron.id, { durum: "bosta" });
+      depo.ajanGuncelle(ali.id, { durum: "calisiyor" });
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual([]);
+      depo.ajanGuncelle(ali.id, { durum: "bosta" });
+      sirket.tumunuDurdur(p.id);
+      expect(await sirket.ortak.issizleriBildir(p.id)).toEqual([]);
+      expect(sirket.ortak.issizler(p.id)).toEqual([]);
+      sirket.kurulDevamEtti(p.id);
+    } finally {
+      sirket.ortak.isDagitimi = false;
+    }
+  });
+
+  it("kurulun durdurduğu çalışanın testten geçmeyen kaydı onu uyandırmaz, haber olarak bekler", async () => {
+    depo.projeGuncelle(pid, { testKomutu: "node kontrol.cjs", testZamanAsimiDk: 5 });
+    const deniz = ajan("Deniz");
+    const g = await gorevAc("Durdurulmuşken boz", deniz);
+    const { mesajlar } = casus();
+    try {
+      // Dal yeşil başlasın: kırılma bu kayda yazılsın
+      await yaz(depo.ajan(deniz.id)!, "deger.txt", "yesil\n");
+      await sirket.ortak.gorevKaydet(depo.gorev(g.id)!, "ara");
+      expect((await denetimBekle(sirket.ortak.defter.gorevin(g.id).at(-1)!.id)).kalite.durum).toBe("gecti");
+      await yaz(depo.ajan(deniz.id)!, "deger.txt", "BOZUK\n");
+      await sirket.gorevGuncelle(g.id, { durum: "inceleme" });
+      sirket.ajanDurdur(deniz.id);
+      const k = await denetimBekle(sirket.ortak.defter.gorevin(g.id).at(-1)!.id);
+      expect(k.kalite).toMatchObject({ durum: "kaldi", kirmiziKayit: null });
+      expect(depo.gorev(g.id)?.durum).toBe("calisiliyor");
+      expect(mesajlar(deniz.id).filter((m) => m.includes("testler geçmedi"))).toEqual([]);
+      expect(sirket.zeka.haberleriAl(deniz.id).join("\n")).toContain(`${g.kod} "Durdurulmuşken boz" kaydından sonra testler geçmedi`);
+    } finally {
+      sirket.kurulDevamEtti(pid, [deniz.id]);
+      // Dal yeniden yeşil, görev kapalı: sonraki testler etkilenmesin
+      await yaz(depo.ajan(deniz.id)!, "deger.txt", "duzeldi\n");
+      await sirket.ortak.gorevKaydet(depo.gorev(g.id)!, "ara");
+      await denetimBekle(sirket.ortak.defter.gorevin(g.id).at(-1)!.id);
+      await sirket.gorevGuncelle(g.id, { durum: "inceleme" });
+      await sirket.gorevGuncelle(g.id, { durum: "tamam" });
+      depo.projeGuncelle(pid, { testKomutu: null });
+    }
+  }, 60_000);
 });
 
 describe("kenar durumları", () => {

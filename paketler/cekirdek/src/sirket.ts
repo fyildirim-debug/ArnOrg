@@ -132,7 +132,7 @@ import { degerlendir, girdiOzeti, imzaAyikla, varsayilanKurallar } from "./polit
 import { ekipDosyalariniOku, ekipDosyasiSil, ekipDosyasiYaz, iskeletOlustur } from "./proje-dosyalari.js";
 import { rolAdiDilde, rolBul } from "./roller.js";
 import type { Yapilandirma } from "./yapilandirma.js";
-import { ArnorgHatasi, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, kimlik, kisalt, simdi, yonelme } from "./yardimci.js";
+import { ArnorgHatasi, bugun, bulunamadi, bulunma, emojiAyikla, ilgi, jsonOku, kimlik, kisalt, simdi, yonelme } from "./yardimci.js";
 
 const YAZMA_ARACLARI = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const SESSIZ_ARACLAR = new Set(["TodoWrite", "ToolSearch"]);
@@ -164,6 +164,8 @@ const CEO_KENDI_KARARI: OnayTuru[] = ["ise_alim", "isten_cikarma", "anayasa", "a
 const CEO_KARAR_VEREMEZ: AjanDurumu[] = ["duraklatildi", "hata"];
 /** CEO boşa çıkınca kendisini bu kadar süredir bekleyen onaylar (her biri bir kez) hatırlatılır */
 const CEO_HATIRLATMA_MS = 2 * 60_000;
+/** Kurulun durdurdukları (anahtar-değer): Mesaiyi durdur ile projeler, Durdur ile çalışanlar */
+const DURDURMA_KAYDI = "kurul-durdurdu";
 
 /** Denetim kaydında kararı veren (kural sütunu): "Yönetim kurulu", "Ada (CEO)", "Otomatik onay"; süre dolduysa "Süre doldu" */
 function denetimKarari(k: KurulKarari): string {
@@ -196,6 +198,11 @@ export class Sirket {
   /** CEO boşa çıkınca bir kez hatırlatılmış, onu bekleyen onaylar */
   private readonly ceoyaHatirlatilan = new Set<string>();
   private bostaZamanlayicilari = new Map<string, NodeJS.Timeout>();
+  /**
+   * Kurulun durdurdukları: Mesaiyi durdur (proje) ve Durdur (çalışan). ArnOrg bunlara kendiliğinden iş başlatmaz,
+   * gözetmen onları dürtmez; kurul yeniden yazınca ya da başlatınca kalkar. Açılışlar arasında saklanır.
+   */
+  private readonly durdurulan: { projeler: Set<string>; ajanlar: Set<string> };
   private uyandirmalar = new Map<string, number[]>();
   private akisSayaci = 0;
   /** Mutlak dosya yolu → son düzenleyen ajan */
@@ -275,6 +282,8 @@ export class Sirket {
     depo.ajanDurumlariniSifirla();
     depo.bekleyenAracOnaylariniKapat(iki("Uygulama yeniden başladı", "The app restarted"));
     depo.bekleyenSorulariKapat();
+    const durdurma = jsonOku<{ projeler?: string[]; ajanlar?: string[] }>(depo.deger(DURDURMA_KAYDI), {});
+    this.durdurulan = { projeler: new Set(durdurma.projeler ?? []), ajanlar: new Set(durdurma.ajanlar ?? []) };
     this.hafiza = new ProjeHafizasi(depo, olaylar, (id) => this.proje(id), (pid) => this.arnorgCommitPlanla(pid));
     this.hatirlatici = new Hatirlatici(depo, this.hafiza);
     this.kodZekasi = new KodZekasi({
@@ -360,6 +369,13 @@ export class Sirket {
       akisNotu: (id, metin) => this.akisEkle(id, { id: kimlik(), ajanId: id, zaman: simdi(), tur: "sistem", metin }),
     });
     olaylar.dinle((o) => this.gorevTavani.olay(o));
+    // Kurul projede yazdı: durdurulan mesai sürer; andığı çalışanlar (anmasız #genel ve #yonetim'de CEO) da sürer
+    olaylar.dinle((o) => {
+      if (o.tur !== "mesaj.yeni" || o.mesaj.gonderenId !== KURUL) return;
+      const m = o.mesaj;
+      const ceo = !m.anilanlar.length && (m.kanal === "genel" || m.kanal === "yonetim") ? this.ceoBul(m.projeId) : null;
+      this.kurulDevamEtti(m.projeId, [...m.anilanlar, ...(ceo ? [ceo.id] : [])]);
+    });
     // Model kataloğu: testlerde ve oturumsuz kipte Claude Code açılmaz; liste önbellekten ya da sabit yedekten gelir
     this.modelKatalogu = new ModelKataloguIzleyici({
       depo,
@@ -1154,6 +1170,7 @@ export class Sirket {
 
   async ajanBaslat(id: string, istek: AjanBaslatIstegi = {}): Promise<Ajan> {
     const a = this.ajan(id);
+    this.kurulDevamEtti(a.projeId, [id]);
     let metin = istek.talimat?.trim() ?? "";
     if (istek.gorevId) {
       const g = this.depo.gorev(istek.gorevId);
@@ -1301,11 +1318,39 @@ export class Sirket {
   ajanDurdur(id: string): Ajan {
     this.ajan(id);
     this.oturumlar.get(id)?.kapat();
-    // Kurul durdurdu: sıradaki mesajları düşer, açılışta da uyanmaz; dosya kiraları biter
+    // Kurul durdurdu: sıradaki mesajları düşer, açılışta da uyanmaz; dosya kiraları biter. Kurul yeniden yazana ya
+    // da başlatana dek ArnOrg ona iş başlatmaz, gözetmen dürtmez
     this.esZamanlilik.dusur((x) => x === id);
     this.mesai.cikar((x) => x === id);
     this.ortak.ajanDurdu(id);
+    this.durdurulan.ajanlar.add(id);
+    this.durdurmaYaz();
     return this.ajan(id);
+  }
+
+  /** Kurul bu çalışanı ya da projesini durdurdu mu (kurul yeniden yazana ya da başlatana dek) */
+  kurulDurdurduMu(ajanId: string): boolean {
+    if (this.durdurulan.ajanlar.has(ajanId)) return true;
+    const a = this.depo.ajan(ajanId);
+    return !!a && this.durdurulan.projeler.has(a.projeId);
+  }
+
+  /** Projenin mesaisini kurul durdurdu mu */
+  mesaiDurduMu(projeId: string): boolean {
+    return this.durdurulan.projeler.has(projeId);
+  }
+
+  /** Kurul projede yeniden yazdı ya da bir çalışanı başlattı: projenin ve verilen çalışanların durdurulması kalkar */
+  kurulDevamEtti(projeId: string, ajanIdleri: string[] = []): void {
+    let degisti = this.durdurulan.projeler.delete(projeId);
+    for (const id of ajanIdleri) if (this.durdurulan.ajanlar.delete(id)) degisti = true;
+    if (!degisti) return;
+    this.durdurmaYaz();
+    this.ortak.dagitimPlanla(projeId);
+  }
+
+  private durdurmaYaz(): void {
+    this.depo.degerYaz(DURDURMA_KAYDI, JSON.stringify({ projeler: [...this.durdurulan.projeler], ajanlar: [...this.durdurulan.ajanlar] }));
   }
 
   async ajanMod(id: string, mod: IzinModu): Promise<Ajan> {
@@ -1333,6 +1378,8 @@ export class Sirket {
     this.mesai.cikar(projede);
     this.kanallar.konusmalariDurdur(projeId);
     this.ortak.mesaiDurdu(projeId);
+    for (const p of projeId ? [projeId] : this.depo.projeler().map((x) => x.id)) this.durdurulan.projeler.add(p);
+    this.durdurmaYaz();
   }
 
   private akisEkle(ajanId: string, oge: AkisOgesi): void {

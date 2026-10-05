@@ -9,7 +9,8 @@
 //     gönderim açıksa çalışma dalı kısa gecikmeyle uzak depoya gönderilir.
 //   - Kiralar sahibi durunca biter; sahibi çalışmıyor ve 30 dakikadır sessizse süresi dolar.
 //   - Ekip temposu: tam otonom kipte CEO'nun seçimi (ekip_temposu) proje başına tavandır; kurulun üst sınırını geçemez.
-//   - İş dağıtımı: boşa çıkan çalışana sıradaki işi (tempo izin verdikçe) ArnOrg başlatır ve CEO'ya kısaca söyler.
+//   - İş dağıtımı: boşa çıkan çalışana sıradaki işi (tempo izin verdikçe) ArnOrg başlatır ve CEO'ya kısaca söyler;
+//     yapacak işi olmayan boştaki çalışanlar CEO'ya toplu söylenir. Kurulun durdurduğu proje ve çalışana iş başlamaz.
 //   - Geçiş: açılışta eski worktree ve dallar ortak projeye alınır (gecis.ts).
 import fs from "node:fs";
 import path from "node:path";
@@ -18,6 +19,7 @@ import { iki } from "../dil.js";
 import { calisanMi, tavanDegeri } from "../es-zamanlilik.js";
 import * as gitIslemleri from "../git.js";
 import { sonKisim } from "../kalite-kapisi.js";
+import { rolAdiDilde } from "../roller.js";
 import type { Sirket } from "../sirket.js";
 import { ArnorgHatasi, ilgi, jsonOku, kimlik, kisalt, simdi, yonelme } from "../yardimci.js";
 import { gecisOldu, kalanSatirlari, projeyiGecir, type GecisSonucu } from "./gecis.js";
@@ -40,6 +42,10 @@ const GONDERIM_GECIKMESI_MS = 20_000;
 const DAGITIM_GECIKMESI_MS = 1500;
 /** Kira süresi ve kaçan dağıtım için dönemsel bakış */
 const SUPURME_MS = 60_000;
+/** Yapacak işi olmayan boştaki çalışanlar CEO'ya bu kadar bekleyip toplu söylenir (art arda boşa çıkanlar tek notta) */
+export const ISSIZ_BILDIRIM_MS = 90_000;
+/** Boşta kalması olağan roller: yöneticiler, inceleyici ve tanıtım uzmanı (işleri onlara gelir); CEO'ya söylenmez */
+const BOSTA_OLAGAN = new Set(["ceo", "cto", "inceleme", "tanitim"]);
 /** Kurulun Stüdyo'da düzenlediği dosya bu süre içinde ize girmez (çalışana yazılmaz) */
 const KURUL_IZI_MS = 60 * 60_000;
 /** Anahtar-değer kayıtları */
@@ -90,6 +96,9 @@ export class OrtakCalisma {
   private readonly dagitimlar = new Map<string, NodeJS.Timeout>();
   private readonly tempoYayinlari = new Map<string, NodeJS.Timeout>();
   private readonly dagitiliyor = new Set<string>();
+  /** Proje → CEO'ya işsiz diye söylenmiş çalışanlar (yeniden iş alana dek yinelenmez) */
+  private readonly bildirilenIssizler = new Map<string, Set<string>>();
+  private readonly issizZamanlayicilari = new Map<string, NodeJS.Timeout>();
   /** Proje → son izdeki kirli yolların imzası */
   private readonly bilinenKirli = new Map<string, Map<string, string>>();
   /** Proje → sıradaki iz işleri */
@@ -142,7 +151,7 @@ export class OrtakCalisma {
   kapat(): void {
     this.kapali = true;
     if (this.supurucu) clearInterval(this.supurucu);
-    for (const z of [...this.gonderimler.values(), ...this.dagitimlar.values(), ...this.tempoYayinlari.values()]) clearTimeout(z);
+    for (const z of [...this.gonderimler.values(), ...this.dagitimlar.values(), ...this.tempoYayinlari.values(), ...this.issizZamanlayicilari.values()]) clearTimeout(z);
     for (const [pid, z] of this.kiraYazimlari) {
       clearTimeout(z);
       this.kiralariYaz(pid);
@@ -568,16 +577,13 @@ export class OrtakCalisma {
           ),
         );
       }
-      await this.s
-        .uyandir(
-          sahip.id,
-          iki(
-            `${kod} "${g.baslik}" kaydından sonra ${nedenTr}: ${mesaj}${geriDondu ? " Görev sana geri döndü ('calisiliyor')." : ""}\n\nÇıktının sonu:\n\`\`\`\n${son}\n\`\`\`\n\nAynı komutu (${komut}) çalıştır, düzelt ve görevi yeniden 'inceleme' durumuna al. Ortak dal kırmızıyken herkesin denetimi kalır; bu işi öne al.`,
-            `After the ${kod} "${g.baslik}" save ${nedenEn}: ${mesaj}${geriDondu ? " The task is back with you ('calisiliyor')." : ""}\n\nEnd of the output:\n\`\`\`\n${son}\n\`\`\`\n\nRun the same command (${komut}), fix it and move the task to 'inceleme' again. While the shared branch is red everyone's checks fail; do this first.`,
-          ),
-          null,
-        )
-        .catch(() => false);
+      const duzelt = iki(
+        `${kod} "${g.baslik}" kaydından sonra ${nedenTr}: ${mesaj}${geriDondu ? " Görev sana geri döndü ('calisiliyor')." : ""}\n\nÇıktının sonu:\n\`\`\`\n${son}\n\`\`\`\n\nAynı komutu (${komut}) çalıştır, düzelt ve görevi yeniden 'inceleme' durumuna al. Ortak dal kırmızıyken herkesin denetimi kalır; bu işi öne al.`,
+        `After the ${kod} "${g.baslik}" save ${nedenEn}: ${mesaj}${geriDondu ? " The task is back with you ('calisiliyor')." : ""}\n\nEnd of the output:\n\`\`\`\n${son}\n\`\`\`\n\nRun the same command (${komut}), fix it and move the task to 'inceleme' again. While the shared branch is red everyone's checks fail; do this first.`,
+      );
+      // Kurulun durdurduğu çalışan uyandırılmaz; düzeltme isteği kurul onu yeniden başlatınca önüne gelir
+      if (this.s.kurulDurdurduMu(sahip.id)) this.s.zeka.haberEkle(sahip.id, duzelt);
+      else await this.s.uyandir(sahip.id, duzelt, null).catch(() => false);
       return;
     }
     // Sahibi yok (ayrıldı): düzeltme görevi açılır, CEO'ya söylenir
@@ -592,16 +598,12 @@ export class OrtakCalisma {
     );
     this.s.duyur(p.id, iki(`${kod} kaydından sonra ${nedenTr}; ${duzeltme.kod} düzeltme görevi açıldı.`, `After the ${kod} save ${nedenEn}; fix task ${duzeltme.kod} was opened.`));
     if (ceo) {
-      await this.s
-        .uyandir(
-          ceo.id,
-          iki(
-            `${kod} kaydından sonra ${nedenTr} ve sahibi artık ekipte değil. ${duzeltme.kod} düzeltme görevini açtım; uygun birine ata ve başlat. Çıktının sonu:\n${kisaSon}`,
-            `After the ${kod} save ${nedenEn} and its owner is no longer on the team. I opened fix task ${duzeltme.kod}; assign it to someone suitable and start it. End of the output:\n${kisaSon}`,
-          ),
-          null,
-        )
-        .catch(() => false);
+      const ata = iki(
+        `${kod} kaydından sonra ${nedenTr} ve sahibi artık ekipte değil. ${duzeltme.kod} düzeltme görevini açtım; uygun birine ata ve başlat. Çıktının sonu:\n${kisaSon}`,
+        `After the ${kod} save ${nedenEn} and its owner is no longer on the team. I opened fix task ${duzeltme.kod}; assign it to someone suitable and start it. End of the output:\n${kisaSon}`,
+      );
+      if (this.s.kurulDurdurduMu(ceo.id)) this.s.zeka.haberEkle(ceo.id, ata);
+      else await this.s.uyandir(ceo.id, ata, null).catch(() => false);
     }
   }
 
@@ -753,7 +755,8 @@ export class OrtakCalisma {
    * sıradaki işlerini başlatır: kendi planlı işi, yoksa rolüne uyan atanmamış iş. Başlatılan görev kodları döner.
    */
   async isDagit(projeId: string): Promise<string[]> {
-    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir) return [];
+    // Kurul mesaiyi durdurduysa ArnOrg işi kendiliğinden yeniden başlatmaz; kurul yazınca sürer
+    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId)) return [];
     const p = this.s.depo.proje(projeId);
     if (!p || !fs.existsSync(p.yol)) return [];
     this.dagitiliyor.add(projeId);
@@ -766,10 +769,7 @@ export class OrtakCalisma {
       if (yer <= 0) return [];
       const gorevler = this.s.depo.gorevler(projeId);
       const mesgul = new Set(gorevler.filter((g) => g.durum === "calisiliyor" && g.atananId).map((g) => g.atananId!));
-      const bostakiler = this.s.depo
-        .ajanlar(projeId)
-        .filter((a) => a.rol !== "ceo" && (a.durum === "bosta" || a.durum === "kapali") && !mesgul.has(a.id) && !this.s.siradaMi(a.id) && !this.s.gorevTavani.duraklatmaAciklamasi(a.id))
-        .sort((a, b) => (this.s.sonEtkinlik.get(a.id) ?? 0) - (this.s.sonEtkinlik.get(b.id) ?? 0));
+      const bostakiler = this.bostakiler(projeId, mesgul).sort((a, b) => (this.s.sonEtkinlik.get(a.id) ?? 0) - (this.s.sonEtkinlik.get(b.id) ?? 0));
       const alinan = new Set<string>();
       const ceo = this.s.ceoBul(projeId);
       for (const a of bostakiler) {
@@ -794,10 +794,77 @@ export class OrtakCalisma {
           );
         }
       }
+      this.issizBildirimPlanla(projeId);
       return baslatilan;
     } finally {
       this.dagitiliyor.delete(projeId);
     }
+  }
+
+  /** Boştaki çalışanlar: boşta ya da kapalı, CEO değil, süren görevi yok, sırada, tavanda ya da kurulca durdurulmuş değil */
+  private bostakiler(projeId: string, mesgul: Set<string>): Ajan[] {
+    return this.s.depo
+      .ajanlar(projeId)
+      .filter(
+        (a) =>
+          a.rol !== "ceo" &&
+          (a.durum === "bosta" || a.durum === "kapali") &&
+          !mesgul.has(a.id) &&
+          !this.s.siradaMi(a.id) &&
+          !this.s.gorevTavani.duraklatmaAciklamasi(a.id) &&
+          !this.s.kurulDurdurduMu(a.id),
+      );
+  }
+
+  /** Boşta olup yapacak işi (kendi planlı işi ya da rolüne uyan atanmamış iş) olmayan çalışanlar */
+  issizler(projeId: string): Ajan[] {
+    const gorevler = this.s.depo.gorevler(projeId);
+    const mesgul = new Set(gorevler.filter((g) => g.durum === "calisiliyor" && g.atananId).map((g) => g.atananId!));
+    return this.bostakiler(projeId, mesgul).filter((a) => !BOSTA_OLAGAN.has(a.rol) && !siradakiIs(a, gorevler));
+  }
+
+  /**
+   * Yapacak işi olmayan boştaki çalışanlar CEO'ya kısa bir beklemeden sonra toplu söylenir; her çalışan bir kez (yeniden
+   * iş alana dek). CEO çalışıyorsa haber olarak sıradaki turuna eklenir, boştaysa uyandırılır.
+   */
+  private issizBildirimPlanla(projeId: string): void {
+    const issizler = this.issizler(projeId);
+    const bildirilen = this.bildirilenBuda(projeId, issizler);
+    if (!issizler.some((a) => !bildirilen.has(a.id)) || this.issizZamanlayicilari.has(projeId)) return;
+    const z = setTimeout(() => {
+      this.issizZamanlayicilari.delete(projeId);
+      void this.issizleriBildir(projeId).catch(() => undefined);
+    }, ISSIZ_BILDIRIM_MS);
+    z.unref();
+    this.issizZamanlayicilari.set(projeId, z);
+  }
+
+  /** CEO'ya işsiz diye söylenmişlerden artık işsiz olmayanlar çıkar: iş alan, yeniden boşa çıkınca yine söylenir */
+  private bildirilenBuda(projeId: string, issizler: Ajan[]): Set<string> {
+    let bildirilen = this.bildirilenIssizler.get(projeId);
+    if (!bildirilen) this.bildirilenIssizler.set(projeId, (bildirilen = new Set()));
+    const simdiki = new Set(issizler.map((a) => a.id));
+    for (const id of bildirilen) if (!simdiki.has(id)) bildirilen.delete(id);
+    return bildirilen;
+  }
+
+  /** İşsiz çalışanları CEO'ya söyler; söylenenler döner (söylenmediyse boş) */
+  async issizleriBildir(projeId: string): Promise<string[]> {
+    if (this.kapali || !this.isDagitimi || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId)) return [];
+    const ceo = this.s.ceoBul(projeId);
+    if (!ceo || this.s.kurulDurdurduMu(ceo.id) || ceo.durum === "duraklatildi" || ceo.durum === "hata") return [];
+    const issizler = this.issizler(projeId);
+    const bildirilen = this.bildirilenBuda(projeId, issizler);
+    if (!issizler.some((a) => !bildirilen.has(a.id))) return [];
+    for (const a of issizler) bildirilen.add(a.id);
+    const liste = issizler.map((a) => `${a.ad} (${rolAdiDilde(a)})`).join(", ");
+    const metin = iki(
+      `Boşta ve yapacak işi olmayan çalışanlar: ${liste}. Planda onlara uyan iş varsa görev aç ve ata (baslat=true; etikete rol kimliğini yaz ki boşa çıkınca kendiliğinden başlasın). İşler aynı dosyalarda toplanıyorsa ya da bilerek bekletiyorsan böyle kalabilir; bu not, bu kişiler yeniden iş alana dek yinelenmez.`,
+      `Idle employees with nothing to do: ${liste}. If the plan has work that fits them, open a task and assign it (baslat=true; put the role id in the label so it starts by itself when they become idle). If the work is concentrated in the same files or you are holding them back on purpose, leave it; this note does not repeat for them until they get work again.`,
+    );
+    if (calisanMi(ceo.durum) || this.s.siradaMi(ceo.id)) this.s.zeka.haberEkle(ceo.id, metin);
+    else await this.s.uyandir(ceo.id, metin, null);
+    return issizler.map((a) => a.ad);
   }
 
   // ===================================================================

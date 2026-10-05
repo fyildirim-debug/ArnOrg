@@ -421,7 +421,10 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.post("/api/ajanlar/:aid/baslat", async (i) => sirket.ajanBaslat(param(i, "aid"), govde(semalar.baslat, i)));
   app.post("/api/ajanlar/:aid/mesaj", async (i) => {
     const g = govde(semalar.mesaj, i);
-    await sirket.ajanaMesaj(param(i, "aid"), g.metin, g.oncelik ?? "next", { tur: "kurul" });
+    // Kurul çalışana yazdı: kurulun durdurduğu çalışan ve projesi sürer
+    const a = sirket.ajan(param(i, "aid"));
+    sirket.kurulDevamEtti(a.projeId, [a.id]);
+    await sirket.ajanaMesaj(a.id, g.metin, g.oncelik ?? "next", { tur: "kurul" });
     return tamam;
   });
   app.post("/api/ajanlar/:aid/kes", async (i) => {

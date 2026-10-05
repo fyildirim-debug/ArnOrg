@@ -7,6 +7,13 @@ import { bugun } from "./yardimci.js";
 
 /** Aynı görev için yükseltmeden önce sorumluya gönderilen hatırlatma sayısı */
 const HATIRLATMA_SINIRI = 2;
+/**
+ * Turu biten (boşta ya da oturumu kapanmış) ama görevi hâlâ süren çalışana ilk hatırlatma bu kadar sessizlikten sonra
+ * gider (ekip boş beklemesin); görev başına bir saatte en çok HIZLI_SINIR kez. Sonrakiler kurulun tıkanma eşiğiyle.
+ */
+export const HIZLI_HATIRLATMA_MS = 3 * 60_000;
+const HIZLI_SINIR = 2;
+const HIZLI_PENCERE_MS = 60 * 60_000;
 const GUN_MS = 86_400_000;
 
 // ===================================================================
@@ -141,6 +148,8 @@ export interface GozetmenEylemi {
 
 export class Gozetmen {
   private takip = new Map<string, Takip>();
+  /** Görev → hızlı hatırlatma anları (görev sürümü değişse de sayılır; döngüye girmesin) */
+  private hizli = new Map<string, number[]>();
   private zamanlayici: NodeJS.Timeout | null = null;
   private calisiyor = false;
   /** Yeniden başlatmadan hemen sonra herkesi dürtmemek için başlangıç anı */
@@ -183,20 +192,26 @@ export class Gozetmen {
             t = { surum: g.guncelleme, sorumluId: sorumlu.id, hatirlatma: 0, sonEylem: 0, yukseltildi: false, kurulaBildirildi: false };
             this.takip.set(g.id, t);
           }
-          // Çalışan, kurul kararı bekleyen, kurulca duraklatılan ya da eşzamanlı tavan yüzünden sırada bekleyen ajan tıkanmış sayılmaz
+          // Çalışan, kurul kararı bekleyen, kurulca duraklatılan ya da durdurulan, eşzamanlı tavan yüzünden sırada bekleyen
+          // ajan tıkanmış sayılmaz
           if (sorumlu.durum === "calisiyor" || sorumlu.durum === "karar_bekliyor" || sorumlu.durum === "duraklatildi" || this.sirket.siradaMi(sorumlu.id)) continue;
+          if (this.sirket.kurulDurdurduMu(sorumlu.id)) continue;
           const sonHareket = Math.max(Date.parse(g.guncelleme) || 0, this.sirket.sonEtkinlik.get(sorumlu.id) ?? 0, this.acilisMs, t.sonEylem);
-          if (simdiMs - sonHareket < esik) continue;
+          // Turu biten ama görevi süren çalışan: ilk hatırlatma kısa sessizlikten sonra (görev başına saatte sınırlı)
+          const hizliAnlar = (this.hizli.get(g.id) ?? []).filter((z) => simdiMs - z < HIZLI_PENCERE_MS);
+          const hizli = g.durum === "calisiliyor" && t.hatirlatma === 0 && hizliAnlar.length < HIZLI_SINIR && HIZLI_HATIRLATMA_MS < esik;
+          if (simdiMs - sonHareket < (hizli ? HIZLI_HATIRLATMA_MS : esik)) continue;
           const dk = Math.round((simdiMs - Math.max(Date.parse(g.guncelleme) || 0, this.acilisMs)) / 60_000);
           t.sonEylem = simdiMs;
+          if (hizli) this.hizli.set(g.id, [...hizliAnlar, simdiMs]);
           if (t.hatirlatma < HATIRLATMA_SINIRI) {
             t.hatirlatma++;
-            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk), null);
+            await this.sirket.uyandir(sorumlu.id, this.hatirlatmaMetni(g, dk, hizli), null);
             eylemler.push({ tur: "hatirlatma", gorevKodu: g.kod, ajanAd: sorumlu.ad });
             continue;
           }
           const yonetici = this.yoneticiBul(sorumlu, ajanlar);
-          if (!t.yukseltildi && yonetici) {
+          if (!t.yukseltildi && yonetici && !this.sirket.kurulDurdurduMu(yonetici.id)) {
             t.yukseltildi = true;
             await this.sirket.uyandir(
               yonetici.id,
@@ -222,6 +237,7 @@ export class Gozetmen {
         }
       }
       for (const id of this.takip.keys()) if (!gorulen.has(id)) this.takip.delete(id);
+      for (const [id, anlar] of this.hizli) if (!gorulen.has(id) || anlar.every((z) => simdiMs - z >= HIZLI_PENCERE_MS)) this.hizli.delete(id);
     } finally {
       this.calisiyor = false;
     }
@@ -240,12 +256,18 @@ export class Gozetmen {
     return ceo && ceo.id !== sorumlu.id ? ceo : null;
   }
 
-  private hatirlatmaMetni(g: Gorev, dk: number): string {
+  private hatirlatmaMetni(g: Gorev, dk: number, turBitti = false): string {
     if (g.durum === "inceleme") {
       // 0.0.8: birleştirme yok; inceleme görevin kaydını okuyup tamamlamak ya da geri göndermektir
       return iki(
         `${g.kod} "${g.baslik}" ${dk} dakikadır incelemede bekliyor. Kaydını calisma_farki ile (gorev: ${g.kod}) incele; uygunsa görevi 'tamam' durumuna al, değilse 'calisiliyor' durumuna geri al ve sahibine yaz.`,
         `${g.kod} "${g.baslik}" has been waiting in review for ${dk} minutes. Review its save with calisma_farki (gorev: ${g.kod}); if it is right, move the task to 'tamam' (done); if not, move it back to 'calisiliyor' and write to its owner.`,
+      );
+    }
+    if (turBitti) {
+      return iki(
+        `Turun bitti ama ${g.kod} "${g.baslik}" hâlâ 'calisiliyor' durumunda. İş bittiyse testleri çalıştır ve görevi 'inceleme' durumuna al (ArnOrg dosyalarını kaydeder). Sürüyorsa kaldığın yerden devam et. Başkasının kirasındaki bir dosyayı bekliyorsan yeniden dene ya da görevinin başka bir parçasına geç; tıkandıysan nedenini mesaj_gonder ile yöneticine yaz.`,
+        `Your turn ended but ${g.kod} "${g.baslik}" is still 'calisiliyor'. If the work is done, run the tests and move the task to 'inceleme' (review); ArnOrg saves its files. If it is ongoing, continue where you left off. If you are waiting for a file leased to someone else, try again or move to another part of your task; if you are stuck, tell your manager why with mesaj_gonder.`,
       );
     }
     return iki(

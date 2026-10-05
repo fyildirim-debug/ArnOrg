@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { SunucuOlayi } from "@arnorg/ortak";
 import { Depo } from "./depo.js";
@@ -219,6 +219,41 @@ describe("gözetmen", () => {
     await sirket.gorevGuncelle(g.id, { aciklama: "Güncellendi" });
     expect(await gozetmen.denetle(t + 60 * dk)).toEqual([]);
     depo.ajanGuncelle(deniz.id, { durum: "kapali" });
+  });
+
+  it("turu biten ama görevi süren çalışanı kısa sürede hatırlatır, görev başına saatte en çok iki kez; kurulun durdurduğunu dürtmez", async () => {
+    const { Gozetmen, HIZLI_HATIRLATMA_MS } = await import("./gozetmen.js");
+    const p = depo.projeler()[0]!;
+    const deniz = depo.ajanAdla(p.id, "Deniz")!;
+    const g = depo.gorevler(p.id).find((x) => x.durum === "calisiliyor" && x.atananId === deniz.id)!;
+    const uyandir = vi.spyOn(sirket, "uyandir").mockResolvedValue(true);
+    const dk = 60_000;
+    try {
+      const gozetmen = new Gozetmen(sirket);
+      depo.ajanGuncelle(deniz.id, { durum: "bosta" });
+      const t0 = Date.now();
+      sirket.sonEtkinlik.set(deniz.id, t0);
+      expect(await gozetmen.denetle(t0 + 2 * dk)).toEqual([]);
+      expect((await gozetmen.denetle(t0 + HIZLI_HATIRLATMA_MS + dk)).map((e) => e.tur)).toEqual(["hatirlatma"]);
+      expect(String(uyandir.mock.calls.at(-1)?.[1])).toContain(`Turun bitti ama ${g.kod}`);
+      // İkinci hatırlatma kurulun tıkanma eşiğiyle
+      expect(await gozetmen.denetle(t0 + 10 * dk)).toEqual([]);
+      // Görev güncellenince yine hızlı; saatte ikinciden sonra eşik kurulunki
+      await sirket.gorevGuncelle(g.id, { aciklama: "Bir" });
+      expect((await gozetmen.denetle(t0 + 11 * dk)).map((e) => e.tur)).toEqual(["hatirlatma"]);
+      await sirket.gorevGuncelle(g.id, { aciklama: "İki" });
+      expect(await gozetmen.denetle(t0 + 15 * dk)).toEqual([]);
+      expect((await gozetmen.denetle(t0 + 21 * dk)).map((e) => e.tur)).toEqual(["hatirlatma"]);
+      expect(String(uyandir.mock.calls.at(-1)?.[1])).toContain("dakikadır ilerlemiyor");
+      // Kurulun durdurduğu çalışan dürtülmez
+      await sirket.gorevGuncelle(g.id, { aciklama: "Üç" });
+      sirket.ajanDurdur(deniz.id);
+      expect(await gozetmen.denetle(t0 + 3 * 60 * dk)).toEqual([]);
+    } finally {
+      sirket.kurulDevamEtti(p.id, [deniz.id]);
+      depo.ajanGuncelle(deniz.id, { durum: "kapali" });
+      uyandir.mockRestore();
+    }
   });
 
   it("ayar 0 iken çalışmaz", async () => {
