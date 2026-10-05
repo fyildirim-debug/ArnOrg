@@ -2,7 +2,7 @@
 
 [English](README.md) · **Türkçe**
 
-Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açar, ne istediğinizi CEO'ya anlatırsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır, kararları verir ve size rapor verir. Bütün ekip projenin kendisinde, aynı anda ve görev görev çalışır. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
+Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi siz açar, ne istediğinizi CEO'ya anlatırsınız; CEO ajanı planı yazar, ekibi işe alır, işi dağıtır, kararları verir ve size rapor verir. Bütün ekip projenin kendisinde, aynı anda ve görev görev çalışır. Her ajanın her araç çağrısı ArnOrg'un denetiminden geçer.
 
 ![Karargâh](docs/gorseller/tr/karargah.png)
 

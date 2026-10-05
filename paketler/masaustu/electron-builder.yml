@@ -128,7 +128,7 @@ linux:
   synopsis: Claude Code ajanlarından kurulan yazılım şirketi
   description: >-
     ArnOrg, Claude Code ajanlarını bir yazılım şirketi gibi çalıştırır: CEO ajanı planı yazar,
-    ekibi işe alır, işi dağıtır; her ajan kendi git çalışma alanında, canlı denetim altında çalışır.
+    ekibi işe alır, işi dağıtır; bütün ekip projenin kendisinde, aynı anda ve canlı denetim altında çalışır.
 
 deb:
   packageName: arnorg

@@ -2,7 +2,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A software company built from Claude Code agents. You open a project and tell the CEO what you want; the CEO agent writes the plan, hires the team, hands out the work, makes the decisions and reports back to you. The whole team works in the project itself, at the same time, task by task. Every tool call of every agent passes through ArnOrg's gate.
+An AI software company built from Claude Code agents. You open a project and tell the CEO what you want; the CEO agent writes the plan, hires the team, hands out the work, makes the decisions and reports back to you. The whole team works in the project itself, at the same time, task by task. Every tool call of every agent passes through ArnOrg's gate.
 
 ![Headquarters](docs/gorseller/en/karargah.png)
 

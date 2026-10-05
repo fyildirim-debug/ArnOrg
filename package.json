@@ -3,7 +3,41 @@
   "private": true,
   "version": "0.0.8",
   "description": "Claude Code ajanlarından kurulan yazılım şirketi: proje, ekip, planlama, canlı denetim ve kod editörü",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "claude-ai",
+    "anthropic",
+    "claude-agent-sdk",
+    "ai-agents",
+    "multi-agent",
+    "autonomous-agents",
+    "agentic-ai",
+    "agent-orchestration",
+    "coding-agent",
+    "ai-coding",
+    "llm-agents",
+    "llm",
+    "developer-tools",
+    "software-engineering",
+    "electron",
+    "desktop-app",
+    "typescript",
+    "yapay-zeka"
+  ],
+  "homepage": "https://github.com/fyildirim-debug/ArnOrg#readme",
+  "bugs": {
+    "url": "https://github.com/fyildirim-debug/ArnOrg/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fyildirim-debug/ArnOrg.git"
+  },
   "license": "MIT",
+  "author": {
+    "name": "Furkan YILDIRIM",
+    "email": "posta@furkanyildirim.com"
+  },
   "type": "module",
   "workspaces": [
     "paketler/ortak",
