@@ -1,0 +1,51 @@
+/* Üst çubuk: açık projenin toplam tokenı (pencere göstergelerinin yanında, onlarla aynı ölçüde) */
+.ust-toplam {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-xs);
+  line-height: 1.5rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--hiz) ease;
+}
+.ust-toplam:hover {
+  border-color: var(--line);
+}
+.ust-toplam:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.ust-toplam small {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.ust-toplam b {
+  color: var(--paper);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Orta genişlikte üst çubuk tek satırda kalsın (kabuk.css'teki 1180 px kuralı): "Toplam" etiketi gizlenir, sayı ve
+   birim kalır; anlamı ipucunda ve erişilebilir adda */
+@media (max-width: 1180px) {
+  .ust-toplam {
+    margin-left: -0.375rem;
+    padding: 0 0.25rem;
+  }
+  .ust-toplam-etiket {
+    display: none;
+  }
+}
+/* Dar ekranda çubuk satır kırar: satır başına düşen sayı öteki satırlarla hizalı kalsın */
+@media (max-width: 520px) {
+  .ust-toplam {
+    margin-left: 0;
+  }
+}

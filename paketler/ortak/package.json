@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./karakterler": "./src/karakterler.ts"
+    "./karakterler": "./src/karakterler.ts",
+    "./cinsiyet": "./src/cinsiyet.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

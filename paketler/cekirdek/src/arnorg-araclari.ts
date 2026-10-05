@@ -18,6 +18,7 @@ import type { Sirket } from "./sirket.js";
 import { kisalt, yonelme } from "./yardimci.js";
 import { KISISEL_SINIR } from "./zeka.js";
 import { webAraclari } from "./web/araclar.js";
+import { adresAraclari } from "./adres-araclari.js";
 import { aracAcik } from "./yetenekler.js";
 import { skillAraclari } from "./skill-araclari.js";
 import { rolSkilleri, skilleriDogrula, skillListesiSemasi } from "./skiller.js";
@@ -1169,6 +1170,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ...webAraclari(sirket, ajanId),
     // ---------------- skill kütüphanesi (skill-araclari.ts) ----------------
     ...skillAraclari(sirket, ajanId),
+    // ---------------- proje adresleri (adres-araclari.ts) ----------------
+    ...adresAraclari(sirket, ajanId),
   ];
 
   // Kapalı yeteneklerin araçları listeden çıkar (yetenekler.ts); oturum açılırken okunur

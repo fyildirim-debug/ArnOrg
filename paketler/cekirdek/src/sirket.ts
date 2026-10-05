@@ -61,6 +61,8 @@ import { HesapIzleyici } from "./hesap.js";
 import { Kurulum } from "./kurulum.js";
 import { ProjeHafizasi } from "./hafiza.js";
 import { karakterBul, karakterMetni, karakterSec } from "@arnorg/ortak/karakterler";
+import { adCinsiyeti } from "@arnorg/ortak/cinsiyet";
+import { iseAlimKarakteri, karakterUyumuGocu } from "./karakter-uyumu.js";
 import { Hatirlatici, oncekiYanit, tercihGibi, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
 import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type SiradakiMesaj } from "./es-zamanlilik.js";
 import { GorevTavani } from "./gorev-tavani.js";
@@ -87,6 +89,7 @@ import { aracAcik, kapaliClaudeAraclari, kapaliYetenekNedeni, yetenekleriDogrula
 import { skilleriDogrula } from "./skiller.js";
 import { skillEklentileri } from "./skill-eklentisi.js";
 import { WebHizmeti } from "./web/index.js";
+import { ProjeAdresleri } from "./proje-adresleri.js";
 import { webDenetimGirdisi } from "./web/etiketler.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
@@ -275,6 +278,8 @@ export class Sirket {
     // Dosya değişiklikleri dizini artımlı günceller; silinen ajanın alanı dizinden çıkar
     olaylar.dinle((o) => this.kodZekasi.olay(o));
     this.karakterleriTamamla();
+    // 0.0.8: adıyla cinsiyeti çelişen karakterler bir kez uyumlu boş karakterle değişir; ekip dosyası da güncellenir
+    for (const a of karakterUyumuGocu(depo)) this.kimlikDosyasiYaz(a, this.proje(a.projeId));
     this.hesap = new HesapIzleyici(yapilandirma, olaylar, () => this.claudeYolu, () => this.acikOturumdanKullanim(), oturumlarKapali, () => this.hesabaAjanBekliyor());
     this.hesap.sinirDegisti = (sinir) => void this.kullanimSiniriDegisti(sinir);
     this.kurulum = new Kurulum(yapilandirma, olaylar, {
@@ -530,6 +535,12 @@ export class Sirket {
         return gh ? { yol: gh.yol, ortam: this.kurulum.ghOrtami() } : null;
       },
     }));
+  }
+
+  private adresKaydi: ProjeAdresleri | null = null;
+  /** 0.0.8 · Projelerin çalışan adresleri: çalışanların bildirdiği ve çıktılarında yakalanan sunucular (proje-adresleri.ts) */
+  get adresler(): ProjeAdresleri {
+    return (this.adresKaydi ??= new ProjeAdresleri({ depo: this.depo, olaylar: this.olaylar }));
   }
 
   get claudeYolu(): string | null {
@@ -816,8 +827,9 @@ export class Sirket {
       dal: null,
       izinModu: this.yapilandirma.ayarlar.varsayilanIzinModu,
       talimatEki: istek.talimatEki?.trim() ?? "",
-      // Karakter seçilmediyse role uyan boş karakter atanır; kişiliği talimata, görünüşü ofise yansır
-      karakter: istek.karakter ?? karakterSec(rol.kimlik, this.kullanilanKarakterler(projeId), `${projeId}:${ad}`),
+      // Karakter seçilmediyse adın cinsiyetine ve role uyan boş karakter atanır (karakter-uyumu.ts); kişiliği talimata,
+      // görünüşü ofise yansır. Ekip dosyasından gelen karakter adla çelişiyorsa uyumlusuyla değişir
+      karakter: iseAlimKarakteri({ ad, rol: rol.kimlik, secilen: istek.karakter, kullanilan: this.kullanilanKarakterler(projeId), tohum: `${projeId}:${ad}`, iceAktarma: !dosyaYaz }),
     });
     if (skiller) this.depo.ajanSkilleriYaz(ajan.id, skiller);
     if (dosyaYaz) this.kimlikDosyasiYaz(ajan, proje);
@@ -839,7 +851,7 @@ export class Sirket {
       const ajanlar = [...this.depo.ajanlar(p.id)].sort((a, b) => a.olusturma.localeCompare(b.olusturma) || a.id.localeCompare(b.id));
       for (const a of ajanlar) {
         if (a.karakter) continue;
-        this.depo.ajanGuncelle(a.id, { karakter: karakterSec(a.rol, this.kullanilanKarakterler(p.id), `${p.id}:${a.ad}`) });
+        this.depo.ajanGuncelle(a.id, { karakter: karakterSec(a.rol, this.kullanilanKarakterler(p.id), `${p.id}:${a.ad}`, adCinsiyeti(a.ad)) });
       }
     }
   }
@@ -1073,7 +1085,8 @@ export class Sirket {
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
       kapi: (arac, girdi, aracKimligi, altAjan) => this.kapi(id, arac, girdi, aracKimligi, altAjan),
       izinSor,
-      aracSonrasi: (arac, girdi) => this.aracSonrasi(id, arac, girdi),
+      // Kabuk çıktısındaki sunucu adresi proje adreslerine girer; çalışana kısa not döner (proje-adresleri.ts)
+      aracSonrasi: (arac, girdi, _k, yanit) => [this.aracSonrasi(id, arac, girdi), this.adresler.ciktidanYakala(id, arac, girdi, yanit)].filter(Boolean).join("\n\n") || null,
       aracHatasi: (arac, girdi, hata) => this.hatirlatici.hataSonrasi(this.ajan(id), arac, girdi, hata),
       turBasi: (metin) => this.turBasiEki(this.ajan(id), metin),
       sikistirmaSonrasi: () => {
@@ -2809,6 +2822,7 @@ export class Sirket {
     this.kuresel.durdur();
     this.brifing.durdur();
     this.modelKatalogu.durdur();
+    this.adresKaydi?.durdur();
     for (const y of this.yaziyorlar.values()) clearTimeout(y.zamanlayici);
     if (this.esitlemeZamanlayici) clearInterval(this.esitlemeZamanlayici);
     this.kimlikYoklamasiniDurdur();

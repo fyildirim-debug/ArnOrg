@@ -1180,6 +1180,8 @@ export type SunucuOlayi =
   /** Tarayıcıdaki düzeltme notu eklendi ya da değişti (not metni, gönderim) / silindi */
   | { tur: "duzeltme.guncellendi"; projeId: string; duzeltme: Duzeltme }
   | { tur: "duzeltme.silindi"; projeId: string; id: string }
+  /** 0.0.8 · Projenin çalışan adresleri değişti: bildirildi, kaldırıldı, yoklandı ya da düştü (tam liste) */
+  | ProjeAdresleriOlayi
   /** Ajan bir kanaldaki mesaja yanıt hazırlıyor (yazıyor göstergesi); yaziyor=false ile biter */
   | { tur: "kanal.yaziyor"; projeId: string; kanal: string; ajanId: string; ad: string; yaziyor: boolean }
   /** Kurulun kanalı kuruldu ya da değişti (açıklama, üyeler, konuşma durumu) */
@@ -2116,3 +2118,39 @@ export interface AjanGuncelleIstegi {
   /** Skillerin tam listesi (verilmeyen çıkar); null rolün varsayılanlarına döndürür */
   skiller?: string[] | null;
 }
+
+// ---------------------------------------------------------------------------
+// Proje adresleri (0.0.8): projenin çalışan sunucularının adresleri (geliştirme sunucusu, API, önizleme). Çalışanlar
+// mcp__arnorg__adres_bildir ve adres_kaldir ile güncel tutar; ArnOrg çalışanların kabuk çıktısındaki "Local:
+// http://localhost:5173" gibi satırları da yakalar. Yerel makinedeki ve yerel ağdaki adresler ara ara yoklanır, uzun
+// süre kapalı kalan düşer. Stüdyo'nun Tarayıcı ekranında tek tıkla açılır.
+// Uç: GET /api/projeler/:pid/adresler (docs/API.md, "Proje adresleri"); olay: adresler.guncellendi
+// ---------------------------------------------------------------------------
+
+/** Son yoklama: acik (sunucu bağlantı kabul ediyor), kapali (yanıt yok), bilinmiyor (yoklanmadı ya da yoklanmaz) */
+export type ProjeAdresiDurumu = "acik" | "kapali" | "bilinmiyor";
+
+export interface ProjeAdresi {
+  /** Kalıcı kimlik: adresin normal biçiminden türetilir */
+  id: string;
+  projeId: string;
+  /** http(s) adresi, normal biçimde (0.0.0.0 yerine localhost) */
+  adres: string;
+  /** Kısa ad: "Geliştirme sunucusu", "API", "Storybook" */
+  ad: string;
+  /** Bildiren çalışan; çalışan ayrılsa da adı kalır */
+  bildirenId: string | null;
+  bildirenAd: string;
+  /** arac: çalışan adres_bildir ile bildirdi · cikti: ArnOrg çalışanın kabuk çıktısında yakaladı */
+  kaynak: "arac" | "cikti";
+  /** Son bildirim ya da yakalanma anı */
+  guncelleme: Zaman;
+  durum: ProjeAdresiDurumu;
+  /** Son yoklama; hiç yoklanmadıysa null */
+  denetim: Zaman | null;
+  /** Yerel makine, yerel ağ ya da çekirdeğin izinli sunucusu: yalnız bunlar yoklanır */
+  yoklanir: boolean;
+}
+
+/** Canlı olay: projenin adres listesi değişti; tam liste gelir (eklenme sırasıyla) */
+export type ProjeAdresleriOlayi = { tur: "adresler.guncellendi"; projeId: string; adresler: ProjeAdresi[] };

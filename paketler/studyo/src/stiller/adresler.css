@@ -1,0 +1,288 @@
+/* Proje adresleri (Tarayıcı): sağ sütunun üst yarısındaki kartlar, dar ekranda notlar çekmecesinin üstündeki yatay
+   şerit; web kipinde adresin açıldığı çerçeve. Durum noktası: açık --ok, yanıt vermiyor --sil, yoklanmadı boş halka. */
+
+/* ---------- sağ sütun: üstte adresler, altta notlar ---------- */
+.tarayici-yan {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.tarayici-yan > .tarayici-notlar {
+  flex: 1 1 auto;
+}
+
+.adresler {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 46%;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink);
+}
+.adresler-ust {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b-2);
+  min-height: 2.75rem;
+  padding: var(--b-3) var(--b-4) var(--b-2);
+}
+.adresler-ust h2 {
+  font-size: var(--t-s);
+  font-weight: 600;
+  color: var(--paper);
+}
+.adresler-sayac {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.adres-liste {
+  list-style: none;
+  display: grid;
+  align-content: start;
+  gap: var(--b-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--b-4) var(--b-4);
+}
+.adres-liste > li {
+  min-width: 0;
+  animation: adres-gir var(--hiz-yavas) var(--egri);
+}
+@keyframes adres-gir {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ---------- kart ---------- */
+.adres-kart {
+  display: grid;
+  grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--b-3);
+  row-gap: 0.125rem;
+  width: 100%;
+  padding: 0.625rem var(--b-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--ink-2);
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--hiz) ease,
+    background-color var(--hiz) ease;
+}
+.adres-kart:hover {
+  border-color: var(--line-hover);
+  background: var(--ink-3);
+}
+.adres-kart:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.adres-kart[aria-current="true"] {
+  border-color: var(--coral-cizgi);
+  background: var(--coral-zemin);
+}
+.adres-nokta {
+  grid-row: 1;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.adres-kart[data-durum="kapali"] .adres-nokta {
+  background: var(--sil);
+}
+.adres-kart[data-durum="bilinmiyor"] .adres-nokta {
+  border: 1.5px solid var(--muted-2);
+  background: transparent;
+}
+.adres-ad {
+  grid-row: 1;
+  grid-column: 2;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.adres-git {
+  grid-row: 1;
+  grid-column: 3;
+  display: inline-grid;
+  color: var(--muted-2);
+  transition:
+    color var(--hiz) ease,
+    transform var(--hiz) var(--egri);
+}
+.adres-kart:hover .adres-git,
+.adres-kart:focus-visible .adres-git {
+  color: var(--coral);
+  transform: translateX(2px);
+}
+.adres-url,
+.adres-alt {
+  grid-column: 2 / -1;
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+.adres-url {
+  color: var(--bone);
+}
+.adres-alt {
+  display: flex;
+  min-width: 0;
+  color: var(--muted-2);
+}
+.adres-alt > span {
+  flex: none;
+}
+.adres-alt > span + span::before {
+  content: "·";
+  margin: 0 0.375rem;
+}
+.adres-durum {
+  color: var(--muted);
+}
+.adres-kart[data-durum="kapali"] .adres-durum {
+  color: var(--sil);
+}
+
+/* ---------- dar düzen: notlar çekmecesinin üstünde yatay şerit ---------- */
+.tarayici[data-dar] .adresler {
+  max-height: none;
+  border-left: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+.tarayici[data-dar] .adresler-ust {
+  min-height: 0;
+  padding: var(--b-2) var(--b-4) var(--b-2);
+}
+.tarayici[data-dar] .adres-liste {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  /* Yaslanma kenar boşluğunu sayar: ilk kart başta kenara yapışmaz */
+  scroll-padding-inline: var(--b-4);
+  padding: 0 var(--b-4) var(--b-3);
+}
+.tarayici[data-dar] .adres-liste > li {
+  flex: none;
+  width: min(15rem, 74vw);
+  scroll-snap-align: start;
+}
+
+/* ---------- web kipi: adres çerçevede ---------- */
+.cerceve {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.cerceve-arac {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-3);
+  padding: var(--b-2) var(--b-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink);
+}
+.cerceve-kimlik {
+  display: grid;
+  grid-template-columns: 0.5rem minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--b-2);
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.cerceve-kimlik .adres-nokta {
+  grid-row: auto;
+}
+.cerceve-kimlik[data-durum="kapali"] .adres-nokta {
+  background: var(--sil);
+}
+.cerceve-kimlik[data-durum="bilinmiyor"] .adres-nokta {
+  border: 1.5px solid var(--muted-2);
+  background: transparent;
+}
+.cerceve-ad {
+  color: var(--paper);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+.cerceve-url {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.cerceve-eylem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-1);
+}
+/* Bağlantı olan düğme (yeni sekmede aç) öteki düğmeler gibi altı çizgisiz */
+.cerceve-eylem a.dugme {
+  text-decoration: none;
+}
+.cerceve-ipucu {
+  flex-basis: 100%;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+.cerceve-sahne {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--ink-2);
+}
+.cerceve-sahne iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.cerceve-not {
+  position: absolute;
+  top: var(--b-3);
+  right: var(--b-3);
+}
+
+@media (max-width: 520px) {
+  .cerceve-ipucu {
+    display: none;
+  }
+  .cerceve-eylem .dugme-metin {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adres-liste > li {
+    animation: none;
+  }
+  .adres-git {
+    transition: color var(--hiz) ease;
+  }
+  .adres-kart:hover .adres-git,
+  .adres-kart:focus-visible .adres-git {
+    transform: none;
+  }
+}
+
+/* Çerçevedeki not penceresinde elle not formu: üst çizgi ve boşluk pencerenin kendisinde */
+.tarayici-elle-cerceve {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}

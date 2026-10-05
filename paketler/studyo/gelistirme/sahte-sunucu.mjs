@@ -27,6 +27,7 @@ import { kur as surum007Tanitim } from "./surum-007-tanitim.mjs";
 import { kur as surum007Otonom } from "./surum-007-otonom.mjs";
 import { kur as surum008Skiller } from "./surum-008-skiller.mjs";
 import { kur as surum008Kodzeka } from "./surum-008-kodzeka.mjs";
+import { kur as surum008Arayuz } from "./surum-008-arayuz.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2164,6 +2165,8 @@ surum007Otonom({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(
 surum008Skiller({ rota, rotalar, db, yay, ajanBul, akisEkle, Hata, yeniKimlik });
 // 0.0.8: kod zekâsı bağları: grafikte içe aktarma ve anlam kenarları, ilgili dosyalar ucu (surum-008-kodzeka.mjs)
 surum008Kodzeka({ rota, rotalar, kodDurumu, alanDosyalari });
+// 0.0.8: ad ile karakter uyumu, Tarayıcı'da proje adresleri (surum-008-arayuz.mjs)
+surum008Arayuz({ rota, db, yay, akisEkle, ajanBul, projeGerekli, Hata, simdi, yeniKimlik });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

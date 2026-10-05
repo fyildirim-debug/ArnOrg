@@ -175,3 +175,33 @@
     gap: 0.125rem;
   }
 }
+
+/* Adla uyumlu karakterler önde; ötekiler bu ayraçtan sonra (dar ekranda tek satırda dikey çizgi) */
+.karakter-ayrac {
+  display: flex;
+  align-items: center;
+  flex-basis: 100%;
+  gap: var(--b-2);
+  margin-top: 2px;
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.03em;
+}
+.karakter-ayrac::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+@media (max-width: 640px) {
+  .karakter-ayrac {
+    flex: none;
+    width: 1px;
+    margin: 0 var(--b-1);
+    font-size: 0;
+    background: var(--line-strong);
+  }
+  .karakter-ayrac::after {
+    display: none;
+  }
+}

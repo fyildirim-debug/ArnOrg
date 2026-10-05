@@ -1,5 +1,8 @@
-// Ajanlara ofis karakteri atama: kayıtlı karakter > önceki atama > role uyan boş > ilk boş > kimlik özeti.
-// Proje içinde kararlıdır: aynı ajan, ekip değişse de aynı karakterde kalır.
+// Ajanlara ofis karakteri atama: kayıtlı karakter > önceki atama > ada ve role uyan boş > ilk boş > kimlik özeti.
+// Proje içinde kararlıdır: aynı ajan, ekip değişse de aynı karakterde kalır. Adın cinsiyeti biliniyorsa yalnız o
+// cinsiyetteki karakterler aday olur (çekirdekteki karakterSec ile aynı kural, @arnorg/ortak).
+import { adCinsiyeti, type Cinsiyet } from "@arnorg/ortak/cinsiyet";
+import { bosKarakter, karakterCinsiyeti } from "@arnorg/ortak/karakterler";
 
 export interface KarakterAdayi {
   id: string;
@@ -11,6 +14,8 @@ export interface SecimAjani {
   rol: string;
   karakter: string | null;
   olusturma: string;
+  /** Ajanın adı: ilk adın cinsiyetine uyan karakter seçilir */
+  ad?: string;
 }
 
 /** FNV-1a 32 bit özet */
@@ -23,9 +28,24 @@ export function ozet(metin: string): number {
   return h >>> 0;
 }
 
+/** Boş uygun karakter yoksa kimlikten kararlı seçim; cinsiyet biliniyorsa o cinsiyetteki karakterlerden */
+function ozettenSec<T extends KarakterAdayi>(katalog: readonly T[], cinsiyet: Cinsiyet | null, tohum: string): T {
+  const uyan = cinsiyet ? katalog.filter((k) => karakterCinsiyeti(k.id) === cinsiyet) : [];
+  const havuz = uyan.length ? uyan : katalog;
+  return havuz[ozet(tohum) % havuz.length]!;
+}
+
+/** Karakterin görünüşü adın bilinen cinsiyetine ters mi */
+function celisir(karakter: string, ad: string | undefined): boolean {
+  const c = adCinsiyeti(ad);
+  const k = karakterCinsiyeti(karakter);
+  return !!c && !!k && k !== c;
+}
+
 /**
  * Her ajana bir karakter kimliği atar.
  * onceki: daha önce yapılmış atamalar (kalıcılık için); kayıtlı karakteri olan ajanın seçimi her zaman öndedir.
+ * Önceki otomatik atama ajanın adıyla çelişiyorsa (eski sürüm yalnız role bakıyordu) yeniden seçilir.
  */
 export function karakterleriAta(ajanlar: SecimAjani[], katalog: KarakterAdayi[], onceki: Record<string, string> = {}): Map<string, string> {
   const sonuc = new Map<string, string>();
@@ -41,30 +61,29 @@ export function karakterleriAta(ajanlar: SecimAjani[], katalog: KarakterAdayi[],
       kullanilan.add(a.karakter);
     }
   }
-  // 2) Önceki atama, başkası almadıysa
+  // 2) Önceki atama, başkası almadıysa ve adla çelişmiyorsa
   for (const a of sirali) {
     if (sonuc.has(a.id)) continue;
     const k = onceki[a.id];
-    if (k && gecerli.has(k) && !kullanilan.has(k)) {
+    if (k && gecerli.has(k) && !kullanilan.has(k) && !celisir(k, a.ad)) {
       sonuc.set(a.id, k);
       kullanilan.add(k);
     }
   }
-  // 3) Kurallar: role uyan ilk boş, yoksa ilk boş, o da yoksa kimlik özeti
+  // 3) Kurallar: adın cinsiyetine ve role uyan ilk boş, yoksa o cinsiyette ilk boş, o da yoksa kimlik özeti
   for (const a of sirali) {
     if (sonuc.has(a.id)) continue;
-    const bos = katalog.filter((k) => !kullanilan.has(k.id));
-    const secilen = bos.find((k) => k.roller.includes(a.rol)) ?? bos[0] ?? katalog[ozet(a.id) % katalog.length]!;
+    const cinsiyet = adCinsiyeti(a.ad);
+    const secilen = bosKarakter(katalog, a.rol, kullanilan, cinsiyet) ?? ozettenSec(katalog, cinsiyet, a.id);
     sonuc.set(a.id, secilen.id);
     kullanilan.add(secilen.id);
   }
   return sonuc;
 }
 
-/** Henüz işe alınmamış bir aday için (siluet) role uyan boş karakter */
-export function adayKarakteri(rol: string, katalog: KarakterAdayi[], kullanilan: Iterable<string>, tohum: string): string | null {
+/** Henüz işe alınmamış bir aday için (siluet, işe alım formu) adına ve role uyan boş karakter */
+export function adayKarakteri(rol: string, katalog: KarakterAdayi[], kullanilan: Iterable<string>, tohum: string, ad?: string | null): string | null {
   if (!katalog.length) return null;
-  const dolu = new Set(kullanilan);
-  const bos = katalog.filter((k) => !dolu.has(k.id));
-  return (bos.find((k) => k.roller.includes(rol)) ?? bos[0] ?? katalog[ozet(tohum) % katalog.length]!).id;
+  const cinsiyet = adCinsiyeti(ad);
+  return (bosKarakter(katalog, rol, new Set(kullanilan), cinsiyet) ?? ozettenSec(katalog, cinsiyet, tohum)).id;
 }

@@ -103,6 +103,8 @@ Uzak deposu olan projeler 10 dakikada bir eşitlenir (`EsitlemeSonucu`; ayrışm
 
 Ajan oturumu kurallarla açılır: temiz ortam, kendi worktree'si (`arnorg/<ajan>` dalı), Claude Code sistem talimatı + rol metni, `PreToolUse` denetim kapısı, ArnOrg MCP araçları (`mcp__arnorg__*`).
 
+**Karakter ve ad (0.0.8).** Her ofis karakterinin görseldeki cinsiyeti kayıtlıdır (`@arnorg/ortak/karakterler`, `cinsiyet`). İşe alımda karakter seçilmezse adın cinsiyetine uyan boş karakterler arasından önce role uyan, sonra ilk boş atanır (`@arnorg/ortak/cinsiyet` `adCinsiyeti`: ilk ad, Türkçe ve İngilizce adlar, Türkçe İ/ı ve aksan duyarsız; Deniz, Derin, Ekin, Umut, Alex, Sam gibi iki cinsiyette de kullanılan ya da tanınmayan adda yalnız role bakılır). O cinsiyette boş karakter kalmazsa yine o cinsiyetten biri tekrarlanır. Kurulun seçtiği karakter korunur; ekip dosyasından içe aktarılan, adla çelişen karakter uyumlusuyla değişir. 0.0.7'den gelen veride adıyla çelişen karakterler açılışta bir kez uyumlu boş karakterle değişir (yalnız görünüş ve ona bağlı kişilik; ekip dosyası da güncellenir).
+
 **Çalışma alanı temizliği (0.0.4).** Ajan işten çıkarılınca worktree'si `git worktree remove` ile kaldırılır; `arnorg/<ajan>` dalı ve commit'leri kalır. Commit'lenmemiş değişiklik (izlenmeyen dosya dahil, yok sayılanlar hariç) varsa ya da kaldırma başarısız olursa alana dokunulmaz; #genel'e ArnOrg adıyla ve kurula `bildirim` (uyarı) olarak kısa not düşülür. Repoya kayıtlı olmayan klasöre hiç dokunulmaz. Çekirdek açılırken, proje bağlanırken ve bir worktree açılmadan önce `git worktree prune` ile klasörü elle silinmiş bayat kayıtlar temizlenir.
 
 ## Görevler
@@ -167,6 +169,19 @@ Kurul Tarayıcı ekranında projenin sayfasını açar, bir öğeyi seçip "bura
 - **Silme:** açık notun görüntüsü de silinir; gönderilmiş notun görüntüsü kalır (CEO'nun açtığı görevler o yolu anar).
 - **Hepsini yaptır:** açık notların tamamı tek bir kurul mesajı olarak `#yonetim`'e yazılır (kanal mesajıyla aynı yol: CEO uyanır, mesaj Karargâh'taki CEO sohbetinde görünür) ve notlar `gonderildi` olur (`gonderimZamani`). Açık not yoksa 400, aynı projede gönderim sürerken 409. Mesaj ayardaki dilde ve yapılıdır: üstte iş tarifi ("Tarayıcıda N düzeltme notu bıraktım. Her biri için görev aç (kabul ölçütüyle), uygun çalışana ata ve başlat."), altında her not bir satır: `1) <adres> · öğe: <seçici> · "<öğe metni>" · görünüm: <genişlik>×<yükseklik> · not: … · ekran görüntüsü: <mutlak yol>` (olmayan alan yazılmaz).
 - **Olaylar:** `duzeltme.guncellendi` (`{projeId, duzeltme}`: ekleme, not düzeltme, gönderim) ve `duzeltme.silindi` (`{projeId, id}`). Proje listeden çıkarılınca notları da silinir.
+
+## Proje adresleri (0.0.8)
+
+Projenin çalışan sunucularının adresleri (geliştirme sunucusu, API, önizleme). Kurul Tarayıcı ekranının sağ sütununun üstünde kart olarak görür, tıklayınca adres masaüstünde uygulama içi tarayıcıda, tarayıcıdan açılan Stüdyo'da çerçevede açılır; adres yokken bölüm görünmez.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/adresler` | — | `ProjeAdresi[]` (eklenme sırasıyla); bilinmeyen proje 404 |
+
+- **Bildirim:** çalışanlar `mcp__arnorg__adres_bildir` (`{adres, ad}`) ve `adres_kaldir` (`{adres}`: adres ya da ad) ile tutar, `adresler` ile listeler; talimat sunucuyu başlatanın adresini bildirmesini, kapatınca kaldırmasını söyler. Aynı adres (sondaki `/` ve büyük-küçük harf farkı yok sayılır) yeni kayıt açmaz, adı ve bildireni günceller. Adres http/https olmalı; kullanıcı adı ya da parola taşıyan adres reddedilir; `0.0.0.0` ve `[::]` `localhost` olur. Projede en çok 20 adres: dolunca en eski kapalı ya da yoklanmayan adres yer açar, hepsi açıksa 409.
+- **Çıktıdan yakalama:** araç sonrası kancası çalışanın kabuk çıktısında (Bash, PowerShell; `.log`, `.out`, `.output`, `.txt` uzantılı okunan dosya) sunucunun açıldığını söyleyen satırları arar: `Local:`, `listening on`, `Server running at`, `ready on`, `url:` gibi (renk kodları atılır, Vite'ın `Network:` satırı alınmaz). Yalnız yerel makine ve yerel ağ adresleri alınır; `kaynak: "cikti"` olur, ad satırdan ya da komuttan tanınır (Vite, Next.js, Storybook, API …), tanınmazsa "Geliştirme sunucusu". Yeni adres eklenince çalışana kısa not düşülür. Çıktıdan gelen kayıt çalışanın verdiği adı ezmez.
+- **Yoklama:** yerel makine, yerel ağ (`web/adres.ts` `yerelAdresMi`) ve çekirdeğin `--izinli-host` sunucuları 20 sn'de bir yoklanır: yalnız TCP bağlantısı kurulur (2 sn), HTTP isteği atılmaz. `durum`: `acik`, `kapali` ya da `bilinmiyor` (henüz yoklanmadı ya da yoklanmaz: `yoklanir: false`). 5 dakika kapalı kalan adres, bir gün yenilenmeyen yoklanmayan adres düşer. Liste proje başına depo değerinde (`proje-adresleri:<pid>`) saklanır.
+- **Olay:** her değişiklikte `adresler.guncellendi` (`{projeId, adresler}`: tam liste).
 
 ## Denetim ve onaylar
 
@@ -264,6 +279,8 @@ Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-
 | Yöntem | Yol | Yanıt |
 |---|---|---|
 | GET | `/api/projeler/:pid/kullanim` | `KullanimOzeti` (bugünkü ve toplam token, ajan başına, son abonelik penceresi olayı) |
+
+Stüdyo'nun üst çubuğu pencere göstergelerinin yanında açık projenin `toplamToken`'ını (ayrılanlar dahil bütün çalışanlar, bütün zamanlar) kısa biçimde gösterir, bugünkü sayı ipucundadır; `kullanim` olaylarıyla canlı güncellenir.
 
 ### Yalnız Claude aboneliği
 

@@ -30,6 +30,7 @@ import { tarayici } from "./tarayici";
 import { karar } from "./karar";
 import { tanitim } from "./tanitim";
 import { skiller } from "./skiller";
+import { arayuz } from "./arayuz";
 
 export const en: Sozluk = {
   genel,
@@ -62,4 +63,5 @@ export const en: Sozluk = {
   karar,
   tanitim,
   skiller,
+  arayuz,
 };

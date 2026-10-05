@@ -81,8 +81,8 @@ export interface OturumBaglami {
   kapi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, altAjan: string | undefined): Promise<HookJSONOutput>;
   /** Claude Code'un izin soracağı çağrı (bypass dışı modlar, plan onayı) */
   izinSor: CanUseTool;
-  /** PostToolUse: dosya izi; dönen metin (ilgili hafıza) ajana ek bağlam olarak verilir */
-  aracSonrasi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined): string | null;
+  /** PostToolUse: dosya izi; dönen metin (ilgili hafıza) ajana ek bağlam olarak verilir. yanit: aracın çıktısı */
+  aracSonrasi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, yanit?: unknown): string | null;
   /** PostToolUseFailure: hatayla ilgili hafıza ya da kaydetme ipucu */
   aracHatasi(arac: string, girdi: Record<string, unknown>, hata: string): string | null;
   /** UserPromptSubmit: yeni mesajla birlikte verilecek hafıza (ekipten yeni kayıtlar, ilgili kayıtlar) */
@@ -209,7 +209,7 @@ export class AjanOturumu {
     };
     const sonraKancasi: HookCallback = async (girdi, aracKimligi) => {
       if (girdi.hook_event_name !== "PostToolUse") return {};
-      const ek = guvenli(() => this.b.aracSonrasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id));
+      const ek = guvenli(() => this.b.aracSonrasi(girdi.tool_name, (girdi.tool_input ?? {}) as Record<string, unknown>, aracKimligi ?? girdi.tool_use_id, girdi.tool_response));
       return ek ? { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: ek } } : {};
     };
     const hataKancasi: HookCallback = async (girdi) => {

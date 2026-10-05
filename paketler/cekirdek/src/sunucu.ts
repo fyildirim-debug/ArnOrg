@@ -28,6 +28,7 @@ import type { DenetimImleci } from "./depo.js";
 import { dil, iki } from "./dil.js";
 import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
+import { adresUclariniKur } from "./adres-uclari.js";
 import { duzeltmeUclariniKur } from "./duzeltme-uclari.js";
 import { fsUclariniKur } from "./fs-api.js";
 import * as gitIslemleri from "./git.js";
@@ -494,6 +495,9 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
 
   // ---------------- tanıtım: README.md vitrini ve güncelleme isteği (tanitim-uclari.ts) ----------------
   tanitimUclariniKur(app, sirket);
+
+  // ---------------- proje adresleri: çalışan sunucular (adres-uclari.ts) ----------------
+  adresUclariniKur(app, sirket, s.izinliHostlar);
 
   // ---------------- proje hafızası ----------------
   app.get("/api/projeler/:pid/hafiza", async (i) => {

@@ -2943,7 +2943,7 @@ export class OfisMotoru {
       const bos = this.yer.noktalar.adaylar.find((k) => ![...this.adaylar.values()].some((a) => !a.cikiyor && a.karo.c === k.c && a.karo.r === k.r));
       if (!bos) break;
       const v = (o.veri ?? {}) as { ad?: string; rol?: string };
-      const karakterId = adayKarakteri(v.rol ?? "", this.v.karakterler, kullanilan, o.id);
+      const karakterId = adayKarakteri(v.rol ?? "", this.v.karakterler, kullanilan, o.id, v.ad);
       if (karakterId) kullanilan.add(karakterId);
       const karakter = this.karakterBul(karakterId ?? undefined);
       const el = document.createElement("button");

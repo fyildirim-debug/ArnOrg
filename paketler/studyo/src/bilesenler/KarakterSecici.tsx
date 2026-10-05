@@ -1,7 +1,9 @@
-// Ofis karakterleri: katalog, ajanların çözülmüş karakteri (avatarlar için) ve karakter seçici (radyo grubu)
+// Ofis karakterleri: katalog, ajanların çözülmüş karakteri (avatarlar için) ve karakter seçici (radyo grubu).
+// Seçicide adın cinsiyetine uyan karakterler önde, ötekiler ayraçtan sonra gelir; otomatik öneri ada ve role uyar.
 import type { Ajan, Dil } from "@arnorg/ortak";
-import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
-import { useEffect, useId, useRef, type KeyboardEvent } from "react";
+import { adCinsiyeti } from "@arnorg/ortak/cinsiyet";
+import { karakterBul, karakterCinsiyeti, karakterMetni } from "@arnorg/ortak/karakterler";
+import { Fragment, useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { create } from "zustand";
 import { useDil, useSozluk } from "../dil";
 import { useVeri } from "../durum/veri";
@@ -89,14 +91,18 @@ interface SeciciOzellikleri {
   degisti: (karakter: string | null) => void;
   /** Otomatik seçimde önerilecek rol */
   rol: string;
+  /** İşe alımda yazılan ad: adın cinsiyetine uyan karakterler önde gelir (verilmezse düzenlenen ajanın adı) */
+  ad?: string;
   /** Düzenlenen ajan (yeni işe alımda yok) */
   ajan?: Ajan;
   etiketId: string;
   devreDisi?: boolean;
 }
 
-export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi }: SeciciOzellikleri) {
-  const t = useSozluk().bilesenler.karakter;
+export function KarakterSecici({ deger, degisti, rol, ad, ajan, etiketId, devreDisi }: SeciciOzellikleri) {
+  const sozluk = useSozluk();
+  const t = sozluk.bilesenler.karakter;
+  const ta = sozluk.arayuz.karakter;
   const dil = useDil();
   const v = useKarakterKatalogu();
   const harita = useAtamalar((s) => s.harita);
@@ -114,12 +120,19 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
     const k = (a.karakter && katalog.some((x) => x.id === a.karakter) ? a.karakter : null) ?? harita.get(a.id)?.id;
     if (k && !kullanan.has(k)) kullanan.set(k, a.ad);
   }
-  // Otomatikte ne olacağı: var olan ajanda Ofis'teki ataması, yeni işe alımda role uyan boş karakter
-  const otomatik = ajan && !ajan.karakter ? harita.get(ajan.id)?.id : adayKarakteri(rol, katalog, kullanan.keys(), ajan?.id ?? "yeni");
-  const secenekler: (string | null)[] = [null, ...katalog.map((k) => k.id)];
+  // Adın cinsiyeti biliniyorsa ona uyan karakterler önde; ötekiler ayraçtan sonra (katalog sırası korunur)
+  const adi = (ad ?? ajan?.ad ?? "").trim();
+  const cinsiyet = adCinsiyeti(adi);
+  const uyanlar = cinsiyet ? katalog.filter((k) => karakterCinsiyeti(k.id) === cinsiyet) : katalog;
+  const digerleri = cinsiyet ? katalog.filter((k) => karakterCinsiyeti(k.id) !== cinsiyet) : [];
+  const ayracOncesi = digerleri.length && uyanlar.length ? digerleri[0]!.id : null;
+  // Otomatikte ne olacağı: var olan ajanda Ofis'teki ataması, yeni işe alımda ada ve role uyan boş karakter
+  const otomatik = ajan && !ajan.karakter ? harita.get(ajan.id)?.id : adayKarakteri(rol, katalog, kullanan.keys(), ajan?.id ?? "yeni", adi);
+  const secenekler: (string | null)[] = [null, ...uyanlar.map((k) => k.id), ...digerleri.map((k) => k.id)];
   const seciliNo = Math.max(0, secenekler.indexOf(deger));
   const secili = katalog.find((k) => k.id === deger);
   const otomatikKarakter = katalog.find((k) => k.id === otomatik);
+  const otomatikAdi = otomatikKarakter ? karakterAdi(otomatikKarakter, dil).toLocaleLowerCase(dil === "tr" ? "tr-TR" : "en-US") : null;
 
   const sec = (i: number) => {
     const n = (i + secenekler.length) % secenekler.length;
@@ -144,43 +157,51 @@ export function KarakterSecici({ deger, degisti, rol, ajan, etiketId, devreDisi 
           const isaretli = i === seciliNo;
           const kim = kid ? kullanan.get(kid) : undefined;
           const oneri = deger === null && kid !== null && kid === otomatik;
-          const ad = k
+          const etiket = k
             ? `${karakterAdi(k, dil)}${kim ? ` · ${t.kullaniyor(kim)}` : ""}${oneri ? ` · ${t.otomatikSecim}` : ""}`
             : `${t.otomatik}${otomatikKarakter ? `: ${karakterAdi(otomatikKarakter, dil)}` : ""}`;
           return (
-            <button
-              key={kid ?? "otomatik"}
-              ref={(el) => {
-                dugmeler.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={isaretli}
-              aria-label={ad}
-              title={ad}
-              tabIndex={isaretli ? 0 : -1}
-              disabled={devreDisi}
-              className={`karakter-secenek${k ? "" : " karakter-otomatik"}`}
-              data-kullaniliyor={kim ? "" : undefined}
-              data-oneri={oneri ? "" : undefined}
-              onClick={() => sec(i)}
-            >
-              {k ? (
-                <KarakterPortresi karakter={k} />
-              ) : (
-                <span aria-hidden="true">
-                  <b>{t.otoKisa}</b>
-                  <small>{t.rolKisa}</small>
+            <Fragment key={kid ?? "otomatik"}>
+              {kid !== null && kid === ayracOncesi ? (
+                <span className="karakter-ayrac" aria-hidden="true">
+                  {ta.digerleri}
                 </span>
-              )}
-            </button>
+              ) : null}
+              <button
+                ref={(el) => {
+                  dugmeler.current[i] = el;
+                }}
+                type="button"
+                role="radio"
+                aria-checked={isaretli}
+                aria-label={etiket}
+                title={etiket}
+                tabIndex={isaretli ? 0 : -1}
+                disabled={devreDisi}
+                className={`karakter-secenek${k ? "" : " karakter-otomatik"}`}
+                data-kullaniliyor={kim ? "" : undefined}
+                data-oneri={oneri ? "" : undefined}
+                onClick={() => sec(i)}
+              >
+                {k ? (
+                  <KarakterPortresi karakter={k} />
+                ) : (
+                  <span aria-hidden="true">
+                    <b>{t.otoKisa}</b>
+                    <small>{t.rolKisa}</small>
+                  </span>
+                )}
+              </button>
+            </Fragment>
           );
         })}
       </div>
       <p className="alan-ipucu" id={aciklamaId}>
         {secili
           ? `${karakterAdi(secili, dil)}${kullanan.has(secili.id) ? ` · ${t.suAnKullaniyor(kullanan.get(secili.id) ?? "")}` : ""}`
-          : t.otomatikIpucu(otomatikKarakter ? karakterAdi(otomatikKarakter, dil).toLocaleLowerCase(dil === "tr" ? "tr-TR" : "en-US") : null)}
+          : cinsiyet
+            ? ta.adlaIpucu(adi, otomatikAdi)
+            : t.otomatikIpucu(otomatikAdi)}
       </p>
       <KisilikOzeti karakterId={secili?.id ?? otomatikKarakter?.id ?? null} />
     </>

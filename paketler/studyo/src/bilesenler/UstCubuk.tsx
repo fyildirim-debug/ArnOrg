@@ -6,6 +6,7 @@ import { bildir, git, hataBildir, yeniProjeIste } from "../durum/arayuz";
 import { simdiYenidenBaglan } from "../durum/olaylar";
 import { aktifMi, ajanUygula, oturumAcikMi, projeyiSec, useVeri } from "../durum/veri";
 import { UstKullanim } from "./Kullanim";
+import { ToplamToken } from "./ToplamToken";
 import { useDisariTik } from "../yardimcilar/kancalar";
 import { useTercihler } from "../yardimcilar/tercihler";
 import { OnaySor } from "./OnaySor";
@@ -43,6 +44,7 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
             </span>
             <span className="metre-ayrac ust-gizle-dar" aria-hidden="true" />
             <UstKullanim />
+            <ToplamToken />
           </>
         ) : null}
         {wsDurumu === "kopuk" ? (

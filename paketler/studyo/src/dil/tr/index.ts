@@ -29,6 +29,7 @@ import { tarayici } from "./tarayici";
 import { karar } from "./karar";
 import { tanitim } from "./tanitim";
 import { skiller } from "./skiller";
+import { arayuz } from "./arayuz";
 
 export const tr = {
   genel,
@@ -61,6 +62,7 @@ export const tr = {
   karar,
   tanitim,
   skiller,
+  arayuz,
 };
 
 export type Sozluk = typeof tr;

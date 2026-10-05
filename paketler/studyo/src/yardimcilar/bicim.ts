@@ -41,6 +41,19 @@ export function token(n: number | null | undefined): string {
   return String(Math.round(d));
 }
 
+/** Kısa token: 950, 48 bin, 1,2 M, 3,4 Mr (İngilizce: 950, 48k, 1.2M, 3.4B); üst çubuk gibi dar yerler için */
+export function kisaToken(n: number | null | undefined): string {
+  const d = Math.max(0, Math.round(n ?? 0));
+  const tr = turkce();
+  const y = tr ? "tr-TR" : "en-US";
+  const ondalik = (x: number) => x.toLocaleString(y, { maximumFractionDigits: 1 });
+  // Yuvarlama bir üst basamağa taşarsa (999 950 → 1 M) üst birim kullanılır
+  if (d >= 999_950_000) return `${ondalik(d / 1_000_000_000)}${tr ? " Mr" : "B"}`;
+  if (d >= 999_500) return `${ondalik(d / 1_000_000)}${tr ? " M" : "M"}`;
+  if (d >= 1000) return `${Math.round(d / 1000).toLocaleString(y)}${tr ? " bin" : "k"}`;
+  return String(d);
+}
+
 /** Yüzde: %12 (İngilizce: 12%) */
 export function yuzde(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";

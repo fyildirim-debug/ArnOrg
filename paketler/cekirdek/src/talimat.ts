@@ -4,6 +4,7 @@
 // kişilik ve ek talimat.
 import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type Proje, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
+import { adresTalimati } from "./adres-araclari.js";
 import { anayasaTalimati } from "./anayasa.js";
 import { ilgiliDosyalarTalimati } from "./kod-zekasi/araclar.js";
 import { kararYetkisiTalimati } from "./karar-yetkisi.js";
@@ -146,6 +147,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       ilgiliDosyalarTalimati("en"),
       // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
       ...yetenekTalimati(ajan, "en"),
+      ...adresTalimati(ajan, "en"),
       "",
       "## Talking to the team (channels)",
       "- The team talks live in channels and the board watches. Use only mcp__arnorg__mesaj_gonder; whoever you @mention is notified. Read channels with mcp__arnorg__kanal_oku.",
@@ -216,6 +218,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     ilgiliDosyalarTalimati("tr"),
     // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
     ...yetenekTalimati(ajan, "tr"),
+    ...adresTalimati(ajan, "tr"),
     "",
     "## Ekiple konuşmak (kanallar)",
     "- Ekip kanallarda canlı konuşur, kurul da izler. Ekiple yalnız mcp__arnorg__mesaj_gonder ile konuş; @Ad ile andığın kişi uyarılır. Kanalları mcp__arnorg__kanal_oku ile oku.",

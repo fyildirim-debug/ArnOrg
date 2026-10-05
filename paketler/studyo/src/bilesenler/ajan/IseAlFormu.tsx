@@ -161,7 +161,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
           <span className="alan-ad" id="ise-karakter-etiket">
             {t.karakter}
           </span>
-          <KarakterSecici deger={karakter} degisti={setKarakter} rol={rol} etiketId="ise-karakter-etiket" />
+          <KarakterSecici deger={karakter} degisti={setKarakter} rol={rol} ad={ad} etiketId="ise-karakter-etiket" />
         </div>
         <div className="alan tam">
           <label htmlFor="ise-talimat">{t.talimat}</label>

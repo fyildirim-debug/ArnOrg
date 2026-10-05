@@ -4,6 +4,7 @@ import { CanliBaglanti } from "../api/canli";
 import { sozluk } from "../dil";
 import { aracAdi, aracSinifi, girdiOzeti } from "../yardimcilar/arac";
 import { kisalt } from "../yardimcilar/bicim";
+import { adresleriUygula } from "./adresler";
 import { bildir, useArayuz } from "./arayuz";
 import { duzeltmeKaldir, duzeltmeUygula } from "./duzeltmeler";
 import { hafizaKaydiKaldir, hafizaKaydiUygula, soruUygula, useHafiza } from "./hafiza";
@@ -264,6 +265,10 @@ function depoyaUygula(olay: SunucuOlayi) {
 
     case "duzeltme.silindi":
       duzeltmeKaldir(olay.projeId, olay.id);
+      return;
+
+    case "adresler.guncellendi":
+      adresleriUygula(olay.projeId, olay.adresler);
       return;
 
     case "kanal.yaziyor":
