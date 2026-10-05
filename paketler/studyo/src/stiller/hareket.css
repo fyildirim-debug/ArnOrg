@@ -1,13 +1,23 @@
-/* Arayüzün hafif hareketleri: ekran geçişinde yumuşak giriş, listeye yeni öğenin girişi, sayı değişince kısa vurgu.
-   Bileşen stillerine dokunmaz, yalnız animasyon ekler (animasyonu olmayan öğelere). Sayı vurgusunu
-   yardimcilar/hareket.ts başlatır. Hareket azaltılınca giriş hareketleri kapanır; sayı vurgusu yerinde, sönerek kalır. */
+/* Arayüzün hafif hareketleri: ekran geçişinde yumuşak giriş, listeye yeni öğenin girişi, sayı değişince kısa tık ve
+   vurgu, bildirimlerin kayarak girip çıkması. Bileşen stillerine dokunmaz, yalnız animasyon ekler (animasyonu olmayan
+   öğelere). Bütün geçişler 150-250 ms ve aynı eğriyle: girişte yumuşak duruş (--egri), çıkışta daha kısa (--egri-cik);
+   JS tarafındaki karşılıkları yardimcilar/hareketAyari.ts'te. Sayı vurgusunu yardimcilar/hareket.ts başlatır; pano
+   kartlarının yer değiştirmesi (FLIP) yardimcilar/flip.ts'te. Hareket azaltılınca giriş hareketleri kapanır; sayı
+   vurgusu yerinde, sönerek kalır. */
+
+:root {
+  --sure-hizli: 160ms;
+  --sure: 200ms;
+  --sure-yavas: 240ms;
+  --egri-cik: cubic-bezier(0.7, 0, 0.84, 0);
+}
 
 /* Ekran geçişi: yeni ekranın kökü kısa bir solmayla ve hafifçe yükselerek gelir (çıkış beklemez) */
 .ana-ic > * {
-  animation: ekran-gir 280ms var(--egri);
+  animation: ekran-gir var(--sure-yavas) var(--egri);
 }
 .kod-katmani[data-gorunur="true"] {
-  animation: ekran-solarak-gir 220ms ease-out;
+  animation: ekran-solarak-gir var(--sure) ease-out;
 }
 @keyframes ekran-gir {
   from {
@@ -21,11 +31,10 @@
   }
 }
 
-/* Listeye yeni öğe: onaylar, pano biletleri, hafıza kayıtları yukarıdan süzülerek girer */
+/* Listeye yeni öğe: onaylar ve hafıza kayıtları yukarıdan süzülerek girer (pano kartlarını FLIP girdirir) */
 .onay-liste > .onay:not(.onay-vurgulu),
-.bilet-liste > .bilet,
 .hafiza-liste > .hafiza-kayit {
-  animation: liste-gir 340ms var(--egri);
+  animation: liste-gir var(--sure) var(--egri);
 }
 @keyframes liste-gir {
   from {
@@ -41,11 +50,33 @@
 .rozet.sayi-vurgu {
   animation-name: rozet-vurgu;
 }
+/* Sayaç tıkı ([data-sayi]): yeni sayı artınca alttan, azalınca üstten yerine oturur */
+[data-sayi].sayi-vurgu[data-yon] {
+  display: inline-block;
+  animation:
+    sayi-vurgu 900ms var(--egri),
+    sayi-tik-artti var(--sure) var(--egri);
+}
+[data-sayi].sayi-vurgu[data-yon="azaldi"] {
+  animation-name: sayi-vurgu, sayi-tik-azaldi;
+}
 @keyframes sayi-vurgu {
   0%,
   20% {
     color: var(--coral);
     text-shadow: 0 0 10px oklch(0.72 0.19 25 / 0.55);
+  }
+}
+@keyframes sayi-tik-artti {
+  from {
+    opacity: 0.25;
+    transform: translateY(0.45em);
+  }
+}
+@keyframes sayi-tik-azaldi {
+  from {
+    opacity: 0.25;
+    transform: translateY(-0.45em);
   }
 }
 @keyframes rozet-vurgu {
@@ -58,17 +89,40 @@
   }
 }
 
+/* Bildirimler: sağdan kayarak girer; kapanırken (Bildirimler.tsx çıkış süresince tutar) sağa kayıp söner */
+.bildirim {
+  animation: bildirim-kay var(--sure) var(--egri);
+}
+.bildirim.bildirim-cikiyor {
+  animation: bildirim-cik var(--sure-hizli) var(--egri-cik) forwards;
+  pointer-events: none;
+}
+@keyframes bildirim-kay {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes bildirim-cik {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ana-ic > *,
   .kod-katmani[data-gorunur="true"],
   .onay-liste > .onay,
-  .bilet-liste > .bilet,
-  .hafiza-liste > .hafiza-kayit {
+  .hafiza-liste > .hafiza-kayit,
+  .bildirim,
+  .bildirim.bildirim-cikiyor {
     animation: none;
   }
   /* Vurgu konum değiştirmeden, yalnız renkle */
   .sayi-vurgu,
-  .rozet.sayi-vurgu {
+  .rozet.sayi-vurgu,
+  [data-sayi].sayi-vurgu[data-yon] {
     animation: sayi-solma 900ms linear;
   }
   @keyframes sayi-solma {

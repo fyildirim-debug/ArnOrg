@@ -4,13 +4,18 @@
 //
 // Üstte kamera kipleri (canlı yayın, takip edilen kişi), altta olay şeridi: son olaylar soldan akar; birine
 // basınca kamera o kişiye gidip onu takip eder (kişisi yoksa olayın yerine gider).
+//
+// 0.0.8: çalışana basınca yanında kişi kartı açılır (takip, mesaj, görevi açma; ayrıntılar çekmecede); tek tuşlu
+// kısayollar harita odakta değilken de çalışır ("?" penceresi); görev kaydı (gorev.kaydedildi) sahneye iletilir.
 import type { AjanDurumu } from "@arnorg/ortak";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { hataMetni } from "../api/istek";
 import { AjanAyrinti } from "../bilesenler/ajan/AjanAyrinti";
 import { MesajFormu } from "../bilesenler/ajan/AjanEylemleri";
 import { Cekmece } from "../bilesenler/Cekmece";
 import { HataKutu } from "../bilesenler/Durumlar";
+import { KisayolPenceresi } from "../bilesenler/KisayolPenceresi";
+import { KisiKarti, TakipSimgesi } from "../bilesenler/ofis/KisiKarti";
 import { Simge } from "../bilesenler/Simge";
 import { useSozluk } from "../dil";
 import { git } from "../durum/arayuz";
@@ -20,21 +25,15 @@ import { ofisMotoru } from "../ofis/bellek";
 import type { AkisSatiri, KameraModu, OfisMotoru } from "../ofis/motor";
 import { gorselleriIsit, varliklariYukle, yukluVarliklar, type Varliklar } from "../ofis/varliklar";
 import { saat } from "../yardimcilar/bicim";
+import { gorevKaydiOku } from "../yardimcilar/gorevKaydi";
+import { useKisayollar } from "../yardimcilar/kisayol";
 
 /** Şeritte tutulan son olay sayısı */
 const SERIT_SINIRI = 10;
 const SAYAC_SIRASI: AjanDurumu[] = ["calisiyor", "karar_bekliyor", "bosta", "duraklatildi", "hata", "kapali"];
 const BOS_KIP: KameraModu = { yayin: false, takip: null, yayinda: null, azHareket: false };
-
-/** Takip nişangâhı: çember ve dört kısa çizgi (tek çizgi kalınlığı) */
-function TakipSimgesi() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-      <circle cx="8" cy="8" r="4" />
-      <path d="M8 1.5v2.5M8 12v2.5M1.5 8H4M12 8h2.5" />
-    </svg>
-  );
-}
+/** Ok tuşlarıyla kaydırma adımı (piksel; haritanın kendi tuşlarıyla aynı) */
+const KAYDIRMA = 80;
 
 export function Ofis() {
   const s = useSozluk();
@@ -48,7 +47,10 @@ export function Ofis() {
   const [varliklar, setVarliklar] = useState<Varliklar | null>(() => yukluVarliklar());
   const [varlikHatasi, setVarlikHatasi] = useState<string | null>(null);
   const [deneme, setDeneme] = useState(0);
-  const [seciliId, setSeciliId] = useState<string | null>(null);
+  /** Kişi kartı açık olan çalışan; ayrıntı çekmecesi karttan açılır */
+  const [kartId, setKartId] = useState<string | null>(null);
+  const [cekmeceId, setCekmeceId] = useState<string | null>(null);
+  const [kisayolAcik, setKisayolAcik] = useState(false);
   const [akis, setAkis] = useState<AkisSatiri[]>([]);
   const [ozet, setOzet] = useState("");
   const [kip, setKip] = useState<KameraModu>(BOS_KIP);
@@ -57,6 +59,7 @@ export function Ofis() {
   const basRef = useRef<HTMLDivElement>(null);
   const seritRef = useRef<HTMLDivElement>(null);
   const motorRef = useRef<OfisMotoru | null>(null);
+  const kartRef = useRef<HTMLDivElement>(null);
   /** Başlık ve şeridin yüksekliği: kamera her karede sorar; okumak yerleşimi zorlamasın diye önbellekte */
   const olcu = useRef({ ust: 0, alt: 0 });
   const ozetId = useId();
@@ -95,7 +98,8 @@ export function Ofis() {
       ustPay: () => olcu.current.ust + 6,
       altPay: () => olcu.current.alt + 4,
       cagrilar: {
-        ajanSec: (id) => setSeciliId(id),
+        // Aynı kişiye yeniden basınca kart kapanır
+        ajanSec: (id) => setKartId((k) => (k === id ? null : id)),
         git: (hedef, p) => git(hedef, p?.kanal ? { kanal: p.kanal } : {}),
         akis: (satir) => setAkis((a) => [satir, ...a].slice(0, SERIT_SINIRI)),
         ozet: setOzet,
@@ -125,6 +129,12 @@ export function Ofis() {
       if (d.ajanlar !== o.ajanlar || d.gorevler !== o.gorevler || d.onaylar !== o.onaylar || d.projeYukleme !== o.projeYukleme) ilet(d);
     });
     const olayBirak = ofisOlayDinle((olay) => {
+      // Görev kaydı (0.0.8) ortak olay tipinde henüz yok: biçimine bakarak okunur
+      const kayit = gorevKaydiOku(olay);
+      if (kayit) {
+        motor.gorevKaydedildi(kayit);
+        return;
+      }
       switch (olay.tur) {
         case "mesaj.yeni":
           motor.mesajGeldi(olay.mesaj);
@@ -143,19 +153,65 @@ export function Ofis() {
           break;
       }
     });
+    // Haritada boş yere basınca kart kapanır (sürükleme tıklama sayılmaz: kamera yutar)
+    const bosTik = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".ofis-kisi, [data-sicak], [data-onay-ajan]")) setKartId(null);
+    };
+    alan.addEventListener("click", bosTik);
     return () => {
+      alan.removeEventListener("click", bosTik);
       basGozlemci.disconnect();
       depoBirak();
       olayBirak();
+      motor.kartBagla(null, null);
       motor.ayir();
       motorRef.current = null;
       setAkis([]);
-      setSeciliId(null);
+      setKartId(null);
+      setCekmeceId(null);
       setKip(BOS_KIP);
     };
   }, [varliklar, aktifProjeId]);
 
-  const secili = ajanlar.find((a) => a.id === seciliId);
+  const kartAjan = ajanlar.find((a) => a.id === kartId);
+  const secili = ajanlar.find((a) => a.id === cekmeceId);
+
+  // Kart, seçili çalışanın yanında durur: konumunu motor yazar; çalışan ayrılınca kart kalkar
+  useLayoutEffect(() => {
+    motorRef.current?.kartBagla(kartAjan ? kartRef.current : null, kartAjan?.id ?? null);
+  }, [kartAjan?.id, varliklar, aktifProjeId]);
+
+  const kartiKapat = (odak = true) => {
+    const id = kartId;
+    setKartId(null);
+    if (odak && id) motorRef.current?.kisiyeOdaklan(id);
+  };
+
+  // Tek tuşlu kısayollar: haritanın kendi tuşları (odaktayken) önce işler, burada harita odakta değilken de çalışır
+  const m = () => motorRef.current;
+  useKisayollar(
+    {
+      "?": () => setKisayolAcik(true),
+      [s.canli.kisayol.yayinTusu]: () => {
+        if (!kip.azHareket) m()?.yayinAc(!kip.yayin);
+      },
+      Escape: () => {
+        if (kartId) kartiKapat();
+        else if (kip.takip) m()?.takipEt(null);
+        else if (kip.yayin) m()?.yayinAc(false);
+      },
+      "+": () => m()?.yakinlastir(1.3),
+      "=": () => m()?.yakinlastir(1.3),
+      "-": () => m()?.yakinlastir(1 / 1.3),
+      _: () => m()?.yakinlastir(1 / 1.3),
+      "0": () => m()?.sigdir(),
+      ArrowLeft: () => m()?.kaydir(KAYDIRMA, 0),
+      ArrowRight: () => m()?.kaydir(-KAYDIRMA, 0),
+      ArrowUp: () => m()?.kaydir(0, KAYDIRMA),
+      ArrowDown: () => m()?.kaydir(0, -KAYDIRMA),
+    },
+    !kisayolAcik && !cekmeceId,
+  );
   const sayac = new Map<AjanDurumu, number>();
   for (const a of ajanlar) sayac.set(a.durum, (sayac.get(a.durum) ?? 0) + 1);
 
@@ -249,7 +305,22 @@ export function Ofis() {
           <button type="button" className="dugme dugme-simge" onClick={() => motorRef.current?.sigdir()} aria-label={so.sigdir} title={so.sigdirIpucu}>
             <Simge ad="sigdir" />
           </button>
+          <button type="button" className="dugme dugme-simge kisayol-dugme" onClick={() => setKisayolAcik(true)} aria-label={s.canli.kisayol.ac} title={s.canli.kisayol.ac}>
+            ?
+          </button>
         </div>
+
+        {kartAjan ? (
+          <KisiKarti
+            ajan={kartAjan}
+            kokRef={kartRef}
+            etkinlik={() => motorRef.current?.kisiEtkinligi(kartAjan.id) ?? ""}
+            takipte={kip.takip?.id === kartAjan.id}
+            takip={() => motorRef.current?.takipEt(kip.takip?.id === kartAjan.id ? null : kartAjan.id)}
+            ayrinti={() => setCekmeceId(kartAjan.id)}
+            kapat={() => kartiKapat()}
+          />
+        ) : null}
 
         {varlikHatasi ? (
           <div className="ofis-hata" data-kamera-disi>
@@ -281,14 +352,14 @@ export function Ofis() {
               title={so.takipEtIpucu(secili.ad)}
               onClick={() => {
                 motorRef.current?.takipEt(secili.id);
-                setSeciliId(null);
+                setCekmeceId(null);
               }}
             >
               <TakipSimgesi />
               {so.takipEt}
             </button>
           }
-          kapat={() => setSeciliId(null)}
+          kapat={() => setCekmeceId(null)}
           alt={
             <div className="ofis-hizli-mesaj">
               <MesajFormu key={secili.id} ajan={secili} satirlar={2} />
@@ -297,6 +368,20 @@ export function Ofis() {
         >
           <AjanAyrinti ajan={secili} mesaj={false} />
         </Cekmece>
+      ) : null}
+      {kisayolAcik ? (
+        <KisayolPenceresi
+          baslik={s.canli.kisayol.ofisBaslik}
+          kapat={() => setKisayolAcik(false)}
+          satirlar={[
+            { tuslar: ["+", "−"], aciklama: s.canli.kisayol.ofis.yakinlastir },
+            { tuslar: ["0"], aciklama: s.canli.kisayol.ofis.sigdir },
+            { tuslar: [s.canli.kisayol.oklar], aciklama: s.canli.kisayol.ofis.kaydir },
+            { tuslar: [s.canli.kisayol.yayinTusu.toLocaleUpperCase(so.yerel)], aciklama: s.canli.kisayol.ofis.yayin },
+            { tuslar: ["Esc"], aciklama: s.canli.kisayol.ofis.kapat },
+            { tuslar: ["?"], aciklama: s.canli.kisayol.ofis.pencere },
+          ]}
+        />
       ) : null}
     </section>
   );

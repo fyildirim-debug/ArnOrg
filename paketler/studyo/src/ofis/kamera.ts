@@ -229,14 +229,22 @@ export class Kamera {
     this.git(yeni, px - (px - this.tx) * k, py - (py - this.ty) * k, yumusak);
   }
 
-  /** Dünya noktasını görünür alanın ortasına getirir (görünüyorsa dokunmaz) */
-  goster(x: number, y: number, kenar = 60) {
+  /**
+   * Dünya noktasını görünür alanın ortasına getirir (görünüyorsa dokunmaz). Görünür alan başlık ile olay şeridi
+   * arasıdır; altEk: altta ayrıca örtülen pay (dar ekranda alta yaslı kişi kartı).
+   */
+  goster(x: number, y: number, kenar = 60, altEk = 0) {
     const { g, y: h } = this.alanBoyu();
+    const ust = this.s.ustPay();
+    const alt = (this.s.altPay?.() ?? 0) + altEk;
     const sx = this.tx + x * this.olcek;
     const sy = this.ty + y * this.olcek;
-    if (sx > kenar && sx < g - kenar && sy > kenar && sy < h - kenar) return;
+    // Dar ekranda kenar payı da daralır: sığdırılmış ofiste kenardaki kişi için sahne kaymasın
+    const kx = Math.min(kenar, g * 0.06);
+    if (sx > kx && sx < g - kx && sy > ust + kenar / 2 && sy < h - alt - kenar / 2) return;
     this.elle = true;
-    this.git(this.olcek, g / 2 - x * this.olcek, h / 2 - y * this.olcek, true);
+    const orta = ust + Math.max(40, h - ust - alt) / 2;
+    this.git(this.olcek, g / 2 - x * this.olcek, orta - y * this.olcek, true);
   }
 
   /** Kullanıcının bıraktığı görünüm: ekran boyutundan bağımsız (alanın ortasındaki dünya noktası) */
@@ -450,6 +458,12 @@ export class Kamera {
         return;
     }
     e.preventDefault();
+  }
+
+  /** Ekranın ok tuşları (harita odakta değilken de): kullanıcı kamerayı eline aldı sayılır, takip ve yayın bırakılır */
+  elleKaydir(dx: number, dy: number) {
+    this.s.elle?.("kaydir");
+    this.kaydirAdim(dx, dy);
   }
 
   private kaydirAdim(dx: number, dy: number) {

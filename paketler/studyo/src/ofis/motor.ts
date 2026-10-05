@@ -10,6 +10,11 @@
 // bitince kutlama, birleşmede sunucu odasında ışık, test laboratuvarında geçti/kaldı ışığı, kurul masasında onay
 // işareti, kahve buharı, bitki salınımı, yerel saate göre gün ışığı. Hareket azaltılınca süsler ve kamera dolaşması
 // kapanır; sekme gizliyken döngü durur; yavaş makinede 30 fps'e iner ve efekt bütçesi küçülür.
+//
+// 0.0.8 (canlilik.ts): yazma kıpırtısı araç temposuyla hızlanır; boştaki çalışan masasında oturur, uzun boşlukta kısa
+// molaya çıkıp döner; CEO'nun kararını bekleyen CEO'nun yanında ağırlık değiştirerek bekler, karar balonla gelir;
+// soru soran yanıtı bir süre yanında bekler, gelmezse masasına döner; kaydedilen görevin sahibinde küçük onay işareti;
+// çalışana basınca ekranın verdiği kişi kartı onun yanında durur.
 import {
   kanalGorunenAdi,
   KURUL,
@@ -26,6 +31,24 @@ import {
 } from "@arnorg/ortak";
 import { karakterBul, karakterMetni, type KarakterTanimi, type OfisYeri } from "@arnorg/ortak/karakterler";
 import { sozluk, useDilDurumu } from "../dil";
+import type { GorevKaydi } from "../yardimcilar/gorevKaydi";
+import {
+  aracPayi,
+  kararMuhatabi,
+  METIN_PAYI,
+  molaGecikmesi,
+  molaSec,
+  tempoDuzeyi,
+  tempoEkle,
+  tempoOku,
+  YANINDA_BEKLEME,
+  yazmaKipirtisi,
+  yazmaSuresi,
+  yeniTempo,
+  type KararMuhatabi,
+  type Mola,
+  type Tempo,
+} from "./canlilik";
 import {
   arastirmaEkraniOgesi,
   buharOgesi,
@@ -95,7 +118,9 @@ export type AkisTuru =
   | "bildirim"
   | "arastirma"
   | "test"
-  | "teslim";
+  | "teslim"
+  /** 0.0.8: görev kaydedildi (gorev.kaydedildi) */
+  | "kayit";
 
 export interface AkisSatiri {
   id: number;
@@ -168,6 +193,8 @@ const KISA_BALON = 40;
 const KISA_BALON_SURESI = 4000;
 /** Boşta bu kadar kalan, durunca uyuklar */
 const UYUKLAMA = 90_000;
+/** Dar ekranda alta yaslı kişi kartı yakınlaştırma düğmelerinin (2 rem ve aralık) üstünde durur */
+const KART_DUGME_PAYI = 44;
 
 // ---------------------------------------------------------------------------
 // İç tipler
@@ -213,7 +240,8 @@ interface Balon {
 }
 
 interface Isaret {
-  tip: "unlem" | "omuz";
+  /** kayit (0.0.8): görevi kaydedildi, küçük onay işareti */
+  tip: "unlem" | "omuz" | "kayit";
   bitis: number;
 }
 
@@ -329,8 +357,23 @@ interface Kisi {
     arka: boolean;
     dusunce: boolean;
     konusma: boolean;
+    bekleme: boolean;
   };
   sonEtiketZamani: number;
+  // 0.0.8 canlılık (canlilik.ts)
+  /** Araç temposu: masadaki yazma kıpırtısı ve monitörün titreşimi bununla hızlanır */
+  tempo: Tempo;
+  /** ajana_sor ile sorduğu ve yanıtını beklediği soru */
+  yanitBekliyor: { soruId: string; soruluId: string } | null;
+  /** Baş sallamanın başladığı an (yanıtı ya da kararı alınca) */
+  basSalla: number;
+  /** Boştayken molada (masasından kalktı); sekerleme: kanepede kestiriyor */
+  molada: boolean;
+  sekerleme: boolean;
+  /** Karar beklerken kararı kim verecek: CEO'nun yanında ya da kurul masasında bekler */
+  kararMuhatabi: KararMuhatabi | null;
+  /** Karar beklemeye yeni geçti: akış satırı muhatap belli olunca yazılacak */
+  kararAkisi: boolean;
 }
 
 interface Aday {
@@ -512,6 +555,12 @@ export class OfisMotoru {
   private gunIsigiZamani = -SONSUZ;
   private yarimSaniye = 0;
 
+  // ---- 0.0.8 canlılık ----
+  /** Ekranın kişi kartı: seçili çalışanın yanında durur; ölçüleri 400 ms'de bir alınır, konumu her karede yazılır */
+  private kart: { el: HTMLElement; id: string; g: number; h: number; dx: number; dy: number; eg: number; eh: number; olculdu: number; tf: string } | null = null;
+  /** Yanıtı beklenen ajana_sor soruları: soru kimliği → soran, sorulan ve soruluş anı (en uzun bekleme 30 dk) */
+  private bekleyenSorular = new Map<string, { soran: string; sorulu: string; an: number }>();
+
   constructor(kur: MotorKurulumu) {
     this.kur = kur;
     this.v = kur.varliklar;
@@ -622,6 +671,9 @@ export class OfisMotoru {
     document.addEventListener("visibilitychange", gorunurluk);
     this.baglantiKaldir.push(() => document.removeEventListener("visibilitychange", gorunurluk));
     if (!this.ilkVeri) this.yenidenBaglandi = true;
+    // Ekran kapalıyken gelen yanıtlar görülmedi: bekleme göstergeleri eskimiş olabilir
+    this.bekleyenSorular.clear();
+    for (const k of this.kisiler.values()) k.yanitBekliyor = null;
     this.metinleriYenile();
     // Ölçüler yeniden alınır (ayrıkken sıfırdı)
     for (const bl of this.balonlar) bl.olcum = true;
@@ -818,6 +870,8 @@ export class OfisMotoru {
       if (this.t < k.konusmaBitis || k.balonlar.length) puan += 22;
       if (k.ajan.durum === "calisiyor" && ["arastirma", "laboratuvar", "sunum", "tasarim", "tanitim", "kisi", "toplanti"].includes(k.yerDurumu.yer)) puan += 16;
       if (this.uyukluyor(k)) puan = 6;
+      // Masasında iş bekleyen sakin bir çekim; molaya yürürken yol puanı alır
+      else if (k.ajan.durum === "bosta" && k.oturan) puan = 5;
       adaylar.push({ id: k.id, puan });
     }
     for (const o of this.sahneOlaylari) if (this.t - o.t < 6000) adaylar.push({ id: `olay:${o.anahtar}`, puan: 100, olay: o.t });
@@ -1075,6 +1129,8 @@ export class OfisMotoru {
     const sessiz = ilk || this.yenidenBaglandi;
     this.ilkVeri = false;
     this.yenidenBaglandi = false;
+    // Onaylar önce: durumu değişen çalışanın beklediği kararın muhatabı bu listeden okunur (geçişler aşağıda)
+    this.onaylar = v.onaylar;
     // Karakter atamaları (kalıcı)
     this.atamalar = projeAtamalari(this.kur.projeId, v.ajanlar, this.v.karakterler, this.atamalar);
 
@@ -1102,6 +1158,8 @@ export class OfisMotoru {
     for (const k of [...this.kisiler.values()]) if (!gorulen.has(k.id) && !k.cikiyor) this.kisiAyrildi(k, sessiz);
     // Masalar bütün ekip görüldükten sonra atanır: sonuç ajanların geliş sırasından bağımsız
     this.masalariAta(true);
+    // Karar bekleyenler en son: CEO'yu bekleyen, yerine konmuş CEO'nun yanında başlar
+    yeniler.sort((a, b) => Number(a.ajan.durum === "karar_bekliyor") - Number(b.ajan.durum === "karar_bekliyor"));
     for (const k of yeniler) this.kisiyiYerlestir(k, sessiz);
 
     // Görevler
@@ -1123,6 +1181,11 @@ export class OfisMotoru {
       if (sessiz) continue;
       if (once === undefined && o.durum === "bekliyor") this.onayYeni(o);
       else if (once === "bekliyor" && o.durum !== "bekliyor") this.onaySonuc(o);
+    }
+    // 0.0.8: karar bekleyenin muhatabı değişti (onayı geldi ya da kurul yetkiyi geri aldı): yeni yerine geçer
+    for (const k of this.kisiler.values()) {
+      if (k.cikiyor || k.kaliciTur !== "kurul" || k.is?.tur !== "kalici") continue;
+      if (this.kararMuhatabiBul(k) !== k.kararMuhatabi) this.kaliciBaslat(k);
     }
     // Birleştirmelerin kalite kapısı: her adım onay.sonuc ile gelir (kuyrukta → hazırlık → test → birleşti/kaldı)
     for (const o of v.onaylar) {
@@ -1297,9 +1360,17 @@ export class OfisMotoru {
       konusmaBitis: -SONSUZ,
       sonSorgu: "",
       sonKomut: "",
-      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false, arka: false, dusunce: false, konusma: false },
+      yaz: { tf: "", z: -1, govde: "", kirp: "", ust: "", op: "", durum: "", etiket: "", isaret: "", ad: "", is: "", oturan: false, arka: false, dusunce: false, konusma: false, bekleme: false },
       sonEtiketZamani: -SONSUZ,
+      tempo: yeniTempo(this.t),
+      yanitBekliyor: null,
+      basSalla: -SONSUZ,
+      molada: false,
+      sekerleme: false,
+      kararMuhatabi: null,
+      kararAkisi: false,
     };
+    if (this.kart?.id === a.id) dugme.classList.add("ofis-kisi-secili");
     this.gorselAyarla(k, karakter);
     this.kisiler.set(a.id, k);
     // Sekme sırası: karakterler sıcak noktalardan (eşyalardan) önce gelsin
@@ -1362,16 +1433,22 @@ export class OfisMotoru {
   /** Kalıcı hedefine animasyonsuz yerleştirir (ilk açılış) */
   private yerinde(k: Kisi) {
     const tur = this.kaliciTuru(k.ajan.durum);
-    if ((tur === "masa" || tur === "calisma") && k.masa) {
+    if ((tur === "masa" || tur === "calisma" || tur === "dinlen") && k.masa) {
       this.oturt(k, k.masa);
+      // Boştaki kişi masasında başlar; ilk molası ekran açılışına göre yakındır (canlilik.ts)
+      if (tur === "dinlen") k.yerlesti = true;
     } else if (tur === "kurul") {
-      const karo = this.rezerveEt(k, this.yer.noktalar.kurulBekleme[0]!, this.yer.noktalar.kurulBekleme);
+      // CEO'nun kararını bekleyen CEO'nun masasının yanında, kurulunkini bekleyen kurul masasında başlar
+      const ceo = this.kararMuhatabiBul(k) === "ceo" ? this.ceo() : undefined;
+      const yan = ceo && ceo !== k && ceo.masa ? this.masaYaniAdaylari(ceo.masa, k.x) : null;
+      const karo = yan ? this.rezerveEt(k, yan[0]!, yan) : this.rezerveEt(k, this.yer.noktalar.kurulBekleme[0]!, this.yer.noktalar.kurulBekleme);
       const a = karoAyak(karo);
       k.x = a.x;
       k.y = a.y;
+      if (ceo?.masa) this.yuzlestir(k, ceo.masa.oturma);
     } else {
-      // Boştaki kişi sevdiği yerde, duraklatılmış olan kanepede ya da mutfakta başlar; kimliğine göre seçilen
-      // karo her açılışta aynı
+      // Masası olmayan boştaki kişi sevdiği yerde, duraklatılmış olan kanepede ya da mutfakta başlar; kimliğine göre
+      // seçilen karo her açılışta aynı
       const tohum = ozet(k.id);
       const liste = tur === "durak" ? this.durakKarolari() : this.sevdigiKarolar(k);
       const i = tohum % liste.length;
@@ -1426,9 +1503,19 @@ export class OfisMotoru {
     const tur = this.kaliciTuru(yeni);
     if (sessiz) {
       // ekran kapalıyken oldu: akışa yazılmaz
-    } else if (yeni === "karar_bekliyor") this.akisa("onay", so().akis.kurulMasasinda(k.ajan.ad), { ajanId: k.id });
-    else if (eski === "karar_bekliyor" && yeni === "calisiyor") this.akisa("onay", so().akis.masasinaDondu(k.ajan.ad), { ajanId: k.id });
+    } else if (yeni === "karar_bekliyor") {
+      // Satır, kararı kimin vereceği belli olunca yazılır (kurulDavranisi): onay ve durum olayları ayrı gelir
+      k.kararAkisi = true;
+    } else if (eski === "karar_bekliyor" && yeni === "calisiyor") this.akisa("onay", so().akis.masasinaDondu(k.ajan.ad), { ajanId: k.id });
     else if (yeni === "hata") this.akisa("bildirim", so().akis.oturumHatasi(k.ajan.ad), { ajanId: k.id });
+    if (yeni !== "karar_bekliyor") {
+      k.kararAkisi = false;
+      k.kararMuhatabi = null;
+    }
+    if (yeni !== "bosta") {
+      k.molada = false;
+      k.sekerleme = false;
+    }
     // İşe yeni başladı: henüz bir yere yerleşmedi, ilk işi onu beklemeden yerine götürür
     if (yeni === "calisiyor" && eski !== "calisiyor") k.yerDurumu = yerDurumu(this.t);
     // Boşta kalma süresi uyuklamayı belirler; çalışmayan düşünmez
@@ -1536,6 +1623,11 @@ export class OfisMotoru {
     this.isiBitir(k);
     const tur = this.kaliciTuru(k.ajan.durum);
     k.kaliciTur = tur;
+    if (tur === "kurul") {
+      // Kararı kimin vereceği: değişince (veriGuncelle) davranış yeniden başlar; işaretin etiketi de yenilenir
+      k.kararMuhatabi = this.kararMuhatabiBul(k);
+      k.yaz.isaret = "";
+    }
     const gen =
       tur === "calisma"
         ? this.calismaDavranisi(k)
@@ -1877,15 +1969,116 @@ export class OfisMotoru {
     }
   }
 
+  /**
+   * Karar bekliyor. Kararı CEO verecekse (tam otonom) CEO'nun masasının yanında, ona dönük bekler; kurul verecekse
+   * kurul masasında. Onay ve durum olayları ayrı gelir: yola çıkmadan kısa bir an beklenir, akış satırı muhatap belli
+   * olunca yazılır. Muhatap değişirse (veriGuncelle) davranış yeniden başlar.
+   */
   private *kurulDavranisi(k: Kisi): Senaryo {
     const n = this.yer.noktalar;
+    if (k.kararAkisi) yield this.bekle(350);
+    const ceo = k.kararMuhatabi === "ceo" ? this.ceo() : undefined;
+    const ceoyu = !!ceo && ceo !== k && !ceo.cikiyor;
+    if (k.kararAkisi) {
+      k.kararAkisi = false;
+      this.akisa("onay", ceoyu ? sozluk().canli.ofis.akis.ceoKarariniBekliyor(k.ajan.ad, ceo!.ajan.ad) : so().akis.kurulMasasinda(k.ajan.ad), { ajanId: k.id });
+    }
+    if (ceoyu && ceo!.masa) {
+      const masa = ceo!.masa;
+      const adaylar = this.masaYaniAdaylari(masa, k.x);
+      yield* this.git(k, adaylar[0]!, { adaylar });
+      this.yuzlestir(k, masa.oturma);
+      yield this.sonsuz();
+      return;
+    }
     yield* this.git(k, n.kurulBekleme[0]!, { adaylar: n.kurulBekleme });
     const km = this.yer.esyalar.find((e) => e.kimlik === n.kurulMasasiKimligi);
     if (km) this.yuzlestir(k, km);
     yield this.sonsuz();
   }
 
+  /** Kararın muhatabı (canlilik.ts): CEO'ya yönelen onayın CEO'su ofiste yoksa ya da bekleyen kendisiyse kurul */
+  private kararMuhatabiBul(k: Kisi): KararMuhatabi {
+    if (kararMuhatabi(this.onaylar, k.id) !== "ceo") return "kurul";
+    const ceo = this.ceo();
+    return ceo && ceo !== k && !ceo.cikiyor ? "ceo" : "kurul";
+  }
+
+  /** Bir masanın yanında durulacak karolar: oturanın yanı (yaklaşanın tarafı önce), sonra bir alt sıra */
+  private masaYaniAdaylari(masa: Koltuk, x: number): Karo[] {
+    const m = masa.yaklasma;
+    const taraf = x <= masa.oturma.x ? -1 : 1;
+    return [
+      { c: m.c + taraf, r: m.r },
+      { c: m.c - taraf, r: m.r },
+      { c: m.c + taraf, r: m.r + 1 },
+      { c: m.c - taraf, r: m.r + 1 },
+      { c: m.c, r: m.r + 1 },
+    ];
+  }
+
+  /**
+   * Boşta. Masası olan masasında oturur (ekranı kapalı); uzun bir boşluktan sonra kısa bir molaya çıkar (kahve, su,
+   * sevdiği köşe ya da kanepe; çok uzun boşlukta kanepede kestirme) ve masasına döner (canlilik.ts). Masası
+   * olmayan dinlenme alanında dolaşır.
+   */
   private *dinlenmeDavranisi(k: Kisi): Senaryo {
+    if (!k.masa) {
+      yield* this.dinlenmeAlaninda(k);
+      return;
+    }
+    const kisilik = karakterBul(k.karakter.id);
+    // Ekran açılırken masasına kondu: uzun boşluk çoktan geçmiş olabilir, ilk molası yakın
+    let kip: "ilk" | "sonraki" | "acilis" = k.yerlesti ? "acilis" : "ilk";
+    k.yerlesti = false;
+    for (;;) {
+      if (k.masa && k.oturan !== k.masa) yield* this.koltugaGit(k, k.masa);
+      yield this.bekle(molaGecikmesi(kip));
+      kip = "sonraki";
+      yield* this.molaVer(k, molaSec(kisilik?.sevdigiYer, this.t - k.bostaBas));
+    }
+  }
+
+  /** Kısa mola: yerine yürür, orada oyalanır (kahvede fincan, suda bardak, köşesinde ara sıra bir söz), sonra döner */
+  private *molaVer(k: Kisi, mola: Mola): Senaryo {
+    const n = this.yer.noktalar;
+    const kanepe = () => this.git(k, sec(n.kanepeOnu) ?? n.kahve, { adaylar: [...n.kanepeOnu].sort(() => Math.random() - 0.5) });
+    k.molada = true;
+    try {
+      const kisilik = mola.tur === "sevdigi" ? karakterBul(k.karakter.id) : undefined;
+      if (kisilik) {
+        yield* this.sevdigiYerde(k, kisilik);
+      } else if (mola.tur === "kahve") {
+        yield* this.git(k, n.kahve);
+        k.yon = 1;
+        yield this.bekle(rastgele(2600, 3600));
+        k.elde = { simge: "fincan" };
+        // Fincanla dinlenme alanında kısa bir duruş
+        yield* this.git(k, sec(n.dinlenme) ?? n.kahve);
+        k.yon = Math.random() < 0.5 ? 1 : -1;
+        yield this.bekle(Math.max(2500, mola.sure - 3000));
+      } else if (mola.tur === "su") {
+        yield* this.git(k, n.su);
+        k.yon = 1;
+        yield this.bekle(rastgele(1800, 2600));
+        k.elde = { simge: "bardak" };
+        yield this.bekle(Math.max(1500, mola.sure - 2200));
+      } else {
+        yield* kanepe();
+        k.yon = Math.random() < 0.5 ? 1 : -1;
+        // Çok uzun boşluk: kanepede kestirir (başında çizilmiş "z" işareti)
+        k.sekerleme = mola.tur === "sekerleme";
+        yield this.bekle(mola.sure);
+      }
+    } finally {
+      k.molada = false;
+      k.sekerleme = false;
+      k.elde = null;
+    }
+  }
+
+  /** Masası olmayan boştaki kişi: dinlenme alanında dolaşır, sevdiği yere uğrar, uzun boşlukta kanepede uyuklar */
+  private *dinlenmeAlaninda(k: Kisi): Senaryo {
     const n = this.yer.noktalar;
     const kisilik = karakterBul(k.karakter.id);
     if (k.yerlesti) {
@@ -1900,7 +2093,12 @@ export class OfisMotoru {
       if (this.t - k.bostaBas > UYUKLAMA && Math.random() < 0.55) {
         yield* this.git(k, sec(n.kanepeOnu) ?? n.kahve, { adaylar: [...n.kanepeOnu].sort(() => Math.random() - 0.5) });
         k.yon = Math.random() < 0.5 ? 1 : -1;
-        yield this.bekle(rastgele(26000, 52000));
+        k.sekerleme = true;
+        try {
+          yield this.bekle(rastgele(26000, 52000));
+        } finally {
+          k.sekerleme = false;
+        }
         continue;
       }
       // Karakterin kişiliği: zamanının bir kısmını sevdiği yerde geçirir
@@ -2100,13 +2298,27 @@ export class OfisMotoru {
     yield this.bekle(3400);
   }
 
-  private *soruSahnesi(a: Kisi, b: Kisi, soru: string): Senaryo {
+  /**
+   * Soru (ajana_sor): soran sorulanın yanına yürür, sorar. 0.0.8: yanıt kısa sürede gelirse yanında bekler, duyunca
+   * başını sallar; gelmezse masasına döner (başında bekleme göstergesi; yanıt gelince ışık iziyle ulaşır).
+   */
+  private *soruSahnesi(a: Kisi, b: Kisi, soru: string, soruId?: string): Senaryo {
     a.etkinlik = so().etkinlik.soruSoruyor(b.ajan.ad);
     yield* this.yaninaGit(a, b);
     this.isaretKoy(b, "unlem", 3000);
     const bal = this.balon(a, soru, "soru");
     yield this.balonBitene(bal);
     yield this.bekle(400);
+    if (!soruId) return;
+    if (this.bekleyenSorular.has(soruId)) {
+      a.etkinlik = sozluk().canli.ofis.etkinlik.yanitBekliyor(b.ajan.ad);
+      yield this.kosul(() => !this.bekleyenSorular.has(soruId) || b.cikiyor, YANINDA_BEKLEME);
+    }
+    // Yanıt geldiyse balonu biraz dinler
+    if (!this.bekleyenSorular.has(soruId)) yield this.bekle(1800);
+    // Sorulanın yanı artık iş yeri değil: masasına döner
+    const d = a.yerDurumu;
+    if (d.yer === "kisi" && d.kisi === b.id) a.yerDurumu = yerDurumu(this.t);
   }
 
   private *toplantiSahnesi(k: Kisi): Senaryo {
@@ -2329,14 +2541,26 @@ export class OfisMotoru {
       if (!this.toplantiSorulari.size && this.toplanti) this.toplanti.bitis = Math.min(this.toplanti.bitis, this.t + 9000);
       return;
     }
+    // 0.0.8: soran yanıtı bekler (başında bekleme göstergesi); yanıt ya da süre dolunca biter
+    const bekledi = this.bekleyenSorular.has(s.id);
     if (s.durum === "bekliyor") {
-      if (soran && sorulu && !soran.cikiyor) this.sahneEkle(soran, "soru", () => this.soruSahnesi(soran, sorulu, balonMetni(s.soru, 110)));
+      if (bekledi) return;
+      this.bekleyenSorular.set(s.id, { soran: s.soranId, sorulu: s.soruluId, an: this.t });
+    } else this.bekleyenSorular.delete(s.id);
+    if (soran) this.yanitBeklemesiniTazele(soran);
+    if (s.durum === "bekliyor") {
+      if (soran && sorulu && !soran.cikiyor) this.sahneEkle(soran, "soru", () => this.soruSahnesi(soran, sorulu, balonMetni(s.soru, 110), s.id));
       this.akisa("soru", so().akis.soru(s.soranAd, s.soruluAd, kisaMetin(s.soru, 52)), { ajanId: soran?.id });
     } else if (s.durum === "yanitlandi") {
       if (sorulu) {
-        if (soran && !soran.oturan && Math.hypot(soran.x - sorulu.x, soran.y - sorulu.y) < KARO * 3) this.yuzlestir(sorulu, soran);
+        const yakin = !!soran && Math.hypot(soran.x - sorulu.x, soran.y - sorulu.y) < KARO * 3;
+        if (soran && yakin && !soran.oturan) this.yuzlestir(sorulu, soran);
         this.balon(sorulu, balonMetni(s.yanit ?? so().balon.yanitladim, 110), "yanit");
-        if (soran) this.isaretKoy(soran, "unlem", 2400);
+        // Yanında bekleyen başını sallar; uzaktaki (masasına dönmüş) soranı yanıt ışık iziyle bulur
+        if (soran && !soran.cikiyor) {
+          if (yakin) soran.basSalla = this.t + 700;
+          else this.isikIzi(sorulu, soran, 300);
+        }
       }
       this.akisa("soru", so().akis.yanitladi(s.soruluAd, kisaMetin(s.yanit ?? "", 52)), { ajanId: sorulu?.id });
     } else {
@@ -2372,6 +2596,7 @@ export class OfisMotoru {
       case "asistan":
         k.dusunceBitis = -SONSUZ;
         k.dusunceBaslar = SONSUZ;
+        k.tempo = tempoEkle(k.tempo, METIN_PAYI, this.t);
         k.yazmaBitis = Math.max(k.yazmaBitis, this.t + 1600);
         return;
       case "sonuc":
@@ -2392,7 +2617,9 @@ export class OfisMotoru {
       k.aracSimge = { simge: aracSimgesi(oge.arac), bitis: this.t + 2800 };
       k.sonEtiketZamani = this.t;
     }
-    if (/^(?:Edit|Write|MultiEdit|NotebookEdit)$/.test(oge.arac ?? "")) k.yazmaBitis = this.t + 2600;
+    // Tempo (canlilik.ts): her çağrı pay ekler; yazma süresi ve kıpırtının hızı tempoya göre
+    k.tempo = tempoEkle(k.tempo, aracPayi(oge.arac), this.t);
+    if (/^(?:Edit|Write|MultiEdit|NotebookEdit)$/.test(oge.arac ?? "")) k.yazmaBitis = this.t + yazmaSuresi(tempoDuzeyi(tempoOku(k.tempo, this.t)));
     // Test ve derleme: laboratuvarın panosu koşar; sonucu gelince ışık yanar
     const tur = komutTuru(oge.arac, oge.girdi);
     if (tur && oge.aracKimligi) {
@@ -2562,7 +2789,17 @@ export class OfisMotoru {
       const k = sahip ? this.kisiler.get(sahip) : undefined;
       const durumu = k && k.oturan === ist && k.ajan.durum === "calisiyor" ? (this.t < k.yazmaBitis ? "yaziyor" : "acik") : "";
       if (isik.dataset.durum !== durumu) isik.dataset.durum = durumu;
+      if (k) this.monitorTemposu(isik, k, durumu === "yaziyor");
+      else delete isik.dataset.tempo;
     }
+  }
+
+  /** 0.0.8: yazarken monitörün titreşim hızı tempoyla (data-tempo 1-3, stil canli.css); yazmıyorsa yok */
+  private monitorTemposu(isik: HTMLElement, k: Kisi, yaziyor: boolean) {
+    const tempo = yaziyor ? String(Math.max(1, tempoDuzeyi(tempoOku(k.tempo, this.t)))) : "";
+    if ((isik.dataset.tempo ?? "") === tempo) return;
+    if (tempo) isik.dataset.tempo = tempo;
+    else delete isik.dataset.tempo;
   }
 
   /** Giriş kapısı: biri yaklaşınca kanatlar açılır */
@@ -2711,6 +2948,7 @@ export class OfisMotoru {
   }
 
   private onaySonuc(o: Onay) {
+    this.ceoKarari(o);
     if (o.tur === "birlestirme" && o.durum === "onaylandi") {
       // Onaylanan birleştirme kalite kapısına girer; birleşme anı kapının "birleşti" adımında oynar. Kalite kaydı
       // hiç gelmezse (kapısız çekirdek) birkaç saniye sonra doğrudan birleşmiş sayılır.
@@ -3084,7 +3322,8 @@ export class OfisMotoru {
     const el = hedef.closest?.<HTMLElement>(".ofis-kisi");
     const kisi = el?.dataset.ajan ? this.kisiler.get(el.dataset.ajan) : undefined;
     if (e.type === "pointerover" || e.type === "focusin") {
-      if (kisi) {
+      // Kartı açık olanın ipucu gösterilmez: kart aynı bilgiyi taşır
+      if (kisi && kisi.id !== this.kart?.id) {
         this.ipucuKisi = kisi;
         this.ipucuYazildi = -SONSUZ;
         this.ipucu.hidden = false;
@@ -3114,9 +3353,9 @@ export class OfisMotoru {
     return k.ajan.durum === "calisiyor" && !k.cikiyor && this.t < k.dusunceBitis;
   }
 
-  /** Uzun süre boşta kalıp durmuş: uyukluyor (kanepede, köşede) */
+  /** Uzun boşluğun molasında kanepede kestiriyor (masasında oturan boştaki çalışan uyuklamaz, işini bekler) */
   private uyukluyor(k: Kisi): boolean {
-    return k.ajan.durum === "bosta" && !k.cikiyor && this.t - k.bostaBas > UYUKLAMA && this.t - k.sonHareket > 6000 && this.hareketsiz(k) && !k.balonlar.length;
+    return k.ajan.durum === "bosta" && !k.cikiyor && k.sekerleme && this.t - k.sonHareket > 3000 && this.hareketsiz(k) && !k.balonlar.length;
   }
 
   private temelEtkinlik(k: Kisi): string {
@@ -3126,8 +3365,12 @@ export class OfisMotoru {
     if (k.is?.tur === "sahne" && k.etkinlik) return k.etkinlik;
     if (k.kanalYazisi && this.t < k.kanalYazisi.bitis) return e.kanalaYaziyor(kanalAdi(k.kanalYazisi.kanal));
     if (this.uyukluyor(k)) return e.uyukluyor;
+    const c = sozluk().canli.ofis.etkinlik;
     switch (a.durum) {
       case "calisiyor": {
+        // Sorusunun yanıtını bekliyor (ajana_sor yanıt gelene kadar sürer)
+        const sorulu = k.yanitBekliyor ? this.kisiler.get(k.yanitBekliyor.soruluId) : undefined;
+        if (sorulu) return c.yanitBekliyor(sorulu.ajan.ad);
         if (k.kaliciTur === "calisma") {
           const d = k.yerDurumu;
           switch (d.yer) {
@@ -3162,10 +3405,17 @@ export class OfisMotoru {
         }
         return k.oturan ? e.masasindaCalisiyor(a.isAciklamasi) : e.masasinaGidiyor;
       }
-      case "karar_bekliyor":
-        return e.kurulBekliyor;
+      case "karar_bekliyor": {
+        const ceo = k.kararMuhatabi === "ceo" ? this.ceo() : undefined;
+        return ceo && ceo !== k ? c.ceoKarariniBekliyor(ceo.ajan.ad) : e.kurulBekliyor;
+      }
       case "bosta":
-        return k.elde?.simge === "fincan" ? e.kahveIciyor : k.elde?.simge === "bardak" ? e.suIciyor : e.isBekliyor;
+        if (k.masa && k.oturan === k.masa) return c.masasindaBekliyor;
+        if (k.elde?.simge === "fincan") return e.kahveIciyor;
+        if (k.elde?.simge === "bardak") return e.suIciyor;
+        if (k.molada) return c.molada;
+        // Moladan masasına dönüyor
+        return k.masa && k.yol ? e.masasinaGidiyor : e.isBekliyor;
       case "kapali":
         return e.kapali;
       case "duraklatildi":
@@ -3254,6 +3504,7 @@ export class OfisMotoru {
     for (const k of this.kisiler.values()) this.kisiYaz(k);
     this.balonlariYerlestir();
     this.ipucuYaz();
+    this.kartYaz();
     this.sunucuYaz();
     for (const kv of this.kivilcimlar.splice(0)) {
       if (this.t < kv.bitis) this.kivilcimlar.push(kv);
@@ -3283,6 +3534,13 @@ export class OfisMotoru {
     }
     // Sonucu hiç gelmeyen çağrılar unutulur
     for (const [id, c] of this.labCagrilari) if (this.t - c.t > 600_000) this.labCagrilari.delete(id);
+    // ajana_sor en çok 30 dakika bekler: sonucu görülmeyen soru unutulur
+    for (const [id, b] of this.bekleyenSorular) {
+      if (this.t - b.an < 31 * 60_000) continue;
+      this.bekleyenSorular.delete(id);
+      const k = this.kisiler.get(b.soran);
+      if (k) this.yanitBeklemesiniTazele(k);
+    }
     this.sahneOlaylari = this.sahneOlaylari.filter((o) => this.t - o.t < 8000);
     this.sunumuGuncelle();
     this.ekranlariYaz();
@@ -3419,14 +3677,22 @@ export class OfisMotoru {
         sy = 1 + n * 0.012;
         sx = 1 - n * 0.006;
         if (k.oturan && k.ajan.durum === "calisiyor") don = Math.sin(this.t / 1000 * 0.9 + k.nefesFaz) * 0.7;
+        // Karar bekliyor: ayakta, ağırlığını yavaşça bir ayağından ötekine verir
+        else if (!k.oturan && !k.gecis && k.ajan.durum === "karar_bekliyor") don = Math.sin(this.t / 1000 * 1.1 + k.nefesFaz) * 1.4;
       }
       const uz = this.t - k.uzanma;
       if (uz >= 0 && uz < 700) bob -= Math.sin((uz / 700) * Math.PI) * 5;
       // Kutlama: iki küçük zıplama, ikincisi alçak
       const zu = this.t - k.ziplaBas;
       if (zu >= 0 && zu < 780) bob -= Math.abs(Math.sin((zu / 390) * Math.PI)) * (zu < 390 ? 10 : 5);
-      // Masada yazarken: hızlı, küçük kıpırtı (klavyeye vuruş)
-      if (k.oturan && this.t < k.yazmaBitis) bob -= Math.max(0, Math.sin(this.t * 0.046 + k.nefesFaz)) * 0.9;
+      // Baş sallama (yanıtı ya da kararı aldı): iki küçük iniş
+      const bs = this.t - k.basSalla;
+      if (bs >= 0 && bs < 560) bob += Math.abs(Math.sin((bs / 280) * Math.PI)) * 1.6;
+      // Masada yazarken: klavyeye vuruş; tempo arttıkça sıklaşır ve belirginleşir (canlilik.ts)
+      if (k.oturan && this.t < k.yazmaBitis) {
+        const v = yazmaKipirtisi(tempoDuzeyi(tempoOku(k.tempo, this.t)));
+        bob -= Math.max(0, Math.sin(this.t * v.siklik + k.nefesFaz)) * v.genlik;
+      }
       if (k.isaret?.tip === "omuz" && this.t < k.isaret.bitis) {
         const o = (k.isaret.bitis - this.t) % 700;
         if (o < 350) bob -= Math.sin((o / 350) * Math.PI) * 3;
@@ -3501,13 +3767,17 @@ export class OfisMotoru {
       k.yaz.is = isMetni;
     }
     // Başın üstünde: düşünürken akan üç nokta, yüz yüze konuşurken sözsüz konuşma göstergesi
+    // 0.0.8: sorusunun yanıtını bekleyende sakin bekleme göstergesi
     const konusma = this.t < k.konusmaBitis;
     const dusunce = !konusma && this.dusunuyor(k);
-    if (dusunce !== k.yaz.dusunce || konusma !== k.yaz.konusma) {
+    const bekleme = !konusma && !dusunce && !!k.yanitBekliyor && !k.cikiyor;
+    if (dusunce !== k.yaz.dusunce || konusma !== k.yaz.konusma || bekleme !== k.yaz.bekleme) {
       k.yaz.dusunce = dusunce;
       k.yaz.konusma = konusma;
+      k.yaz.bekleme = bekleme;
       if (konusma) k.dusunceEl.dataset.tur = "konusma";
       else if (dusunce) k.dusunceEl.dataset.tur = "dusunce";
+      else if (bekleme) k.dusunceEl.dataset.tur = "bekleme";
       else delete k.dusunceEl.dataset.tur;
     }
     // İşaret: kalıcı (durumdan) ya da geçici
@@ -3562,6 +3832,7 @@ export class OfisMotoru {
             ? "hata"
             : "";
         if (isik.dataset.durum !== durumu) isik.dataset.durum = durumu;
+        this.monitorTemposu(isik, k, durumu === "yaziyor");
       }
       this.masaSimgeleri(k, masadaCalisiyor);
     }
@@ -3575,13 +3846,16 @@ export class OfisMotoru {
     el.removeAttribute("tabindex");
     el.removeAttribute("aria-label");
     switch (isaret) {
-      case "soru":
+      case "soru": {
         el.textContent = "?";
         el.dataset.onayAjan = k.id;
         el.setAttribute("role", "button");
         el.tabIndex = 0;
-        el.setAttribute("aria-label", so().kararIsareti(k.ajan.ad));
-        el.title = so().kararIsaretiIpucu;
+        // 0.0.8: kararı CEO verecekse işaret onu anar
+        const ceo = k.kararMuhatabi === "ceo" ? this.ceo() : undefined;
+        const c = sozluk().canli.ofis;
+        el.setAttribute("aria-label", ceo && ceo !== k ? c.kararIsareti(k.ajan.ad, ceo.ajan.ad) : so().kararIsareti(k.ajan.ad));
+        el.title = ceo && ceo !== k ? c.kararIsaretiIpucu(ceo.ajan.ad) : so().kararIsaretiIpucu;
         el.onkeydown = (e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -3589,11 +3863,16 @@ export class OfisMotoru {
           }
         };
         break;
+      }
       case "unlem":
         el.textContent = "!";
         break;
       case "omuz":
         el.textContent = "…";
+        break;
+      case "kayit":
+        // Görev kaydedildi: kısa süren onay işareti (akış şeridi de yazar)
+        el.innerHTML = simgeSvg("onay", 11);
         break;
       case "uyku":
         // Her "z" kendi kabında yükselir (kabın dönüşümü birleştiricide oynar, SVG yerleşimini bozmaz)
@@ -3777,6 +4056,132 @@ export class OfisMotoru {
     x = Math.max(8, x);
     y = Math.max(8, Math.min(o.eh - o.h - 8, y));
     this.ipucu.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+  }
+
+  // -------------------------------------------------------------------------
+  // 0.0.8: görev kaydı, CEO kararı, kişi kartı, klavyeyle kaydırma
+  // -------------------------------------------------------------------------
+
+  /**
+   * Görev kaydedildi (gorev.kaydedildi, yardimcilar/gorevKaydi.ts): kaydedenin başında kısa onay işareti, masasındaysa
+   * monitörü bir an parlar; panodaki notu da işaretlenir, akışa satır düşer. Kutlama yok: kayıt sık ve sıradan bir an.
+   */
+  gorevKaydedildi(kayit: GorevKaydi) {
+    if (kayit.projeId && kayit.projeId !== this.kur.projeId) return;
+    const g = this.gorevler.find((x) => (kayit.gorevId !== null && x.id === kayit.gorevId) || (kayit.kod !== null && x.kod === kayit.kod));
+    const kod = g?.kod ?? kayit.kod ?? "";
+    if (!kod) return;
+    const aday = (kayit.ajanId ? this.kisiler.get(kayit.ajanId) : undefined) ?? (g?.atananId ? this.kisiler.get(g.atananId) : undefined);
+    const k = aday && !aday.cikiyor ? aday : undefined;
+    if (k) {
+      this.isaretKoy(k, "kayit", 2600);
+      if (k.masa && k.oturan === k.masa) {
+        k.aracSimge = { simge: "onay", bitis: this.t + 2200 };
+        k.sonEtiketZamani = this.t;
+      }
+    }
+    const not = g ? this.panoNotlari.get(g.id) : undefined;
+    if (not) {
+      not.classList.remove("ofis-not-kayit");
+      void not.offsetWidth;
+      not.classList.add("ofis-not-kayit");
+      setTimeout(() => not.classList.remove("ofis-not-kayit"), 6000);
+    }
+    const ozet = kayit.ozet ? kisaMetin(kayit.ozet, 48) : "";
+    this.akisa("kayit", sozluk().canli.ofis.akis.kaydedildi(kod, k?.ajan.ad ?? null, ozet), k ? { ajanId: k.id } : { nokta: this.odaNoktasi("pano") });
+  }
+
+  /** Soranın yanıtını beklediği en son soru (bir yanıt gelince öteki bekleyen sorusu sürer) */
+  private yanitBeklemesiniTazele(k: Kisi) {
+    let son: { id: string; sorulu: string; an: number } | null = null;
+    for (const [id, b] of this.bekleyenSorular) if (b.soran === k.id && (!son || b.an >= son.an)) son = { id, sorulu: b.sorulu, an: b.an };
+    k.yanitBekliyor = son ? { soruId: son.id, soruluId: son.sorulu } : null;
+  }
+
+  /** CEO bir çalışanın izin ya da soru onayına karar verdi: CEO'nun başında kısa balon; bekleyen başını sallar ya da omuz silker */
+  private ceoKarari(o: Onay) {
+    if (o.kararKaynagi !== "ceo" || !o.ajanId || (o.tur !== "arac" && o.tur !== "genel")) return;
+    if (o.durum !== "onaylandi" && o.durum !== "reddedildi") return;
+    const ceo = this.ceo();
+    const k = this.kisiler.get(o.ajanId);
+    if (!ceo || ceo === k || ceo.cikiyor) return;
+    const b = sozluk().canli.ofis.balon;
+    const kabul = o.durum === "onaylandi";
+    this.balon(ceo, kabul ? b.onayladim : b.reddettim, "kisa", kabul ? "onay" : "uyari");
+    if (!k || k.cikiyor) return;
+    if (kabul) k.basSalla = this.t + 600;
+    else this.isaretKoy(k, "omuz", 2000);
+  }
+
+  /** Ekranın kişi kartını bağlar: kart seçili çalışanın yanında durur, kişi halkayla işaretlenir (null: kart kapandı) */
+  kartBagla(el: HTMLElement | null, ajanId: string | null) {
+    const id = el && ajanId && this.kisiler.has(ajanId) ? ajanId : null;
+    this.kart = el && id ? { el, id, g: 0, h: 0, dx: 0, dy: 0, eg: 0, eh: 0, olculdu: -SONSUZ, tf: "" } : null;
+    for (const k of this.kisiler.values()) k.dugme.classList.toggle("ofis-kisi-secili", k.id === id);
+    if (id && this.ipucuKisi?.id === id) this.ipucuGizle();
+    this.kartYaz();
+    // Dar ekranda kart alta yaslanır: kişi kartın üstünde görünür kalsın
+    const k = id ? this.kisiler.get(id) : undefined;
+    if (k && this.kart && this.kart.eg < 560 && !this.takipId && !this.yayinAcik) this.kamera?.goster(k.x + k.ax, k.y - k.boy * 0.5, 40, this.kart.h + KART_DUGME_PAYI + 12);
+  }
+
+  /** Kişinin o anki etkinliği (kişi kartında; ipucuyla aynı metin) */
+  kisiEtkinligi(ajanId: string): string {
+    const k = this.kisiler.get(ajanId);
+    return k ? this.etkinlikMetni(k) : "";
+  }
+
+  /** Klavye odağı kişiye döner (kart kapanınca) */
+  kisiyeOdaklan(ajanId: string) {
+    this.kisiler.get(ajanId)?.dugme.focus({ preventScroll: true });
+  }
+
+  /** Ekranın ok tuşları: kamera kayar (harita odakta değilken de); yayın, gezinti ve takip bırakılır */
+  kaydir(dx: number, dy: number) {
+    this.kamera?.elleKaydir(dx, dy);
+  }
+
+  /**
+   * Kişi kartının yeri: geniş ekranda kişinin başının sağında (sığmazsa solunda), başlık ve şeridin arasında; dar
+   * ekranda altta, şeridin üstünde. Ölçüler 400 ms'de bir alınır, aradaki karelerde yalnız konum yazılır.
+   */
+  private kartYaz() {
+    const kt = this.kart;
+    if (!kt || !this.b || !this.kamera) return;
+    const k = this.kisiler.get(kt.id);
+    if (!k) return;
+    if (this.t - kt.olculdu > 400 || !kt.g) {
+      kt.olculdu = this.t;
+      const alan = this.b.alan.getBoundingClientRect();
+      const ekran = this.b.ekran.getBoundingClientRect();
+      kt.dx = alan.left - ekran.left;
+      kt.dy = alan.top - ekran.top;
+      kt.eg = ekran.width;
+      kt.eh = ekran.height;
+      kt.g = kt.el.offsetWidth;
+      kt.h = kt.el.offsetHeight;
+    }
+    const ust = this.b.ustPay() + 4;
+    const alt = (this.b.altPay?.() ?? 0) + 8;
+    let x: number;
+    let y: number;
+    if (kt.eg < 560) {
+      // Dar ekran: altta, yakınlaştırma düğmelerinin üstünde
+      x = (kt.eg - kt.g) / 2;
+      y = kt.eh - alt - KART_DUGME_PAYI - kt.h;
+    } else {
+      const n = this.kamera.ekrana(k.x + k.ax, k.y - k.boy * (1 - k.kirp));
+      x = n.x + kt.dx + 26;
+      if (x + kt.g > kt.eg - 8) x = n.x + kt.dx - kt.g - 26;
+      y = n.y + kt.dy - 24;
+    }
+    x = Math.max(8, Math.min(kt.eg - kt.g - 8, x));
+    y = Math.max(ust, Math.min(kt.eh - alt - kt.h, y));
+    const tf = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+    if (tf !== kt.tf) {
+      kt.tf = tf;
+      kt.el.style.transform = tf;
+    }
   }
 }
 

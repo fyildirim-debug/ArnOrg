@@ -1,0 +1,470 @@
+/* 0.0.8 canlılık: ofiste kişi kartı, yeni işaretler ve yazma temposu; kısayol penceresi; panoda süzgeç sonucu, kayıt
+   işareti ve yükleme iskeleti. Renkler tokenlar.css'ten, gölge yok; süre ve eğriler hareket.css'ten (--sure, --egri).
+   Hareket azaltılınca girişler ve çizimler oynamaz, işaretler yerinde durur. */
+
+/* ---------- ofis: seçili kişi, kayıt işareti, yanıt bekleme, yazma temposu ---------- */
+
+/* Kartı açık kişi: mercan çevre (oturuyorsa yalnız çizgi; ayaktaysa zemin halkası da) */
+.ofis-kisi.ofis-kisi-secili {
+  --halka: var(--coral);
+}
+.ofis-kisi-secili .ofis-kisi-govde img,
+.ofis-kisi-secili:hover .ofis-kisi-govde img {
+  filter: drop-shadow(0 0 1.5px var(--coral)) drop-shadow(0 0 1px var(--coral));
+}
+.ofis-kisi-secili .ofis-kisi-halka {
+  opacity: 1;
+}
+
+/* Görev kaydedildi: başın üstünde onay işareti; çizgi kendini çizer */
+.ofis-isaret-kayit {
+  width: 18px;
+  background: var(--ink-3);
+  border: 1px solid oklch(0.8 0.12 155 / 0.55);
+  color: var(--ok);
+  animation: canli-isaret-gir var(--sure) var(--egri);
+}
+.ofis-isaret-kayit path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  animation: canli-ciz var(--sure-yavas) var(--egri) 80ms forwards;
+}
+@keyframes canli-isaret-gir {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.6);
+  }
+}
+@keyframes canli-ciz {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Panodaki not: kaydedilen görevin köşesinde yeşil nokta, birkaç saniye */
+.ofis-not-kayit::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--ok);
+  animation: canli-not-kayit 6s ease forwards;
+}
+@keyframes canli-not-kayit {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  4% {
+    opacity: 1;
+    transform: none;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Sorusunun yanıtını bekleyen: düşünmekten sakin, yerinde yavaşça yanıp sönen üç nokta */
+.ofis-dusunce[data-tur="bekleme"] {
+  border-color: var(--line);
+}
+.ofis-dusunce[data-tur="bekleme"] i {
+  opacity: 0.3;
+  animation: canli-bekleme 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.3s);
+}
+@keyframes canli-bekleme {
+  40% {
+    opacity: 0.85;
+  }
+}
+
+/* Yazma temposu: monitörün titreşimi araç etkinliğiyle hızlanır (düzey 1-3) */
+.ofis-monitor[data-durum="yaziyor"][data-tempo="1"] {
+  animation-duration: 0.5s;
+}
+.ofis-monitor[data-durum="yaziyor"][data-tempo="2"] {
+  animation-duration: 0.34s;
+}
+.ofis-monitor[data-durum="yaziyor"][data-tempo="3"] {
+  animation-duration: 0.26s;
+}
+
+/* Akış şeridinde kayıt satırı */
+.ofis-serit li[data-tur="kayit"] time {
+  color: var(--ok);
+}
+
+/* ---------- ofis: kişi kartı ---------- */
+/* Konumunu her karede motor yazar (transform); giriş translate ve opacity ile, transform'a karışmadan */
+.ofis-kart {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  gap: var(--b-2);
+  width: min(19.5rem, calc(100% - 16px));
+  padding: var(--b-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--ink-2);
+  color: var(--paper);
+  font-size: var(--t-xs);
+  pointer-events: auto;
+  animation: canli-kart-gir var(--sure) var(--egri);
+}
+@keyframes canli-kart-gir {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+.ofis-kart-ust {
+  display: flex;
+  align-items: center;
+  gap: var(--b-2);
+}
+.ofis-kart-kim {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.ofis-kart-kim b {
+  font-size: var(--t-s);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.ofis-kart-kim small {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.ofis-kart-durum {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.ofis-kart-durum i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-2);
+}
+.ofis-kart-durum[data-durum="calisiyor"] {
+  color: var(--ok);
+}
+.ofis-kart-durum[data-durum="calisiyor"] i {
+  background: var(--ok);
+}
+.ofis-kart-durum[data-durum="karar_bekliyor"] {
+  color: var(--warn);
+}
+.ofis-kart-durum[data-durum="karar_bekliyor"] i {
+  background: var(--warn);
+}
+.ofis-kart-durum[data-durum="hata"] {
+  color: var(--coral);
+}
+.ofis-kart-durum[data-durum="hata"] i {
+  background: var(--coral);
+}
+.ofis-kart-durum[data-durum="kapali"] i,
+.ofis-kart-durum[data-durum="duraklatildi"] i {
+  background: none;
+  border: 1px solid var(--muted-2);
+}
+.ofis-kart-etkinlik {
+  font-family: var(--font-govde);
+  font-size: var(--t-xs);
+  line-height: 1.45;
+  color: var(--bone);
+}
+.ofis-kart-gorev {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-size: var(--t-2xs);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--hiz) ease;
+}
+.ofis-kart-gorev:hover {
+  border-color: var(--line-hover);
+}
+.ofis-kart-gorev:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.ofis-kart-gorev code {
+  flex: none;
+  color: var(--coral);
+}
+.ofis-kart-gorev span {
+  min-width: 0;
+}
+.ofis-kart-gorevsiz {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.ofis-kart-eylem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: var(--b-2);
+  border-top: 1px solid var(--line);
+}
+.ofis-kart-eylem .ofis-kart-ayrinti {
+  margin-left: auto;
+}
+.ofis-kart-mesaj {
+  padding-top: var(--b-2);
+  border-top: 1px solid var(--line);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ofis-kart-mesaj .metin-alani {
+  font-size: var(--t-xs);
+}
+/* Dar kartta Enter ipucu yer kaplamasın (yer tutucu yazısı zaten anlatır) */
+.ofis-kart-mesaj .mesaj-ipucu {
+  display: none;
+}
+
+/* ---------- kısayol penceresi ---------- */
+.kisayol-perde {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: var(--b-4);
+  background: rgba(10, 10, 11, 0.64);
+  animation: canli-sol var(--sure) ease;
+}
+@keyframes canli-sol {
+  from {
+    opacity: 0;
+  }
+}
+.kisayol-pencere {
+  width: min(26rem, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--ink-2);
+  animation: canli-pencere-gir var(--sure) var(--egri);
+}
+@keyframes canli-pencere-gir {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+.kisayol-ust {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--b-3);
+  padding: var(--b-3) var(--b-3) var(--b-3) var(--b-5);
+  border-bottom: 1px solid var(--line);
+}
+.kisayol-ust h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-l);
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--paper);
+}
+.kisayol-liste {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--b-5);
+  padding: var(--b-2) var(--b-5) var(--b-4);
+}
+/* Satırlar listenin sütunlarını paylaşır: tuşlar en geniş tuş kadar, açıklamalar hizalı */
+.kisayol-satir {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: var(--b-2) 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+@supports not (grid-template-columns: subgrid) {
+  .kisayol-satir {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    column-gap: var(--b-4);
+  }
+}
+.kisayol-satir:last-child {
+  border-bottom: 0;
+}
+.kisayol-satir dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kisayol-satir dd {
+  margin: 0;
+  color: var(--bone);
+  font-size: var(--t-xs);
+  line-height: 1.45;
+}
+.kisayol-satir kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--ink-3);
+  color: var(--paper);
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Kısayol düğmesi: ofisin yakınlaştırma sütununda ve pano başlığında */
+.kisayol-dugme {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* ---------- pano: süzgeç sonucu, kayıt işareti, yükleme iskeleti ---------- */
+.suzgec-sonuc {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.bilet[data-kayit] {
+  border-color: oklch(0.8 0.12 155 / 0.45);
+}
+.bilet-kayit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--ok);
+  font-size: var(--t-2xs);
+  white-space: nowrap;
+  animation: canli-bilet-kayit 4.6s ease forwards;
+}
+.bilet-kayit svg {
+  width: 11px;
+  height: 11px;
+}
+.bilet-kayit path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  animation: canli-ciz var(--sure-yavas) var(--egri) 60ms forwards;
+}
+@keyframes canli-bilet-kayit {
+  0% {
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.pano-iskelet {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+.pano-iskelet-kolon {
+  display: grid;
+  gap: 0.5rem;
+}
+.pano-iskelet-baslik {
+  display: flex;
+  align-items: center;
+  height: 1.875rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.pano-iskelet-baslik i,
+.pano-iskelet-kart i {
+  display: block;
+  height: 0.625rem;
+  border-radius: 2px;
+  background: var(--ink-3);
+  animation: parilti 1.4s ease-in-out infinite;
+}
+.pano-iskelet-baslik i {
+  width: 55%;
+}
+.pano-iskelet-kart {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  height: var(--boy, 5.5rem);
+  padding: 0.625rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-2);
+  background: var(--ink-2);
+}
+.pano-iskelet-kart i:first-child {
+  width: 34%;
+}
+.pano-iskelet-kart i:nth-child(2) {
+  width: 88%;
+}
+.pano-iskelet-kart i:nth-child(3) {
+  width: 62%;
+}
+
+/* ---------- hareket azaltma: girişler ve çizimler yok, işaretler yerinde ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ofis-isaret-kayit,
+  .ofis-kart,
+  .kisayol-perde,
+  .kisayol-pencere,
+  .ofis-dusunce[data-tur="bekleme"] i,
+  .ofis-not-kayit::after,
+  .bilet-kayit,
+  .pano-iskelet-baslik i,
+  .pano-iskelet-kart i {
+    animation: none !important;
+  }
+  .ofis-isaret-kayit path,
+  .bilet-kayit path {
+    animation: none !important;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .ofis-dusunce[data-tur="bekleme"] i {
+    opacity: 0.7;
+  }
+}

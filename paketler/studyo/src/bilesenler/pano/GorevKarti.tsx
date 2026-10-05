@@ -1,4 +1,5 @@
-// Pano kartı
+// Pano kartı. data-flip: sütun değiştirince eski yerinden kayarak gelir (Pano'daki useFlip); kaydedildi: görev az önce
+// kaydedildiyse birkaç saniye küçük onay işareti
 import type { Gorev } from "@arnorg/ortak";
 import { memo } from "react";
 import { useSozluk } from "../../dil";
@@ -6,15 +7,18 @@ import { useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { AjanAvatar } from "../Kisi";
 import { acikBagimliliklar, durumDegistir, sonrakiDurum } from "./gorevYardimcilari";
+import type { KayitIsareti } from "./kayitIsaretleri";
 
 export const GorevKarti = memo(function GorevKarti({
   gorev,
   ac,
   surukle,
+  kaydedildi,
 }: {
   gorev: Gorev;
   ac: (id: string) => void;
   surukle: (id: string | null) => void;
+  kaydedildi?: KayitIsareti;
 }) {
   const s = useSozluk();
   const ajan = useVeri((d) => d.ajanlar.find((a) => a.id === gorev.atananId));
@@ -26,6 +30,8 @@ export const GorevKarti = memo(function GorevKarti({
   return (
     <li
       className={`bilet${gorev.durum === "iptal" ? " bilet-iptal" : ""}`}
+      data-flip={gorev.id}
+      data-kayit={kaydedildi ? "" : undefined}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", gorev.id);
@@ -37,7 +43,16 @@ export const GorevKarti = memo(function GorevKarti({
       <button type="button" className="bilet-ac" onClick={() => ac(gorev.id)} aria-label={s.pano.kart.ayrintiAc(gorev.kod, gorev.baslik)}>
         <span className="bilet-ust">
           <code>{gorev.kod}</code>
-          {gorev.etiket ? <span>{gorev.etiket}</span> : null}
+          {kaydedildi ? (
+            <span key={kaydedildi.an} className="bilet-kayit" title={s.canli.pano.kaydedildiIpucu(gorev.kod, kaydedildi.ozet)}>
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <path d="m3 8.5 3.25 3.25L13 5" />
+              </svg>
+              {s.canli.pano.kaydedildi}
+            </span>
+          ) : gorev.etiket ? (
+            <span>{gorev.etiket}</span>
+          ) : null}
         </span>
         <b>{gorev.baslik}</b>
         {bagli.length ? (
