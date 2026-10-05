@@ -407,10 +407,13 @@ Model, `Ayarlar.kodZekasiModeli` ile seçilir:
 | GET | `/api/projeler/:pid/kod-zekasi/semboller?alan=&q=&tur=&sinir=` | — | `KodSembolu[]` (tam ad, önek, içerme; q boşsa öne çıkanlar) |
 | GET | `/api/projeler/:pid/kod-zekasi/harita?alan=&yol=` | — | `KodHaritaDugumu` (klasör ağacı: dil, satır, öne çıkan semboller) |
 | GET | `/api/projeler/:pid/kod-zekasi/bagimliliklar?alan=&yol=` | — | `KodBagimliliklari` (içe aktardıkları ve onu içe aktaranlar) |
-| GET | `/api/projeler/:pid/kod-zekasi/grafik?alan=&duzey=` | — | `KodGrafigi` (`duzey`: `klasor` ya da `dosya`) |
+| GET | `/api/projeler/:pid/kod-zekasi/grafik?alan=&duzey=&anlam=` | — | `KodGrafigi` (`duzey`: `klasor` ya da `dosya`; kenarların `tur`'u `ithal` ya da `anlam`; `anlam=0` yalnız içe aktarma kenarlarını verir) |
+| GET | `/api/projeler/:pid/kod-zekasi/ilgili?alan=&yol=&sinir=` | — | `KodIlgiliDosyalar` (içe aktarma ve anlam komşuları, en yakın parça çiftiyle; varsayılan 12, en çok 40) |
 | GET | `/api/projeler/:pid/kod-zekasi/benzer?alan=&yol=&satir=&sinir=` | — | `KodAramaYaniti` (satırı içeren parçaya en çok benzeyenler) |
 
 - **`alan`:** `ana` (varsayılan) ya da ajan kimliği. Hiç dizinlenmemiş alanda ilk sorgu taramayı başlatır ve en çok 20 sn bekler.
+- **İçe aktarma bağları (`ithal`):** göreli ve kökten yollar (Windows'un `\` ayracı dahil), tsconfig/jsconfig `paths` ve `baseUrl` (extends zinciriyle), package.json `imports`, Vite/webpack `alias`, çalışma alanı paketleri; HTML'de `<script src>`, `<link href>`, sayfalar arası `<a href>`, satır içi modüller; EJS, Jinja, Nunjucks, Twig ve Handlebars şablon başvuruları; `path.join(__dirname, …)`, `express.static`, `res.render`, `render_template` gibi dosya başvuruları; Python alt modülleri. Kurallar değişince (`COZUMLEME_SURUMU`) dosyalar ilk tam taramada yeniden çözümlenir; gömmeler korunur.
+- **Anlam bağları (`anlam`):** dosyanın vektörü parça gömmelerinin ortalamasıdır. Her dosya için en yakın üç dosya alınır. Eşik modelin taban benzerliğine göre uyarlanır (bütün çiftlerin ortalaması + 1,25 sapma). Bir dosyanın en çok altı anlam bağı olur; büyük depoda en çok parçalı 1200 dosyada aranır (`anlam.kirpilan`). Ağırlık benzerliktir (0–1); içe aktarmayla da bağlı çiftte `ithalIle: true` olur. Sonuç parça kümesi değişmedikçe önbellekten gelir. Gömme sürerken `anlam.durum` `hazirlaniyor` olur ve varsa son hesaplanan bağlar gelir; model kapalıyken `kapali` olur ve yalnız içe aktarma bağları gelir.
 - **Olay `kod.dizin`:** `KodDizinDurumu` taşır. Alan başına saniyede en çok iki kez yayınlanır; son durum her zaman gelir.
 
 Ajan araçları ajanın kendi çalışma alanında çalışır:
@@ -422,6 +425,7 @@ Ajan araçları ajanın kendi çalışma alanında çalışır:
 | `kod_haritasi` | ~4000 karakterlik harita verir; en çok kullanılan dosyalar (içe aktarma grafiğinde PageRank) önce gelir |
 | `bagimliliklar` | İçe aktardıklarını ve onu içe aktaranları listeler |
 | `benzer_kod` | Satırı içeren parçaya en çok benzeyenleri bulur |
+| `ilgili_dosyalar` | Dosyanın ilgili dosyalarını verir: içe aktardıkları, onu içe aktaranlar ve kodu anlamca yakın dosyalar; her biri nedeni ve en yakın kod parçasıyla |
 
 Görev verilirken dizin hazırsa görev başlığı ve açıklamasıyla arama yapılır. Bulunan en çok beş konum, görev mesajına "İlgili kod" olarak eklenir. Arama en çok ~1,5 sn sürer; dizin hazır değilse atlanır.
 

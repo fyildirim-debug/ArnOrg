@@ -155,8 +155,12 @@ describe("kod zekâsı yöneticisi", () => {
     const h = await kz.bagimliliklar(PID, "ana", path.join(repo, "src", "hafiza.ts"));
     expect(h.iceAktaranlar.map((x) => x.yol)).toEqual(["src/sunucu.ts"]);
     await expect(kz.bagimliliklar(PID, "ana", "yok.ts")).rejects.toThrow(/dizinde yok/);
-    const g = await kz.grafik(PID, "ana", "dosya");
-    expect(g.kenarlar).toEqual([{ kaynak: "src/sunucu.ts", hedef: "src/hafiza.ts", agirlik: 1 }]);
+    const g = await kz.grafik(PID, "ana", "dosya", { anlam: false });
+    expect(g.kenarlar).toEqual([{ kaynak: "src/sunucu.ts", hedef: "src/hafiza.ts", agirlik: 1, tur: "ithal" }]);
+    // Anlam bağları: içe aktarmayla da bağlı çift işaretlenir
+    const ga = await kz.grafik(PID, "ana", "dosya");
+    expect(ga.anlam).toMatchObject({ durum: "hazir", gomulen: ga.anlam!.toplamParca });
+    expect(ga.kenarlar.filter((k) => k.tur === "anlam")).toEqual([expect.objectContaining({ kaynak: "src/hafiza.ts", hedef: "src/sunucu.ts", ithalIle: true })]);
     const metin = await kz.haritaMetni(PID, "ana", { sinir: 2000 });
     expect(metin).toContain("hafiza.ts");
     expect(metin).toContain("hafizaKaydet()");

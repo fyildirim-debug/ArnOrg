@@ -1,8 +1,9 @@
 // Depo haritası ve modül grafiği: klasör ağacı (dil, satır, öne çıkan semboller), içe aktarma grafiği ve
 // ajanlar için karakter sınırlı metin haritası (aider repo map gibi: önemli dosyalar ve sembolleri önce).
 import path from "node:path";
-import type { KodGrafigi, KodGrafikDugumu, KodHaritaDugumu } from "@arnorg/ortak";
+import type { KodAnlamDurumu, KodGrafigi, KodGrafikDugumu, KodGrafikKenari, KodHaritaDugumu } from "@arnorg/ortak";
 import { iki } from "../dil.js";
+import type { AnlamKenari } from "./anlam.js";
 import { sembolTuruAdi } from "./bicim.js";
 import type { DosyaKaydi, IceAktarmaKaydi, SembolKaydi } from "./depo.js";
 
@@ -148,8 +149,18 @@ export function haritaMetni(dosyalar: DosyaKaydi[], semboller: SembolKaydi[], ic
   return `${baslik}\n${govde}${kalan > 0 ? iki(`\n(+${kalan} dosya daha; yol vererek daralt)`, `\n(+${kalan} more files; narrow it down with yol)`) : ""}`;
 }
 
-/** Modül grafiği: dosya ya da klasör düzeyinde içe aktarma kenarları (ağırlık: içe aktarma sayısı) */
-export function grafikKur(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKaydi[], duzey: "klasor" | "dosya", sinir = duzey === "dosya" ? 350 : 200): KodGrafigi {
+/** Grafiğe eklenecek anlam bağları (dosya düzeyinde) ve durumları */
+export interface GrafikAnlami {
+  kenarlar: AnlamKenari[];
+  durum: KodAnlamDurumu;
+}
+
+/**
+ * Modül grafiği: dosya ya da klasör düzeyinde içe aktarma kenarları (ithal; ağırlık: içe aktarma sayısı) ve anlam
+ * kenarları (anlam; ağırlık: benzerlik, klasör düzeyinde klasör çiftinin en yüksek benzerliği). İçe aktarmayla da
+ * bağlı anlam çiftleri işaretlenir. Bağlantısız düğümler gösterilmez; sınır aşılırsa en çok bağlı olanlar kalır.
+ */
+export function grafikKur(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKaydi[], duzey: "klasor" | "dosya", sinir = duzey === "dosya" ? 350 : 200, anlam?: GrafikAnlami): KodGrafigi {
   const klasorOf = (y: string) => {
     const d = posix.dirname(y);
     return d === "" ? "." : d;
@@ -172,7 +183,7 @@ export function grafikKur(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKaydi
     }
     for (const [k, dl] of diller) dugumler.get(k)!.dil = [...dl].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
   }
-  const kenarlar = new Map<string, { kaynak: string; hedef: string; agirlik: number }>();
+  const kenarlar = new Map<string, KodGrafikKenari>();
   for (const i of iceAktarmalar) {
     if (!i.hedef) continue;
     let a = i.yol;
@@ -184,15 +195,28 @@ export function grafikKur(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKaydi
     }
     if (a === b || !dugumler.has(a) || !dugumler.has(b)) continue;
     const anahtar = `${a}\u0000${b}`;
-    const k = kenarlar.get(anahtar) ?? { kaynak: a, hedef: b, agirlik: 0 };
+    const k = kenarlar.get(anahtar) ?? { kaynak: a, hedef: b, agirlik: 0, tur: "ithal" as const };
     k.agirlik += 1;
     kenarlar.set(anahtar, k);
   }
-  // Sınır aşılırsa en çok bağlı olanlar
+  // Anlam kenarları yönsüzdür: çift sıralı yazılır, klasör düzeyinde en yüksek benzerlik kalır
+  const anlamlar = new Map<string, KodGrafikKenari>();
+  for (const k of anlam?.kenarlar ?? []) {
+    const a = duzey === "klasor" ? klasorOf(k.a) : k.a;
+    const b = duzey === "klasor" ? klasorOf(k.b) : k.b;
+    if (a === b || !dugumler.has(a) || !dugumler.has(b)) continue;
+    const [x, y] = a < b ? [a, b] : [b, a];
+    const anahtar = `${x}\u0000${y}`;
+    const var_ = anlamlar.get(anahtar);
+    if (var_ && var_.agirlik >= k.benzerlik) continue;
+    anlamlar.set(anahtar, { kaynak: x, hedef: y, agirlik: k.benzerlik, tur: "anlam", ithalIle: kenarlar.has(`${x}\u0000${y}`) || kenarlar.has(`${y}\u0000${x}`) });
+  }
+  // Sınır aşılırsa en çok bağlı olanlar (anlam bağı bir sayılır)
   const derece = new Map<string, number>();
-  for (const k of kenarlar.values()) {
-    derece.set(k.kaynak, (derece.get(k.kaynak) ?? 0) + k.agirlik);
-    derece.set(k.hedef, (derece.get(k.hedef) ?? 0) + k.agirlik);
+  for (const k of [...kenarlar.values(), ...anlamlar.values()]) {
+    const w = k.tur === "anlam" ? 1 : k.agirlik;
+    derece.set(k.kaynak, (derece.get(k.kaynak) ?? 0) + w);
+    derece.set(k.hedef, (derece.get(k.hedef) ?? 0) + w);
   }
   let adaylar = [...dugumler.values()];
   // Bağlantısız düğümler (belge, görsel, tek başına betik klasörleri) grafiği dağıtır; kenar varsa gösterilmez
@@ -203,7 +227,8 @@ export function grafikKur(dosyalar: DosyaKaydi[], iceAktarmalar: IceAktarmaKaydi
   return {
     duzey,
     dugumler: secilen.sort((a, b) => a.id.localeCompare(b.id)),
-    kenarlar: [...kenarlar.values()].filter((k) => kume.has(k.kaynak) && kume.has(k.hedef)),
+    kenarlar: [...kenarlar.values(), ...anlamlar.values()].filter((k) => kume.has(k.kaynak) && kume.has(k.hedef)),
     kirpilan: Math.max(0, adaylar.length - secilen.length),
+    ...(anlam ? { anlam: anlam.durum } : {}),
   };
 }

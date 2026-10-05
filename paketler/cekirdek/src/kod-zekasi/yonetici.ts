@@ -7,6 +7,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import type {
+  KodAnlamDurumu,
   KodAramaSonucu,
   KodAramaYaniti,
   KodBagimliliklari,
@@ -14,6 +15,8 @@ import type {
   KodEslesmeTuru,
   KodGrafigi,
   KodHaritaDugumu,
+  KodIlgiliDosya,
+  KodIlgiliDosyalar,
   KodSembolTuru,
   KodSembolu,
   KodZekasiModelBilgisi,
@@ -25,14 +28,17 @@ import { git, repoMu } from "../git.js";
 import { dosyaListesi, yolSuzgeci } from "../kod-arama.js";
 import { varsayilanKurallar } from "../politika.js";
 import { ArnorgHatasi, bekle, simdi } from "../yardimci.js";
-import { IceAktarmaCozucu, goModulu, paketBilgisi, type PaketBilgisi } from "./cozucu.js";
-import { KodDeposu, blobVektor, type DosyaKaydi, type DosyaYazimi, type ParcaKaydi } from "./depo.js";
+import { anlamaUygun, anlamBaglari, dosyaSatirlari, dosyaVektoru, enYakinDosyalar, enYakinParcaCifti, matrisIzi, type AnlamSonucu } from "./anlam.js";
+import { IceAktarmaCozucu, baglamDosyasiMi, cozumBaglami, type PaketBilgisi } from "./cozucu.js";
+import { KodDeposu, blobVektor, type DosyaKaydi, type DosyaYazimi, type IceAktarmaKaydi, type ParcaKaydi } from "./depo.js";
 import { dilTani } from "./diller.js";
 import { gomucuOlustur, modelBilgileri, type Gomucu } from "./gomucu.js";
 import { grafikKur, haritaAgaci, haritaMetni } from "./harita.js";
 import { aramaMetniOlustur, kesitSec, ozet, sorguTerimleri, tanimlayiciParcalari } from "./metin.js";
 import { gommeMetni, parcala } from "./parcalayici.js";
+import { kokeGoreli, metneCevir } from "./platform.js";
 import { cozumle } from "./semboller.js";
+import { takmaAdDosyasiMi, type TakmaAdlar } from "./takma-adlar.js";
 
 /** Bir alanda dizinlenen en çok dosya */
 const EN_COK_DOSYA = 25_000;
@@ -61,6 +67,11 @@ const MATRIS_TAZELEME_MS = 5000;
 const EN_COK_MATRIS = 3;
 /** Bir dosyadan sonuç listesine giren en çok parça */
 const DOSYA_BASINA_SONUC = 3;
+/** İçe aktarma çıkarma ve çözme kuralları değişince artar: alanın dosyaları ilk tam taramada yeniden çözümlenir
+ * (parça metinleri aynı kaldığı için gömmeler korunur). 2: HTML ve şablon başvuruları, takma adlar, dosya başvuruları */
+const COZUMLEME_SURUMU = "2";
+/** İlgili dosyalar: varsayılan ve en çok sonuç */
+const ILGILI_SINIR = 12;
 
 const GIZLI_DESENLER = (varsayilanKurallar().find((k) => k.id === "gizli-dosya")?.desenler ?? []).flatMap((d) => {
   try {
@@ -73,11 +84,6 @@ const GIZLI_DESENLER = (varsayilanKurallar().find((k) => k.id === "gizli-dosya")
 /** Ortam dosyası, özel anahtar ve kimlik bilgisi gibi gizli dosyalar dizine girmez (politikadaki "Gizli dosyalar" kuralı) */
 export function gizliDosyaMi(yol: string): boolean {
   return GIZLI_DESENLER.some((r) => r.test(yol));
-}
-
-/** İlk 8 KB'ta NUL baytı olan dosya ikili sayılır */
-function ikiliMi(b: Buffer): boolean {
-  return b.subarray(0, 8192).includes(0);
 }
 
 function satirSayisi(metin: string): number {
@@ -144,9 +150,22 @@ interface AlanDurumu {
   yayinZamanlayici: NodeJS.Timeout | null;
   bekleyenYollar: Set<string>;
   bekleyenZamanlayici: NodeJS.Timeout | null;
-  /** Paket ve Go modülü bilgisi (içe aktarma çözümü için); tam taramada yenilenir */
+  /** Paket, Go modülü ve takma ad bilgisi (içe aktarma çözümü için); tam taramada ve yapılandırma değişince yenilenir */
   paketler: Map<string, PaketBilgisi> | null;
   goModulleri: Map<string, string> | null;
+  takmaAdlar: TakmaAdlar | null;
+  bagimliliklar: Set<string> | null;
+}
+
+/** Alanın anlam bağları (alan × model): parça matrisinin parmak izine bağlı önbellek */
+interface AnlamKaydi {
+  iz: string;
+  sonuc: AnlamSonucu;
+  matris: YogunMatris;
+  /** Dosya → matris satırları */
+  satirlar: Map<string, number[]>;
+  /** ilgili(): sınırsız dosya vektörleri (belgeler dahil), ilk istekte kurulur */
+  tumVektorler: Map<string, Float32Array> | null;
 }
 
 interface YogunMatris {
@@ -166,6 +185,10 @@ interface ProjeKaydi {
   alanlar: Map<string, AlanDurumu>;
   /** "alan\0model" → matris (en son kullanılan sonda) */
   matrisler: Map<string, YogunMatris>;
+  /** "alan\0model" → anlam bağları (son hesaplanan; gömme sürerken eskisi verilir) */
+  anlamlar: Map<string, AnlamKaydi>;
+  /** Süren anlam hesapları (aynı anda gelen istekler tek hesabı bekler) */
+  anlamIsleri: Map<string, Promise<AnlamKaydi | null>>;
   /** Parça ya da gömme her değiştiğinde artar; yoğun matris buna göre tazelenir */
   surum: number;
 }
@@ -237,6 +260,7 @@ export class KodZekasi {
       for (const p of this.projelerHaritasi.values()) {
         if (p.suren) p.suren.iptal = true;
         p.matrisler.clear();
+        p.anlamlar.clear();
       }
       const g = this.gomucu();
       for (const p of this.projelerHaritasi.values()) {
@@ -314,6 +338,7 @@ export class KodZekasi {
     if (a) this.alanZamanlayicilariniTemizle(a);
     p.alanlar.delete(alan);
     for (const k of [...p.matrisler.keys()]) if (k.startsWith(`${alan}\u0000`)) p.matrisler.delete(k);
+    for (const k of [...p.anlamlar.keys()]) if (k.startsWith(`${alan}\u0000`)) p.anlamlar.delete(k);
     const sil = () => {
       p.depo.alaniSil(alan);
       p.depo.sahipsizGommeleriSil();
@@ -412,15 +437,9 @@ export class KodZekasi {
   // Sorgular
   // ===================================================================
 
-  /** Köke göre / ayraçlı yol: mutlak yol alanın içindeyse göreliye çevrilir */
+  /** Köke göre / ayraçlı yol: mutlak yol (Windows'ta sürücü harfli ya da /c/... biçimli) alanın içindeyse göreliye çevrilir */
   goreliYol(projeId: string, alan: string, yol: string): string {
-    let y = yol.trim();
-    if (path.isAbsolute(y)) {
-      const kok = this.b.alanYolu(projeId, alan);
-      const fark = path.relative(kok, y);
-      if (!fark.startsWith("..") && !path.isAbsolute(fark)) y = fark;
-    }
-    return y.replace(/\\/g, "/").replace(/^\.\/+/, "").replace(/^\/+/, "").replace(/\/+$/, "");
+    return kokeGoreli(this.b.alanYolu(projeId, alan), yol);
   }
 
   /** Hibrit kod araması: anlamsal (gömme), anahtar sözcük (FTS5 bm25) ve sembol adı, RRF ile birleşir */
@@ -526,23 +545,75 @@ export class KodZekasi {
   /** Dosyanın içe aktardıkları ve onu içe aktaranlar */
   async bagimliliklar(projeId: string, alan: string, yol: string): Promise<KodBagimliliklari> {
     const { p } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
-    const temiz = this.goreliYol(projeId, alan, yol);
-    if (!p.depo.dosya(alan, temiz))
-      throw new ArnorgHatasi(iki(`${temiz} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts).`, `${temiz} is not in the index. The path must be relative to the workspace root (e.g. src/app.ts).`), 404);
-    const iceAktaranlar = p.depo.iceAktaranlar(alan, temiz);
-    // Go içe aktarmaları klasöre çözülür
-    if (temiz.endsWith(".go")) iceAktaranlar.push(...p.depo.iceAktaranlar(alan, path.posix.dirname(temiz)).filter((i) => i.yol !== temiz && path.posix.dirname(i.yol) !== path.posix.dirname(temiz)));
+    const temiz = this.dizindekiYol(p, projeId, alan, yol);
     return {
       yol: temiz,
       iceAktardiklari: p.depo.iceAktardiklari(alan, temiz).map((i) => ({ yol: i.hedef, kaynak: i.kaynak, satir: i.satir, adlar: i.adlar })),
-      iceAktaranlar: iceAktaranlar.map((i) => ({ yol: i.yol, satir: i.satir, adlar: i.adlar })),
+      iceAktaranlar: this.iceAktaranKayitlari(p, alan, temiz).map((i) => ({ yol: i.yol, satir: i.satir, adlar: i.adlar })),
     };
   }
 
-  /** Modül bağımlılık grafiği (klasör ya da dosya düzeyinde) */
-  async grafik(projeId: string, alan: string, duzey: "klasor" | "dosya" = "klasor"): Promise<KodGrafigi> {
-    const { p } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
-    return grafikKur(p.depo.dosyalar(alan), p.depo.tumIceAktarmalar(alan), duzey);
+  /** Modül grafiği (klasör ya da dosya düzeyinde): içe aktarma kenarları ve (anlam kapatılmadıysa) anlam kenarları */
+  async grafik(projeId: string, alan: string, duzey: "klasor" | "dosya" = "klasor", s: { anlam?: boolean } = {}): Promise<KodGrafigi> {
+    const { p, a } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
+    const dosyalar = p.depo.dosyalar(alan);
+    const iceAktarmalar = p.depo.tumIceAktarmalar(alan);
+    if (s.anlam === false) return grafikKur(dosyalar, iceAktarmalar, duzey);
+    const anlam = await this.anlamGetir(p, alan, a);
+    return grafikKur(dosyalar, iceAktarmalar, duzey, undefined, { kenarlar: anlam.kayit?.sonuc.kenarlar ?? [], durum: anlam.durum });
+  }
+
+  /**
+   * Dosyanın ilgili dosyaları: içe aktardıkları, onu içe aktaranlar ve anlamca en yakın dosyalar (en yakın parça
+   * çiftiyle). Sıra: iki bağı da olanlar, yalnız içe aktarma, yalnız anlam. Gömmeler hazır değilse anlam bağları
+   * son hesaplanandan gelir ya da hiç gelmez; durum anlam alanında söylenir.
+   */
+  async ilgili(projeId: string, alan: string, yol: string, s: { sinir?: number } = {}): Promise<KodIlgiliDosyalar> {
+    const { p, a } = await this.hazirla(projeId, alan, TARAMA_BEKLEME_MS);
+    const temiz = this.dizindekiYol(p, projeId, alan, yol);
+    const sinir = Math.min(Math.max(1, Math.floor(s.sinir ?? ILGILI_SINIR)), 40);
+    const dosyalar = new Map<string, KodIlgiliDosya>();
+    const al = (y: string): KodIlgiliDosya => {
+      let d = dosyalar.get(y);
+      if (!d) {
+        d = { yol: y, dil: p.depo.dosya(alan, y)?.dil ?? "", giden: [], gelen: [], benzerlik: null, enYakin: null };
+        dosyalar.set(y, d);
+      }
+      return d;
+    };
+    for (const i of p.depo.iceAktardiklari(alan, temiz)) if (i.hedef && i.hedef !== temiz) al(i.hedef).giden.push({ kaynak: i.kaynak, satir: i.satir, adlar: i.adlar });
+    for (const i of this.iceAktaranKayitlari(p, alan, temiz)) if (i.yol !== temiz) al(i.yol).gelen.push({ satir: i.satir, adlar: i.adlar });
+
+    const anlam = await this.anlamGetir(p, alan, a);
+    const k = anlam.kayit;
+    const buSatirlari = k?.satirlar.get(temiz);
+    if (k && buSatirlari?.length && k.sonuc.esik !== null) {
+      if (!k.tumVektorler) {
+        k.tumVektorler = new Map();
+        for (const [y, r] of k.satirlar) if (anlamaUygun(y) || dilTani(y)?.aile === "md") k.tumVektorler.set(y, k.sonuc.vektorler.get(y) ?? dosyaVektoru(k.matris, r));
+      }
+      const hedef = k.tumVektorler.get(temiz) ?? dosyaVektoru(k.matris, buSatirlari);
+      const yakinlar = enYakinDosyalar(hedef, k.tumVektorler, { haric: temiz, esik: k.sonuc.esik, sinir });
+      // En yakın parça çiftleri: matris satırlarından parça kimliği, konumu depodan
+      const ciftler = yakinlar.map((x) => ({ x, c: enYakinParcaCifti(k.matris, buSatirlari, k.satirlar.get(x.b) ?? []) }));
+      const parcalar = p.depo.parcalar(ciftler.flatMap(({ c }) => (c ? [k.matris.idler[c.i]!, k.matris.idler[c.j]!] : [])));
+      const konum = (id: number | undefined) => {
+        const pr = id === undefined ? undefined : parcalar.get(id);
+        return pr ? { bas: pr.bas, bit: pr.bit, sembol: pr.sembol } : null;
+      };
+      for (const { x, c } of ciftler) {
+        const d = al(x.b);
+        d.benzerlik = x.benzerlik;
+        const bu = konum(c ? k.matris.idler[c.i] : undefined);
+        const o = konum(c ? k.matris.idler[c.j] : undefined);
+        if (c && bu && o) d.enYakin = { bu, o, benzerlik: c.benzerlik };
+      }
+    }
+    const sira = (d: KodIlgiliDosya) => (d.benzerlik !== null && d.giden.length + d.gelen.length ? 0 : d.benzerlik === null ? 1 : 2);
+    const liste = [...dosyalar.values()].sort(
+      (x, y) => sira(x) - sira(y) || (y.benzerlik ?? 0) - (x.benzerlik ?? 0) || y.giden.length + y.gelen.length - (x.giden.length + x.gelen.length) || (x.yol < y.yol ? -1 : 1),
+    );
+    return { yol: temiz, dosyalar: liste.slice(0, sinir), anlam: anlam.durum };
   }
 
   /** Dizin hazırsa (ya da kısmen hazırsa) kısa sürede arama yapılabilir mi */
@@ -556,6 +627,65 @@ export class KodZekasi {
   // ===================================================================
   // İç işler
   // ===================================================================
+
+  /** Yolu köke göre çevirir; dizinde yoksa 404 */
+  private dizindekiYol(p: ProjeKaydi, projeId: string, alan: string, yol: string): string {
+    const temiz = this.goreliYol(projeId, alan, yol);
+    if (!p.depo.dosya(alan, temiz))
+      throw new ArnorgHatasi(iki(`${temiz} dizinde yok. Yol çalışma alanının köküne göre olmalı (ör. src/app.ts).`, `${temiz} is not in the index. The path must be relative to the workspace root (e.g. src/app.ts).`), 404);
+    return temiz;
+  }
+
+  /** Dosyayı içe aktaran kayıtlar; Go içe aktarmaları klasöre çözüldüğü için paketin klasörü de sayılır */
+  private iceAktaranKayitlari(p: ProjeKaydi, alan: string, yol: string): IceAktarmaKaydi[] {
+    const liste = p.depo.iceAktaranlar(alan, yol);
+    if (yol.endsWith(".go")) liste.push(...p.depo.iceAktaranlar(alan, path.posix.dirname(yol)).filter((i) => i.yol !== yol && path.posix.dirname(i.yol) !== path.posix.dirname(yol)));
+    return liste;
+  }
+
+  /**
+   * Alanın anlam bağları ve durumu. Gömmeler tamsa hesaplanır (parça matrisinin parmak izi değişmedikçe önbellekten);
+   * tarama ya da gömme sürerken son hesaplanan bağlar "hazirlaniyor" durumuyla verilir; model kapalıysa bağ yoktur.
+   */
+  private async anlamGetir(p: ProjeKaydi, alan: string, a: AlanDurumu): Promise<{ durum: KodAnlamDurumu; kayit: AnlamKaydi | null }> {
+    const g = this.gomucu();
+    const d = a.durum;
+    const temel: KodAnlamDurumu = { durum: "kapali", gomulen: d.gomulen, toplamParca: d.toplamParca, esik: null, kirpilan: 0 };
+    if (!g) return { durum: temel, kayit: null };
+    // Tarama sürerken değişmeyen dosyaların vektörleri tamdır; yeni parçalar gömülene kadar gomulen < toplamParca kalır
+    const suruyor = d.durum === "bos" || d.durum === "model-indiriliyor" || d.durum === "gomuluyor";
+    const tamam = !suruyor && d.model === g.anahtar && d.gomulen >= d.toplamParca;
+    const kayit = tamam ? await this.anlamHesapla(p, alan, g) : (p.anlamlar.get(`${alan}\u0000${g.anahtar}`) ?? null);
+    return { durum: { ...temel, durum: tamam ? "hazir" : "hazirlaniyor", esik: kayit?.sonuc.esik ?? null, kirpilan: kayit?.sonuc.kirpilan ?? 0 }, kayit };
+  }
+
+  /** Anlam bağlarını hesaplar ya da önbellekten verir; aynı anda gelen istekler tek hesabı bekler */
+  private async anlamHesapla(p: ProjeKaydi, alan: string, g: Gomucu): Promise<AnlamKaydi | null> {
+    const anahtar = `${alan}\u0000${g.anahtar}`;
+    const m = this.matris(p, alan, g);
+    if (!m) {
+      p.anlamlar.delete(anahtar);
+      return null;
+    }
+    const eski = p.anlamlar.get(anahtar);
+    if (eski?.matris === m) return eski;
+    const iz = matrisIzi(m);
+    if (eski?.iz === iz) {
+      eski.matris = m;
+      return eski;
+    }
+    const suren = p.anlamIsleri.get(anahtar);
+    if (suren) return suren;
+    const is = anlamBaglari(m, { nefes })
+      .then((sonuc) => {
+        const kayit: AnlamKaydi = { iz, sonuc, matris: m, satirlar: dosyaSatirlari(m), tumVektorler: null };
+        if (this.projelerHaritasi.get(p.id) === p && this.gomucuNesnesi === g) p.anlamlar.set(anahtar, kayit);
+        return kayit;
+      })
+      .finally(() => p.anlamIsleri.delete(anahtar));
+    p.anlamIsleri.set(anahtar, is);
+    return is;
+  }
 
   private dizinDosyasi(projeId: string): string {
     return path.join(this.b.veriDizini, "kod-dizini", `${projeId}.db`);
@@ -574,7 +704,7 @@ export class KodZekasi {
     let p = this.projelerHaritasi.get(projeId);
     if (p) return p;
     if (!/^[\w-]+$/.test(projeId)) throw new ArnorgHatasi(iki("Geçersiz proje kimliği.", "Invalid project id."), 400);
-    p = { id: projeId, depo: new KodDeposu(this.dizinDosyasi(projeId)), kuyruk: [], suren: null, alanlar: new Map(), matrisler: new Map(), surum: 0 };
+    p = { id: projeId, depo: new KodDeposu(this.dizinDosyasi(projeId)), kuyruk: [], suren: null, alanlar: new Map(), matrisler: new Map(), anlamlar: new Map(), anlamIsleri: new Map(), surum: 0 };
     this.projelerHaritasi.set(projeId, p);
     return p;
   }
@@ -615,6 +745,8 @@ export class KodZekasi {
       bekleyenZamanlayici: null,
       paketler: null,
       goModulleri: null,
+      takmaAdlar: null,
+      bagimliliklar: null,
     };
     p.alanlar.set(alan, a);
     return a;
@@ -762,28 +894,32 @@ export class KodZekasi {
     return izinli;
   }
 
-  /** İçe aktarma çözümü için çalışma alanı paketleri (package.json) ve Go modülleri (go.mod) */
-  private async paketBaglami(kok: string, dosyalar: Set<string>, goModlari: string[]): Promise<{ paketler: Map<string, PaketBilgisi>; goModulleri: Map<string, string> }> {
-    const paketler = new Map<string, PaketBilgisi>();
-    for (const y of dosyalar) {
-      if (y !== "package.json" && !y.endsWith("/package.json")) continue;
-      const icerik = await fsp.readFile(path.join(kok, y), "utf8").catch(() => null);
-      const b = icerik ? paketBilgisi(y, icerik, dosyalar) : null;
-      if (b) paketler.set(b.ad, b.bilgi);
+  /** İçe aktarma çözümü için bağlam (cozumBaglami): package.json, go.mod, tsconfig/jsconfig ve Vite/webpack
+   * yapılandırmaları önceden okunur; dizinde olmayan extends hedefi (ör. configs/temel.json) gerektiğinde okunur */
+  private async paketBaglami(kok: string, dosyalar: Set<string>, goModlari: string[]): Promise<ReturnType<typeof cozumBaglami>> {
+    const icerikler = new Map<string, string>();
+    for (const y of [...[...dosyalar].filter(baglamDosyasiMi), ...goModlari]) {
+      const icerik = await fsp.readFile(path.join(kok, ...y.split("/")), "utf8").catch(() => null);
+      if (icerik !== null) icerikler.set(y, icerik);
     }
-    const goModulleri = new Map<string, string>();
-    for (const y of goModlari) {
-      const icerik = await fsp.readFile(path.join(kok, y), "utf8").catch(() => null);
-      const modul = icerik ? goModulu(icerik) : null;
-      if (modul) goModulleri.set(modul, path.posix.dirname(y));
-    }
-    return { paketler, goModulleri };
+    const oku = (y: string): string | null => {
+      const var_ = icerikler.get(y);
+      if (var_ !== undefined || y.startsWith("..")) return var_ ?? null;
+      try {
+        return fs.readFileSync(path.join(kok, ...y.split("/")), "utf8");
+      } catch {
+        return null;
+      }
+    };
+    return cozumBaglami(dosyalar, oku, goModlari);
   }
 
   /** Dosyaları okur, değişenleri sembol, içe aktarma ve parçalarıyla yazar; silinenleri çıkarır */
   private async tara(p: ProjeKaydi, a: AlanDurumu, kok: string, is: Is): Promise<void> {
     const alan = is.alan;
     const mevcut = is.sifirdan ? new Map<string, DosyaKaydi>() : p.depo.dosyaHaritasi(alan);
+    // Çözümleme kuralları değiştiyse tam taramada her dosya yeniden okunur (gömmeler parça metniyle eşleştiği için kalır)
+    const yenidenCozumle = !is.yollar && !is.sifirdan && mevcut.size > 0 && p.depo.metaOku(`cozumleme:${alan}`) !== COZUMLEME_SURUMU;
     const gitDeposu = await repoMu(kok);
     let adaylar: string[] = [];
     const silinecek = new Set<string>();
@@ -803,7 +939,7 @@ export class KodZekasi {
       const izinli = gitDeposu ? await this.gitIzinli(kok, uygun) : new Set(uygun);
       for (const y of istenen) {
         const ad = y.slice(y.lastIndexOf("/") + 1);
-        if (ad === "package.json" || ad === "go.mod") paketDegisti = true;
+        if (ad === "package.json" || ad === "go.mod" || takmaAdDosyasiMi(ad)) paketDegisti = true;
         if (izinli.has(y) && fs.existsSync(path.join(kok, y))) {
           adaylar.push(y);
           continue;
@@ -824,8 +960,16 @@ export class KodZekasi {
       const b = await this.paketBaglami(kok, sonKume, goModlari);
       a.paketler = b.paketler;
       a.goModulleri = b.goModulleri;
+      a.takmaAdlar = b.takmaAdlar;
+      a.bagimliliklar = b.bagimliliklar;
     }
-    const cozucu = new IceAktarmaCozucu({ dosyalar: sonKume, paketler: a.paketler, goModulleri: a.goModulleri ?? new Map() });
+    const cozucu = new IceAktarmaCozucu({
+      dosyalar: sonKume,
+      paketler: a.paketler,
+      goModulleri: a.goModulleri ?? new Map(),
+      takmaAdlar: a.takmaAdlar ?? undefined,
+      bagimliliklar: a.bagimliliklar ?? undefined,
+    });
 
     if (silinecek.size) {
       p.depo.dosyalariSilAlanda(alan, [...silinecek]);
@@ -847,7 +991,7 @@ export class KodZekasi {
     for (const yol of adaylar) {
       if (is.iptal) return;
       taranan++;
-      const y = await this.dosyaIsle(p, alan, kok, yol, mevcut.get(yol), is.sifirdan, cozucu);
+      const y = await this.dosyaIsle(p, alan, kok, yol, mevcut.get(yol), is.sifirdan || yenidenCozumle, cozucu);
       if (y) {
         yazimlar.push(y);
         karakter += y.parcalar.reduce((t, x) => t + x.metin.length, 0);
@@ -875,7 +1019,10 @@ export class KodZekasi {
       }
       if (degisenler.length) p.depo.hedefleriYaz(alan, degisenler);
     }
-    if (!is.yollar) p.depo.sahipsizGommeleriSil();
+    if (!is.yollar) {
+      p.depo.sahipsizGommeleriSil();
+      p.depo.metaYaz(`cozumleme:${alan}`, COZUMLEME_SURUMU);
+    }
   }
 
   /** Tek dosya: değişmediyse null; değiştiyse yazılacak kayıt */
@@ -905,10 +1052,10 @@ export class KodZekasi {
     } catch {
       return null;
     }
-    if (ikiliMi(tampon)) return sil();
-    let metin = tampon.toString("utf8");
-    if (metin.charCodeAt(0) === 0xfeff) metin = metin.slice(1);
-    metin = metin.replace(/\r\n?/g, "\n");
+    // UTF-8 ya da BOM'lu UTF-16 (Windows PowerShell'in > ve Out-File çıktısı); ikiliyse dizinden çıkar
+    const okunan = metneCevir(tampon);
+    if (okunan === null) return sil();
+    const metin = okunan.replace(/\r\n?/g, "\n");
     const hash = ozet(metin);
     if (!zorla && eski && eski.hash === hash) {
       p.depo.mtimeGuncelle(alan, yol, mtime, st.size);
@@ -919,7 +1066,13 @@ export class KodZekasi {
     return {
       dosya: { yol, hash, dil: dil.dil, satir: satirSayisi(metin), boyut: st.size, mtime },
       semboller: c.semboller.map((s) => ({ ad: s.ad, tur: s.tur, bas: s.bas, bit: s.bit, disaAcik: s.disaAcik, ust: s.ust, imza: s.imza })),
-      iceAktarmalar: c.iceAktarmalar.map((i) => ({ kaynak: i.kaynak, hedef: cozucu.coz(i, yol, dil.aile), satir: i.satir, adlar: i.adlar })),
+      // Dosya başvuruları (HTML, path.join(__dirname, …), render) yalnız dizindeki bir dosyaya çözülürse kaydedilir
+      iceAktarmalar: c.iceAktarmalar
+        .flatMap((i) => cozucu.genislet(i, yol, dil.aile))
+        .flatMap((i) => {
+          const hedef = cozucu.coz(i, yol, dil.aile);
+          return hedef === null && i.tur === "yol" ? [] : [{ kaynak: i.kaynak, hedef, satir: i.satir, adlar: i.adlar }];
+        }),
       parcalar: parcalar.map((x) => {
         const m = gommeMetni(yol, x);
         return {
@@ -1082,7 +1235,7 @@ export class KodZekasi {
         let s: string[] | null = null;
         if (kok) {
           try {
-            s = fs.readFileSync(path.join(kok, ...yol.split("/")), "utf8").replace(/\r\n?/g, "\n").split("\n");
+            s = (metneCevir(fs.readFileSync(path.join(kok, ...yol.split("/")))) ?? "").replace(/\r\n?/g, "\n").split("\n");
           } catch {
             s = null;
           }

@@ -4,7 +4,7 @@ import { sayi } from "../../yardimcilar/bicim";
 
 export const kodZekasi = {
   baslik: "Kod zekâsı",
-  aciklama: "Anlamsal kod araması, semboller, depo haritası ve bağımlılık grafiği · ajanlar aynı dizinle çalışır",
+  aciklama: "Anlamsal kod araması, semboller, depo haritası ve bağ grafiği (içe aktarma ve anlam) · ajanlar aynı dizinle çalışır",
   calismaAlani: "Çalışma alanı",
   anaRepo: "Ana repo",
   yenidenDizinle: "Yeniden dizinle",
@@ -108,24 +108,42 @@ export const kodZekasi = {
 
   // Grafik
   kok: "kök",
-  grafikEtiketi: "Modül bağımlılık grafiği",
+  grafikEtiketi: "Kod bağları grafiği",
   grafikDuzeyi: "Grafik düzeyi",
   klasorler: "Klasörler",
   dosyalar: "Dosyalar",
   sigdir: "Sığdır",
   grafikBilgi: (dugum: number, baglanti: number, kirpilan: number) =>
-    `${sayi(dugum)} düğüm · ${sayi(baglanti)} bağlantı${kirpilan ? ` · ${sayi(kirpilan)} düğüm sığmadı` : ""} · sürükle, tekerlekle yakınlaştır`,
+    `${sayi(dugum)} düğüm · ${sayi(baglanti)} bağ${kirpilan ? ` · ${sayi(kirpilan)} düğüm sığmadı` : ""} · sürükle, tekerlekle yakınlaştır`,
   grafikHazirlaniyor: "Grafik hazırlanıyor",
-  bagimlilikYok: "Bağımlılık yok",
-  bagimlilikYokAyrinti: "Çözülebilen içe aktarma bulunamadı ya da dizin henüz boş.",
-  grafikResmi: (n: number) => `${sayi(n)} düğümlü bağımlılık grafiği`,
+  bagimlilikYok: "Bağ yok",
+  bagimlilikYokAyrinti: "Çözülebilen içe aktarma bulunamadı; anlam bağı da yok ya da henüz hazırlanıyor.",
+  grafikResmi: (n: number) => `${sayi(n)} düğümlü bağ grafiği`,
   dugumBilgi: (id: string, dosya: number, satir: number) => `${id} · ${sayi(dosya)} dosya · ${sayi(satir)} satır`,
   dugumAyrintisi: "Düğüm ayrıntısı",
   dugumSecin:
-    "Bir düğüme tıklayın: neleri kullandığı ve kimlerin onu kullandığı burada görünür. Düğüm boyu satır sayısını, çizgi kalınlığı içe aktarma sayısını gösterir.",
+    "Bir düğüme tıklayın: içe aktarma bağları ve anlamca yakın dosyalar burada görünür. Düğüm boyu satır sayısını gösterir; düz çizgi içe aktarmadır (kalınlığı sayısı), kesikli mercan çizgi anlam bağıdır.",
   kokKlasor: "Kök klasör",
   karisik: "karışık",
   dugumOzeti: (dil: string, dosya: number, satir: number) => `${dil} · ${sayi(dosya)} dosya · ${sayi(satir)} satır`,
   kullandiklari: (n: number) => `Kullandıkları · ${n}`,
   yok: "Yok.",
+
+  // Grafik: bağ türleri (içe aktarma ve anlam)
+  bagTurleri: "Bağ türleri",
+  iceAktarma: "İçe aktarma",
+  anlam: "Anlam",
+  iceAktarmaIpucu: "Düz çizgi: bir dosya ötekini içe aktarıyor ya da ona başvuruyor (ok yönünde)",
+  anlamIpucu: "Kesikli mercan çizgi: kodları anlamca yakın (arama dizinindeki gömmelerden)",
+  anlamHazirlaniyor: (gomulen: number, toplam: number) => `Anlam bağları hazırlanıyor · ${sayi(gomulen)}/${sayi(toplam)} parça gömüldü; içe aktarma bağları şimdiden görünüyor.`,
+  anlamGuncelleniyor: (gomulen: number, toplam: number) => `Anlam bağları güncelleniyor · ${sayi(gomulen)}/${sayi(toplam)} parça gömüldü; son hesaplananlar gösteriliyor.`,
+  anlamKapali: "Anlam bağları kapalı: Ayarlar → Kod zekâsı'ndan bir gömme modeli seçin. İçe aktarma bağları görünüyor.",
+  anlamKirpildi: (n: number) => `Büyük depo: ${sayi(n)} dosyada anlam bağı aranmadı (en büyük dosyalar önce).`,
+  bagGizli: "Bağ türleri gizli",
+  bagGizliAyrinti: "Üstteki İçe aktarma ya da Anlam düğmesiyle bir bağ türünü açın.",
+  anlamcaYakin: (n: number) => `Anlamca yakın · ${n}`,
+  benzerlik: "Kodlarının benzerliği",
+  ithalIle: "içe aktarmayla da bağlı",
+  enYakinKod: "En yakın kod",
+  parcaAdi: (sembol: string | null, bas: number) => sembol ?? `satır ${bas}`,
 };

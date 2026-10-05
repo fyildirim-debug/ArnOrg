@@ -1,8 +1,9 @@
 // Kod zekâsının dil kuralları: hangi dosya dizinlenir, hangi dil ailesinin sembol kurallarıyla okunur.
 import { dilBul } from "../dosyalar.js";
 
-/** Sembol ve içe aktarma kuralları aileye göre seçilir; "metin" ailesi yalnız kayan pencereyle parçalanır */
-export type DilAilesi = "ts" | "py" | "go" | "rs" | "java" | "kt" | "cs" | "php" | "rb" | "swift" | "c" | "sql" | "md" | "css" | "metin";
+/** Sembol ve içe aktarma kuralları aileye göre seçilir; "metin" ailesi yalnız kayan pencereyle parçalanır, "html"
+ * (sayfalar ve sunucu şablonları) sembolsüz parçalanır ama betik, stil, sayfa ve şablon başvuruları okunur */
+export type DilAilesi = "ts" | "py" | "go" | "rs" | "java" | "kt" | "cs" | "php" | "rb" | "swift" | "c" | "sql" | "md" | "css" | "html" | "metin";
 
 const AILELER: Record<string, DilAilesi> = {
   ts: "ts", tsx: "ts", mts: "ts", cts: "ts", js: "ts", jsx: "ts", mjs: "ts", cjs: "ts", vue: "ts", svelte: "ts", astro: "ts",
@@ -19,13 +20,15 @@ const AILELER: Record<string, DilAilesi> = {
   sql: "sql",
   md: "md", markdown: "md", mdx: "md",
   css: "css", scss: "css", sass: "css", less: "css",
+  html: "html", htm: "html", xhtml: "html",
+  ejs: "html", hbs: "html", handlebars: "html", mustache: "html", njk: "html", twig: "html", liquid: "html", jinja: "html", j2: "html",
 };
 
 /** Sembol çıkarılmadan, metin olarak parçalanan dosyalar */
 const METIN_UZANTILARI = new Set([
   "json", "jsonc", "json5", "yaml", "yml", "toml", "ini", "cfg", "conf", "properties",
   "sh", "bash", "zsh", "fish", "ps1", "psm1", "bat", "cmd",
-  "html", "htm", "xml", "graphql", "gql", "proto", "txt", "rst", "adoc",
+  "xml", "graphql", "gql", "proto", "txt", "rst", "adoc", "pug", "jade",
   "lua", "dart", "scala", "sc", "ex", "exs", "erl", "hrl", "hs", "ml", "mli", "r", "jl", "zig", "nim", "clj", "cljs", "sol", "tf", "hcl",
   "gradle", "cmake", "mk", "dockerfile", "prisma", "tex",
 ]);

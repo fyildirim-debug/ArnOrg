@@ -95,10 +95,15 @@ export function sembolMetni(ad: string, liste: KodSembolu[], durum: KodDizinDuru
   return `${iki(`${liste.length} tanım`, `${liste.length} definitions`)}${not ? ` (${not})` : ""}:\n${satirlar.join("\n")}`;
 }
 
+/** Çözülemeyen içe aktarmanın açıklaması: göreli ya da kökten yol bulunamadı, diğerleri dış paket */
+function cozulemeyen(kaynak: string): string {
+  return /^(?:\.{1,2}[\\/]|\/|render:)/.test(kaynak) ? iki("bulunamadı", "not found") : iki("dış paket", "external package");
+}
+
 export function bagimlilikMetni(b: KodBagimliliklari): string {
   const yok = iki("- yok", "- none");
   const ice = b.iceAktardiklari.length
-    ? b.iceAktardiklari.map((i) => `- ${i.yol ?? `${i.kaynak} (${iki("dış paket", "external package")})`} · ${iki("satır", "line")} ${i.satir}${i.adlar.length ? ` · ${i.adlar.slice(0, 8).join(", ")}` : ""}`).join("\n")
+    ? b.iceAktardiklari.map((i) => `- ${i.yol ?? `${i.kaynak} (${cozulemeyen(i.kaynak)})`} · ${iki("satır", "line")} ${i.satir}${i.adlar.length ? ` · ${i.adlar.slice(0, 8).join(", ")}` : ""}`).join("\n")
     : yok;
   const disa = b.iceAktaranlar.length
     ? b.iceAktaranlar.map((i) => `- ${i.yol}:${i.satir}${i.adlar.length ? ` · ${i.adlar.slice(0, 8).join(", ")}` : ""}`).join("\n")

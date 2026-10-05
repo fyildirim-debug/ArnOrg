@@ -1673,11 +1673,30 @@ export interface KodGrafikDugumu {
   dosya: number;
 }
 
+/** Grafik kenarının türü: ithal (içe aktarma ya da dosya başvurusu), anlam (kodu anlamca yakın; gömmelerden) */
+export type KodGrafikKenarTuru = "ithal" | "anlam";
+
 export interface KodGrafikKenari {
   kaynak: string;
   hedef: string;
-  /** İçe aktarma sayısı */
+  /** ithal: içe aktarma sayısı; anlam: benzerlik (0–1, iki basamak) */
   agirlik: number;
+  /** Yoksa ithal (0.0.8 öncesi yanıtlar) */
+  tur?: KodGrafikKenarTuru;
+  /** Anlam kenarı: iki uç içe aktarmayla da bağlı */
+  ithalIle?: boolean;
+}
+
+/** Anlam bağlarının durumu: hazir (hesaplandı), hazirlaniyor (gömmeler sürüyor; varsa son hesaplanan bağlar gelir),
+ * kapali (gömme modeli kapalı; yalnız içe aktarma bağları) */
+export interface KodAnlamDurumu {
+  durum: "hazir" | "hazirlaniyor" | "kapali";
+  gomulen: number;
+  toplamParca: number;
+  /** Kullanılan benzerlik eşiği (dağılıma göre uyarlanır); hesaplanmadıysa null */
+  esik: number | null;
+  /** Dosya sınırı yüzünden anlam bağı aranmayan dosya sayısı (büyük depolar) */
+  kirpilan: number;
 }
 
 export interface KodGrafigi {
@@ -1686,6 +1705,36 @@ export interface KodGrafigi {
   kenarlar: KodGrafikKenari[];
   /** Düğüm sınırı yüzünden dışarıda kalan düğüm sayısı */
   kirpilan: number;
+  /** Anlam bağlarının durumu (anlam=0 ile istenmediyse yok) */
+  anlam?: KodAnlamDurumu;
+}
+
+/** Anlamca en yakın kod parçasının konumu */
+export interface KodParcaKonumu {
+  bas: number;
+  bit: number;
+  sembol: string | null;
+}
+
+/** Bir dosyayla ilgili dosya: içe aktarma bağı, anlam bağı ya da ikisi (GET .../kod-zekasi/ilgili, ilgili_dosyalar aracı) */
+export interface KodIlgiliDosya {
+  yol: string;
+  dil: string;
+  /** Bu dosyanın onu içe aktardığı satırlar */
+  giden: { kaynak: string; satir: number; adlar: string[] }[];
+  /** Onun bu dosyayı içe aktardığı satırlar */
+  gelen: { satir: number; adlar: string[] }[];
+  /** Dosya vektörlerinin benzerliği (0–1); anlam bağı yoksa null */
+  benzerlik: number | null;
+  /** Anlam bağında en yakın parça çifti: bu dosyadaki ve ondaki */
+  enYakin: { bu: KodParcaKonumu; o: KodParcaKonumu; benzerlik: number } | null;
+}
+
+export interface KodIlgiliDosyalar {
+  yol: string;
+  /** Önce iki bağı da olanlar, sonra yalnız içe aktarma, sonra yalnız anlam bağı olanlar */
+  dosyalar: KodIlgiliDosya[];
+  anlam: KodAnlamDurumu;
 }
 
 /** Ayarlar ekranı için model bilgisi */

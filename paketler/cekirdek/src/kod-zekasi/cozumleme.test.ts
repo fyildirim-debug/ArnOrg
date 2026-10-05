@@ -247,7 +247,8 @@ describe("harita ve grafik", () => {
 
   it("modül grafiği: klasör düzeyinde kenarlar toplanır, dosya düzeyinde bağlantısız düğüm yok", () => {
     const k = grafikKur(dosyalar, ice, "klasor");
-    expect(k.kenarlar).toEqual([{ kaynak: "src/ui", hedef: "src", agirlik: 1 }]);
+    expect(k.kenarlar).toEqual([{ kaynak: "src/ui", hedef: "src", agirlik: 1, tur: "ithal" }]);
+    expect(k.anlam).toBeUndefined();
     const d = grafikKur(dosyalar, ice, "dosya");
     expect(d.dugumler.map((x) => x.id)).toEqual(["src/app.ts", "src/depo.ts", "src/ui/ekran.tsx"]);
     expect(d.kenarlar).toHaveLength(2);

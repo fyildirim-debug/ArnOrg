@@ -7,6 +7,7 @@ import { fark } from "./git.js";
 import { raporOlustur, tokenMetni } from "./gozetmen.js";
 import { sorulardaAra } from "./hatirlatici.js";
 import { aramaMetni, bagimlilikMetni, durumNotu, sembolMetni } from "./kod-zekasi/index.js";
+import { kodZekasiAraclari } from "./kod-zekasi/araclar.js";
 import { notlardaAra, notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { maddeleriDenetle } from "./anayasa.js";
 import { aracGirdisiniOnar } from "./arac-girdisi.js";
@@ -690,6 +691,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
           return metin(aramaMetni(y, { baslik: iki(`${a.dosya}:${a.satir} koduna benzeyen ${y.sonuclar.length} yer`, `${y.sonuclar.length} places similar to ${a.dosya}:${a.satir}`) }));
         }),
     ),
+    ...kodZekasiAraclari(sirket, ajanId),
     tool(
       "calisma_farki",
       iki("Bir çalışanın çalışma alanındaki değişiklikleri ana dala göre gösterir (git diff). İnceleme için.", "Shows the changes in an employee's workspace against the main branch (git diff). For review."),

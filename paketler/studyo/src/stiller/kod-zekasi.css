@@ -403,6 +403,38 @@
   margin: 0;
   font-size: var(--t-xs);
 }
+.kz-benzerlik {
+  color: var(--coral);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kz-anlam-satir {
+  display: grid;
+}
+.kz-anlam-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--b-2);
+  padding-bottom: var(--b-1);
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+.kz-anlam-alt > * + *::before {
+  content: "·";
+  margin-right: var(--b-2);
+}
+.kz-panel-liste .kz-anlam-alt .kz-yakin-kod {
+  width: auto;
+  padding: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+}
+.kz-panel-liste .kz-anlam-alt .kz-yakin-kod:hover,
+.kz-panel-liste .kz-anlam-alt .kz-yakin-kod:focus-visible {
+  color: var(--coral);
+}
 
 /* harita ağacı */
 .kz-agac-kap {
@@ -498,18 +530,107 @@
 .kz-grafik svg:active {
   cursor: grabbing;
 }
+/* içe aktarma: düz, nötr, yönlü; anlam: kesikli, ince, mercan tonlu (mercan anlam bağlarına ayrılmıştır) */
 .kz-kenar {
   stroke: var(--line-strong);
   fill: none;
 }
-.kz-kenar-soluk {
+.kz-kenar.kz-kenar-soluk {
   stroke: var(--line-soft);
 }
-.kz-kenar-vurgu {
+.kz-kenar.kz-kenar-vurgu {
+  stroke: var(--bone);
+}
+.kz-kenar-anlam {
   stroke: var(--coral);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0.62;
+  vector-effect: non-scaling-stroke;
+}
+.kz-kenar-anlam.kz-kenar-soluk {
+  opacity: 0.16;
+}
+.kz-kenar-anlam.kz-kenar-vurgu {
+  opacity: 1;
+  stroke-width: 1.5;
 }
 .kz-ok-ucu {
   fill: var(--line-strong);
+}
+.kz-ok-ucu-vurgu {
+  fill: var(--bone);
+}
+
+/* bağ türü düğmeleri: aynı zamanda grafiğin göstergesi */
+.kz-katmanlar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--b-1);
+}
+.kz-katman {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--b-2);
+  height: 1.875rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--muted);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--hiz) ease,
+    background-color var(--hiz) ease,
+    border-color var(--hiz) ease;
+}
+.kz-katman:hover {
+  color: var(--paper);
+  border-color: var(--line-hover);
+}
+.kz-katman[aria-pressed="true"] {
+  background: var(--ink-3);
+  color: var(--paper);
+}
+.kz-katman:focus-visible {
+  outline-offset: 2px;
+}
+.kz-katman-sayi {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.kz-ornek {
+  flex: none;
+  width: 1.5rem;
+  height: 0.5rem;
+  overflow: visible;
+  transition: opacity var(--hiz) ease;
+}
+.kz-katman[aria-pressed="false"] .kz-ornek {
+  opacity: 0.3;
+}
+.kz-ornek-ithal line {
+  stroke: var(--bone);
+  stroke-width: 1.5;
+}
+.kz-ornek-ithal path {
+  fill: var(--bone);
+}
+.kz-ornek-anlam line {
+  stroke: var(--coral);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2.5;
+  stroke-linecap: round;
+}
+.kz-grafik-not {
+  margin: calc(-1 * var(--b-2)) 0 var(--b-3);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--muted);
 }
 .kz-dugum {
   cursor: pointer;

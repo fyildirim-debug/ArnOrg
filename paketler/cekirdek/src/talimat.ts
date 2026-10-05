@@ -5,6 +5,7 @@
 import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type Dil, type Proje, type Rol } from "@arnorg/ortak";
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
+import { ilgiliDosyalarTalimati } from "./kod-zekasi/araclar.js";
 import { kararYetkisiTalimati } from "./karar-yetkisi.js";
 import { rolBul } from "./roller.js";
 import { skillTalimati } from "./skiller.js";
@@ -142,6 +143,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
           ]
         : []),
       "- When searching code, use mcp__arnorg__kod_ara first (semantic; ask in plain English or Turkish). Use sembol_bul for a definition you know by name, kod_haritasi for the project's structure, bagimliliklar for who uses a file, benzer_kod for duplicated code. Use Grep and Read when you already know where to look.",
+      ilgiliDosyalarTalimati("en"),
       // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
       ...yetenekTalimati(ajan, "en"),
       "",
@@ -211,6 +213,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
         ]
       : []),
     "- Kodda bir şey ararken önce mcp__arnorg__kod_ara kullan (anlamsal; Türkçe ya da İngilizce doğal dille sorabilirsin). Tam adını bildiğin tanım için sembol_bul, projenin yapısı için kod_haritasi, bir dosyayı kimin kullandığı için bagimliliklar, tekrar eden kod için benzer_kod. Grep ve Read'i yer kesin belliyken kullan.",
+    ilgiliDosyalarTalimati("tr"),
     // Açık yeteneklerin araçları (web araması, sayfa okuma, araştırma notu, paket, GitHub); kapalı olanlar anılmaz
     ...yetenekTalimati(ajan, "tr"),
     "",

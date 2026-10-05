@@ -260,7 +260,7 @@ export class KodDeposu {
     const sil = this.db.transaction(() => {
       this.db.prepare("DELETE FROM parca_ara WHERE rowid IN (SELECT id FROM parcalar WHERE alan = ?)").run(alan);
       for (const t of ["dosyalar", "semboller", "iceaktarmalar", "parcalar"]) this.db.prepare(`DELETE FROM ${t} WHERE alan = ?`).run(alan);
-      this.db.prepare("DELETE FROM meta WHERE anahtar = ?").run(`son:${alan}`);
+      this.db.prepare("DELETE FROM meta WHERE anahtar IN (?, ?)").run(`son:${alan}`, `cozumleme:${alan}`);
     });
     sil();
   }

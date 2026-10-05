@@ -598,7 +598,11 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
   app.get("/api/projeler/:pid/kod-zekasi/grafik", async (i) => {
     const { pid, alan } = kodAlani(i);
     const duzey = sorgu(i, "duzey") === "dosya" ? "dosya" : "klasor";
-    return sirket.kodZekasi.grafik(pid, alan, duzey);
+    return sirket.kodZekasi.grafik(pid, alan, duzey, { anlam: sorgu(i, "anlam") !== "0" });
+  });
+  app.get("/api/projeler/:pid/kod-zekasi/ilgili", async (i) => {
+    const { pid, alan } = kodAlani(i);
+    return sirket.kodZekasi.ilgili(pid, alan, kodYolu(i, true), { sinir: Math.min(sayi(sorgu(i, "sinir"), 12), 40) });
   });
   app.get("/api/projeler/:pid/kod-zekasi/benzer", async (i) => {
     const { pid, alan } = kodAlani(i);

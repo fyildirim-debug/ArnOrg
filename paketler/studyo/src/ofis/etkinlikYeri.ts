@@ -143,6 +143,7 @@ export const YER_TABLOSU: readonly YerKurali[] = [
   // Kod okuma ve arama: masası; kısa iş, masadan kaldırmaz
   { arac: /^(?:Read|Grep|Glob|LS)$/, yer: "masa", kisa: true, esik: 3 },
   { arac: mcp("kod_ara", "kod_haritasi", "sembol_bul", "bagimliliklar", "benzer_kod"), yer: "masa", kisa: true, esik: 3 },
+  { arac: mcp("ilgili_dosyalar"), yer: "masa", kisa: true, esik: 3 },
   { arac: /^(?:Task|Agent|TodoWrite|TodoRead|ExitPlanMode)$/, yer: "masa", kisa: true, esik: 3 },
   // Web araştırması: kütüphane. Arama ve kayıt hemen; tek sayfa okumak ya da paket bilgisine bakmak iki çağrı ister
   { arac: "WebSearch", yer: "arastirma" },

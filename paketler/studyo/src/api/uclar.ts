@@ -52,6 +52,7 @@ import type {
   KodDizinDurumu,
   KodGrafigi,
   KodHaritaDugumu,
+  KodIlgiliDosyalar,
   KodSembolTuru,
   KodSembolu,
   KodZekasiModelBilgisi,
@@ -205,6 +206,7 @@ export const api = {
   kodBagimliliklari: (pid: string, alan: string, yol: string) =>
     istek<KodBagimliliklari>(`${proje(pid)}/kod-zekasi/bagimliliklar${sorgu({ alan, yol })}`),
   kodGrafigi: (pid: string, alan: string, duzey: "klasor" | "dosya") => istek<KodGrafigi>(`${proje(pid)}/kod-zekasi/grafik${sorgu({ alan, duzey })}`),
+  kodIlgili: (pid: string, alan: string, yol: string, sinyal?: AbortSignal) => istek<KodIlgiliDosyalar>(`${proje(pid)}/kod-zekasi/ilgili${sorgu({ alan, yol })}`, { sinyal }),
 
   // Terminal
   terminalAc: (pid: string, i: TerminalAcIstegi) => istek<{ id: string }>(`${proje(pid)}/terminaller`, { method: "POST", govde: i }),

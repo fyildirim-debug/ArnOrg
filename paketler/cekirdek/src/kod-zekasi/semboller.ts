@@ -1,8 +1,10 @@
 // Düzenli ifadeyle sembol ve içe aktarma çıkarımı. Tam bir ayrıştırıcı değildir: yorumlar ve dizgeler maskelenir,
 // bloklar süslü parantez dengesiyle, Python ve Ruby girintiyle, Markdown başlık düzeyiyle sınırlanır.
 // Satırlar 1 tabanlıdır; metin satır sonları LF'ye çevrilmiş olarak gelir.
+import path from "node:path";
 import type { KodSembolTuru } from "@arnorg/ortak";
 import type { DilAilesi } from "./diller.js";
+import { htmlIceAktarmalari } from "./html.js";
 
 export interface SembolBilgisi {
   ad: string;
@@ -15,10 +17,12 @@ export interface SembolBilgisi {
 }
 
 export interface IceAktarmaBilgisi {
-  /** Koddaki belirteç ("./a.js", "react", "..models", "mod x") */
+  /** Koddaki belirteç ("./a.js", "react", "..models", "mod x"); sunucu görünümünde "render:ad" */
   kaynak: string;
   satir: number;
   adlar: string[];
+  /** Dosya başvurusu (HTML src/href, path.join(__dirname, …), render): dizindeki bir dosyaya çözülmezse kaydedilmez */
+  tur?: "yol";
 }
 
 export interface Cozumleme {
@@ -845,11 +849,11 @@ function iceAktarmalar(metin: string, maske: string, aile: DilAilesi): IceAktarm
   const satir = satirBulucu(metin);
   const sonuc: IceAktarmaBilgisi[] = [];
   /** Eşleşmenin anahtar sözcüğü yorum ya da dizge içinde değilse kaydeder */
-  const ekle = (konum: number, kaynak: string, adlar: string[] = []) => {
+  const ekle = (konum: number, kaynak: string, adlar: string[] = [], tur?: "yol") => {
     let k = konum;
     while (k < metin.length && /\s/.test(metin[k]!)) k++;
     if (maske[k] !== metin[k] || !kaynak || sonuc.length >= EN_COK_ICE_AKTARMA) return;
-    sonuc.push({ kaynak: kaynak.trim(), satir: satir(k), adlar });
+    sonuc.push({ kaynak: kaynak.trim(), satir: satir(k), adlar, ...(tur ? { tur } : {}) });
   };
   const her = (re: RegExp, f: (m: RegExpExecArray) => void) => {
     for (const m of metin.matchAll(re)) f(m as RegExpExecArray);
@@ -861,12 +865,27 @@ function iceAktarmalar(metin: string, maske: string, aile: DilAilesi): IceAktarm
       her(/\bexport\s+(?:type\s+)?(\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s*from\s*(["'])([^"'\n]+)\2/g, (m) => ekle(m.index, m[3]!, adlariAyir(m[1]!.startsWith("*") ? "*" : m[1]!)));
       her(/\brequire\s*\(\s*(["'])([^"'\n]+)\1\s*\)/g, (m) => ekle(m.index, m[2]!));
       her(/\bimport\s*\(\s*(["'])([^"'\n]+)\1\s*\)/g, (m) => ekle(m.index, m[2]!));
+      // Dosya başvuruları: path.join(__dirname, "public", "index.html"), __dirname + "/x", new URL("./x", import.meta.url),
+      // Worker, importScripts, serviceWorker.register, express.static("public"), readFileSync("./veri.json")
+      her(/\b(?:path\s*\.\s*)?(?:join|resolve)\s*\(\s*(__dirname|process\s*\.\s*cwd\s*\(\s*\))\s*((?:,\s*(["'])[^"'\n]*\3\s*)+)\)/g, (m) =>
+        ekle(m.index, dosyaBasvurusu(m[1] === "__dirname" ? "." : "/", [...m[2]!.matchAll(/(["'])([^"'\n]*)\1/g)].map((x) => x[2]!)), [], "yol"),
+      );
+      her(/\b__dirname\s*\+\s*(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, dosyaBasvurusu(".", [m[2]!]), [], "yol"));
+      her(/\bnew\s+URL\s*\(\s*(["'])(\.{0,2}\/[^"'\n]+)\1\s*,\s*import\s*\.\s*meta\s*\.\s*url\s*\)/g, (m) => ekle(m.index, m[2]!, [], "yol"));
+      her(/(?:\bnew\s+(?:Shared)?Worker|\bimportScripts|\.register)\s*\(\s*(["'])([^"'\n]+\.[cm]?[jt]s)\1/g, (m) => ekle(m.index, m[2]!, [], "yol"));
+      her(/\bexpress\s*\.\s*static\s*\(\s*(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, dosyaBasvurusu("/", [m[2]!]), [], "yol"));
+      her(/\b(?:readFileSync|readFile|createReadStream)\s*\(\s*(["'])(\.\/[^"'\n]+)\1/g, (m) => ekle(m.index, dosyaBasvurusu("/", [m[2]!]), [], "yol"));
+      // Sunucu görünümleri: res.render("menu") → views/menu.ejs
+      her(/\.render\s*\(\s*(["'])(\w[\w./-]*)\1/g, (m) => ekle(m.index, `render:${m[2]!}`, [], "yol"));
       break;
     case "py":
       her(/^[ \t]*import[ \t]+([\w. \t,]+)/gm, (m) => {
         for (const p of m[1]!.split(",")) ekle(m.index, p.trim().split(/\s+as\s+/)[0]!);
       });
       her(/^[ \t]*from[ \t]+(\.*[\w.]*)[ \t]+import[ \t]+(\([^)]*\)|[^\n#;]+)/gm, (m) => ekle(m.index, m[1]!, adlariAyir(m[2]!)));
+      // Şablonlar: Flask render_template, Django render, FastAPI/Starlette TemplateResponse
+      her(/\b(?:render_template|TemplateResponse)\s*\(\s*(?:\w+\s*,\s*)?(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, `render:${m[2]!}`, [], "yol"));
+      her(/\brender\s*\(\s*\w+\s*,\s*(["'])([^"'\n]+\.html?)\1/g, (m) => ekle(m.index, `render:${m[2]!}`, [], "yol"));
       break;
     case "go":
       her(/^[ \t]*import[ \t]+(?:[\w.]+[ \t]+)?"([^"]+)"/gm, (m) => ekle(m.index, m[1]!));
@@ -894,6 +913,7 @@ function iceAktarmalar(metin: string, maske: string, aile: DilAilesi): IceAktarm
     case "php":
       her(/^[ \t]*use[ \t]+(?:function[ \t]+|const[ \t]+)?([\w\\]+)/gm, (m) => ekle(m.index, m[1]!.replace(/^\\/, ""), [m[1]!.split("\\").pop()!]));
       her(/\b(?:require|include)(?:_once)?\s*\(?\s*(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, m[2]!));
+      her(/\b(?:require|include)(?:_once)?\s*\(?\s*__DIR__\s*\.\s*(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, dosyaBasvurusu(".", [m[2]!])));
       break;
     case "rb":
       her(/\brequire_relative\s*\(?\s*(["'])([^"'\n]+)\1/g, (m) => ekle(m.index, m[2]!.startsWith(".") ? m[2]! : `./${m[2]!}`));
@@ -918,8 +938,17 @@ function iceAktarmalar(metin: string, maske: string, aile: DilAilesi): IceAktarm
 // Giriş
 // ---------------------------------------------------------------------------
 
+/** Kodda yazılı dosya yolu parçalarından belirteç: "." taban dosyanın klasörüne göre (./a/b), "/" köke göre (/a/b) */
+function dosyaBasvurusu(taban: "." | "/", parcalar: string[]): string {
+  const n = path.posix.normalize(parcalar.map((p) => p.replace(/\\/g, "/")).join("/")).replace(/^\/+/, "");
+  const y = n === "." ? "" : n;
+  if (taban === "/") return `/${y}`;
+  return y === ".." || y.startsWith("../") ? y : `./${y}`;
+}
+
 export function cozumle(metin: string, aile: DilAilesi): Cozumleme {
   if (aile === "metin") return { semboller: [], iceAktarmalar: [] };
+  if (aile === "html") return { semboller: [], iceAktarmalar: htmlIceAktarmalari(metin, (m, a) => iceAktarmalar(m, maskele(m, a), a)) };
   const m = hazirla(metin, aile);
   let semboller: SembolBilgisi[];
   switch (aile) {
