@@ -2,8 +2,8 @@
 
 import { Menu, shell, type MenuItemConstructorOptions } from "electron";
 
-/** Açık sürüm deposu: belgeler, kurulum dosyaları ve sorun bildirimi (kaynak kod deposu özeldir) */
-const DEPO = "https://github.com/fyildirim-debug/ArnOrg-surumler";
+/** Açık kaynak deposu: belgeler, kurulum dosyaları ve sorun bildirimi */
+const DEPO = "https://github.com/fyildirim-debug/ArnOrg";
 
 export interface MenuEylemleri {
   veriKlasorunuAc(): void;

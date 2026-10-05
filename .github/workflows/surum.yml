@@ -8,12 +8,13 @@
 # Etiket paket sürümleriyle uyuşmazsa ya da notlar yoksa paketleme başlamadan durur
 # (betikler/surum.mjs --denetle). "surum" boş bırakılırsa yalnız paketler yapıt olarak üretilir.
 #
-# Otomatik güncelleme: kaynak kod deposu özel olduğundan kurulu uygulamalar güncellemeleri açık sürüm
-# deposundan (fyildirim-debug/ArnOrg-surumler) okur (paketler/masaustu/electron-builder.yml → publish).
-# Sürüm bu depoda yayınlandıktan sonra kurulum dosyaları ve latest*.yml açık depoya da yüklenir. Bunun için
-# depo sırlarında SURUM_DEPOSU_TOKENI bulunmalı: yalnız fyildirim-debug/ArnOrg-surumler deposunda
-# "Contents: Read and write" izni olan ince ayarlı (fine-grained) erişim belirteci. Sır yoksa sürüm yalnız
-# bu depoda yayınlanır ve iş akışı uyarı verir.
+# Otomatik güncelleme: kurulu uygulamalar güncellemeleri bu açık kaynak deposunun sürümlerinden okur
+# (paketler/masaustu/electron-builder.yml → publish). Sürüm yayınlanınca latest*.yml ve kurulum dosyaları
+# buraya yüklenir; ayrı bir depo gerekmez.
+#
+# Windows imzası (isteğe bağlı): depo değişkeni WIN_IMZA sağlayıcıyı seçer (sslcom, digicert ya da komut) ve
+# sağlayıcının sırları tanımlıysa Windows paketleri imzalanır (paketler/masaustu/betikler/imzala.cjs); WIN_IMZA
+# boşsa paketler imzasız çıkar. Ayrıntı: paketler/masaustu/README.md → "İmzalama".
 name: Sürüm
 
 on:
@@ -79,13 +80,75 @@ jobs:
       - name: Derleme (Stüdyo + çekirdek)
         run: npm run build
 
-      # TODO imzalama: sertifika depo sırlarına eklenince bu adıma env olarak verin; depoya sertifika konmaz.
-      #   Windows (Authenticode): CSC_LINK = .pfx dosyasının base64'ü ya da https adresi,
-      #                           CSC_KEY_PASSWORD = parolası (ör. ${{ secrets.WIN_CSC_LINK }}).
-      #   İmza bilgisi yoksa electron-builder imzasız paketler.
+      # İmza aracı: SSL.com eSigner'ın CodeSignTool'u (Windows paketi kendi Java'sıyla gelir)
+      - name: İmza aracı (SSL.com eSigner)
+        if: runner.os == 'Windows' && vars.WIN_IMZA == 'sslcom'
+        shell: pwsh
+        env:
+          CODESIGNTOOL_SURUMU: ${{ vars.CODESIGNTOOL_SURUMU || 'v1.3.2' }}
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP "codesigntool.zip"
+          $dizin = Join-Path $env:RUNNER_TEMP "codesigntool"
+          Invoke-WebRequest "https://github.com/SSLcom/CodeSignTool/releases/download/$env:CODESIGNTOOL_SURUMU/CodeSignTool-$env:CODESIGNTOOL_SURUMU-windows.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $dizin -Force
+          $bat = Get-ChildItem $dizin -Recurse -Filter CodeSignTool.bat | Select-Object -First 1
+          if (-not $bat) { throw "CodeSignTool.bat bulunamadı" }
+          "CODESIGNTOOL_DIZINI=$($bat.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # İmza aracı: DigiCert KeyLocker araçları (smctl); istemci sertifikası base64 sırdan dosyaya yazılır
+      - name: İmza aracı (DigiCert KeyLocker)
+        if: runner.os == 'Windows' && vars.WIN_IMZA == 'digicert'
+        shell: pwsh
+        env:
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
+        run: |
+          $p12 = Join-Path $env:RUNNER_TEMP "digicert-istemci.p12"
+          [IO.File]::WriteAllBytes($p12, [Convert]::FromBase64String($env:SM_CLIENT_CERT_FILE_B64))
+          "SM_CLIENT_CERT_FILE=$p12" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $msi = Join-Path $env:RUNNER_TEMP "Keylockertools-windows-x64.msi"
+          Invoke-WebRequest "https://one.digicert.com/signingmanager/api-ui/v1/releases/Keylockertools-windows-x64.msi/download" -Headers @{ "x-api-key" = $env:SM_API_KEY } -OutFile $msi
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/quiet", "/qn" -Wait
+          $smctl = Get-ChildItem "C:\Program Files\DigiCert" -Recurse -Filter smctl.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $smctl) { throw "smctl.exe bulunamadı" }
+          $smctl.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
       - name: Paketle
+        if: runner.os != 'Windows'
         shell: bash
         run: npm run paketle -w @arnorg/masaustu -- ${{ matrix.hedef }} --publish never
+
+      # Sırlar yalnız Windows paketleme adımına verilir; WIN_IMZA boşsa kanca bir şey yapmaz
+      - name: Paketle (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          ARNORG_IMZA: ${{ vars.WIN_IMZA }}
+          ARNORG_IMZA_KOMUTU: ${{ vars.WIN_IMZA_KOMUTU }}
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+          SM_HOST: ${{ secrets.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+          SM_KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_ALIAS }}
+        run: npm run paketle -w @arnorg/masaustu -- ${{ matrix.hedef }} --publish never
+
+      - name: İmza denetimi (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WIN_IMZA: ${{ vars.WIN_IMZA }}
+        run: |
+          $dosyalar = Get-ChildItem paketler/masaustu/cikti -File | Where-Object { $_.Extension -in ".exe", ".msi" }
+          if (-not $env:WIN_IMZA) {
+            "::notice title=İmza::WIN_IMZA tanımlı değil; Windows paketleri imzasız yayınlanır."
+            exit 0
+          }
+          $imzasiz = $dosyalar | Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -ne "Valid" }
+          if ($imzasiz) { throw "İmzası geçersiz dosyalar: $($imzasiz.Name -join ', ')" }
+          $dosyalar | ForEach-Object { "$($_.Name): $((Get-AuthenticodeSignature -LiteralPath $_.FullName).SignerCertificate.Subject)" }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,9 +171,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      # Açık sürüm deposuna yazma belirteci; tanımlı değilse açık depo adımı atlanır
-      ACIK_DEPO_TOKENI: ${{ secrets.SURUM_DEPOSU_TOKENI }}
     steps:
       # Yalnız sürüm notları gerekir
       - uses: actions/checkout@v5
@@ -137,24 +197,3 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
           files: cikti/*
-
-      # Kurulu uygulamalar buradan güncellenir: aynı dosyalar ve notlar açık depoda, aynı etiketle yayınlanır.
-      # Etiket açık deponun varsayılan dalına konur (kaynak kodu orada yoktur).
-      - name: Açık sürüm deposunda yayınla
-        if: env.ACIK_DEPO_TOKENI != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: fyildirim-debug/ArnOrg-surumler
-          token: ${{ env.ACIK_DEPO_TOKENI }}
-          tag_name: ${{ env.SURUM_ETIKETI }}
-          name: ArnOrg ${{ env.SURUM_ETIKETI }}
-          body_path: docs/surumler/${{ env.SURUM_ETIKETI }}.md
-          draft: false
-          prerelease: false
-          make_latest: true
-          fail_on_unmatched_files: true
-          files: cikti/*
-
-      - name: Açık sürüm deposu belirteci yok
-        if: env.ACIK_DEPO_TOKENI == ''
-        run: echo "::warning title=Otomatik güncelleme::SURUM_DEPOSU_TOKENI sırrı tanımlı değil. Sürüm açık depoda (fyildirim-debug/ArnOrg-surumler) yayınlanmadı; kurulu uygulamalar bu sürümü otomatik almaz."

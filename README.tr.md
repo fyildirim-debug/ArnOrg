@@ -83,7 +83,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 
 ## Kurulum
 
-Kurulum dosyaları açık sürüm deposunun [Sürümler](https://github.com/fyildirim-debug/ArnOrg-surumler/releases) sayfasındadır (kaynak kod deposu özeldir):
+Kurulum dosyaları [Sürümler](https://github.com/fyildirim-debug/ArnOrg/releases) sayfasındadır:
 
 | Sistem | Dosya |
 |---|---|
@@ -91,9 +91,9 @@ Kurulum dosyaları açık sürüm deposunun [Sürümler](https://github.com/fyil
 | Linux · x64 | `ArnOrg-<sürüm>-x86_64.AppImage` (kurulumsuz), `ArnOrg-<sürüm>-amd64.deb`, `ArnOrg-<sürüm>-x86_64.rpm` |
 | Linux · arm64 | `ArnOrg-<sürüm>-arm64.AppImage`, `ArnOrg-<sürüm>-arm64.deb`, `ArnOrg-<sürüm>-aarch64.rpm` |
 
-Masaüstü uygulaması kendini aynı sayfadan günceller: açılışta ve 6 saatte bir yeni sürümü denetler, arka planda indirir ve üst çubuğun altındaki şeritte **Yeniden başlat** önerir. 0.0.4'e kadarki sürümler güncellemeyi özel depoda aradığından 0.0.5'e bir kez elle güncellenmeleri gerekir.
+Masaüstü uygulaması kendini aynı sayfadan günceller: açılışta ve 6 saatte bir yeni sürümü denetler, arka planda indirir ve üst çubuğun altındaki şeritte **Yeniden başlat** önerir. 0.0.1–0.0.4 güncellemeyi zaten burada arar. 0.0.5 hiç kurulmamış ayrı bir sürüm deposuna baktığından bir kez elle 0.0.6'ya güncellenmelidir; sonrasında kendini günceller.
 
-Claude aboneliği gerekir (Pro, Max ya da Team). İlk açılış asistanı Claude Code'u, git'i ve GitHub CLI'ı denetler; eksik olanı kurmanıza ve girişi yapmanıza yardım eder. Kurulum dosyaları imzasızdır: Windows SmartScreen uyarısında **Ek bilgi → Yine de çalıştır** seçin. AppImage için FUSE 2 gerekir (Ubuntu 24.04: `sudo apt install libfuse2t64`).
+Claude aboneliği gerekir (Pro, Max ya da Team). İlk açılış asistanı Claude Code'u, git'i ve GitHub CLI'ı denetler; eksik olanı kurmanıza ve girişi yapmanıza yardım eder. Windows kurulum dosyaları henüz imzasızdır: SmartScreen uyarısında **Ek bilgi → Yine de çalıştır** seçin. İmza sertifikası tanımlanınca sürüm iş akışı onları imzalar; bkz. [`paketler/masaustu/README.md`](paketler/masaustu/README.md) → "İmzalama". AppImage için FUSE 2 gerekir (Ubuntu 24.04: `sudo apt install libfuse2t64`).
 
 ## Kaynaktan çalıştırma
 
@@ -125,7 +125,7 @@ git push origin main v0.0.6            # surum.yml paketleri üretir ve sürüm�
 
 Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.6` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
-İş akışı sürümü iki yerde yayınlar: bu depoda ve kurulu uygulamaların güncelleme aradığı açık sürüm deposunda ([`fyildirim-debug/ArnOrg-surumler`](https://github.com/fyildirim-debug/ArnOrg-surumler)). İkincisi için depoda `SURUM_DEPOSU_TOKENI` Actions sırrı gerekir: yalnız `ArnOrg-surumler` üzerinde **Contents: Read and write** izni olan ince ayarlı (fine-grained) kişisel erişim belirteci. Sır yoksa sürüm yalnız bu depoda yayınlanır ve iş akışı uyarı verir.
+İş akışı sürümü bu depoda yayınlar; kurulu uygulamalar da güncellemeyi burada arar. `WIN_IMZA` Actions değişkeni ve imza sağlayıcısının sırları tanımlıysa Windows paketleri imzalanır (SSL.com eSigner, DigiCert KeyLocker ya da başka bir araç); değilse imzasız yayınlanır.
 
 Geliştirme:
 
@@ -156,6 +156,14 @@ paketler/
   studyo/     React arayüzü
   masaustu/   Electron kabuğu ve paketleme
 ```
+
+## Katkı
+
+Sorun kayıtları (issue) ve çekme istekleri (pull request) açıktır. Çekme isteği açmadan önce `npm run typecheck`, `npm test` ve `npm run build` çalıştırın; CI aynılarını Ubuntu ve Windows'ta koşar. Kod tanımlayıcıları, yorumlar ve commit mesajları Türkçedir; kullanıcıya görünen her metnin Türkçe ve İngilizcesi vardır (`paketler/studyo/src/dil`, çekirdekte `iki()`).
+
+## Lisans
+
+[MIT](LICENSE)
 
 ## Geliştiren
 

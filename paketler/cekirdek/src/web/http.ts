@@ -4,7 +4,7 @@ import { ARNORG_SURUMU, type Dil } from "@arnorg/ortak";
 import { iki } from "../dil.js";
 
 /** API'lere (Wikimedia, Stack Exchange, registry'ler) kendini tanıtan açıklayıcı User-Agent */
-export const ARNORG_UA = `ArnOrg/${ARNORG_SURUMU} (+https://github.com/fyildirim-debug/ArnOrg-surumler)`;
+export const ARNORG_UA = `ArnOrg/${ARNORG_SURUMU} (+https://github.com/fyildirim-debug/ArnOrg)`;
 /** HTML arama sayfaları ve okunan sayfalar için tarayıcı benzeri User-Agent */
 export const TARAYICI_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 

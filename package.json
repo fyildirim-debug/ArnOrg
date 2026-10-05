@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.5",
   "description": "Claude Code ajanlarından kurulan yazılım şirketi: proje, ekip, planlama, canlı denetim ve kod editörü",
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "paketler/ortak",

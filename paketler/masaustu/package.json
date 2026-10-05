@@ -5,6 +5,7 @@
   "private": true,
   "version": "0.0.5",
   "description": "ArnOrg masaüstü uygulaması (Electron kabuğu)",
+  "license": "MIT",
   "author": {
     "name": "Furkan YILDIRIM",
     "email": "posta@furkanyildirim.com"

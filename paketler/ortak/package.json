@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.5",
   "description": "Çekirdek ile Stüdyo arasındaki ortak tipler ve sabitler",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

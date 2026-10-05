@@ -60,20 +60,20 @@ extraResources:
   - from: ../studyo/dist
     to: studyo
 
-# Güncelleme kaynağı (app-update.yml). Kaynak kod deposu (fyildirim-debug/ArnOrg) özeldir; kurulu uygulamalar
-# özel depodaki sürümleri göremez. Bu yüzden güncellemeler yalnız kurulum dosyalarının yayınlandığı açık
-# depodan (fyildirim-debug/ArnOrg-surumler) okunur. Paketleri CI yükler (--publish never); sürümü surum.yml
-# hem özel depoda hem açık depoda yayınlar.
+# Güncelleme kaynağı (app-update.yml): açık kaynak deposunun (fyildirim-debug/ArnOrg) GitHub sürümleri.
+# Paketleri CI yükler (--publish never); sürümü surum.yml bu depoda yayınlar.
 publish:
   provider: github
   owner: fyildirim-debug
-  repo: ArnOrg-surumler
+  repo: ArnOrg
   releaseType: release
 
 # ---------------------------------------------------------------------------
 # Windows: NSIS (kurulum sihirbazı) ve MSI. Mimari komut satırından verilir (--x64 / --arm64).
-# İmzalama: CSC_LINK + CSC_KEY_PASSWORD (ya da WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD) ortam değişkenleri
-# verilirse otomatik yapılır; depoya sertifika konmaz.
+# İmzalama: betikler/imzala.cjs imzalanacak her dosya (uygulama, kaldırıcı, kurulum sihirbazı, MSI) için
+# çağrılır; sağlayıcıyı ARNORG_IMZA ortam değişkeni seçer (sslcom, digicert ya da komut). Değişken boşsa
+# paketler imzasız çıkar. Sertifika ve anahtar depoya konmaz: bulut HSM'dedir, bilgileri CI sırlarındadır.
+# Ayrıntı: README.md → "İmzalama".
 # ---------------------------------------------------------------------------
 win:
   target:
@@ -81,6 +81,11 @@ win:
     - msi
   icon: kaynaklar/simge.ico
   executableName: ArnOrg
+  signtoolOptions:
+    sign: betikler/imzala.cjs
+    # Tek SHA-256 imza: her dosya için kanca bir kez çağrılır (çift imza bulut HSM'de iki imza hakkı harcar)
+    signingHashAlgorithms:
+      - sha256
 
 nsis:
   oneClick: false

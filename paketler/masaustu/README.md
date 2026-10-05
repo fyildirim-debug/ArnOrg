@@ -139,18 +139,34 @@ ARNORG_DENEME_EKRAN_GORUNTUSU=/tmp/arnorg.png paketler/masaustu/cikti/linux-unpa
 
 ### İmzalama
 
-Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa paketler imzasız üretilir.
+Depoya sertifika ya da anahtar konmaz. Haziran 2023'ten beri kod imzalama anahtarlarının (OV ve EV) donanım güvenlik modülünde (HSM) durması zorunlu olduğundan CI'da imza bulut HSM hizmetiyle atılır. Windows'ta `betikler/imzala.cjs` (`win.signtoolOptions.sign`) imzalanacak her dosya için çağrılır: uygulama, kaldırıcı, kurulum sihirbazı ve MSI. Sağlayıcıyı `ARNORG_IMZA` ortam değişkeni seçer; boşsa kanca bir şey yapmaz ve paketler imzasız çıkar. Her imzadan sonra Authenticode imzası doğrulanır (bazı araçlar başarısızlıkta da 0 koduyla çıkar); imza tutmazsa paketleme durur, imzalı olması beklenen sürüm imzasız yayınlanmaz.
 
-- **Windows (Authenticode):** `CSC_LINK` (.pfx dosyasının yolu, https adresi ya da base64 içeriği) ve `CSC_KEY_PASSWORD`. Yalnız Windows için ayrı sertifika: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`. Azure Trusted Signing için `win.azureSignOptions` kullanılabilir. CI'da sertifika depo sırlarına eklenip `surum.yml`'deki **Paketle** adımına verilir (dosyada TODO olarak işaretli).
-- **Linux:** AppImage imzasızdır; deb/rpm için GPG imzası henüz yok (yapılacak).
+Sürüm iş akışında açmak için GitHub'da **Settings → Secrets and variables → Actions**:
+
+| Sağlayıcı | Değişken (Variables) | Sırlar (Secrets) |
+|---|---|---|
+| SSL.com eSigner (EV ya da OV) | `WIN_IMZA` = `sslcom`; isteğe bağlı `CODESIGNTOOL_SURUMU` (varsayılan `v1.3.2`) | `ES_USERNAME`, `ES_PASSWORD`, `ES_CREDENTIAL_ID`, `ES_TOTP_SECRET` |
+| DigiCert KeyLocker | `WIN_IMZA` = `digicert` | `SM_HOST`, `SM_API_KEY`, `SM_CLIENT_CERT_FILE_B64` (istemci .p12 dosyasının base64'ü), `SM_CLIENT_CERT_PASSWORD`, `SM_KEYPAIR_ALIAS` |
+| Başka bir araç (Azure Key Vault + AzureSignTool, donanım anahtarlı kendi koşucunuz…) | `WIN_IMZA` = `komut`, `WIN_IMZA_KOMUTU` = PowerShell komutu; `{dosya}` imzalanacak dosyanın tırnaklı yoluyla değişir | aracın istediği sırlar; `surum.yml`'deki **Paketle (Windows)** adımına eklenir |
+
+İş akışı sağlayıcının aracını kurar (CodeSignTool ya da DigiCert KeyLocker araçları), sırları yalnız Windows paketleme adımına verir ve **İmza denetimi (Windows)** adımında yayından önce bütün `.exe` ve `.msi` dosyalarının imzasını yeniden doğrular. `WIN_IMZA` boşsa yalnız "imzasız" notu düşer. Yerelde aynı ortam değişkenleriyle (`ARNORG_IMZA`, sağlayıcının değişkenleri, sslcom için `CODESIGNTOOL_DIZINI`) `npm run paketle` imzalı paket üretir.
+
+SmartScreen için bilinmesi gerekenler ([Microsoft: SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)):
+
+- EV sertifikası SmartScreen'i artık atlatmaz: EV ile OV ilk indirmede aynı "tanınmayan uygulama" uyarısını verir. EV'nin farkı kurumsal satın alma gibi durumlarda kalır.
+- İmzalı dosyada uyarıda yayıncı adı görünür ve itibar sertifikada birikir; aynı sertifikayla imzalanan yeni sürümler zamanla uyarısız açılır. İmzasız her sürüm itibara sıfırdan başlar.
+- Windows 11'de Akıllı Uygulama Denetimi (Smart App Control) açıksa itibarı olmayan imzasız dosyalar hiç çalışmaz.
+- EV yalnız kurumlara verilir (tüzel kişilik ya da resmî sicile kayıtlı işletme, CA'nın kurum doğrulamasıyla); bireysel geliştirici OV/IV sertifikası alabilir. Azure Artifact Signing (eski Trusted Signing) Türkiye'den başvuruya açık değildir; uyarısız tek yol Microsoft Store'dur.
+
+Linux: AppImage imzasızdır; deb/rpm için GPG imzası henüz yok.
 
 ### Otomatik güncelleme
 
-`electron-builder.yml` → `publish` açık sürüm deposunun GitHub sürümlerini (fyildirim-debug/ArnOrg-surumler) gösterir: kaynak kod deposu özel olduğundan kurulu uygulama oradaki sürümleri okuyamaz, kurulum dosyaları bu yüzden açık depoda da yayınlanır. Paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir, sürüm iş akışı bunları iki sürüme de ekler (açık depo için `SURUM_DEPOSU_TOKENI` sırrı gerekir). Paketli uygulama açılışta yeni sürümü denetler, indirir ve kapanırken kurar (`src/guncelleme.ts`, `electron-updater`). NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez. 0.0.4'e kadarki sürümler güncellemeyi özel depoda aradığından bir kez elle güncellenmelidir; güncelleme denetlenemezse uygulama etkilenmez, yalnız kayda bir satır yazılır.
+`electron-builder.yml` → `publish` bu açık kaynak deposunun GitHub sürümlerini (fyildirim-debug/ArnOrg) gösterir. Paketleme `latest*.yml` ve `.blockmap` dosyalarını üretir, sürüm iş akışı bunları sürüme ekler. Paketli uygulama açılışta ve 6 saatte bir yeni sürümü denetler, indirir ve kapanırken kurar (`src/guncelleme.ts`, `electron-updater`). NSIS, AppImage, deb ve rpm desteklenir; MSI desteklenmez. 0.0.1–0.0.4 güncellemeyi zaten bu depoda arar; 0.0.5 hiç kurulmamış ayrı bir sürüm deposuna baktığından bir kez elle 0.0.6'ya güncellenmelidir. Güncelleme denetlenemezse uygulama etkilenmez, yalnız kayda bir satır yazılır.
 
 ## Windows notları
 
-- **SmartScreen:** imzasız kurulum dosyası "Windows kişisel bilgisayarınızı korudu" uyarısı verir: **Ek bilgi → Yine de çalıştır**. İmzalı sürümlerde uyarı, sertifika itibar kazandıkça kalkar.
+- **SmartScreen:** imzasız kurulum dosyası "Windows kişisel bilgisayarınızı korudu" uyarısı verir: **Ek bilgi → Yine de çalıştır**. İmzalı sürümlerde uyarıda yayıncı adı görünür ve uyarı, sertifika itibar kazandıkça kalkar (bkz. İmzalama).
 - **Git for Windows önerilir:** Claude Code'un Bash aracı Windows'ta Git Bash ile çalışır. Git for Windows kurulu değilse ajanlar kabuk komutu çalıştıramaz. Kurulum yeri standart dışıysa `CLAUDE_CODE_GIT_BASH_PATH` ile `bash.exe` gösterilir.
 - Uzun yollar için: `git config --global core.longpaths true`.
 - NSIS varsayılan olarak kullanıcıya kurar (`%LOCALAPPDATA%\Programs\ArnOrg`); kurulumda tüm kullanıcılar ve dizin seçilebilir. MSI kurumsal dağıtım içindir.
@@ -164,7 +180,7 @@ Depoya sertifika konmaz; imza bilgisi ortam değişkenleriyle verilir, yoksa pak
 ## CI
 
 - `.github/workflows/ci.yml`: main'e gönderim ve çekme isteklerinde Ubuntu ve Windows'ta `npm ci`, `npm run typecheck`, `npm test`, `npm run build` ve kabuk derlemesi; Linux'ta sahte çekirdekle Electron duman testi (ekran görüntüsü yapıt olarak yüklenir).
-- `.github/workflows/surum.yml`: `v*` etiketinde (ya da elle çalıştırmada `surum` girdisiyle) önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. Aynı sürüm `SURUM_DEPOSU_TOKENI` sırrıyla açık sürüm deposunda (fyildirim-debug/ArnOrg-surumler) da yayınlanır; sır yoksa bu adım uyarıyla atlanır. `surum` boş elle çalıştırma yalnız paketleri yapıt olarak üretir.
+- `.github/workflows/surum.yml`: `v*` etiketinde (ya da elle çalıştırmada `surum` girdisiyle) önce `betikler/surum.mjs --denetle` etiketin paket sürümleriyle ve `docs/surumler/<etiket>.md` notlarıyla uyuştuğunu denetler; sonra Windows x64 (NSIS + MSI), Linux x64 ve arm64 (AppImage + deb + rpm) paketlenir ve dosyalar, notlar gövde olmak üzere yayınlanan GitHub sürümüne eklenir. `WIN_IMZA` değişkeni ve sağlayıcının sırları tanımlıysa Windows paketleri imzalanır ve imzaları yayından önce doğrulanır (bkz. İmzalama). `surum` boş elle çalıştırma yalnız paketleri yapıt olarak üretir.
 
 ## Sürüm çıkarma
 

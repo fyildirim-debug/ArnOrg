@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.5",
   "description": "ArnOrg çekirdeği: ajan oturumları, canlı denetim, projeler, ekip, görevler, kanallar, kod ve terminal hizmetleri",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

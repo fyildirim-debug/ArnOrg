@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.5",
   "description": "ArnOrg Stüdyo: React arayüzü",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

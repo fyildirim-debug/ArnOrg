@@ -83,7 +83,7 @@ A software company built from Claude Code agents. You open a project; the CEO ag
 
 ## Install
 
-Installers are on the [Releases](https://github.com/fyildirim-debug/ArnOrg-surumler/releases) page of the public releases repository (the source repository is private):
+Installers are on the [Releases](https://github.com/fyildirim-debug/ArnOrg/releases) page:
 
 | System | File |
 |---|---|
@@ -91,9 +91,9 @@ Installers are on the [Releases](https://github.com/fyildirim-debug/ArnOrg-surum
 | Linux · x64 | `ArnOrg-<version>-x86_64.AppImage` (no install), `ArnOrg-<version>-amd64.deb`, `ArnOrg-<version>-x86_64.rpm` |
 | Linux · arm64 | `ArnOrg-<version>-arm64.AppImage`, `ArnOrg-<version>-arm64.deb`, `ArnOrg-<version>-aarch64.rpm` |
 
-The desktop app updates itself from the same page: it checks for a new version when it opens and every 6 hours, downloads it in the background and offers **Restart** in a bar under the top bar. Versions up to 0.0.4 looked for updates in the private repository, so they need to be updated to 0.0.5 by hand once.
+The desktop app updates itself from the same page: it checks for a new version when it opens and every 6 hours, downloads it in the background and offers **Restart** in a bar under the top bar. Versions 0.0.1 to 0.0.4 already look for updates here. Version 0.0.5 looked in a separate releases repository that was never set up, so update it to 0.0.6 by hand once; after that it updates itself.
 
-You need a Claude subscription (Pro, Max or Team). The first-run assistant checks Claude Code, git and the GitHub CLI and helps you install and sign in to whatever is missing. The installers are unsigned: on the Windows SmartScreen prompt choose **More info → Run anyway**. The AppImage needs FUSE 2 (Ubuntu 24.04: `sudo apt install libfuse2t64`).
+You need a Claude subscription (Pro, Max or Team). The first-run assistant checks Claude Code, git and the GitHub CLI and helps you install and sign in to whatever is missing. The Windows installers aren't signed yet: on the SmartScreen prompt choose **More info → Run anyway**. The release workflow signs them as soon as a signing certificate is configured; see the "İmzalama" (signing) section of [`paketler/masaustu/README.md`](paketler/masaustu/README.md), in Turkish. The AppImage needs FUSE 2 (Ubuntu 24.04: `sudo apt install libfuse2t64`).
 
 ## Run from source
 
@@ -125,7 +125,7 @@ git push origin main v0.0.6            # surum.yml builds the packages and publi
 
 Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.6` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
-The workflow publishes the release twice: in this repository, and in the public releases repository [`fyildirim-debug/ArnOrg-surumler`](https://github.com/fyildirim-debug/ArnOrg-surumler), where installed apps look for updates. For the second one the repository needs the `SURUM_DEPOSU_TOKENI` Actions secret: a fine-grained personal access token with **Contents: Read and write** on `ArnOrg-surumler` only. Without the secret the release is published here only and the workflow shows a warning.
+The workflow publishes the release in this repository, which is also where installed apps look for updates. Windows packages are signed when the `WIN_IMZA` Actions variable and the signing provider's secrets are set (SSL.com eSigner, DigiCert KeyLocker or any other tool); otherwise they're published unsigned.
 
 Development:
 
@@ -158,6 +158,14 @@ paketler/
   studyo/     React interface
   masaustu/   Electron shell and packaging
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck`, `npm test` and `npm run build`; CI runs the same on Ubuntu and Windows. Code identifiers, comments and commit messages are in Turkish, and every user-facing text has a Turkish and an English version (`paketler/studyo/src/dil`, `iki()` in the core).
+
+## License
+
+[MIT](LICENSE)
 
 ## Author
 
