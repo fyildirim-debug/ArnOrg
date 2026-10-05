@@ -249,8 +249,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             .join("\n");
           return metin(
             iki(
-              `Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`,
-              `Team:\n${ekip}\n\nRoles you can hire: every role except ceo — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci.`,
+              `Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim.`,
+              `Team:\n${ekip}\n\nRoles you can hire: every role except ceo — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim.`,
             ),
           );
         }),
@@ -263,7 +263,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
       ),
       {
         ad: z.string().min(2).max(40).describe(iki("Türkçe bir ad, ör. Deniz", "A first name, e.g. Ada")),
-        rol: z.string().describe(iki("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci", "Role id: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci")),
+        rol: z.string().describe(iki("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim", "Role id: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim")),
         gerekce: z.string().min(10),
         model: z.string().optional().describe(iki("fable, opus, sonnet ya da haiku; boşsa rolün varsayılanı", "fable, opus, sonnet or haiku; the role's default if empty")),
         yonetici: z.string().optional().describe(iki("Bağlanacağı çalışanın adı", "Name of the employee they will report to")),

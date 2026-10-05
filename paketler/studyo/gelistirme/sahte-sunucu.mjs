@@ -23,6 +23,7 @@ import { kur as surum005Brifing } from "./surum-005-brifing.mjs";
 import { kur as surum005Yetenek } from "./surum-005-yetenek.mjs";
 import { kur as surum005Tarayici } from "./surum-005-tarayici.mjs";
 import { kur as surum005Ofis } from "./surum-005-ofis.mjs";
+import { kur as surum007Tanitim } from "./surum-007-tanitim.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -2152,6 +2153,8 @@ surum005Yetenek({ rota, rotalar, db, yay, ajanBul, Hata, roller: V.roller });
 surum005Tarayici({ rota, db, yay, Hata, simdi, yeniKimlik, proje, projeGerekli, projeAjanlari, mesajEkle, akisEkle, projeYay });
 // 0.0.5: ofisin canlı gösterisi: araştırma, test, teslim, birleştirme, işe alım (surum-005-ofis.mjs)
 surum005Ofis({ db, yay, akisEkle, mesajEkle, ajanBul, projeAjanlari, simdi, yeniKimlik, projeYay });
+// 0.0.7: Tanıtım alanı: README.md vitrini, Defne'nin taslağı, güncelleme isteği (surum-007-tanitim.mjs)
+surum007Tanitim({ rota, rotalar, db, yay, mesajEkle, akisEkle, ajanBul, projeAjanlari, projeGerekli, projeYay, Hata, simdi, yeniKimlik });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

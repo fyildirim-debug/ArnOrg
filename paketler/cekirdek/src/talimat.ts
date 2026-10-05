@@ -5,6 +5,7 @@ import { kanalGorunenAdi, rolMetni, type Ajan, type Anayasa, type Beceri, type D
 import { karakterBul, karakterMetni } from "@arnorg/ortak/karakterler";
 import { anayasaTalimati } from "./anayasa.js";
 import { rolBul } from "./roller.js";
+import { tanitimTalimati } from "./tanitim.js";
 import { kisalt } from "./yardimci.js";
 import { yetenekTalimati } from "./yetenekler.js";
 
@@ -128,6 +129,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       "",
       "## Team",
       ekipListesi,
+      ...tanitimTalimati(ajan, b.ekip, "en"),
       b.baglar ? `\n## Your ties\n${b.baglar}` : "",
       "",
       "## Your personal memory",
@@ -194,6 +196,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     "",
     "## Ekip",
     ekipListesi,
+    ...tanitimTalimati(ajan, b.ekip, "tr"),
     b.baglar ? `\n## Bağların\n${b.baglar}` : "",
     "",
     "## Kişisel hafızan",

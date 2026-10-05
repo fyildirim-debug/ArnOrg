@@ -39,6 +39,7 @@ import { kaliteOnerisi } from "./kalite-kapisi.js";
 import { notlariListele, notOku, notYaz } from "./proje-dosyalari.js";
 import { ROLLER } from "./roller.js";
 import type { Sirket } from "./sirket.js";
+import { tanitimUclariniKur } from "./tanitim-uclari.js";
 import type { TerminalYoneticisi } from "./terminal.js";
 import { ArnorgHatasi, bugun, bulunamadi, sadelestir } from "./yardimci.js";
 import { webAyarSemasi } from "./web/ayarlar.js";
@@ -481,6 +482,9 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
 
   // ---------------- tarayıcı: düzeltme notları (duzeltme-uclari.ts) ----------------
   duzeltmeUclariniKur(app, sirket);
+
+  // ---------------- tanıtım: README.md vitrini ve güncelleme isteği (tanitim-uclari.ts) ----------------
+  tanitimUclariniKur(app, sirket);
 
   // ---------------- proje hafızası ----------------
   app.get("/api/projeler/:pid/hafiza", async (i) => {

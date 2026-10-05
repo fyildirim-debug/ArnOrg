@@ -77,6 +77,7 @@ import type {
   TerminalAcIstegi,
 } from "@arnorg/ortak";
 import type { Duzeltme, DuzeltmeDurumu, DuzeltmeEkleIstegi, DuzeltmeGonderimi } from "@arnorg/ortak";
+import type { TanitimDurumu, TanitimGuncellemeYaniti } from "@arnorg/ortak";
 import { indir, istek, sorgu } from "./istek";
 
 type Tamam = { tamam: true };
@@ -241,6 +242,12 @@ export const api = {
   hazirlik: (pid: string, islem: "baslat" | "atla") => istek<ProjeOzeti>(`${proje(pid)}/hazirlik`, { method: "POST", govde: { islem } }),
   /** CEO'dan brifing: CEO #yonetim'e kısa durum özeti yazar; önceki istek hazırlanıyorsa "hazirlaniyor" */
   brifingIste: (pid: string) => istek<BrifingYaniti>(`${proje(pid)}/brifing`, { method: "POST" }),
+
+  // Tanıtım: kök README.md (yayındaki ve uzmanın taslağı), güncelleme isteği; README'nin göreli görselleri dosya ucundan
+  tanitim: (pid: string, sinyal?: AbortSignal) => istek<TanitimDurumu>(`${proje(pid)}/tanitim`, { sinyal }),
+  tanitimGuncelle: (pid: string, not?: string) => istek<TanitimGuncellemeYaniti>(`${proje(pid)}/tanitim/guncelle`, { method: "POST", govde: { not } }),
+  /** Alandaki bir dosyanın ham baytları (anahtar başlıkla gider; görüntü nesne adresiyle gösterilir) */
+  tanitimGorseli: (pid: string, alan: string, yol: string, sinyal?: AbortSignal) => indir(`${proje(pid)}/fs/icerik${sorgu({ alan, yol })}`, sinyal),
 
   // Ana yasa
   anayasa: (pid: string) => istek<Anayasa>(`${proje(pid)}/anayasa`),

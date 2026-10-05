@@ -10,6 +10,13 @@ const YOLLAR = {
       <rect x="9" y="9" width="5" height="5" />
     </>
   ),
+  // Tanıtım: sehpadaki sunum panosu, başlık ve satır
+  tanitim: (
+    <>
+      <path d="M2 2.5h12v8h-12z" />
+      <path d="M8 10.5v3M5.5 13.5h5M4.75 5.25h6.5M4.75 7.75h3.75" />
+    </>
+  ),
   ofis: (
     <>
       <path d="M1.5 2.5h13v11h-13z" />

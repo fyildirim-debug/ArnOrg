@@ -628,6 +628,17 @@ describe("doğu kanadı: araç → oda", () => {
     for (const yol of ["src/siparis/liste.tsx", "C:\\proje\\src\\api.ts", "docs/README.md", "src/designer-notes.ts"]) expect(yer("Edit", { file_path: yol }), yol).toBe("masa");
   });
 
+  it("tanıtım uzmanı vitrin sayfasını stüdyoda yazar; başkası README'yi masasında düzenler", () => {
+    for (const arac of ["Write", "Edit", "MultiEdit"]) {
+      expect(aracYeri(arac, { file_path: "/calisma/tuna/README.md" }, "tanitim"), arac).toMatchObject({ yer: "tanitim", esik: 2 });
+    }
+    expect(aracYeri("Edit", { file_path: "/calisma/deniz/README.md" }, "backend")).toMatchObject({ yer: "masa" });
+    expect(aracYeri("Edit", { file_path: "README.md" })).toMatchObject({ yer: "masa" });
+    // Uzmanın araştırması yine kütüphanede, okuması masasında
+    expect(aracYeri("mcp__arnorg__web_ara", { sorgu: "README örnekleri" }, "tanitim")).toMatchObject({ yer: "arastirma" });
+    expect(aracYeri("Read", { file_path: "README.md" }, "tanitim")).toMatchObject({ yer: "masa", kisa: true });
+  });
+
   it("durgunluk: tek bir kısa denetim masadan kaldırmaz; testler sürdükçe laboratuvarda kalır, bitince masaya döner", () => {
     const d = yerDurumu(0);
     yerVarisi(d, 0);

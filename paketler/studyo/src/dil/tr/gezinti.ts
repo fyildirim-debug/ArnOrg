@@ -3,6 +3,7 @@ export const gezinti = {
   menuEtiketi: "Stüdyo menüsü",
   menu: {
     karargah: "Karargâh",
+    tanitim: "Tanıtım",
     ofis: "Ofis",
     ekip: "Ekip",
     pano: "Pano",

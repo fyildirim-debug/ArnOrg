@@ -261,6 +261,7 @@ const ROL_KONULARI: Record<string, string[]> = {
   tasarim: ["tasarim", "renk", "tipografi", "yerlesim", "figma", "ikon", "gorsel", "logo", "kullanici deneyimi"],
   yazar: ["dokuman", "readme", "belge", "kilavuz", "metin", "yazi", "aciklama", "changelog"],
   arastirmaci: ["arastir", "karsilastir", "kutuphane", "secenek", "alternatif", "benchmark", "rakip", "olcum"],
+  tanitim: ["tanitim", "readme", "vitrin", "showcase", "pazarlama", "marketing", "ekran goruntusu", "screenshot", "ozellik listesi"],
   cto: ["mimari", "architecture", "teknoloji", "olcek", "performans", "altyapi", "teknik borc"],
   ceo: ["oncelik", "plan", "hedef", "kurul", "ise alim", "takvim", "kapsam"],
 };

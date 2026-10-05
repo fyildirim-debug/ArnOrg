@@ -15,6 +15,7 @@ interface Oge {
 
 const ANA: Oge[] = [
   { gorunum: "karargah", simge: "karargah" },
+  { gorunum: "tanitim", simge: "tanitim" },
   { gorunum: "ofis", simge: "ofis" },
   { gorunum: "ekip", simge: "ekip" },
   { gorunum: "pano", simge: "pano" },

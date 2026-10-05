@@ -29,6 +29,7 @@ import { Ofis } from "./gorunumler/Ofis";
 import { Onaylar } from "./gorunumler/Onaylar";
 import { Pano } from "./gorunumler/Pano";
 import { Projeler } from "./gorunumler/Projeler";
+import { Tanitim } from "./gorunumler/Tanitim";
 import { Tarayici } from "./gorunumler/Tarayici";
 import { Zeka } from "./gorunumler/Zeka";
 import { useMedya } from "./yardimcilar/kancalar";
@@ -178,6 +179,8 @@ function Ekran({ gorunum }: { gorunum: Gorunum }) {
       return <Projeler />;
     case "karargah":
       return <Karargah />;
+    case "tanitim":
+      return <Tanitim />;
     case "ofis":
       return <Ofis />;
     case "ekip":

@@ -816,7 +816,7 @@ export class OfisMotoru {
       if (k.is?.tur === "sahne") puan += 34;
       if (k.yol) puan += 18;
       if (this.t < k.konusmaBitis || k.balonlar.length) puan += 22;
-      if (k.ajan.durum === "calisiyor" && ["arastirma", "laboratuvar", "sunum", "tasarim", "kisi", "toplanti"].includes(k.yerDurumu.yer)) puan += 16;
+      if (k.ajan.durum === "calisiyor" && ["arastirma", "laboratuvar", "sunum", "tasarim", "tanitim", "kisi", "toplanti"].includes(k.yerDurumu.yer)) puan += 16;
       if (this.uyukluyor(k)) puan = 6;
       adaylar.push({ id: k.id, puan });
     }
@@ -1804,6 +1804,7 @@ export class OfisMotoru {
         k.yon = 1;
         return;
       case "tasarim":
+      case "tanitim":
         if (yield* this.koltukta(k, this.istasyonlar("studyo"))) return;
         yield* this.git(k, n.studyoOnu[0]!, { adaylar: n.studyoOnu });
         bak("studyo-tahta");
@@ -2400,7 +2401,7 @@ export class OfisMotoru {
       this.labCagrilari.set(oge.aracKimligi, { ajanId: k.id, komut, t: this.t });
       this.labDurumu("kosuyor", komut);
     }
-    const y = aracYeri(oge.arac, oge.girdi);
+    const y = aracYeri(oge.arac, oge.girdi, k.ajan.rol);
     // Araştırma: kütüphanenin ekranında sorgu yazılır
     if (y?.yer === "arastirma") {
       const sorgu = aramaMetni(oge.girdi);
@@ -2462,6 +2463,7 @@ export class OfisMotoru {
     if (yer === "arastirma") this.akisa("arastirma", a.arastirma(k.ajan.ad, k.sonSorgu), { ajanId: k.id });
     else if (yer === "laboratuvar") this.akisa("test", a.laboratuvar(k.ajan.ad, k.sonKomut || "test"), { ajanId: k.id });
     else if (yer === "tasarim") this.akisa("teslim", a.tasarim(k.ajan.ad), { ajanId: k.id });
+    else if (yer === "tanitim") this.akisa("teslim", a.tanitim(k.ajan.ad), { ajanId: k.id });
   }
 
   // -------------------------------------------------------------------------
@@ -3150,6 +3152,8 @@ export class OfisMotoru {
               return e.sunumda;
             case "tasarim":
               return e.tasarimda;
+            case "tanitim":
+              return e.tanitimda;
             case "sunucu":
               return e.sunucuda;
             default:

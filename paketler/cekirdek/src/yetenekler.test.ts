@@ -85,8 +85,8 @@ describe("rol varsayılanları", () => {
     expect(rolYetenekleri("bilinmeyen")).toEqual(["web_arama", "web_okuma", "claude_web"]);
   });
 
-  it("araştırmacı rolü katalogda son sırada, sonnet modelli ve kod yazmaz", () => {
-    const r = ROLLER.at(-1)!;
+  it("araştırmacı rolü katalogda tanıtım uzmanından hemen önce, sonnet modelli ve kod yazmaz", () => {
+    const r = ROLLER.at(-2)!;
     expect(r).toMatchObject({ kimlik: "arastirmaci", ad: "Araştırmacı", varsayilanModel: "sonnet", yonetici: false });
     expect(r.en?.ad).toBe("Researcher");
     expect(r.talimat).toMatch(/Kod yazmazsın/);

@@ -315,6 +315,21 @@ Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek y
 - Projede CEO yoksa 409. CEO brifingi yazana dek (dört bölümden en az üçünü başlık satırı olarak taşıyan mesaj) ya da, boştayken uyandırıldıysa, o tur bitene dek, en çok 5 dakika, aynı projedeki yeni istek CEO'yu yeniden uyandırmaz, `hazirlaniyor` döner. CEO başka bir turun ortasındayken yazdığı ilgisiz mesaj isteği kapatmaz. CEO uyandırılamazsa (ör. oturumsuz kipte 503) hata döner, yazıyor göstergesi biter ve veri aralığı ilerlemez.
 - **Günlük brifing:** `Ayarlar.gunlukBrifing: {acik, saat}`, varsayılan `{acik: true, saat: "09:00"}` (yerel saat, `SS:DD`; geçersiz saat 400). Çekirdek dakikada bir bakar: saat geçtiyse ve o gün verilmediyse her uygun projede CEO'dan "günlük brifing" ister; ArnOrg o saatte kapalıysa açılınca aynı gün içinde verir. Son brifingden bu yana görev, onay ya da mesaj hareketi yoksa (ArnOrg duyuruları ve önceki brifingin kendisi sayılmaz) o gün atlanır. CEO'suz, hazırlık görüşmesi süren ya da o günün saatinden sonra açılan projede o gün istenmez; klasörüne erişilemeyen proje ve abonelik sınırı aşıkken beklenir. CEO uyandırılamazsa kurula uyarı `bildirim`i gider, aynı gün yeniden denenmez.
 
+## Tanıtım (0.0.7)
+
+Projenin kök `README.md`'si kurulun Stüdyo'nun Tanıtım alanında okuduğu vitrin sayfasıdır. Tanıtım uzmanı (rol `tanitim`, varsayılan model `sonnet`; yetenekleri web araması, sayfa okuma, GitHub araştırması) README.md'yi kendi çalışma alanında yazar, commit'ler ve `birlestirme_iste` ile birleştirme ister.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| GET | `/api/projeler/:pid/tanitim` | — | `TanitimDurumu` |
+| POST | `/api/projeler/:pid/tanitim/guncelle` | `{not?}` (en çok 2000 karakter) | `TanitimGuncellemeYaniti`: `{kime: "uzman" \| "ceo", ajanId, ajanAd}` |
+
+- `TanitimDurumu`: `dosya` (her zaman `"README.md"`), `var`, `icerik` (ana repodaki dosya, en çok 512 KB; büyüğünün başı yarım satırı atılıp kısa bir notla verilir), `son` (çalışma dalında README.md'ye dokunan son commit: `commit`, `yazar`, `zaman`, `mesaj`; `git log -1 refs/heads/<dal> -- README.md`), `taslak` (tanıtım uzmanının alanındaki, ana repodakinden farklı README.md: `ajanId`, `ajanAd`, `icerik`, `zaman`), `uzman` (projedeki ilk tanıtım uzmanı: `id`, `ad`, `durum`), `guncellemeIstendi` (kurulun son güncelleme isteğinin anı).
+- Yalnız alanın kökündeki README.md okunur; yol istekten gelmez, alanın dışını gösteren sembolik bağlantı okunmaz. Taslak: uzmanın alanındaki README.md ana repodakinden farklı ve uzman ona dokunmuş olmalı; alandaki hâl çalışma dalıyla ortak atadaki hâliyle aynıysa (alan geride kalmış) taslak sayılmaz.
+- Güncelleme isteği: tanıtım uzmanı varsa kurul kaynağıyla uyandırılır (eşzamanlı tavandan ve abonelik sınırından muaf), kurulun notu mesaja eklenir; uzman uyandırılamazsa hata döner. Uzman yoksa istek kurulun mesajı olarak #yonetim'e yazılır: CEO bir Tanıtım uzmanı işe almayı önerir ve README.md'yi yazdırır. CEO da yoksa 409.
+- **Olay:** `tanitim.degisti` (`{projeId}`): kök README.md ana repoda ya da bir tanıtım uzmanının alanında değişince (dosya izleyicisinin `dosya.degisti` olayından), birleştirme kalite kapısını geçip ana dala girince (`onay.sonuc`, `kalite.durum: "birlesti"`) ve güncelleme istenince; art arda gelen değişiklikler tek olayla gider. Stüdyo olayda ve proje değişince yeniden okur.
+- **CEO talimatı:** ekipte tanıtım uzmanı yoksa CEO'ya ilk işe alımlarla birlikte bir tane önermesi (hazırlık görüşmesinin "İlk ekip" adımında da), varsa her teslimden ve birleşen işten sonra ona README.md'yi güncelletmesi söylenir.
+
 ## Proje hafızası ve ajanlar arası sorular
 
 Her projenin kendi kalıcı hafızası vardır; başka projelerle karışmaz. Kayıtlar veritabanında aranır, ayrıca repo içinde `.arnorg/hafiza/hafiza.md` (okunur), `.arnorg/hafiza/kayitlar.json` (geri yükleme) ve `.arnorg/hafiza/ajanlar/<ad>.md` (ajan defterleri) olarak tutulur. Var olan bir repo başka makinede bağlanınca hafıza ve defterler geri yüklenir. ArnOrg kendi `.arnorg/` değişikliklerini 90 sn gecikmeyle ve birleştirmeden hemen önce yalnız o yolu kapsayan bir commit'le kaydeder; kullanıcının diğer değişikliklerine dokunmaz.

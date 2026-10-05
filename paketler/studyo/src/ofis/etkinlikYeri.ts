@@ -29,6 +29,8 @@ export type YerTuru =
   | "sunum"
   /** Stüdyonun tasarım masası: tasarım dosyaları ve belirteçleri */
   | "tasarim"
+  /** Stüdyonun tasarım masası: tanıtım uzmanının vitrin sayfasını (README.md) yazması */
+  | "tanitim"
   /** Sunucu dolabı: git gönderme ve birleştirme, docker, yayın */
   | "sunucu"
   /** Boşta ya da duraklatılmış: sevdiği yer, mutfak, kanepe */
@@ -39,6 +41,8 @@ export interface YerKurali {
   arac: string | RegExp;
   /** Ek koşul: girdi (ör. Bash komutu) */
   girdi?: (g: Girdi) => boolean;
+  /** Yalnız bu roldeki çalışan için (rol kimliği) */
+  rol?: string;
   yer: YerTuru;
   /** Kişi hedefli yerlerde hedefin adı */
   kisi?: (g: Girdi) => string | null;
@@ -121,6 +125,8 @@ function ilkAnma(metin: string | null): string | null {
  * Claude Code araçları ve ArnOrg MCP araçları (mcp__arnorg__*) birlikte.
  */
 export const YER_TABLOSU: readonly YerKurali[] = [
+  // Tanıtım uzmanı vitrin sayfasını stüdyonun masasında yazar (tek dokunuş götürmez)
+  { arac: /^(?:Edit|Write|MultiEdit)$/, rol: "tanitim", yer: "tanitim", esik: 2 },
   // Tasarım dosyaları ve belirteçleri: stüdyonun tasarım masası (tek dokunuş götürmez)
   { arac: /^(?:Edit|Write|MultiEdit|NotebookEdit)$/, girdi: (g) => TASARIM_DOSYASI.test(dosyaYolu(g)), yer: "tasarim", esik: 2 },
   // Kod yazma ve düzenleme: kendi masası, monitör açık
@@ -167,13 +173,13 @@ export const YER_TABLOSU: readonly YerKurali[] = [
   { arac: mcp("rapor_hazirla"), yer: "tahta" },
 ];
 
-/** Araç çağrısının götürdüğü yer; tabloda yoksa null */
-export function aracYeri(arac: string | undefined, girdi?: unknown): EtkinlikYeri | null {
+/** Araç çağrısının götürdüğü yer (rolü verilen çalışana göre); tabloda yoksa null */
+export function aracYeri(arac: string | undefined, girdi?: unknown, rol?: string): EtkinlikYeri | null {
   if (!arac) return null;
   const g: Girdi = girdi && typeof girdi === "object" && !Array.isArray(girdi) ? (girdi as Girdi) : {};
   for (const k of YER_TABLOSU) {
     const ad = typeof k.arac === "string" ? k.arac === arac : k.arac.test(arac);
-    if (!ad || (k.girdi && !k.girdi(g))) continue;
+    if (!ad || (k.rol && k.rol !== rol) || (k.girdi && !k.girdi(g))) continue;
     const kisiAdi = k.kisi?.(g) ?? undefined;
     return { yer: k.yer, ...(kisiAdi ? { kisiAdi: kisiAdi.replace(/^@/, "") } : {}), esik: k.esik ?? 1, kisa: !!k.kisa };
   }

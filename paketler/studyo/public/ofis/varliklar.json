@@ -142,7 +142,8 @@
    "id": "k10",
    "ad": "Atkılı yazar",
    "roller": [
-    "yazar"
+    "yazar",
+    "tanitim"
    ],
    "dosya": "karakterler/k10.png",
    "en": 161,
@@ -372,7 +373,8 @@
    "ad": "İşitme cihazlı deneyim araştırmacısı",
    "roller": [
     "tasarim",
-    "arastirmaci"
+    "arastirmaci",
+    "tanitim"
    ],
    "dosya": "karakterler/k31.png",
    "en": 170,

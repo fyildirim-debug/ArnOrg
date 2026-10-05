@@ -27,6 +27,7 @@ import { brifing } from "./brifing";
 import { modeller } from "./modeller";
 import { yetenek } from "./yetenek";
 import { tarayici } from "./tarayici";
+import { tanitim } from "./tanitim";
 
 export const en: Sozluk = {
   genel,
@@ -56,4 +57,5 @@ export const en: Sozluk = {
   modeller,
   yetenek,
   tarayici,
+  tanitim,
 };

@@ -26,6 +26,7 @@ import { brifing } from "./brifing";
 import { modeller } from "./modeller";
 import { yetenek } from "./yetenek";
 import { tarayici } from "./tarayici";
+import { tanitim } from "./tanitim";
 
 export const tr = {
   genel,
@@ -55,6 +56,7 @@ export const tr = {
   modeller,
   yetenek,
   tarayici,
+  tanitim,
 };
 
 export type Sozluk = typeof tr;

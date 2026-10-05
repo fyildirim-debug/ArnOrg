@@ -1141,6 +1141,8 @@ export type SunucuOlayi =
   | { tur: "hafiza.silindi"; projeId: string; id: string }
   | { tur: "soru.guncellendi"; soru: AjanSorusu }
   | { tur: "dosya.degisti"; projeId: string; alan: string; yol: string; ajanId: string | null }
+  /** 0.0.7 · Tanıtım: kök README.md ana repoda ya da tanıtım uzmanının alanında değişti, iş birleşti ya da güncelleme istendi */
+  | { tur: "tanitim.degisti"; projeId: string }
   | { tur: "kod.dizin"; projeId: string; durum: KodDizinDurumu }
   | { tur: "anayasa.guncellendi"; projeId: string; anayasa: Anayasa }
   | { tur: "soz.guncellendi"; soz: Soz }
@@ -1911,4 +1913,42 @@ export interface WebOkumaSonucu {
   /** Kesilen gövde, okunamayan içerik gibi notlar */
   uyarilar: string[];
   onbellekten: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Tanıtım (0.0.7): projenin kök README.md'si kurulun Stüdyo'nun Tanıtım alanında okuduğu vitrin sayfasıdır. Tanıtım
+// uzmanı (rol tanitim) kendi çalışma alanında yazar, birleştirme ister ve teslimlerden sonra güncel tutar.
+// Uçlar: GET /api/projeler/:pid/tanitim, POST /api/projeler/:pid/tanitim/guncelle (docs/API.md, "Tanıtım")
+// ---------------------------------------------------------------------------
+
+/** Tanıtım alanının dosyası: proje kökündeki README.md (başka yol okunmaz) */
+export const TANITIM_DOSYASI = "README.md";
+
+/** GET /api/projeler/:pid/tanitim */
+export interface TanitimDurumu {
+  dosya: "README.md";
+  /** Ana repoda README.md var mı */
+  var: boolean;
+  /** Ana repodaki README.md (en çok 512 KB); yoksa null */
+  icerik: string | null;
+  /** Çalışma dalında README.md'ye dokunan son commit (git log -1 -- README.md); hiç commit'lenmediyse null */
+  son: { commit: string; yazar: string; zaman: Zaman; mesaj: string } | null;
+  /** Tanıtım uzmanının çalışma alanında değiştirdiği, ana repodakinden farklı README.md: henüz birleşmemiş taslak */
+  taslak: { ajanId: string; ajanAd: string; icerik: string; zaman: Zaman } | null;
+  /** README.md'nin sahibi: projedeki ilk tanıtım uzmanı; yoksa null */
+  uzman: { id: string; ad: string; durum: AjanDurumu } | null;
+  /** Kurulun en son güncelleme istediği an */
+  guncellemeIstendi: Zaman | null;
+}
+
+/** POST /api/projeler/:pid/tanitim/guncelle gövdesi: kurulun isteğe bağlı notu */
+export interface TanitimGuncelleIstegi {
+  not?: string;
+}
+
+/** Güncelleme isteği kime gitti: tanıtım uzmanına, uzman yoksa işe alması ve README.md'yi yazdırması için CEO'ya */
+export interface TanitimGuncellemeYaniti {
+  kime: "uzman" | "ceo";
+  ajanId: string;
+  ajanAd: string;
 }

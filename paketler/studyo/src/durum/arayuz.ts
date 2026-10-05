@@ -6,6 +6,7 @@ import { kanalEkrani } from "../yardimcilar/kanallar";
 export type Gorunum =
   | "projeler"
   | "karargah"
+  | "tanitim"
   | "ofis"
   | "ekip"
   | "ajan"
@@ -64,7 +65,7 @@ function yaz(anahtar: string, deger: string) {
   }
 }
 
-const GECERLI: Gorunum[] = ["projeler", "karargah", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "kod-zekasi", "tarayici", "denetim", "onaylar", "zeka", "ayarlar"];
+const GECERLI: Gorunum[] = ["projeler", "karargah", "tanitim", "ofis", "ekip", "ajan", "pano", "kanallar", "notlar", "hafiza", "kod", "kod-zekasi", "tarayici", "denetim", "onaylar", "zeka", "ayarlar"];
 const kayitli = oku(DEPO.gorunum) as Gorunum | null;
 
 export const useArayuz = create<ArayuzDurumu>()(() => ({

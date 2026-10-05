@@ -5,6 +5,7 @@ export const gezinti: typeof tr = {
   menuEtiketi: "Studio menu",
   menu: {
     karargah: "Headquarters",
+    tanitim: "Showcase",
     ofis: "Office",
     ekip: "Team",
     pano: "Board",

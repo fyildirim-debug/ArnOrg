@@ -25,6 +25,8 @@ export const ROL_YETENEKLERI: Record<string, YetenekKimligi[]> = {
   tasarim: ["web_arama", "web_okuma", "arastirma", "claude_web"],
   yazar: ["web_arama", "web_okuma", "claude_web"],
   arastirmaci: [...HEPSI],
+  // Benzer projelerin kendini nasıl tanıttığına bakar: web ve GitHub'daki README'ler
+  tanitim: ["web_arama", "web_okuma", "github_arastirma", "claude_web"],
 };
 
 /** Katalog sırasına dizilmiş, tekilleştirilmiş liste */
