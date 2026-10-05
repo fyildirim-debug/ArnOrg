@@ -38,8 +38,11 @@ export const zeka = {
     oneriBekliyor: "CEO'nun ana yasa önerisi onayınızı bekliyor",
     oneriyiIncele: "Onaylar'da incele",
     bosBaslik: "Bu projenin henüz ana yasası yok",
-    bosMetin:
-      "Ana yasa CEO ile birlikte hazırlanır: Karargâh'ta hazırlık görüşmesini başlatın ya da CEO'ya yazın. CEO maddeleri önerir, siz onaylarsınız. Onaylanan maddeler CEO dahil her ajanın talimatının başına girer ve projede kesinlikle uyulur.",
+    /** Karar yetkisine göre: tam otonomda CEO maddeleri kendisi yürürlüğe koyar */
+    bosMetin: (otonom: boolean): string =>
+      otonom
+        ? "Ana yasa CEO ile birlikte hazırlanır: Karargâh'ta hazırlık görüşmesini başlatın ya da CEO'ya yazın. CEO maddeleri yazar ve yürürlüğe koyar; değişmesini istediğiniz bir şey olursa CEO'ya söyleyin. Maddeler CEO dahil her ajanın talimatının başına girer ve projede kesinlikle uyulur."
+        : "Ana yasa CEO ile birlikte hazırlanır: Karargâh'ta hazırlık görüşmesini başlatın ya da CEO'ya yazın. CEO maddeleri önerir, siz onaylarsınız. Onaylanan maddeler CEO dahil her ajanın talimatının başına girer ve projede kesinlikle uyulur.",
     karargah: "Karargâh'ta hazırla",
     ceoyaYaz: (ceo: string) => `${yonelme(ceo)} yaz`,
     kendimYazayim: "Kendim yazayım",

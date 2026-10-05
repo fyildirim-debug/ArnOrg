@@ -3,7 +3,8 @@ import { belirtme, ilgi, yonelme } from "../../yardimcilar/bicim";
 
 export const ekip = {
   baslik: "Ekip",
-  altBaslik: "Organizasyon şeması · CEO işe alım teklif eder, siz onaylarsınız",
+  /** Karar yetkisine göre: tam otonomda CEO işe alır ve karar verir, kurul kipinde teklif eder */
+  altBaslik: (otonom: boolean): string => (otonom ? "Organizasyon şeması · CEO işe alır, kararları o verir" : "Organizasyon şeması · CEO işe alım teklif eder, siz onaylarsınız"),
   iseAl: "İşe al",
   alinamadi: "Ekip alınamadı.",
   bosBaslik: "Henüz kimse yok",
@@ -22,7 +23,7 @@ export const ekip = {
     adGerekli: "Ad gerekli.",
     adVar: "Bu adda bir çalışan zaten var.",
     alindi: (ad: string) => `${ad} işe alındı. Çalışma alanı hazırlanıyor.`,
-    tekliflerOnaylarda: "CEO'nun teklifleri Onaylar'a düşer",
+    tekliflerOnaylarda: (otonom: boolean): string => (otonom ? "CEO da işe alır; kararları gerekçesiyle Onaylar'da" : "CEO'nun teklifleri Onaylar'a düşer"),
     ad: "Ad",
     adOrnek: "Aras",
     rol: "Rol",

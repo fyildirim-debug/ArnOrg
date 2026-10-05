@@ -37,8 +37,10 @@ export const zeka: typeof tr = {
     oneriBekliyor: "The CEO's constitution proposal is waiting for your approval",
     oneriyiIncele: "Review in Approvals",
     bosBaslik: "This project has no constitution yet",
-    bosMetin:
-      "You write the constitution together with the CEO: start the kickoff in Headquarters or message the CEO. The CEO proposes the articles and you approve them. Approved articles go to the top of every agent's instructions, the CEO's included, and the whole project follows them.",
+    bosMetin: (otonom: boolean) =>
+      otonom
+        ? "You write the constitution together with the CEO: start the kickoff in Headquarters or message the CEO. The CEO writes the articles and puts them into effect; tell the CEO if you want anything changed. The articles go to the top of every agent's instructions, the CEO's included, and the whole project follows them."
+        : "You write the constitution together with the CEO: start the kickoff in Headquarters or message the CEO. The CEO proposes the articles and you approve them. Approved articles go to the top of every agent's instructions, the CEO's included, and the whole project follows them.",
     karargah: "Prepare in Headquarters",
     ceoyaYaz: (ceo: string) => `Message ${ceo}`,
     kendimYazayim: "I'll write it myself",

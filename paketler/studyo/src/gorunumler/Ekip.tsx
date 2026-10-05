@@ -5,6 +5,7 @@ import { AjanAyrinti } from "../bilesenler/ajan/AjanAyrinti";
 import { IseAlFormu } from "../bilesenler/ajan/IseAlFormu";
 import { OrgSemasi } from "../bilesenler/ajan/OrgSemasi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { useTamOtonom } from "../bilesenler/KararYetkisi";
 import { OnayOgesi } from "../bilesenler/OnayOgesi";
 import { Simge } from "../bilesenler/Simge";
 import { useSozluk } from "../dil";
@@ -16,6 +17,7 @@ const LEJANT: AjanDurumu[] = ["calisiyor", "karar_bekliyor", "bosta", "duraklati
 
 export function Ekip() {
   const s = useSozluk();
+  const otonom = useTamOtonom();
   const ajanlar = useVeri((d) => d.ajanlar);
   const yukleme = useVeri((d) => d.projeYukleme);
   const projeHatasi = useVeri((d) => d.projeHatasi);
@@ -37,7 +39,7 @@ export function Ekip() {
       <div className="baslik">
         <div className="baslik-metin">
           <h1>{s.ekip.baslik}</h1>
-          <p>{s.ekip.altBaslik}</p>
+          <p>{s.ekip.altBaslik(otonom)}</p>
         </div>
         <div className="baslik-eylem">
           <button type="button" className="dugme" onClick={() => setIseAlAcik(true)}>

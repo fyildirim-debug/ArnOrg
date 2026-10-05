@@ -21,6 +21,7 @@ import { desenHatasi } from "../../yardimcilar/arac";
 import { goreli, tarih } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Bos, HataKutu, Iskelet } from "../Durumlar";
+import { useTamOtonom } from "../KararYetkisi";
 import { OnaySor } from "../OnaySor";
 import { Simge } from "../Simge";
 
@@ -57,6 +58,7 @@ export function AnaYasa() {
 function AnaYasaBelgesi({ anayasa }: { anayasa: Anayasa }) {
   const s = useSozluk();
   const t = s.zeka.anayasa;
+  const otonom = useTamOtonom();
   const pid = useVeri((d) => d.aktifProjeId);
   const projeAd = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.ad);
   const ajanlar = useVeri((d) => d.ajanlar);
@@ -101,7 +103,7 @@ function AnaYasaBelgesi({ anayasa }: { anayasa: Anayasa }) {
             </>
           }
         >
-          {t.bosMetin}
+          {t.bosMetin(otonom)}
         </Bos>
       </section>
     );

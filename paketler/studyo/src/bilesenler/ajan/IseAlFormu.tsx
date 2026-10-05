@@ -8,6 +8,7 @@ import { modelSecenegi, modelSecenekleri, rolModeli, useModeller, useModelKatalo
 import { ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
+import { useTamOtonom } from "../KararYetkisi";
 import { HataKutu, Yukleniyor } from "../Durumlar";
 import { KarakterSecici } from "../KarakterSecici";
 import { IseAlimSkilleri } from "./IseAlimSkilleri";
@@ -15,6 +16,7 @@ import { IseAlimSkilleri } from "./IseAlimSkilleri";
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
   const s = useSozluk();
   const t = s.ekip.iseAlim;
+  const otonom = useTamOtonom();
   const dil = useDil();
   const aktifProjeId = useVeri((d) => d.aktifProjeId);
   const roller = useVeri((d) => d.roller);
@@ -92,7 +94,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
           <button type="button" className="dugme dugme-sessiz" onClick={kapat}>
             {s.genel.vazgec}
           </button>
-          <span className="alan-ipucu itele">{t.tekliflerOnaylarda}</span>
+          <span className="alan-ipucu itele">{t.tekliflerOnaylarda(otonom)}</span>
         </>
       }
     >

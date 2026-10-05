@@ -3,7 +3,7 @@ import type { ekip as tr } from "../tr/ekip";
 
 export const ekip: typeof tr = {
   baslik: "Team",
-  altBaslik: "Org chart · the CEO proposes hires, you approve them",
+  altBaslik: (otonom: boolean) => (otonom ? "Org chart · the CEO hires and makes the decisions" : "Org chart · the CEO proposes hires, you approve them"),
   iseAl: "Hire",
   alinamadi: "Couldn't load the team.",
   bosBaslik: "No one here yet",
@@ -21,7 +21,7 @@ export const ekip: typeof tr = {
     adGerekli: "Name is required.",
     adVar: "There's already an employee with this name.",
     alindi: (ad: string) => `${ad} is hired. Setting up their workspace.`,
-    tekliflerOnaylarda: "The CEO's proposals land in Approvals",
+    tekliflerOnaylarda: (otonom: boolean) => (otonom ? "The CEO hires too; its decisions and reasons are in Approvals" : "The CEO's proposals land in Approvals"),
     ad: "Name",
     adOrnek: "Alex",
     rol: "Role",
