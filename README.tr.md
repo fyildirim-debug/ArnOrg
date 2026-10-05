@@ -9,6 +9,7 @@ Claude Code ajanlarından kurulan bir yazılım şirketi. Projeyi siz açarsın�
 ## Öne çıkanlar
 
 - **Windows ve Linux'ta masaüstü uygulaması**, ayrıca sunucu modu.
+- **Açık kaynak**, [MIT lisansıyla](LICENSE). Masaüstü uygulaması kendini bu deponun sürümlerinden günceller.
 - **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 5 saatlik ve haftalık pencere kullanımı görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
 - **Yönlendirmeli ilk açılış.** Kurulum asistanı sizi adım adım götürür:
   - Claude Code kurulumu ve girişi (tarayıcıdan giriş; istenirse kodu yapıştırma);
@@ -117,13 +118,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.6                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.6.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.6 -m "ArnOrg 0.0.6"
-git push origin main v0.0.6            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.7                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.7.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.7 -m "ArnOrg 0.0.7"
+git push origin main v0.0.7            # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.6` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.7` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 İş akışı sürümü bu depoda yayınlar; kurulu uygulamalar da güncellemeyi burada arar. `WIN_IMZA` Actions değişkeni ve imza sağlayıcısının sırları tanımlıysa Windows paketleri imzalanır (SSL.com eSigner, DigiCert KeyLocker ya da başka bir araç); değilse imzasız yayınlanır.
 

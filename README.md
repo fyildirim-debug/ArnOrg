@@ -9,6 +9,7 @@ A software company built from Claude Code agents. You open a project; the CEO ag
 ## Highlights
 
 - **Desktop app for Windows and Linux**, plus a server mode.
+- **Open source** under the [MIT license](LICENSE). The desktop app updates itself from this repository's releases.
 - **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
 - **Guided first run.** A setup assistant walks you through:
   - installing and signing in to Claude Code (browser sign-in, paste the code back if asked);
@@ -117,13 +118,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.6                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.6.md and commit
-git tag -a v0.0.6 -m "ArnOrg 0.0.6"
-git push origin main v0.0.6            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.7                 # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.7.md and commit
+git tag -a v0.0.7 -m "ArnOrg 0.0.7"
+git push origin main v0.0.7            # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.6` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.7` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 The workflow publishes the release in this repository, which is also where installed apps look for updates. Windows packages are signed when the `WIN_IMZA` Actions variable and the signing provider's secrets are set (SSL.com eSigner, DigiCert KeyLocker or any other tool); otherwise they're published unsigned.
 
