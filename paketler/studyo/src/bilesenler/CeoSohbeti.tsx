@@ -5,6 +5,7 @@
 // durum özeti ister; CEO'nun brifingi bölümleriyle (BrifingMesaji) çizilir.
 import { ARNORG_GONDEREN, kanalGorunenAdi, KURUL, type Ajan, type Mesaj, type ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useMemo, useState } from "react";
+import { ekApi } from "../api/ekler";
 import { api } from "../api/uclar";
 import { sozluk, useDil, useSozluk } from "../dil";
 import { ajanaGit, bildir } from "../durum/arayuz";
@@ -18,6 +19,9 @@ import { AnmaliYazi } from "./AnmaliYazi";
 import { BrifingDugmesi } from "./BrifingDugmesi";
 import { BrifingMesaji } from "./BrifingMesaji";
 import { Bos, HataKutu, Iskelet } from "./Durumlar";
+import { EkBirakmaPerdesi, EkCipleri, EkDugmesi, ekYapistir, useEkBirakma } from "./ekler/EkYazma";
+import { MesajEkleri } from "./ekler/MesajEkleri";
+import { useEkTaslagi } from "./ekler/taslak";
 import { AjanAvatar, AjanDurum } from "./Kisi";
 import { alintiyla, gunEtiketi, gunlereAyir } from "./mesajGruplari";
 import { MesajMetni } from "./MesajMetni";
@@ -46,6 +50,9 @@ export function CeoSohbeti() {
   const [metin, setMetin] = useState("");
   const [alinti, setAlinti] = useState<string | null>(null);
   const { suruyor, calistir } = useIslem();
+  // 0.0.8: gönderilecek ekler (ekle düğmesi, sürükle-bırak, yapıştırma)
+  const taslak = useEkTaslagi(pid);
+  const birakma = useEkBirakma(taslak, !!ceo);
   const { ref, kaydirildi, yeni, alta, altaKilitle } = useAltaYapisik<HTMLOListElement>({ sayi: liste.length, degisim: yazanlar.length });
   const gruplar = useMemo(() => gunlereAyir(liste, tarih), [liste]);
   const yaziId = `ceo-yaz-${useId().replace(/[^\w-]/g, "")}`;
@@ -68,22 +75,24 @@ export function CeoSohbeti() {
     requestAnimationFrame(() => document.getElementById(yaziId)?.focus());
   }, [yanitIstegi, yaziId]);
 
+  const gonderilebilir = (!!metin.trim() || taslak.idler.length > 0) && !taslak.yukleniyor && !taslak.hataVar;
   const gonder = () => {
     const temiz = metin.trim();
-    if (!temiz || !pid || !ceo) return;
+    if (!gonderilebilir || !pid || !ceo) return;
     void calistir("gonder", async () => {
-      const m = await api.mesajGonder(pid, KANAL, alintiyla(alinti, temiz));
+      const m = await ekApi.mesajGonder(pid, KANAL, alintiyla(alinti, temiz), taslak.idler);
       altaKilitle();
       mesajUygula(m);
       setMetin("");
       setAlinti(null);
+      taslak.gonderildi();
     });
   };
 
   const ilkYukleme = !mesajlar && (yukleme === "yukleniyor" || yukleme === undefined || (projeYukleme === "yukleniyor" && !ajanlar.length));
 
   return (
-    <section className="ceo-sohbet" aria-label={c.etiket}>
+    <section className="ceo-sohbet" aria-label={c.etiket} {...birakma.ozellikler}>
       <header className="sohbet-serit">
         <h2>{c.baslik}</h2>
         {ceo ? (
@@ -148,7 +157,7 @@ export function CeoSohbeti() {
       <YaziyorGostergesi kisiler={yazanlar} className="sohbet-yaziyor" />
 
       {ceo ? (
-        <div className="sohbet-yaz">
+        <div className="sohbet-yaz" onPaste={(e) => ekYapistir(e, taslak)}>
           {alinti ? (
             <div className="sohbet-yanit">
               <span className="tek-satir">{c.yanit(alinti)}</span>
@@ -157,18 +166,30 @@ export function CeoSohbeti() {
               </button>
             </div>
           ) : null}
+          <EkCipleri taslak={taslak} />
           <div className="sohbet-yaz-satir">
+            <EkDugmesi taslak={taslak} />
             <AnmaliYazi id={yaziId} etiket={c.yazEtiketi(ceo.ad)} deger={metin} degistir={setMetin} gonder={gonder} ajanlar={ajanlar} placeholder={c.yer(ceo.ad)} />
-            <button type="button" className="dugme dugme-ana" onClick={gonder} disabled={!metin.trim() || suruyor !== null} aria-label={s.genel.gonder}>
+            <button
+              type="button"
+              className="dugme dugme-ana"
+              onClick={gonder}
+              disabled={!gonderilebilir || suruyor !== null}
+              aria-label={s.genel.gonder}
+              title={taslak.yukleniyor ? s.ekler.bekliyor : taslak.hataVar ? s.ekler.hataliVar : undefined}
+            >
               {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="gonder" boyut={13} />}
               <span className="ust-gizle-dar">{s.genel.gonder}</span>
             </button>
           </div>
-          <p className="sohbet-ipucu">{c.ipucu}</p>
+          <p className="sohbet-ipucu">
+            {c.ipucu} · {s.ekler.ipucu}
+          </p>
         </div>
       ) : mesajlar?.length ? (
         <p className="sohbet-ipucu sohbet-ceosuz">{c.ceoYokMetin}</p>
       ) : null}
+      <EkBirakmaPerdesi gorunur={birakma.uzerinde} />
     </section>
   );
 }
@@ -218,6 +239,7 @@ function SohbetMesaji({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: bo
           </p>
         ) : null}
         <div className="sohbet-metin">{brifing ? <BrifingMesaji brifing={brifing} /> : <SecenekliMesaj mesaj={mesaj} />}</div>
+        <MesajEkleri ekler={mesaj.ekler} />
       </div>
     </li>
   );

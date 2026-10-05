@@ -5,10 +5,13 @@
 // başlıktaki şeritten yönetilir (bilesenler/kanal).
 import { ARNORG_GONDEREN, kanalAciklamasi, kanalGorunenAdi, KURUL, type Ajan, type Kanal, type Mesaj } from "@arnorg/ortak";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { api } from "../api/uclar";
+import { ekApi } from "../api/ekler";
 import { useAltaYapisik, useYeniGelenler } from "../bilesenler/altaYapis";
 import { AnmaliYazi } from "../bilesenler/AnmaliYazi";
 import { Bos, HataKutu, Iskelet } from "../bilesenler/Durumlar";
+import { EkBirakmaPerdesi, EkCipleri, EkDugmesi, ekYapistir, useEkBirakma } from "../bilesenler/ekler/EkYazma";
+import { MesajEkleri } from "../bilesenler/ekler/MesajEkleri";
+import { useEkTaslagi } from "../bilesenler/ekler/taslak";
 import { KanalCekmecesi } from "../bilesenler/kanal/KanalCekmecesi";
 import { KonusmaSeridi } from "../bilesenler/kanal/KonusmaSeridi";
 import { GonderenAvatar } from "../bilesenler/Kisi";
@@ -146,6 +149,9 @@ function KanalIcerigi({ kanal, aciklama, ozel }: { kanal: string; aciklama: stri
   const yazanlar = useVeri((d) => d.yaziyorlar[kanal]) ?? KIMSE_YAZMIYOR;
   const [metin, setMetin] = useState("");
   const { suruyor, calistir } = useIslem();
+  // 0.0.8: gönderilecek ekler (ekle düğmesi, sürükle-bırak, yapıştırma)
+  const taslak = useEkTaslagi(aktifProjeId);
+  const birakma = useEkBirakma(taslak);
   const liste = mesajlar ?? BOS;
   const gruplar = useMemo(() => gunlereAyir(liste, tarih), [liste]);
   const { ref, kaydirildi, yeni, alta, altaKilitle } = useAltaYapisik<HTMLOListElement>({ sayi: liste.length, degisim: yazanlar.length });
@@ -156,19 +162,21 @@ function KanalIcerigi({ kanal, aciklama, ozel }: { kanal: string; aciklama: stri
     kanalOkundu(kanal);
   }, [kanal, liste.length]);
 
+  const gonderilebilir = (!!metin.trim() || taslak.idler.length > 0) && !taslak.yukleniyor && !taslak.hataVar;
   const gonder = () => {
     const temiz = metin.trim();
-    if (!temiz || !aktifProjeId) return;
+    if (!gonderilebilir || !aktifProjeId) return;
     void calistir("gonder", async () => {
-      const m = await api.mesajGonder(aktifProjeId, kanal, temiz);
+      const m = await ekApi.mesajGonder(aktifProjeId, kanal, temiz, taslak.idler);
       altaKilitle();
       mesajUygula(m);
       setMetin("");
+      taslak.gonderildi();
     });
   };
 
   return (
-    <section className="kanal-ic" aria-label={`#${ad}`}>
+    <section className="kanal-ic" aria-label={`#${ad}`} {...birakma.ozellikler}>
       <header className={`kanal-ust${ozel ? " kanal-ust-ozel" : ""}`}>
         <div className="kanal-kimlik">
           <b># {ad}</b>
@@ -216,7 +224,9 @@ function KanalIcerigi({ kanal, aciklama, ozel }: { kanal: string; aciklama: stri
         ) : null}
       </div>
       <YaziyorGostergesi kisiler={yazanlar} className="kanal-yaziyor-satir" />
-      <div className="kanal-yaz">
+      <div className="kanal-yaz" onPaste={(e) => ekYapistir(e, taslak)}>
+        <EkCipleri taslak={taslak} />
+        <EkDugmesi taslak={taslak} />
         <AnmaliYazi
           id={`yaz-${kanal}`}
           etiket={s.kanallar.yazEtiketi(ad)}
@@ -226,11 +236,19 @@ function KanalIcerigi({ kanal, aciklama, ozel }: { kanal: string; aciklama: stri
           ajanlar={ajanlar}
           placeholder={kanal === "genel" ? s.kanallar.yazGenel(ad) : ozel ? s.kanallar.yazKurulun(ad) : s.kanallar.yazDiger(ad)}
         />
-        <button type="button" className="dugme dugme-ana" onClick={gonder} disabled={!metin.trim() || suruyor !== null} aria-label={s.genel.gonder}>
+        <button
+          type="button"
+          className="dugme dugme-ana"
+          onClick={gonder}
+          disabled={!gonderilebilir || suruyor !== null}
+          aria-label={s.genel.gonder}
+          title={taslak.yukleniyor ? s.ekler.bekliyor : taslak.hataVar ? s.ekler.hataliVar : undefined}
+        >
           {suruyor ? <span className="doner" aria-hidden="true" /> : <Simge ad="gonder" boyut={13} />}
           <span className="ust-gizle-dar">{s.genel.gonder}</span>
         </button>
       </div>
+      <EkBirakmaPerdesi gorunur={birakma.uzerinde} />
     </section>
   );
 }
@@ -275,6 +293,7 @@ function MesajSatiri({ mesaj, devam, ajanlar, yeni }: { mesaj: Mesaj; devam: boo
           </div>
         ) : null}
         <SecenekliMesaj mesaj={mesaj} />
+        <MesajEkleri ekler={mesaj.ekler} />
       </div>
     </li>
   );

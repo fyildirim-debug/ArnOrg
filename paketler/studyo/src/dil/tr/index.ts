@@ -29,6 +29,7 @@ import { yetenek } from "./yetenek";
 import { tarayici } from "./tarayici";
 import { karar } from "./karar";
 import { secenek } from "./secenek";
+import { ekler } from "./ekler";
 import { tanitim } from "./tanitim";
 import { ortakCalisma } from "./ortakCalisma";
 import { skiller } from "./skiller";
@@ -65,6 +66,7 @@ export const tr = {
   tarayici,
   karar,
   secenek,
+  ekler,
   tanitim,
   ortakCalisma,
   skiller,

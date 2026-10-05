@@ -492,6 +492,8 @@ export interface Mesaj {
   zaman: Zaman;
   /** 0.0.8 · Seçenekli soru: seçenekler ve kurulun yanıtı (bkz. "Seçenekli sorular"); düz mesajda yok */
   secim?: MesajSecimi;
+  /** 0.0.8 · Görsel ve dosya ekleri (bkz. "Mesaj ekleri"); eksiz mesajda yok. Ekli mesajın metni boş olabilir */
+  ekler?: MesajEki[];
 }
 
 // ---------------------------------------------------------------------------
@@ -2539,3 +2541,60 @@ export function metindekiSecenekler(metin: string): string[] | null {
   const soru = sonrasi ? sonrasi.length <= SORU_KISMI_SINIRI && SORU_SONU.test(sonrasi) : SORU_ONCESI.test(duz.slice(0, aday.bas).trim());
   return soru ? maddeler : null;
 }
+
+// ---------------------------------------------------------------------------
+// Mesaj ekleri (0.0.8): kurul CEO sohbetinde ve kanallarda görsel ve dosya gönderir (ekle düğmesi, sürükle-bırak, panodan
+// yapıştırma); CEO ve öteki ajanlar dosya_paylas aracıyla görsel ve dosya paylaşır. Dosyalar projede
+// .arnorg/ekler/<id>.<uzantı> altında durur; klasörün kendi .gitignore'u vardır, ekler commit'lenmez. Tür içerikten
+// tanınır (imza baytları, UTF-8 denetimi): görsel (PNG, JPEG, GIF, WebP), PDF, metin ve kod. Görseller ajana mesajın
+// içinde görsel olarak, PDF, metin ve büyük görseller mutlak yoluyla (Read ile açılır) gider.
+// Uçlar: POST /api/projeler/:pid/ekler, GET ve DELETE /api/ekler/:id; mesaj gövdesinde ekler (docs/API.md, "Mesaj ekleri")
+// ---------------------------------------------------------------------------
+
+/** gorsel: PNG, JPEG, GIF, WebP · pdf · metin: düz metin ve kod (UTF-8; SVG ve HTML de metindir, yalnız indirilir) */
+export type MesajEkiTuru = "gorsel" | "pdf" | "metin";
+
+export interface MesajEki {
+  id: string;
+  /** Görünen ad: temizlenmiş dosya adı, uzantısıyla */
+  ad: string;
+  tur: MesajEkiTuru;
+  /** Sunulduğu içerik türü: image/png, image/jpeg, image/gif, image/webp, application/pdf ya da text/plain; charset=utf-8 */
+  mime: string;
+  /** Bayt */
+  boyut: number;
+  /** Görselin piksel boyutu (başlığından okunabildiyse) */
+  genislik?: number;
+  yukseklik?: number;
+  /** Diskteki mutlak yol: <proje>/.arnorg/ekler/<id>.<uzantı>; ajanlar Read ile açar */
+  yol: string;
+}
+
+/** POST /api/projeler/:pid/ekler gövdesi: dosya adı ve base64 içerik (data: öneki olabilir) */
+export interface EkYukleIstegi {
+  ad: string;
+  veri: string;
+}
+
+/** POST /api/projeler/:pid/kanallar/:kanal/mesajlar gövdesi; ekli mesajda metin boş olabilir */
+export interface KanalMesajiIstegi {
+  metin: string;
+  /** Kurulun yüklediği, henüz gönderilmemiş eklerin kimlikleri (en çok EK_SINIRLARI.mesajBasina) */
+  ekler?: string[];
+}
+
+/** Sınırlar: dosya başına bayt, mesaj başına ek, dosya adının en çok karakteri */
+export const EK_SINIRLARI = { boyut: 10 * 1024 * 1024, mesajBasina: 10, ad: 120 } as const;
+
+/** Görsel ekin uzantıları ve içerik türleri (SVG görsel sayılmaz: metindir) */
+export const EK_GORSEL_TURLERI = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" } as const;
+
+/** Metin ve kod eki için tanınan uzantılar: dosya bu uzantıyla saklanır (yoksa .txt); içerik yine UTF-8 metin olmalı */
+export const EK_METIN_UZANTILARI = [
+  "txt", "md", "markdown", "mdx", "log", "json", "jsonc", "json5", "ndjson", "csv", "tsv", "yaml", "yml", "toml", "ini", "cfg", "conf",
+  "xml", "html", "htm", "svg", "css", "scss", "sass", "less", "js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx", "vue", "svelte",
+  "astro", "py", "rb", "go", "rs", "java", "kt", "kts", "swift", "c", "h", "cpp", "cc", "cxx", "hpp", "hh", "cs", "fs", "php", "pl",
+  "lua", "r", "dart", "scala", "clj", "ex", "exs", "erl", "hs", "ml", "sh", "bash", "zsh", "fish", "ps1", "psm1", "bat", "cmd", "sql",
+  "graphql", "gql", "proto", "prisma", "tf", "hcl", "nix", "zig", "sol", "gradle", "properties", "diff", "patch", "tex", "rst",
+  "adoc", "org", "srt", "vtt", "ipynb", "lock", "dockerfile", "makefile",
+] as const;

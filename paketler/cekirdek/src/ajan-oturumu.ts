@@ -17,6 +17,7 @@ import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arno
 import { iki } from "./dil.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
+import { mesajIcerigi } from "./mesaj-ekleri/icerik.js";
 import { zincirdekiSonraki } from "./model-katalogu.js";
 import { AkanKuyruk, kimlik, kisalt, simdi } from "./yardimci.js";
 import { WEB_ARAC_ACIKLAMALARI } from "./web/etiketler.js";
@@ -292,7 +293,8 @@ export class AjanOturumu {
     }
     const mesaj: SDKUserMessage = {
       type: "user",
-      message: { role: "user", content: etiketli },
+      // Metinde anılan ek görselleri mesaja görsel olarak girer (0.0.8, mesaj-ekleri/icerik.ts)
+      message: { role: "user", content: mesajIcerigi(etiketli) },
       parent_tool_use_id: null,
       priority: oncelik,
       ...(kaynak.tur === "kurul" ? { origin: { kind: "human" as const } } : {}),
@@ -306,7 +308,7 @@ export class AjanOturumu {
     this.kuyruk = new AkanKuyruk<SDKUserMessage>();
     this.kuyruk.ekle({
       type: "user",
-      message: { role: "user", content: metin },
+      message: { role: "user", content: mesajIcerigi(metin) },
       parent_tool_use_id: null,
       priority: oncelik,
       ...(kaynak.tur === "kurul" ? { origin: { kind: "human" as const } } : {}),

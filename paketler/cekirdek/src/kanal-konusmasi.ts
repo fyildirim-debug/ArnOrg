@@ -9,6 +9,7 @@
 import { ARNORG_GONDEREN, KURUL, kanalGorunenAdi, type Ajan, type Kanal, type KonusmaDurumu, type Mesaj, type SunucuOlayi } from "@arnorg/ortak";
 import { dil, iki, listele } from "./dil.js";
 import { calisanMi } from "./es-zamanlilik.js";
+import { ekAdlari, ekMetni } from "./mesaj-ekleri/index.js";
 import { kisalt } from "./yardimci.js";
 
 /** İki tur arasındaki bekleme (ms): arayüzde "yazıyor" görünür, mesajlar tek seferde yığılmaz */
@@ -421,12 +422,13 @@ export class KanalKonusmasi {
     const adlar = uyelerOf(k)
       .map((id) => this.b.ajan(id)?.ad)
       .filter((x): x is string => Boolean(x));
-    const mesajlar = this.b
+    const son = this.b
       .mesajlar(iz.projeId, iz.kanal, SON_MESAJ + 5)
       .filter((m) => m.gonderenId !== ARNORG_GONDEREN)
-      .slice(-SON_MESAJ)
-      .map((m) => ({ ad: m.gonderenAd, metin: m.metin }));
-    return uyandirmaMetni({ kanal: iz.kanal, konu: k.konu ?? null, uyeler: adlar, mesajlar, kurul, suruyor: k.konusma === "suruyor" });
+      .slice(-SON_MESAJ);
+    // 0.0.8: geçmişte eklerin yalnız adları; yanıt verilen en son mesajın ekleri (yolları, görselleri) metnin sonunda
+    const mesajlar = son.map((m) => ({ ad: m.gonderenAd, metin: `${ekAdlari(m.ekler)}${m.metin}` }));
+    return uyandirmaMetni({ kanal: iz.kanal, konu: k.konu ?? null, uyeler: adlar, mesajlar, kurul, suruyor: k.konusma === "suruyor" }) + ekMetni(son.at(-1)?.ekler);
   }
 }
 

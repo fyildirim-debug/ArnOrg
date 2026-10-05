@@ -123,7 +123,7 @@ Durum geçişleri `GOREV_GECISLERI` tablosuna uyar. Bağımlılığı bitmemiş 
 |---|---|---|---|
 | GET | `/api/projeler/:pid/kanallar` | — | `Kanal[]` |
 | GET | `/api/projeler/:pid/kanallar/:kanal/mesajlar?sinir=200` | — | `Mesaj[]` (eskiden yeniye) |
-| POST | `/api/projeler/:pid/kanallar/:kanal/mesajlar` | `{metin}` | `Mesaj` |
+| POST | `/api/projeler/:pid/kanallar/:kanal/mesajlar` | `{metin, ekler?}` | `Mesaj` (ekler: bkz. "Mesaj ekleri") |
 | POST | `/api/projeler/:pid/kanallar` | `KanalOlusturIstegi` `{ad, aciklama?, uyeler}` | `Kanal`; aynı ad ya da ArnOrg'un kanal adı 409, geçersiz ad ya da üye 400 |
 | PATCH | `/api/projeler/:pid/kanallar/:kanal` | `KanalGuncelleIstegi` `{aciklama?, uyeler?}` | `Kanal` |
 | DELETE | `/api/projeler/:pid/kanallar/:kanal` | — | `{tamam}`; kanal mesajlarıyla silinir |
@@ -154,6 +154,23 @@ Ajan kurula seçenek sunarken `secenekli_sor` aracıyla sorar: `soru`, `secenekl
 - **Düz metinden ("Seçerek yanıtla"):** `#yonetim`'de ajanın düz metinle yazdığı numaralı liste ve soru da bu uçla yanıtlanır. Liste ortak'taki `metindekiSecenekler` ile bulunur (Stüdyo düğmeyi aynı işlevle ve kurul o mesajdan sonra yazmadıysa gösterir): 1'den sırayla artan 2–12 madde, `1)`, `1.` ya da `1-` biçiminde satır başlarında ya da satır içinde (ilk madde iki nokta ya da cümle sonundan, ötekiler virgül, noktalı virgül ya da bağlaçtan sonra), madde en çok 300 karakter; mesaj soruyla biter (listeden sonraki en çok 400 karakterlik kısım soru işaretiyle biter ya da liste sondaysa ondan önceki cümle sorudur). Seçenekler çoklu seçimlidir, yalnız yazıyla yanıt yoktur; seçim mesaja `kaynak: "metin"` olarak yazılır.
 - **Kurula soru (`kurula_sor`):** `genel` onayın `veri.secenekler`'i Onaylar'da ve açılır pencerede seçilir; seçilen seçenek `POST /api/onaylar/:oid` notu olur ("2) Seçenek — not"), Reddet notu gerekçe yapar.
 - **Talimat:** CEO'ya ve kurulla konuşan ajanlara seçenek sunarken `secenekli_sor` (birden çok seçilebiliyorsa `coklu: true`) kullanmaları söylenir.
+
+## Mesaj ekleri (0.0.8)
+
+Kurul CEO sohbetinde ve kanallarda görsel ve dosya gönderir (ataş düğmesi, konuşmaya sürükle-bırak, panodan görsel yapıştırma); CEO ve öteki ajanlar `dosya_paylas` aracıyla paylaşır. Dosyalar projede `<proje>/.arnorg/ekler/<id>.<uzantı>` altında durur; klasörün kendi `.gitignore`'u (`*`, `!.gitignore`) yalnız kendisini izletir, ekler commit'lere ve uzak depoya girmez. Kayıtlar `ekler` tablosunda, mesajın ekleri `Mesaj.ekler` (`MesajEki[]`) alanındadır ve ilk `mesaj.yeni` olayıyla gelir. Kodu `paketler/cekirdek/src/mesaj-ekleri/`.
+
+| Yöntem | Yol | Gövde | Yanıt |
+|---|---|---|---|
+| POST | `/api/projeler/:pid/ekler` | `EkYukleIstegi` `{ad, veri}` (base64, `data:` öneki olabilir) | `MesajEki` `{id, ad, tur, mime, boyut, genislik?, yukseklik?, yol}`; taslak olarak durur |
+| DELETE | `/api/ekler/:id` | — | `{tamam: true}`; gönderilmiş ek 409 |
+| GET | `/api/ekler/:id?indir=1` | — | Ekin baytları |
+| POST | `/api/projeler/:pid/kanallar/:kanal/mesajlar` | `KanalMesajiIstegi` `{metin, ekler?: string[]}` | `Mesaj`; ekli mesajın metni boş olabilir |
+
+- **Tür içerikten tanınır** (imza baytları ve UTF-8 denetimi; ad uzantısı belirleyici değildir): `gorsel` PNG, JPEG, GIF, WebP (piksel boyutu başlıktan okunur); `pdf`; `metin` UTF-8 metin ve kod (UTF-16 BOM'lu metin UTF-8'e çevrilir; tanınan uzantı korunur, yoksa `.txt`). Çalıştırılabilir dosyalar (ELF, PE, Mach-O, WebAssembly) ve arşivler (zip ve docx/xlsx, gzip, tar, 7z, rar …) açık bir iletiyle, öteki görsel biçimleri, ses, görüntü ve tanınmayan ikili dosyalar 415 ile reddedilir. Dosya en çok 10 MB (aşan 413, çözülmeden önce hesaplanır; bu ucun gövde sınırı ~13,4 MB), mesaj başına en çok 10 ek. Ad temizlenir: klasör kısmı, denetim ve yön karakterleri, Windows'ta geçersiz karakterler atılır, en çok 120 karakter.
+- **Sunum:** görsel kendi türüyle, PDF `application/pdf` satır içi; metin (SVG ve HTML de) yalnız `text/plain; charset=utf-8` ve `Content-Disposition: attachment` olarak. Her yanıtta `X-Content-Type-Options: nosniff`, PDF dışında `Content-Security-Policy: … sandbox`. Erişim öteki uçlar gibi anahtarla; Stüdyo baytları anahtarlı istekle alıp nesne adresiyle gösterir.
+- **Gönderim:** `ekler` gönderenin kendi yüklediği, henüz gönderilmemiş taslakların kimlikleridir (başka projenin ya da gönderilmiş ek 404/409). Bir günden eski taslaklar silinir.
+- **Ajana giden metin:** mesajın sonunda "Ekler (n):" listesi: ad, tür, piksel boyutu, bayt ve mutlak yol. Uzun kenarı en çok 2000 px ve en çok 2,5 MB görseller (mesaj başına toplam 6 MB) mesajın içine görsel bloğu olarak girer (`SDKUserMessage` içeriği; yolu ters tırnakta); büyük görsel, PDF ve metin için Read ile açması söylenir. Kurulun kanalındaki serbest konuşmada geçmiş satırlarında eklerin adları, uyandırma metninin sonunda en son mesajın ek listesi durur. `kanal_oku` eklerin adlarını ve yollarını gösterir.
+- **Ajanın paylaşımı:** `mcp__arnorg__dosya_paylas` `{yol, aciklama?, kanal?}`: dosya kopyalanır ve kanala ekli mesaj olarak yazılır. Varsayılan kanal CEO için `#yonetim`, ötekiler için yanıt yazdığı kanal, yoksa `#genel`; `#yonetim` yalnız CEO'nundur. Yalnız proje, ekibin çalışma alanları ve ArnOrg'un geçici klasöründeki (`<tmp>/arnorg`) dosyalar; bağlantı izlenip gerçek yola bakılır. Gizli dosyalar (`.env*`, anahtar ve sertifika dosyaları, `.ssh`, `.git` …) ve özel anahtar ya da bilinen erişim anahtarı taşıyan metin reddedilir. Talimat ekleri ve paylaşmayı (ör. teslimden sonra çalışan uygulamanın ekran görüntüsü) anlatır.
 
 ## Notlar
 

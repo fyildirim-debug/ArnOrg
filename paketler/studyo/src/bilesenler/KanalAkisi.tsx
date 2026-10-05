@@ -11,6 +11,7 @@ import { KANALLARDA_YOK } from "../yardimcilar/kanallar";
 import { useAltaYapisik, useYeniGelenler } from "./altaYapis";
 import { Bos, HataKutu, Iskelet } from "./Durumlar";
 import { akistaBirlestir } from "./mesajGruplari";
+import { EkOzeti } from "./ekler/MesajEkleri";
 import { DuzMetin } from "./MesajMetni";
 import { Simge } from "./Simge";
 import { YaziyorGostergesi } from "./YaziyorGostergesi";
@@ -131,6 +132,7 @@ function AkisSatiri({ mesaj, ad, kanal, yeni, baslik }: { mesaj: Mesaj; ad: stri
         </span>
         <span className="akis-metin">
           <DuzMetin metin={mesaj.metin} />
+          <EkOzeti ekler={mesaj.ekler} />
         </span>
       </button>
     </li>

@@ -19,6 +19,8 @@ import { KISISEL_SINIR } from "./zeka.js";
 import { webAraclari } from "./web/araclar.js";
 import { ortakCalismaAraclari } from "./ortak-calisma/araclar.js";
 import { adresAraclari } from "./adres-araclari.js";
+import { ekAraclari } from "./mesaj-ekleri/araclar.js";
+import { ekSatiri } from "./mesaj-ekleri/index.js";
 import { aracAcik } from "./yetenekler.js";
 import { skillAraclari } from "./skill-araclari.js";
 import { rolSkilleri, skilleriDogrula, skillListesiSemasi } from "./skiller.js";
@@ -135,7 +137,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         guvenli(() => {
           const mesajlar = sirket.depo.mesajlar(ben().projeId, kanalKimligi(a.kanal), a.sinir);
           if (!mesajlar.length) return metin(iki(`#${a.kanal} kanalında mesaj yok.`, `No messages in #${kanalGorunenAdi(kanalKimligi(a.kanal), "en")}.`));
-          return metin(mesajlar.map((m) => `[${m.zaman.slice(11, 16)}] ${m.gonderenAd}: ${m.metin}`).join("\n"));
+          return metin(mesajlar.map((m) => `[${m.zaman.slice(11, 16)}] ${m.gonderenAd}: ${m.metin}${ekSatiri(m.ekler)}`).join("\n"));
         }),
     ),
     tool(
@@ -1078,6 +1080,8 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ...skillAraclari(sirket, ajanId),
     // ---------------- proje adresleri (adres-araclari.ts) ----------------
     ...adresAraclari(sirket, ajanId),
+    // ---------------- mesaj ekleri: dosya paylaşma (mesaj-ekleri/araclar.ts) ----------------
+    ...ekAraclari(sirket, ajanId),
   ];
 
   // Kapalı yeteneklerin araçları listeden çıkar (yetenekler.ts); oturum açılırken okunur

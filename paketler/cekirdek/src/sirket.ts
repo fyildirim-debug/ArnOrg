@@ -38,6 +38,7 @@ import {
   type KullanimOzeti,
   type KurulBildirimi,
   type Mesaj,
+  type MesajEki,
   type MesajOnceligi,
   type MesajSecimi,
   type Onay,
@@ -92,6 +93,7 @@ import { skilleriDogrula } from "./skiller.js";
 import { skillEklentileri } from "./skill-eklentisi.js";
 import { WebHizmeti } from "./web/index.js";
 import { ProjeAdresleri } from "./proje-adresleri.js";
+import { ekMetni, MesajEkleri } from "./mesaj-ekleri/index.js";
 import { webDenetimGirdisi } from "./web/etiketler.js";
 
 /** Ofis karakterinin kişiliği (talimat.ts) */
@@ -569,6 +571,12 @@ export class Sirket {
   /** 0.0.8 · Projelerin çalışan adresleri: çalışanların bildirdiği ve çıktılarında yakalanan sunucular (proje-adresleri.ts) */
   get adresler(): ProjeAdresleri {
     return (this.adresKaydi ??= new ProjeAdresleri({ depo: this.depo, olaylar: this.olaylar }));
+  }
+
+  private ekKaydi: MesajEkleri | null = null;
+  /** 0.0.8 · Mesaj ekleri: kurulun yüklediği ve ajanların paylaştığı görseller ve dosyalar (mesaj-ekleri/) */
+  get ekler(): MesajEkleri {
+    return (this.ekKaydi ??= new MesajEkleri(this.depo));
   }
 
   get claudeYolu(): string | null {
@@ -2405,9 +2413,9 @@ export class Sirket {
     await this.uyandir(ajanId, metin, null);
   }
 
-  /** secim: seçenekli sorunun seçenekleri (secenek/index.ts); mesajla birlikte yazılır, ilk olayda görünür */
-  kanalMesaji(projeId: string, kanal: string, gonderen: { id: string; ad: string }, metin: string, anilanlar: string[] = [], secim?: MesajSecimi): Mesaj {
-    const mesaj = this.depo.mesajEkle({ projeId, kanal, gonderenId: gonderen.id, gonderenAd: gonderen.ad, metin, anilanlar, ...(secim ? { secim } : {}) });
+  /** secim: seçenekli sorunun seçenekleri (secenek/index.ts), ekler: görsel ve dosya ekleri (mesaj-ekleri/); mesajla birlikte yazılır, ilk olayda görünür */
+  kanalMesaji(projeId: string, kanal: string, gonderen: { id: string; ad: string }, metin: string, anilanlar: string[] = [], secim?: MesajSecimi, ekler?: MesajEki[]): Mesaj {
+    const mesaj = this.depo.mesajEkle({ projeId, kanal, gonderenId: gonderen.id, gonderenAd: gonderen.ad, metin, anilanlar, ...(secim ? { secim } : {}), ...(ekler?.length ? { ekler } : {}) });
     // Yanıtını yazan ajanın "yazıyor" göstergesi biter
     if (this.yaziyorlar.get(gonderen.id)?.kanal === kanal) this.yaziyorBitir(gonderen.id);
     this.olaylar.yayinla({ tur: "mesaj.yeni", mesaj });
@@ -2454,15 +2462,17 @@ export class Sirket {
     return sonuc;
   }
 
-  /** Kurulun ya da bir ajanın kanala yazdığı mesaj; anılanlar uyanır */
-  async mesajGonder(projeId: string, kanal: string, gonderenId: string, metin: string): Promise<Mesaj> {
+  /** Kurulun ya da bir ajanın kanala yazdığı mesaj; anılanlar uyanır. ekIdleri: gönderenin yüklediği ekler (mesaj-ekleri/) */
+  async mesajGonder(projeId: string, kanal: string, gonderenId: string, metin: string, ekIdleri: string[] = []): Promise<Mesaj> {
     const proje = this.proje(projeId);
     // İngilizce görünen adlar (#general, #ceo) kanal kimliğine çevrilir
     const temizKanal = kanalKimligi(kanal);
     if (!/^[\p{L}\p{N}_-]{1,40}$/u.test(temizKanal)) throw new ArnorgHatasi(iki("Geçersiz kanal adı.", "Invalid channel name."));
     const gonderenAjan = gonderenId === KURUL ? null : this.depo.ajan(gonderenId);
     const govde = (gonderenAjan ? emojiAyikla(metin) : metin).trim();
-    if (!govde) throw new ArnorgHatasi(iki("Mesaj boş olamaz.", "The message cannot be empty."));
+    // 0.0.8: ekli mesajın metni boş olabilir; ekler gönderenin kendi yüklediği, henüz gönderilmemiş eklerdir
+    const ekler = this.ekler.hazirla(projeId, gonderenId, ekIdleri);
+    if (!govde && !ekler.length) throw new ArnorgHatasi(iki("Mesaj boş olamaz.", "The message cannot be empty."));
     if (gonderenId !== KURUL && !gonderenAjan) throw bulunamadi("Gönderen", "Sender");
     const ceo = this.depo.ajanlar(projeId).find((a) => a.rol === "ceo");
     if (temizKanal === "yonetim" && gonderenAjan && gonderenAjan.id !== ceo?.id) {
@@ -2470,7 +2480,8 @@ export class Sirket {
     }
     const kurulAdi = iki("Yönetim kurulu", "Board");
     const anilanlar = this.anilanlariBul(projeId, govde).filter((a) => a.id !== gonderenId);
-    const mesaj = this.kanalMesaji(projeId, temizKanal, { id: gonderenId, ad: gonderenAjan?.ad ?? kurulAdi }, govde, anilanlar.map((a) => a.id));
+    const mesaj = this.kanalMesaji(projeId, temizKanal, { id: gonderenId, ad: gonderenAjan?.ad ?? kurulAdi }, govde, anilanlar.map((a) => a.id), undefined, ekler);
+    this.ekler.bagla(ekler, mesaj.id);
     let alicilar = anilanlar;
     // Kurulun #genel ve #yonetim mesajı (anma yoksa) CEO'ya gider
     if (!gonderenAjan && (temizKanal === "genel" || temizKanal === "yonetim") && !alicilar.length && ceo) alicilar = [ceo];
@@ -2485,7 +2496,8 @@ export class Sirket {
         if (temizKanal !== "genel") this.duyur(projeId, iki(`Kurul ilk talimatını verdi; ${ceo.ad} (CEO) işe başlıyor.`, `The board gave its first instructions; ${ceo.ad} (CEO) is getting started.`));
       }
     }
-    const etiket = `#${kanalGorunenAdi(temizKanal, dil())} · ${gonderenAjan?.ad ?? kurulAdi}: ${govde}`;
+    // Ekler mesajın sonunda listelenir; sınırlar içindeki görseller ajana mesajla birlikte gider (mesaj-ekleri/icerik.ts)
+    const etiket = `#${kanalGorunenAdi(temizKanal, dil())} · ${gonderenAjan?.ad ?? kurulAdi}: ${govde || iki("[yalnız ek]", "[attachments only]")}${ekMetni(ekler)}`;
     for (const a of alicilar) {
       this.yaziyorBaslat(a, temizKanal);
       const uyandi = gonderenAjan

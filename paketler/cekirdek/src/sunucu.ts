@@ -10,6 +10,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { createRequire } from "node:module";
 import {
   ARNORG_SURUMU,
+  EK_SINIRLARI,
   KOD_SEMBOL_TURU_ADLARI,
   KURUL,
   kanalAciklamasi,
@@ -30,6 +31,7 @@ import { dizinListesi, dizinOlustur } from "./dizinler.js";
 import { dosyaAgaci, dosyaOku, dosyaYaz, ara } from "./dosyalar.js";
 import { adresUclariniKur } from "./adres-uclari.js";
 import { duzeltmeUclariniKur } from "./duzeltme-uclari.js";
+import { ekUclariniKur } from "./mesaj-ekleri/uclar.js";
 import { fsUclariniKur } from "./fs-api.js";
 import * as gitIslemleri from "./git.js";
 import { olayProjesi } from "./olaylar.js";
@@ -153,7 +155,8 @@ const semalar = {
     etiket: z.string().max(40).optional(),
     durum: gorevDurumu.optional(),
   }),
-  kanalMesaji: z.object({ metin: z.string().min(1).max(20_000) }),
+  // 0.0.8: ekli mesajın metni boş olabilir (boşluk denetimi Şirket'te); ekler yüklenmiş eklerin kimlikleri
+  kanalMesaji: z.object({ metin: z.string().max(20_000), ekler: z.array(z.string().min(1).max(100)).max(EK_SINIRLARI.mesajBasina).optional() }),
   not: z.object({ yol: z.string().min(1).max(300), icerik: z.string().max(2_000_000) }),
   onay: z.object({ karar: z.enum(["onayla", "reddet"]), not: z.string().max(4000).optional() }),
   dosyaYaz: z.object({ alan: z.string(), yol: z.string().min(1), icerik: z.string() }),
@@ -463,9 +466,10 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     sirket.proje(param(i, "pid"));
     return sirket.depo.mesajlar(param(i, "pid"), param(i, "kanal"), Math.min(sayi(sorgu(i, "sinir"), 200), 1000));
   });
-  app.post("/api/projeler/:pid/kanallar/:kanal/mesajlar", async (i) =>
-    sirket.mesajGonder(param(i, "pid"), param(i, "kanal"), KURUL, govde(semalar.kanalMesaji, i).metin),
-  );
+  app.post("/api/projeler/:pid/kanallar/:kanal/mesajlar", async (i) => {
+    const g = govde(semalar.kanalMesaji, i);
+    return sirket.mesajGonder(param(i, "pid"), param(i, "kanal"), KURUL, g.metin, g.ekler);
+  });
   // Kurulun kurduğu kanallar: üyeler ve serbest konuşma (ozel-kanallar.ts)
   const kanalUyeleri = z.array(z.string().min(1).max(100)).max(50);
   app.post("/api/projeler/:pid/kanallar", async (i) => {
@@ -500,6 +504,9 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
 
   // ---------------- tarayıcı: düzeltme notları (duzeltme-uclari.ts) ----------------
   duzeltmeUclariniKur(app, sirket);
+
+  // ---------------- mesaj ekleri: yükleme, taslak silme, sunum (mesaj-ekleri/uclar.ts) ----------------
+  ekUclariniKur(app, sirket);
 
   // ---------------- tanıtım: README.md vitrini ve güncelleme isteği (tanitim-uclari.ts) ----------------
   tanitimUclariniKur(app, sirket);

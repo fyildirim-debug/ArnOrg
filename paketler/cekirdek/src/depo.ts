@@ -12,6 +12,7 @@ import type {
   KararKaynagi,
   KararVeren,
   Mesaj,
+  MesajEki,
   MesajSecimi,
   Onay,
   OnayDurumu,
@@ -36,6 +37,7 @@ import type {
 import { VARSAYILAN_KARAR_VEREN, VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { duzeltmeGocu } from "./duzeltmeler.js";
+import { ekGocu } from "./mesaj-ekleri/index.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 import { rolYetenekleri } from "./yetenekler.js";
 import { skillGocu, skillListesi } from "./skiller.js";
@@ -345,6 +347,8 @@ export class Depo {
     duzeltmeGocu(this.db);
     // 0.0.8: çalışan başına skiller (skiller.ts); NULL rolün varsayılanları
     skillGocu(this.db);
+    // 0.0.8: mesaj ekleri (tablo ve mesajlar.ekler sütunu: mesaj-ekleri/index.ts)
+    ekGocu(this.db);
   }
 
   kapat(): void {
@@ -709,14 +713,16 @@ export class Depo {
     const mesaj: Mesaj = { id: kimlik(), zaman: simdi(), ...m };
     this.kanalEkle(m.projeId, m.kanal);
     this.db
-      .prepare("INSERT INTO mesajlar (id, proje_id, kanal, gonderen_id, gonderen_ad, metin, anilanlar, zaman, secim) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(mesaj.id, mesaj.projeId, mesaj.kanal, mesaj.gonderenId, mesaj.gonderenAd, mesaj.metin, JSON.stringify(mesaj.anilanlar), mesaj.zaman, mesaj.secim ? JSON.stringify(mesaj.secim) : null);
+      .prepare("INSERT INTO mesajlar (id, proje_id, kanal, gonderen_id, gonderen_ad, metin, anilanlar, zaman, secim, ekler) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(mesaj.id, mesaj.projeId, mesaj.kanal, mesaj.gonderenId, mesaj.gonderenAd, mesaj.metin, JSON.stringify(mesaj.anilanlar), mesaj.zaman, mesaj.secim ? JSON.stringify(mesaj.secim) : null, mesaj.ekler?.length ? JSON.stringify(mesaj.ekler) : null);
     return mesaj;
   }
 
   private mesajSatiri(s: Satir): Mesaj {
     // 0.0.8: seçenekli sorunun seçenekleri ve yanıtı yalnız seçenekli mesajda alan olarak gelir
     const secim = jsonOku<MesajSecimi | null>(s.secim as string | null, null);
+    // 0.0.8: görsel ve dosya ekleri yalnız ekli mesajda alan olarak gelir
+    const ekler = jsonOku<MesajEki[] | null>(s.ekler as string | null, null);
     return {
       id: String(s.id),
       projeId: String(s.proje_id),
@@ -727,6 +733,7 @@ export class Depo {
       anilanlar: jsonOku<string[]>(s.anilanlar as string, []),
       zaman: String(s.zaman),
       ...(secim ? { secim } : {}),
+      ...(ekler?.length ? { ekler } : {}),
     };
   }
 
