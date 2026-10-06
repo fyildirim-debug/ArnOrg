@@ -115,7 +115,8 @@ export const api = {
   /** Mesaiyi durdur: projenin oturumları kapanır, sıradaki işler düşer, açılışta kimse uyanmaz */
   mesaiyiDurdur: (pid: string) => istek<Tamam>(`${proje(pid)}/durdur`, { method: "POST" }),
   ajanMod: (aid: string, mod: IzinModu) => istek<Ajan>(`${ajan(aid)}/mod`, { method: "POST", govde: { mod } }),
-  ajanModel: (aid: string, model: ModelAdi) => istek<Ajan>(`${ajan(aid)}/model`, { method: "POST", govde: { model } }),
+  /** Modeli sabitler; null projenin kullanım seviyesine bağlar (0.0.10) */
+  ajanModel: (aid: string, model: ModelAdi | null) => istek<Ajan>(`${ajan(aid)}/model`, { method: "POST", govde: { model } }),
   ajanAkis: (aid: string, sinir = 300) => istek<AkisOgesi[]>(`${ajan(aid)}/akis${sorgu({ sinir })}`),
 
   // Görevler

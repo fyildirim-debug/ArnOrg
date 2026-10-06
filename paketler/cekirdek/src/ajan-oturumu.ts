@@ -13,7 +13,7 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Ajan, AjanDurumu, AkisOgesi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
+import type { Ajan, AjanDurumu, AkisOgesi, DusunmeDerinligi, IzinModu, MesajOnceligi } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { ajanOrtami, rootMu } from "./ortam.js";
 import { kimlikSorunuHatadan, kimlikSorunuMetinden, type KimlikSorunu } from "./kimlik-hatasi.js";
@@ -77,6 +77,8 @@ export interface OturumBaglami {
   yasakAraclar(): string[];
   /** Oturuma yüklenecek yerel eklentiler: çalışana atanan skiller (skill-eklentisi.ts); oturum açılırken bir kez okunur */
   eklentiler?(): SdkPluginConfig[];
+  /** 0.0.10 · Düşünme derinliği (Claude Code effort): projenin geçerli kullanım seviyesinden; oturum açılırken okunur */
+  derinlik?(): DusunmeDerinligi | null;
   onaySuresiSn(): number;
   /** PreToolUse denetim kapısı */
   kapi(arac: string, girdi: Record<string, unknown>, aracKimligi: string | undefined, altAjan: string | undefined): Promise<HookJSONOutput>;
@@ -139,6 +141,11 @@ function aracAciklamasi(arac: string, girdi: Record<string, unknown>): string {
   if (f) return f(girdi);
   if (arac.startsWith("mcp__arnorg__")) return `ArnOrg: ${arac.slice(13)}`;
   return arac;
+}
+
+/** Düşünme derinliğinin görünen adı (geçerli dilde) */
+function derinlikAdi(d: DusunmeDerinligi): string {
+  return d === "high" ? iki("derin", "deep") : d === "medium" ? iki("orta", "medium") : iki("kısa", "short");
 }
 
 function kaynakEtiketi(k: MesajKaynagi): string {
@@ -235,12 +242,15 @@ export class AjanOturumu {
     // Zorlanan model (ARNORG_MODEL_ZORLA) de birincil sayılır; yedeği ondan seçilir
     const model = process.env.ARNORG_MODEL_ZORLA || ajan.model;
     const yedek = yedekModel(model);
+    // Düşünme derinliği seviyeden gelir; desteklemeyen modelde Claude Code yok sayar
+    const derinlik = this.b.derinlik?.() ?? null;
     return query({
       prompt: this.kuyruk!,
       options: {
         cwd: this.b.cwd,
         model,
         ...(yedek && yedek !== model ? { fallbackModel: yedek } : {}),
+        ...(derinlik ? { effort: derinlik } : {}),
         // Tek turda dönüp duran ajan pencereyi tüketmesin; sayaç her kullanıcı turunda sıfırlanır
         maxTurns: AJAN_TUR_TAVANI,
         permissionMode: izinModu,
@@ -327,11 +337,12 @@ export class AjanOturumu {
     void this.dongu(this.sorgu);
   }
 
-  async kes(): Promise<void> {
+  /** Süren turu keser; aciklama verilmezse akışa "Yönetim kurulu turu kesti." düşer */
+  async kes(aciklama?: string): Promise<void> {
     if (!this.sorgu) return;
     try {
       await this.sorgu.interrupt();
-      this.akisYaz({ tur: "sistem", metin: iki("Yönetim kurulu turu kesti.", "The board interrupted the turn.") });
+      this.akisYaz({ tur: "sistem", metin: aciklama ?? iki("Yönetim kurulu turu kesti.", "The board interrupted the turn.") });
     } catch (h) {
       this.akisYaz({ tur: "sistem", metin: iki(`Kesme başarısız: ${(h as Error).message}`, `Interrupt failed: ${(h as Error).message}`), hata: true });
     }
@@ -347,6 +358,13 @@ export class AjanOturumu {
     if (!this.sorgu) return;
     await this.sorgu.setModel(model);
     this.akisYaz({ tur: "sistem", metin: `Model: ${model}` });
+  }
+
+  /** 0.0.10 · Kullanım seviyesi değişti: düşünme derinliği açık oturumda hemen değişir (sonraki yanıtlardan itibaren) */
+  async derinlikDegistir(derinlik: DusunmeDerinligi): Promise<void> {
+    if (!this.sorgu) return;
+    await this.sorgu.applyFlagSettings({ effortLevel: derinlik });
+    this.akisYaz({ tur: "sistem", metin: `${iki("Düşünme derinliği", "Thinking depth")}: ${derinlikAdi(derinlik)}` });
   }
 
   /** Oturumu kapatır; oturum kimliği saklanır, sonra sürdürülebilir */

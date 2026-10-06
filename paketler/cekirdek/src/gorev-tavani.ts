@@ -1,18 +1,19 @@
 // Görev token tavanı: ajanın işlediği token o anki görevine (ajan.gorevId) yazılır ve görev başına tutulur. Görevin
-// toplamı tavanı (kurulun yükselttiği görev tavanı, yoksa Ayarlar.gorevTokenTavani) aşınca ajanın turu kesilir, ajan
+// toplamı tavanı (kurulun yükselttiği görev tavanı, yoksa Ayarlar.gorevTokenTavani × projenin geçerli kullanım
+// seviyesinin katsayısı: Zeki 2, Normal 1, Tasarruflu 0,5) aşınca ajanın turu kesilir, ajan
 // "duraklatildi" olur ve `genel` onay (alt tür gorev_token_tavani) açılır; kurul karar verir, tam otonom kipte çalışanınkine
 // CEO (CEO'nun kendi tavanı yine kurula gider). Onaylanırsa görevin tavanı bir kat artar
 // ve ajan kaldığı yerden sürer; reddedilirse ajan durur, yöneticisine görevi bölmesi ya da yeniden planlaması için sistem
 // mesajı gider. Karar beklerken ajana gelen mesajlar tutulur (kurul ve soru yanıtı geçer) ve iş araçları kapalıdır.
 // Tek turda tur sınırına (maxTurns) ulaşan ajanın yöneticisine de buradan haber verilir.
-import { GOREV_TAVANI_ALT_TURU, type Ajan, type AjanDurumu, type GorevTavaniOnayVerisi, type Onay, type SunucuOlayi } from "@arnorg/ortak";
-import type { Depo } from "./depo.js";
+import { GOREV_TAVANI_ALT_TURU, type Ajan, type AjanDurumu, type GorevHarcamasi, type GorevTavaniOnayVerisi, type Onay, type SunucuOlayi } from "@arnorg/ortak";
+import { GOREV_TOKEN_ONEKI, type Depo } from "./depo.js";
 import { iki } from "./dil.js";
 import { kararOznesi } from "./karar-yetkisi.js";
 import { ilgi, kisalt } from "./yardimci.js";
 
-/** Anahtar-değer kaydı: görev başına işlenen token ve yükseltilmiş tavan */
-const KAYIT_ONEKI = "gorev-token:";
+/** Anahtar-değer kaydı: görev başına işlenen token ve yükseltilmiş tavan (görev satırı da okur: depo.ts) */
+const KAYIT_ONEKI = GOREV_TOKEN_ONEKI;
 
 export interface GorevTokenKaydi {
   token: number;
@@ -55,9 +56,9 @@ export function yoneticisi(a: Ajan, ekip: Ajan[]): Ajan | null {
 }
 
 export interface GorevTavaniBaglami {
-  depo: Pick<Depo, "deger" | "degerYaz" | "ajan" | "ajanlar" | "ajanGuncelle" | "gorev" | "projeler" | "onaylar">;
-  /** Ayardaki tavan; 0 kapalı */
-  temelTavan(): number;
+  depo: Pick<Depo, "deger" | "degerYaz" | "ajan" | "ajanlar" | "ajanGuncelle" | "gorev" | "gorevler" | "projeler" | "onaylar">;
+  /** Projenin temel tavanı: ayardaki tavan × geçerli seviyenin katsayısı; 0 kapalı */
+  temelTavan(projeId: string): number;
   /** Süren turu keser, oturumu kapatır ve ajanı açıklamayla duraklatır (oturum yoksa yalnız durum yazılır) */
   duraklat(ajanId: string, aciklama: string): void;
   /** Ajanın durumunu yazar ve yayınlar */
@@ -114,7 +115,35 @@ export class GorevTavani {
 
   /** Görevin geçerli tavanı (0 kapalı) */
   tavan(gorevId: string): number {
-    return gecerliTavan(this.kayit(gorevId), this.b.temelTavan());
+    return gecerliTavan(this.kayit(gorevId), this.temel(gorevId));
+  }
+
+  /** Görevin projesinin temel tavanı */
+  private temel(gorevId: string): number {
+    const pid = this.b.depo.gorev(gorevId)?.projeId;
+    return pid ? this.b.temelTavan(pid) : 0;
+  }
+
+  /** En çok token işleyen görevler, çoktan aza (token işlememiş görev girmez) */
+  harcamalar(projeId: string, sinir = 10): GorevHarcamasi[] {
+    const ekip = new Map(this.b.depo.ajanlar(projeId).map((a) => [a.id, a.ad]));
+    const temel = this.b.temelTavan(projeId);
+    return this.b.depo
+      .gorevler(projeId)
+      .map((g) => ({ g, k: this.kayit(g.id) }))
+      .filter((x) => x.k.token > 0)
+      .sort((a, b) => b.k.token - a.k.token || a.g.no - b.g.no)
+      .slice(0, Math.max(1, sinir))
+      .map(({ g, k }) => ({
+        gorevId: g.id,
+        kod: g.kod,
+        baslik: g.baslik,
+        durum: g.durum,
+        atananId: g.atananId,
+        atananAd: g.atananId ? (ekip.get(g.atananId) ?? null) : null,
+        token: k.token,
+        tavan: gecerliTavan(k, temel),
+      }));
   }
 
   /** Kurul kararı bekliyorsa ajanın iş açıklaması; beklemiyorsa null */
@@ -122,16 +151,20 @@ export class GorevTavani {
     return this.durdurulanlar.has(ajanId) ? DURAKLATMA_ACIKLAMASI() : null;
   }
 
-  /** Tur sonucu: işlenen token ajanın görevine yazılır; tavan aşıldıysa ajan durur ve kurula sorulur */
-  tokenEkle(ajanId: string, token: number): void {
-    if (!(token > 0)) return;
+  /**
+   * Tur sonucu: işlenen token ajanın görevine yazılır; tavan aşıldıysa ajan durur ve kurula sorulur. Token yazılan
+   * görev ve yeni toplamı döner (kullanım olayıyla Stüdyo'ya gider); sayılan görev yoksa null.
+   */
+  tokenEkle(ajanId: string, token: number): { id: string; token: number } | null {
+    if (!(token > 0)) return null;
     const a = this.b.depo.ajan(ajanId);
     const gorevId = a ? this.sayilanGorev(a) : null;
-    if (!a || !gorevId) return;
+    if (!a || !gorevId) return null;
     const k = this.kayit(gorevId);
     k.token += Math.round(token);
     this.b.depo.degerYaz(KAYIT_ONEKI + gorevId, JSON.stringify(k));
     this.denetle(a, gorevId, k.token);
+    return { id: gorevId, token: k.token };
   }
 
   /** Tur sürerken: görevin toplamı ve bu turun tahmini tavanı aşıyorsa tur sonucunu beklemeden kesilir */
@@ -223,7 +256,7 @@ export class GorevTavani {
   private durdur(a: Ajan, gorevId: string, toplam: number, tavan: number): void {
     const g = this.b.depo.gorev(gorevId);
     if (!g) return;
-    const yeniTavan = yukseltilmisTavan(tavan, this.b.temelTavan(), toplam);
+    const yeniTavan = yukseltilmisTavan(tavan, this.b.temelTavan(a.projeId), toplam);
     // Önce kayıt: duraklatma sırasındaki durum değişiklikleri ajanı duraklatılmış tutar, gelen mesajlar tutulur
     const d: Duraklatma = { gorevId, onayId: "", tutulan: [] };
     this.durdurulanlar.set(a.id, d);
@@ -258,7 +291,7 @@ export class GorevTavani {
     const ozne = kararOznesi(onay.kararKaynagi, onay.kararVerenAd);
     if (onay.durum === "onaylandi") {
       const k = this.kayit(v.gorevId);
-      const temel = this.b.temelTavan();
+      const temel = this.temel(v.gorevId);
       const yeni = yukseltilmisTavan(Math.max(gecerliTavan(k, temel), v.tavan), temel, k.token);
       k.tavan = yeni;
       this.b.depo.degerYaz(KAYIT_ONEKI + v.gorevId, JSON.stringify(k));

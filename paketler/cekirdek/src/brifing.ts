@@ -459,6 +459,8 @@ export interface BrifingBaglami {
   uyandir(ceo: Ajan, metin: string): Promise<void>;
   /** Günlük brifing yalnız klasörü erişilebilir projelerde (verilmezse hepsi) */
   erisilebilir?(p: Proje): boolean;
+  /** 0.0.10 · Projenin token bütçesi doldu: günlük brifing bütçe açılınca (aynı gün içinde) verilir */
+  butceDolu?(projeId: string): boolean;
   /** Günlük brifing istenemedi (CEO uyandırılamadı) */
   hata?(p: Proje, h: Error): void;
   /** Şimdiki an (testlerde verilir) */
@@ -586,6 +588,7 @@ export class Brifing {
       const simdi = this.simdi();
       for (const p of this.b.depo.projeler()) {
         if (this.b.erisilebilir && !this.b.erisilebilir(p)) continue;
+        if (this.b.butceDolu?.(p.id)) continue;
         const ceoVar = this.b.depo.ajanlar(p.id).some((a) => a.rol === "ceo");
         const karar = gunlukKarar({
           ayar,

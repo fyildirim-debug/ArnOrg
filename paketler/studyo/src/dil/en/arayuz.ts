@@ -1,5 +1,5 @@
-// 0.0.8 interface: project addresses in the Browser (Links since 0.0.9) and the web-mode frame, the open project's
-// total tokens in the top bar, character suggestions that fit the name in the hire form
+// 0.0.8 interface: project addresses in the Browser (Links since 0.0.9) and the web-mode frame, character suggestions
+// that fit the name in the hire form (the top bar's total tokens moved into the budget indicator in 0.0.10: butce.ts)
 export const arayuz = {
   adresler: {
     baslik: "Links",
@@ -39,11 +39,6 @@ export const arayuz = {
     notEkle: "Add a note",
     kapat: "Close the frame",
     ipucu: "If the page doesn't load, the server may refuse to be shown in a frame; open it in a new tab.",
-  },
-  toplam: {
-    etiket: "Total",
-    birim: "tokens",
-    baslik: (toplam: string, bugun: string) => `Tokens spent by all employees on the open project: ${toplam}. Today: ${bugun}. Details in Headquarters.`,
   },
   karakter: {
     digerleri: "Other characters",

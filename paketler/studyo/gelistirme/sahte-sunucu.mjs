@@ -32,6 +32,7 @@ import { kur as surum008Arayuz } from "./surum-008-arayuz.mjs";
 import { kur as surum008Secenek } from "./surum-008-secenek.mjs";
 import { kur as surum008Canli } from "./surum-008-canli.mjs";
 import { kur as surum008Ekler } from "./surum-008-ekler.mjs";
+import { kur as surum010Butce } from "./surum-010-butce.mjs";
 import { ana, H, kanalAdi, katmanlar, listeSurumleri, MODELLER, V } from "./tohum.mjs";
 
 const PORT = Number(process.env.PORT ?? 47820);
@@ -100,8 +101,13 @@ function projeOzeti(p) {
     gorevSayilari,
     bekleyenOnay: db.onaylar.filter((o) => o.projeId === p.id && o.durum === "bekliyor" && o.muhatap !== "ceo").length,
     bugunToken: ajanlar.reduce((t, a) => t + a.bugunToken, 0),
+    // 0.0.10: bütçe, seviye, toplam token ve bütçe durumu (surum-010-butce.mjs)
+    ...(butceEki?.ozet(p) ?? {}),
   };
 }
+
+/** 0.0.10 bütçe modülü; kurulunca proje özetine alanlarını katar */
+let butceEki = null;
 
 // Abonelik: Claude Max, 5 saatlik pencere %42, haftalık %18
 const hesapDurumu = {
@@ -2180,6 +2186,8 @@ surum008Secenek({ rota, db, yay, mesajEkle, akisEkle, ajanBul, projeAjanlari, pr
 surum008Canli({ rota, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), akisEkle, ajanBul, simdi, yeniKimlik, projeYay });
 // 0.0.8: mesaj ekleri: kurulun görsel ve dosyaları, Ada'nın paylaştığı ekran görüntüsü (surum-008-ekler.mjs)
 surum008Ekler({ rota, rotalar, db, yay, ajanBul, projeAjanlari, projeGerekli, proje, Hata, simdi, yeniKimlik });
+// 0.0.10: kullanım seviyesi ve proje token bütçesi, görev tokenları, en pahalı görevler (surum-010-butce.mjs)
+butceEki = surum010Butce({ rota, rotalar, db, yay, yayDinle: (d) => yayDinleyicileri.push(d), projeGerekli, projeAjanlari, mesajEkle, projeYay, Hata });
 
 const sunucu = http.createServer(async (istek, yanit) => {
   const url = new URL(istek.url ?? "/", `http://${istek.headers.host ?? "localhost"}`);

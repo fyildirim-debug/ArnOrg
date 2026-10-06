@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api/uclar";
 import { sozluk, useDil, useSozluk } from "../../dil";
 import { bildir } from "../../durum/arayuz";
-import { modelSecenegi, modelSecenekleri, rolModeli, useModeller, useModelKatalogu } from "../../durum/modeller";
+import { modelAdi, modelSecenegi, modelSecenekleri, useModelKatalogu } from "../../durum/modeller";
 import { ajanUygula, ceoBul, rolleriYukle, useVeri } from "../../durum/veri";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
@@ -12,6 +12,7 @@ import { useTamOtonom } from "../KararYetkisi";
 import { HataKutu, Yukleniyor } from "../Durumlar";
 import { KarakterSecici } from "../KarakterSecici";
 import { IseAlimSkilleri } from "./IseAlimSkilleri";
+import { seviyeModeli } from "../butce/butceYardimcilari";
 
 export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: string) => void }) {
   const s = useSozluk();
@@ -24,6 +25,7 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [rollerHata, setRollerHata] = useState<string | null>(null);
   const [ad, setAd] = useState("");
   const [rol, setRol] = useState("");
+  // Boş: model projenin kullanım seviyesine göre (0.0.10); somut model seçilirse sabit kalır
   const [model, setModel] = useState("");
   const [yoneticiId, setYoneticiId] = useState(() => ceoBul(useVeri.getState().ajanlar)?.id ?? "");
   const [talimat, setTalimat] = useState("");
@@ -32,24 +34,21 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
   const [skiller, setSkiller] = useState<string[] | null>(null);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
-  // Model seçenekleri katalogdan; rolün modeli katalogda yoksa zincirde bir sonraki önerilir (CEO: Fable yoksa Opus)
+  // Model seçenekleri katalogdan; ilki "Seviyeye göre": rolün kademesinin projenin geçerli seviyesindeki modeli
   const katalog = useModelKatalogu();
   const modeller = modelSecenekleri(katalog);
+  const seviye = useVeri((d) => d.projeler.find((p) => p.id === d.aktifProjeId)?.butceDurumu?.etkinSeviye ?? "normal");
 
   useEffect(() => {
     rolleriYukle()
       .then((r) => {
         const ilk = r.find((x) => !x.yonetici) ?? r[0];
-        if (ilk) {
-          setRol((o) => o || ilk.kimlik);
-          setModel((o) => o || rolModeli(ilk.varsayilanModel, useModeller.getState().katalog));
-        }
+        if (ilk) setRol((o) => o || ilk.kimlik);
       })
       .catch((e: unknown) => setRollerHata(e instanceof Error ? e.message : sozluk().ekip.iseAlim.rollerAlinamadi));
   }, []);
 
   const secilenRol = roller.find((r) => r.kimlik === rol);
-  const rolunModeli = secilenRol ? rolModeli(secilenRol.varsayilanModel, katalog) : null;
   const adHata = !ad.trim()
     ? t.adGerekli
     : ajanlar.some((a) => a.ad.toLocaleLowerCase("tr-TR") === ad.trim().toLocaleLowerCase("tr-TR"))
@@ -123,8 +122,6 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
             onChange={(e) => {
               setRol(e.target.value);
               setSkiller(null);
-              const r = roller.find((x) => x.kimlik === e.target.value);
-              if (r) setModel(rolModeli(r.varsayilanModel, katalog));
             }}
           >
             {roller.map((r) => (
@@ -138,10 +135,10 @@ export function IseAlFormu({ kapat, alindi }: { kapat: () => void; alindi: (id: 
         <div className="alan">
           <label htmlFor="ise-model">{t.model}</label>
           <select id="ise-model" className="secim" value={model} onChange={(e) => setModel(e.target.value)}>
+            <option value="">{s.butce.model.seviyeyeGore(modelAdi(seviyeModeli(seviye, rol || "backend", katalog), katalog))}</option>
             {modeller.map((m) => (
               <option key={m.deger} value={m.deger}>
                 {modelSecenegi(m, s)}
-                {rolunModeli === m.deger ? t.rolOnerisi : ""}
               </option>
             ))}
             {model && !modeller.some((m) => m.deger === model) ? <option value={model}>{model}</option> : null}

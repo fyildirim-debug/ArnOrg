@@ -250,7 +250,10 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
     ),
     tool(
       "ekip_listele",
-      iki("Ekibi, rollerini, durumlarını ve bugünkü kullanımlarını listeler. Rol kataloğunu da gösterir.", "Lists the team with their roles, status and today's usage. Also shows the role catalog."),
+      iki(
+        "Ekibi, rollerini, modellerini, durumlarını ve bugünkü kullanımlarını listeler; projenin token bütçesini ve kullanım seviyesini de gösterir. Rol kataloğunu da gösterir.",
+        "Lists the team with their roles, models, status and today's usage, plus the project's token budget and usage level. Also shows the role catalog.",
+      ),
       {},
       () =>
         guvenli(() => {
@@ -258,13 +261,16 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
             .ajanlar(ben().projeId)
             .map((x) => {
               const kullanim = iki(`bugün ${tokenMetni(x.bugunToken)} token`, `today ${tokenMetni(x.bugunToken)} tokens`);
-              return `${x.ad} · ${rolAdiDilde(x)} (${x.rol}) · ${x.model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
+              const model = x.modelSabit ? `${x.model} (${iki("sabit", "fixed")})` : x.model;
+              return `${x.ad} · ${rolAdiDilde(x)} (${x.rol}) · ${model} · ${x.durum}${x.isAciklamasi ? ` · ${x.isAciklamasi}` : ""} · ${kullanim}`;
             })
             .join("\n");
+          // 0.0.10: bütçe ve kullanım seviyesi
+          const butce = sirket.butceOzeti(ben().projeId);
           return metin(
             iki(
-              `Ekip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim.`,
-              `Team:\n${ekip}\n\nRoles you can hire: every role except ceo — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim.`,
+              `Proje: ${butce}\n\nEkip:\n${ekip}\n\nİşe alınabilecek roller: ceo dışındaki roller — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim. Modeli boş bırakılan çalışan projenin kullanım seviyesine göre çalışır.`,
+              `Project: ${butce}\n\nTeam:\n${ekip}\n\nRoles you can hire: every role except ceo — cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim. An employee hired without a model follows the project's usage level.`,
             ),
           );
         }),
@@ -279,7 +285,15 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
         ad: z.string().min(2).max(40).describe(iki("Türkçe bir ad, ör. Deniz", "A first name, e.g. Ada")),
         rol: z.string().describe(iki("Rol kimliği: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim", "Role id: cto, backend, frontend, fullstack, test, inceleme, guvenlik, devops, tasarim, yazar, arastirmaci, tanitim")),
         gerekce: z.string().min(10),
-        model: z.string().optional().describe(iki("fable, opus, sonnet ya da haiku; boşsa rolün varsayılanı", "fable, opus, sonnet or haiku; the role's default if empty")),
+        model: z
+          .string()
+          .optional()
+          .describe(
+            iki(
+              "Boş bırak (önerilir): model projenin kullanım seviyesine göre seçilir ve seviyeyle değişir. Yalnız işin özel bir modele gerçekten ihtiyacı varsa fable, opus, sonnet ya da haiku yaz; o zaman model sabit kalır.",
+              "Leave empty (recommended): the model follows the project's usage level and changes with it. Only if the work truly needs a particular model, write fable, opus, sonnet or haiku; the model then stays fixed.",
+            ),
+          ),
         yonetici: z.string().optional().describe(iki("Bağlanacağı çalışanın adı", "Name of the employee they will report to")),
         talimat_eki: z.string().optional(),
         skiller: skillListesiSemasi.optional().describe(iki("İşe uyan skill kimlikleri (skilleri_listele); boşsa rolün varsayılanları", "Skill ids that fit the work (skilleri_listele); the role's defaults if empty")),
@@ -306,7 +320,7 @@ export function arnorgAracListesi(sirket: Sirket, ajanId: string) {
               ben(),
               "ise_alim",
               iki(`İşe alım: ${a.ad} · ${rolAdi}`, `Hiring: ${a.ad} · ${rolAdi}`),
-              `${a.gerekce}\n\nModel: ${a.model ?? sirket.modelKatalogu.rolModeli(rol.varsayilanModel)} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd} · ${iki("Skiller", "Skills")}: ${(veri.skiller ?? rolSkilleri(rol.kimlik)).join(", ") || "-"}`,
+              `${a.gerekce}\n\nModel: ${a.model ? `${a.model} (${iki("sabit", "fixed")})` : `${sirket.seviyeModeli(ben().projeId, rol.kimlik)} (${iki("seviyeye göre", "follows the level")})`} · ${iki("Yönetici", "Manager")}: ${veri.yoneticiAd} · ${iki("Skiller", "Skills")}: ${(veri.skiller ?? rolSkilleri(rol.kimlik)).join(", ") || "-"}`,
               veri,
             ),
           );

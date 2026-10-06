@@ -143,10 +143,12 @@ export function ortakCalismaAraclari(sirket: Sirket, ajanId: string) {
               return `- ${x.ad} (${rolAdiDilde(x)}) · ${x.durum}${suren.length ? ` · ${suren.join("; ")}` : ` · ${iki("süren görev yok", "no task in progress")}`}${dosyalar.length ? ` · ${iki("dosyalar", "files")}: ${dosyalar.slice(0, 8).join(", ")}${dosyalar.length > 8 ? " …" : ""}` : ""}`;
             });
           const sinir = t.ustSinir > 0 ? String(t.ustSinir) : iki("yok", "none");
+          // 0.0.10: kullanım seviyesinin sınırı (Normal 6, Tasarruflu 3)
+          const seviye = t.seviyeSiniri ? iki(`; kullanım seviyesi en çok ${t.seviyeSiniri}`, `; the usage level allows at most ${t.seviyeSiniri}`) : "";
           const tempo =
             t.belirleyen === "ceo"
-              ? iki(`Ekip temposu: ${t.gecerli || "sınırsız"} (${t.secim ? "CEO belirledi" : "CEO henüz seçmedi; kurulun üst sınırı"}; üst sınır ${sinir}) · çalışan ${t.calisan} · sırada ${t.sirada}`, `Team pace: ${t.gecerli || "unlimited"} (${t.secim ? "set by the CEO" : "not set by the CEO yet; the board's ceiling"}; ceiling ${sinir}) · working ${t.calisan} · queued ${t.sirada}`)
-              : iki(`Aynı anda en çok ${t.gecerli || "sınırsız"} çalışan (kurulun ayarı) · çalışan ${t.calisan} · sırada ${t.sirada}`, `At most ${t.gecerli || "unlimited"} employees at once (the board's setting) · working ${t.calisan} · queued ${t.sirada}`);
+              ? iki(`Ekip temposu: ${t.gecerli || "sınırsız"} (${t.secim ? "CEO belirledi" : "CEO henüz seçmedi; kurulun üst sınırı"}; üst sınır ${sinir}${seviye}) · çalışan ${t.calisan} · sırada ${t.sirada}`, `Team pace: ${t.gecerli || "unlimited"} (${t.secim ? "set by the CEO" : "not set by the CEO yet; the board's ceiling"}; ceiling ${sinir}${seviye}) · working ${t.calisan} · queued ${t.sirada}`)
+              : iki(`Aynı anda en çok ${t.gecerli || "sınırsız"} çalışan (kurulun ayarı${seviye}) · çalışan ${t.calisan} · sırada ${t.sirada}`, `At most ${t.gecerli || "unlimited"} employees at once (the board's setting${seviye}) · working ${t.calisan} · queued ${t.sirada}`);
           const kayitlar = sirket.ortak.defter.liste(p.id, 8).map((k) => `- ${k.baslik} · ${k.ajanAd} · ${kayitKunyesi(k)} · ${kaliteKisa(k)}`);
           return metin(
             [
@@ -168,8 +170,8 @@ export function ortakCalismaAraclari(sirket: Sirket, ajanId: string) {
     tool(
       "ekip_temposu",
       iki(
-        "Tam otonom kipte aynı anda en çok kaç çalışanın çalışacağını belirler (CEO; sen bu sayıya dahil değilsin). Kurulun üst sınırını geçemez. Bağımsız iş çoksa yükselt, işler aynı dosyalarda toplanıyorsa ya da abonelik penceresi azalıyorsa düşür. Boşa çıkan çalışanlar tempo izin verdikçe planlı işlerine kendiliğinden başlar.",
-        "Sets how many employees work at the same time at most, in fully autonomous mode (CEO; you are not counted). It cannot exceed the board's ceiling. Raise it when there is plenty of independent work; lower it when tasks crowd onto the same files or the subscription window runs low. Idle employees start their planned tasks by themselves as the pace allows.",
+        "Tam otonom kipte aynı anda en çok kaç çalışanın çalışacağını belirler (CEO; sen bu sayıya dahil değilsin). Kurulun üst sınırını ve projenin kullanım seviyesinin sınırını (Normal 6, Tasarruflu 3) geçemez. Bağımsız iş çoksa yükselt, işler aynı dosyalarda toplanıyorsa, bütçe ya da abonelik penceresi azalıyorsa düşür. Boşa çıkan çalışanlar tempo izin verdikçe planlı işlerine kendiliğinden başlar.",
+        "Sets how many employees work at the same time at most, in fully autonomous mode (CEO; you are not counted). It cannot exceed the board's ceiling or the project's usage level limit (Normal 6, Economy 3). Raise it when there is plenty of independent work; lower it when tasks crowd onto the same files or the budget or the subscription window runs low. Idle employees start their planned tasks by themselves as the pace allows.",
       ),
       {
         es_zamanli: z.number().int().min(1).max(50).describe(iki("Aynı anda en çok çalışan sayısı", "The most employees working at once")),
@@ -179,10 +181,12 @@ export function ortakCalismaAraclari(sirket: Sirket, ajanId: string) {
         guvenli(() => {
           const t = sirket.ortak.tempoYaz(ben(), a.es_zamanli, a.gerekce);
           const kirpildi = t.ustSinir > 0 && a.es_zamanli > t.ustSinir;
+          // 0.0.10: seviyenin sınırı kurulun üst sınırından darsa o kırpar
+          const seviyeKirpti = t.seviyeSiniri > 0 && a.es_zamanli > t.seviyeSiniri && (!t.ustSinir || t.seviyeSiniri < t.ustSinir);
           return metin(
             iki(
-              `Ekip temposu ${t.gecerli} oldu${kirpildi ? ` (kurulun üst sınırı ${t.ustSinir}; daha fazlası için kurula sor)` : t.ustSinir ? ` (kurulun üst sınırı ${t.ustSinir})` : ""}. Şu an ${t.calisan} çalışan çalışıyor, ${t.sirada} sırada; boştakiler tempo izin verdikçe planlı işlerine geçer.`,
-              `The team pace is now ${t.gecerli}${kirpildi ? ` (the board's ceiling is ${t.ustSinir}; ask the board for more)` : t.ustSinir ? ` (the board's ceiling is ${t.ustSinir})` : ""}. ${t.calisan} working now, ${t.sirada} queued; idle employees move on to their planned tasks as the pace allows.`,
+              `Ekip temposu ${t.gecerli} oldu${seviyeKirpti ? ` (projenin kullanım seviyesi en çok ${t.seviyeSiniri} çalışana izin veriyor; seviyeyi kurul seçer)` : kirpildi ? ` (kurulun üst sınırı ${t.ustSinir}; daha fazlası için kurula sor)` : t.ustSinir ? ` (kurulun üst sınırı ${t.ustSinir})` : ""}. Şu an ${t.calisan} çalışan çalışıyor, ${t.sirada} sırada; boştakiler tempo izin verdikçe planlı işlerine geçer.`,
+              `The team pace is now ${t.gecerli}${seviyeKirpti ? ` (the project's usage level allows at most ${t.seviyeSiniri} employees; the board picks the level)` : kirpildi ? ` (the board's ceiling is ${t.ustSinir}; ask the board for more)` : t.ustSinir ? ` (the board's ceiling is ${t.ustSinir})` : ""}. ${t.calisan} working now, ${t.sirada} queued; idle employees move on to their planned tasks as the pace allows.`,
             ),
           );
         }),

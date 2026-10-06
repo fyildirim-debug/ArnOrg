@@ -177,7 +177,9 @@ describe("hatalar ve sonuçlar", () => {
     expect((await arac(c.id, "mesaj_gonder", { metin: "Please take the login API.", alici: "Kimse" })).metin).toBe('No employee named "Kimse". See the team with ekip_listele.');
 
     const ekip = (await arac(c.id, "ekip_listele", {})).metin;
-    expect(ekip).toMatch(/^Team:\n/);
+    // 0.0.10: en üstte bütçe ve kullanım seviyesi
+    expect(ekip).toMatch(/^Project: no budget limit · level Normal\n\nTeam:\n/);
+    expect(ekip).not.toMatch(TURKCE_HARF);
     expect(ekip).toContain("Deniz · Backend developer (backend)");
     expect(ekip).toContain("today 0 tokens");
     expect(ekip).toContain("Roles you can hire: every role except ceo — cto, backend,");

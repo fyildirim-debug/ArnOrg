@@ -138,7 +138,17 @@ export class GithubIslemleri {
         is.bitir("hata", satir || iki("Klonlanamadı.", "Clone failed."));
         return;
       }
-      const proje = await projeyiAc({ ad, yol: hedef, olustur: false, aciklama: istek.aciklama, dal: istek.dal?.trim() || undefined });
+      const proje = await projeyiAc({
+        ad,
+        yol: hedef,
+        olustur: false,
+        aciklama: istek.aciklama,
+        dal: istek.dal?.trim() || undefined,
+        // 0.0.10: klonlarken seçilen bütçe ve seviye
+        butce: istek.butce,
+        seviye: istek.seviye,
+        otomatikKademe: istek.otomatikKademe,
+      });
       is.satir(iki(`Proje açıldı: ${proje.ad} (dal ${proje.varsayilanDal})`, `Project opened: ${proje.ad} (branch ${proje.varsayilanDal})`));
       is.bitir("tamam", null, { projeId: proje.id });
     })().catch((h) => is.bitir("hata", (h as Error).message));

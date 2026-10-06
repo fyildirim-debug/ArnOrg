@@ -95,7 +95,7 @@ describe("şirket: abonelik sınırı ve kullanım", () => {
     fs.rmSync(gecici, { recursive: true, force: true });
   });
 
-  it("kullanım yalnız token olarak sayılır; dolar alanı ve bütçe yok", async () => {
+  it("kullanım yalnız token olarak sayılır; dolar alanı yok, proje bütçesi token cinsinden", async () => {
     const p = depo.projeler()[0]!;
     const ceo = depo.ajanlar(p.id)[0]!;
     depo.kullanimEkle(p.id, ceo.id, 12_000);
@@ -106,7 +106,9 @@ describe("şirket: abonelik sınırı ve kullanım", () => {
     expect(Object.keys(ajan).some((k) => /usd|butce/i.test(k))).toBe(false);
     const ozet = sirket.kullanimOzeti(p.id);
     expect(ozet).toMatchObject({ bugunToken: 12_000, toplamToken: 12_000 });
-    expect(JSON.stringify(ozet)).not.toMatch(/usd|butce/i);
+    expect(JSON.stringify(ozet)).not.toMatch(/usd|dolar/i);
+    // 0.0.10: bütçe token cinsindendir; verilmediyse sınırsız
+    expect(ozet.butce).toMatchObject({ toplam: null, gunluk: null, durum: "normal" });
     expect(Object.keys(sirket.yapilandirma.ayarlar).some((k) => /usd|butce|giris/i.test(k))).toBe(false);
   });
 

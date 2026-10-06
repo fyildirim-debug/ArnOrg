@@ -111,6 +111,12 @@ export interface Proje {
   hazirlikKomutu: string | null;
   /** Hazırlık ve testin toplam süre sınırı (dakika) */
   testZamanAsimiDk: number;
+  /** 0.0.10 · Token bütçesi (toplam ve günlük; null sınırsız) */
+  butce: ProjeButcesi;
+  /** 0.0.10 · Kurulun seçtiği kullanım seviyesi */
+  seviye: KullanimSeviyesi;
+  /** 0.0.10 · Bütçe ya da haftalık pencere %80'i geçince seviye kendiliğinden bir kademe iner, koşul kalkınca geri çıkar */
+  otomatikKademe: boolean;
 }
 
 export interface OtomatikOnay {
@@ -138,6 +144,10 @@ export interface ProjeOzeti extends Proje {
   bekleyenOnay: number;
   /** Bugün işlenen token (tüm ajanlar) */
   bugunToken: number;
+  /** 0.0.10 · Projenin bugüne dek işlediği token (tüm ajanlar) */
+  toplamToken: number;
+  /** 0.0.10 · Bütçenin doluluğu, tahmini bitiş ve kademe düşürmeden sonra geçerli seviye */
+  butceDurumu: ButceDurumu;
 }
 
 export interface ProjeOlusturIstegi {
@@ -153,6 +163,12 @@ export interface ProjeOlusturIstegi {
   github?: { ozel: boolean; sahip?: string } | null;
   /** Karar yetkisi; verilmezse CEO (tam otonom) */
   kararVeren?: KararVeren;
+  /** 0.0.10 · Token bütçesi; verilmezse sınırsız */
+  butce?: ProjeButcesi;
+  /** 0.0.10 · Kullanım seviyesi; verilmezse Normal */
+  seviye?: KullanimSeviyesi;
+  /** 0.0.10 · Otomatik kademe düşürme; verilmezse açık */
+  otomatikKademe?: boolean;
 }
 
 /** Proje ayarları (PATCH /api/projeler/:pid) */
@@ -171,6 +187,11 @@ export interface ProjeGuncelleIstegi {
   hazirlikKomutu?: string | null;
   /** 1–240 dakika */
   testZamanAsimiDk?: number;
+  /** 0.0.10 · Bütçe değişince doluluk yeniden ölçülür: dolu bütçe artırılınca ekip kaldığı yerden sürer */
+  butce?: ProjeButcesi;
+  /** 0.0.10 · Seviye değişince seviyeye bağlı çalışanların modeli ve herkesin düşünme derinliği hemen değişir */
+  seviye?: KullanimSeviyesi;
+  otomatikKademe?: boolean;
 }
 
 /** GitHub'daki depoyu klonlayıp proje olarak açar (POST /api/github/klonla) */
@@ -184,6 +205,10 @@ export interface KlonlaIstegi {
   /** Proje adı; verilmezse depo adı */
   ad?: string;
   aciklama?: string;
+  /** 0.0.10 · Proje açılırken seçilen bütçe ve seviye (ProjeOlusturIstegi ile aynı) */
+  butce?: ProjeButcesi;
+  seviye?: KullanimSeviyesi;
+  otomatikKademe?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +257,10 @@ export interface Ajan {
   /** Rol kimliği (ceo, cto, backend…) */
   rol: string;
   rolAdi: string;
+  /** Çalıştığı model: seviyeye bağlıysa projenin geçerli seviyesinin bu rolün kademesindeki modeli */
   model: ModelAdi;
+  /** 0.0.10 · Model kurulca (ya da işe alımda) seçildi ve sabit; false ise projenin kullanım seviyesine göre değişir */
+  modelSabit: boolean;
   yoneticiId: string | null;
   durum: AjanDurumu;
   /** Şu an ne yaptığının kısa açıklaması */
@@ -265,7 +293,8 @@ export interface AjanIseAlIstegi {
 }
 
 export interface AjanGuncelleIstegi {
-  model?: ModelAdi;
+  /** Modeli sabitler; null projenin kullanım seviyesine bağlar (0.0.10) */
+  model?: ModelAdi | null;
   izinModu?: IzinModu;
   yoneticiId?: string | null;
   talimatEki?: string;
@@ -358,6 +387,8 @@ export interface Gorev {
   olusturanId: string | null;
   olusturma: Zaman;
   guncelleme: Zaman;
+  /** 0.0.10 · Görevde işlenen token (görev atanan çalışanın üstündeyken sayılır); eski çekirdekte yoktur */
+  token?: number;
 }
 
 export interface GorevOlusturIstegi {
@@ -743,6 +774,10 @@ export interface KullanimOzeti {
   ajanlar: { ajanId: string; ad: string; bugunToken: number; toplamToken: number }[];
   /** Son bilinen abonelik penceresi olayı (Claude Code rate_limit_event) */
   pencere: { tur: string; durum: string; sifirlanma: Zaman | null } | null;
+  /** 0.0.10 · Projenin bütçe durumu (ProjeOzeti.butceDurumu ile aynı) */
+  butce: ButceDurumu;
+  /** 0.0.10 · En çok token işleyen görevler, çoktan aza (en çok 10) */
+  gorevler: GorevHarcamasi[];
 }
 
 export type KullanimPenceresiTuru = "bes_saat" | "haftalik" | "haftalik_opus" | "haftalik_sonnet" | "model";
@@ -777,6 +812,130 @@ export interface HesapDurumu {
   uyari: string | null;
   guncelleme: Zaman | null;
   hata: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Kullanım seviyesi ve proje bütçesi (0.0.10). Kurul projeyi açarken (sonra Proje ayarlarından) token bütçesini ve
+// kullanım seviyesini seçer. Seviye, rolün kademesine göre modeli, herkesin düşünme derinliğini (Claude Code effort),
+// görev token tavanını (Ayarlar.gorevTokenTavani × katsayı) ve aynı anda çalışanların üst sınırını belirler; kurulun
+// bir çalışana elle seçtiği model korunur. Bütçenin %80'inde kurul ve CEO uyarılır; bütçe dolunca ekip durur ve
+// "Bütçeyi artır" ile kaldığı yerden sürer. Otomatik kademe açıksa bütçe ya da haftalık abonelik penceresi %80'i
+// geçince seviye bir kademe iner; koşul kalkınca (bütçe artınca, gün dönünce, pencere sıfırlanınca) geri çıkar.
+// Uçlar: POST /api/projeler, PATCH /api/projeler/:pid, GET /api/projeler/:pid/kullanim (docs/API.md, "Bütçe ve
+// kullanım seviyesi")
+// ---------------------------------------------------------------------------
+
+/** Zeki: en güçlü modeller, derin düşünme · Normal · Tasarruflu: hafif modeller, kısa düşünme */
+export type KullanimSeviyesi = "zeki" | "normal" | "tasarruflu";
+/** Güçlüden hafife */
+export const KULLANIM_SEVIYELERI: KullanimSeviyesi[] = ["zeki", "normal", "tasarruflu"];
+export const VARSAYILAN_SEVIYE: KullanimSeviyesi = "normal";
+
+export function seviyeMi(v: unknown): v is KullanimSeviyesi {
+  return v === "zeki" || v === "normal" || v === "tasarruflu";
+}
+
+/** Bir kademe aşağısı; Tasarruflu en alttır */
+export function altSeviye(s: KullanimSeviyesi): KullanimSeviyesi {
+  return s === "zeki" ? "normal" : "tasarruflu";
+}
+
+/** Rolün kademesi: yonetim (CEO, CTO, kod inceleme), gelistirme (öteki roller), destek (test, doküman, tanıtım) */
+export type RolKademesi = "yonetim" | "gelistirme" | "destek";
+export const ROL_KADEMELERI: RolKademesi[] = ["yonetim", "gelistirme", "destek"];
+const KADEME_ROLLERI: Record<string, RolKademesi> = { ceo: "yonetim", cto: "yonetim", inceleme: "yonetim", test: "destek", yazar: "destek", tanitim: "destek" };
+
+/** Rol kimliğinin kademesi; bilinmeyen rol geliştirmedir */
+export function rolKademesi(rol: string): RolKademesi {
+  return KADEME_ROLLERI[rol] ?? "gelistirme";
+}
+
+/** Kademedeki rol kimlikleri (seviye seçicisinin açıklaması için) */
+export function kademeRolleri(k: RolKademesi): string[] {
+  return Object.entries(KADEME_ROLLERI)
+    .filter(([, x]) => x === k)
+    .map(([r]) => r);
+}
+
+/** Seviyenin kademe başına modeli (takma ad; hesabın kataloğunda yoksa zincirde bir sonraki seçilir) */
+export const SEVIYE_MODELLERI: Record<KullanimSeviyesi, Record<RolKademesi, "fable" | "opus" | "sonnet" | "haiku">> = {
+  zeki: { yonetim: "fable", gelistirme: "opus", destek: "sonnet" },
+  normal: { yonetim: "opus", gelistirme: "sonnet", destek: "haiku" },
+  tasarruflu: { yonetim: "sonnet", gelistirme: "haiku", destek: "haiku" },
+};
+
+/** Düşünme derinliği: Claude Code'un effort düzeyi (desteklemeyen modelde yok sayılır) */
+export type DusunmeDerinligi = "low" | "medium" | "high";
+export const SEVIYE_DERINLIGI: Record<KullanimSeviyesi, DusunmeDerinligi> = { zeki: "high", normal: "medium", tasarruflu: "low" };
+
+/** Görev token tavanının katsayısı: Ayarlar.gorevTokenTavani (varsayılan 2 M) × katsayı → 4 M, 2 M, 1 M */
+export const SEVIYE_TAVAN_KATSAYISI: Record<KullanimSeviyesi, number> = { zeki: 2, normal: 1, tasarruflu: 0.5 };
+
+/** Aynı anda çalışan en çok çalışan (CEO hariç); 0 seviye sınırı yok, yalnız kurulun üst sınırı (Ayarlar.esZamanliAjan) */
+export const SEVIYE_TEMPO_SINIRI: Record<KullanimSeviyesi, number> = { zeki: 0, normal: 6, tasarruflu: 3 };
+
+/** Seviyedeki görev token tavanı: ayardaki tavan × katsayı; ayar 0 ise kapalı (0) */
+export function seviyeGorevTavani(temel: number, seviye: KullanimSeviyesi): number {
+  return temel > 0 ? Math.max(1, Math.round(temel * SEVIYE_TAVAN_KATSAYISI[seviye])) : 0;
+}
+
+/** Seviyenin tempo sınırı kurulun üst sınırıyla birlikte; 0 seviye sınırı yok (yalnız kurulun üst sınırı) */
+export function seviyeTempoSiniri(seviye: KullanimSeviyesi, ustSinir: number): number {
+  const s = SEVIYE_TEMPO_SINIRI[seviye];
+  if (!s) return 0;
+  return ustSinir > 0 ? Math.min(s, ustSinir) : s;
+}
+
+/** Bütçe uyarısının ve otomatik kademe düşürmenin eşiği (yüzde) */
+export const BUTCE_UYARI_YUZDE = 80;
+export const KADEME_ESIGI_YUZDE = 80;
+
+export interface ProjeButcesi {
+  /** Projenin bütün kullanımı için token bütçesi; null sınırsız */
+  toplam: number | null;
+  /** Günlük token bütçesi (yerel saatle gece yarısı yenilenir); null sınırsız */
+  gunluk: number | null;
+}
+
+/** Bütçenin bir kalemi (toplam ya da günlük) */
+export interface ButceKalemi {
+  sinir: number;
+  harcanan: number;
+  /** Harcananın sınıra oranı (yüzde, bir ondalık; 100'ü geçebilir) */
+  yuzde: number;
+}
+
+/** normal · uyari: bir bütçe %80'i geçti · doldu: bir bütçe doldu, ekip durdu */
+export type ButceDurumuTuru = "normal" | "uyari" | "doldu";
+
+export interface ButceDurumu {
+  toplam: ButceKalemi | null;
+  gunluk: ButceKalemi | null;
+  durum: ButceDurumuTuru;
+  /** Durumu belirleyen bütçe; normalde null */
+  neden: "toplam" | "gunluk" | null;
+  /** Son bir saatteki hızla bütçenin dolacağı tahmini an; bütçe yoksa, hız ölçülemediyse ya da bütçe dolduysa null */
+  tahminiBitis: Zaman | null;
+  /** Kurulun seçtiği seviye */
+  seviye: KullanimSeviyesi;
+  /** Otomatik kademe düşürmeden sonra geçerli seviye */
+  etkinSeviye: KullanimSeviyesi;
+  /** Seviye kendiliğinden indiyse nedeni: bütçe %80'i ya da haftalık pencere (pencerenin adıyla); inmediyse null */
+  kademe: { neden: "butce" | "pencere"; pencere: string | null } | null;
+}
+
+/** En çok token işleyen görevler listesinin satırı */
+export interface GorevHarcamasi {
+  gorevId: string;
+  kod: string;
+  baslik: string;
+  durum: GorevDurumu;
+  atananId: string | null;
+  /** Atanan çalışanın adı; atanmamışsa null */
+  atananAd: string | null;
+  token: number;
+  /** Görevin geçerli token tavanı; tavan kapalıysa 0 */
+  tavan: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,8 +1166,8 @@ export interface KurulBildirimi {
   zaman: Zaman;
   /** Bildirime bağlı onay (onaylanacaksa) */
   onayId: string | null;
-  /** Pencerede sunulacak özel eylem: "claude_giris" Claude Code giriş asistanını açar */
-  eylem?: "claude_giris";
+  /** Pencerede sunulacak özel eylem: "claude_giris" Claude Code giriş asistanını açar, "butce" (0.0.10) bütçeyi artırma penceresini */
+  eylem?: "claude_giris" | "butce";
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,7 +1327,8 @@ export type SunucuOlayi =
   | { tur: "mesaj.yeni"; mesaj: Mesaj }
   /** 0.0.8 · Mesajın yeni hâli: seçenekli soru yanıtlandı ve kilitlendi */
   | { tur: "mesaj.guncellendi"; projeId: string; mesaj: Mesaj }
-  | { tur: "kullanim"; projeId: string; ajanId: string; bugunToken: number; toplamToken: number }
+  /** Ajanın turu bitti: ajanın bugünkü ve toplam tokenı; 0.0.10'dan beri token yazılan görevin yeni toplamı da */
+  | { tur: "kullanim"; projeId: string; ajanId: string; bugunToken: number; toplamToken: number; gorev?: { id: string; token: number } }
   | { tur: "hesap.guncellendi"; hesap: HesapDurumu }
   /** Claude Code'un model listesi değişti (giriş, kurulum ya da plan değişince yeniden okunur) */
   | { tur: "modeller.guncellendi"; katalog: ModelKatalogu }
@@ -2126,7 +2286,9 @@ export interface EkipTemposu {
   zaman: Zaman | null;
   /** Kurulun üst sınırı (Ayarlar.esZamanliAjan; 0 sınırsız) */
   ustSinir: number;
-  /** Geçerli tempo: kurul kipinde üst sınır, tam otonom kipte CEO'nun seçimi (üst sınırı geçemez); 0 sınırsız */
+  /** 0.0.10 · Projenin geçerli kullanım seviyesinin sınırı (Normal 6, Tasarruflu 3); 0 yok */
+  seviyeSiniri: number;
+  /** Geçerli tempo: kurul kipinde üst sınır, tam otonom kipte CEO'nun seçimi (üst sınırı geçemez); seviye sınırını da geçemez; 0 sınırsız */
   gecerli: number;
   /** Projede şu an çalışan (tur işleyen ya da karar bekleyen) çalışan sayısı; CEO hariç */
   calisan: number;

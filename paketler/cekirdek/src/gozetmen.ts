@@ -181,6 +181,8 @@ export class Gozetmen {
       const esik = esikDk * 60_000;
       const gorulen = new Set<string>();
       for (const proje of this.sirket.depo.projeler()) {
+        // Bütçesi dolan projede kimse dürtülmez; bütçe açılınca ekip kendiliğinden sürer (0.0.10)
+        if (this.sirket.butce.doluMu(proje.id)) continue;
         const ajanlar = this.sirket.depo.ajanlar(proje.id);
         for (const g of this.sirket.depo.gorevler(proje.id)) {
           if (g.durum !== "calisiliyor" && g.durum !== "inceleme") continue;

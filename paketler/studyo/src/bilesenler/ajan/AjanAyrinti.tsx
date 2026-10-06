@@ -6,6 +6,7 @@ import { api } from "../../api/uclar";
 import { sozluk, useSozluk } from "../../dil";
 import { ajanaGit, bildir, git, hataBildir } from "../../durum/arayuz";
 import { modelBilgisi, modelSecenegi, modelSecenekleri, useModelKatalogu } from "../../durum/modeller";
+import { seviyeModeli } from "../butce/butceYardimcilari";
 import { ajanKaldir, ajanUygula, ceoBul, useVeri } from "../../durum/veri";
 import { ajanSekmesiSec, useZekaArayuz } from "../../durum/zeka";
 import { tarih, token } from "../../yardimcilar/bicim";
@@ -126,6 +127,9 @@ function AjanGenel({
   );
 }
 
+/** Model seçiminde "Seviyeye göre" seçeneğinin değeri (gerçek bir model adıyla çakışmaz) */
+const SEVIYEYE_GORE = "__seviye";
+
 function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const s = useSozluk();
   const t = s.ekip.ayrinti;
@@ -133,12 +137,15 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const { suruyor, calistir } = useIslem();
   const [yoneticiId, setYoneticiId] = useState(ajan.yoneticiId ?? "");
   const [talimat, setTalimat] = useState(ajan.talimatEki);
-  // Seçenekler model kataloğundan, sürümlü ad ve kısa açıklamayla; listede olmayan model "Özel" ile girilir
+  // Seçenekler model kataloğundan, sürümlü ad ve kısa açıklamayla; listede olmayan model "Özel" ile girilir. 0.0.10:
+  // ilk seçenek "Seviyeye göre": model projenin kullanım seviyesiyle değişir; somut model seçmek modeli sabitler
   const katalog = useModelKatalogu();
   const modeller = modelSecenekleri(katalog);
+  const seviye = useVeri((d) => d.projeler.find((p) => p.id === ajan.projeId)?.butceDurumu?.etkinSeviye ?? null);
+  const seviyeyeBagli = ajan.modelSabit === false;
   const listede = modeller.some((m) => m.deger === ajan.model);
   const kimlik = modelBilgisi(ajan.model, katalog)?.kimlik;
-  const [ozelModel, setOzelModel] = useState(listede ? "" : ajan.model);
+  const [ozelModel, setOzelModel] = useState(listede || seviyeyeBagli ? "" : ajan.model);
 
   // Başka bir ajan seçilince ya da sunucudan güncelleme gelince alanları tazele
   useEffect(() => {
@@ -149,10 +156,11 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
   const planda = ajan.izinModu === "plan";
   const degisti = (yoneticiId || null) !== ajan.yoneticiId || talimat !== ajan.talimatEki;
 
-  const modelDegistir = (model: string) =>
+  const modelDegistir = (model: string | null) =>
     calistir("model", async () => {
-      ajanUygula(await api.ajanModel(ajan.id, model));
-      bildir("basari", sozluk().ekip.ayrinti.modelDegisti(ajan.ad, modelAdi(model)));
+      const yeni = await api.ajanModel(ajan.id, model);
+      ajanUygula(yeni);
+      bildir("basari", model === null ? sozluk().butce.model.baglandi(ajan.ad, modelAdi(yeni.model)) : sozluk().ekip.ayrinti.modelDegisti(ajan.ad, modelAdi(model)));
     });
 
   const modDegistir = (mod: IzinModu) =>
@@ -184,13 +192,15 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           <select
             id={`model-${ajan.id}`}
             className="secim"
-            value={listede ? ajan.model : "ozel"}
+            value={seviyeyeBagli ? SEVIYEYE_GORE : listede ? ajan.model : "ozel"}
             disabled={suruyor !== null}
             onChange={(e) => {
-              if (e.target.value !== "ozel") void modelDegistir(e.target.value);
+              if (e.target.value === SEVIYEYE_GORE) void modelDegistir(null);
+              else if (e.target.value !== "ozel") void modelDegistir(e.target.value);
               else setOzelModel(ajan.model);
             }}
           >
+            <option value={SEVIYEYE_GORE}>{s.butce.model.seviyeyeGore(seviyeyeBagli ? modelAdi(ajan.model, katalog) : modelAdi(seviye ? seviyeModeli(seviye, ajan.rol, katalog) : ajan.model, katalog))}</option>
             {modeller.map((m) => (
               <option key={m.deger} value={m.deger}>
                 {modelSecenegi(m, s)}
@@ -199,6 +209,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
             <option value="ozel">{t.ozelModelSecenegi}</option>
           </select>
           {kimlik && kimlik !== ajan.model ? <span className="alan-ipucu model-kimlik">{kimlik}</span> : null}
+          <span className="alan-ipucu">{seviyeyeBagli ? s.butce.model.seviyeyeGoreKisa : s.butce.model.sabit}</span>
         </div>
         <div className="alan">
           <label htmlFor={`mod-${ajan.id}`}>{t.izinModu}</label>
@@ -217,7 +228,7 @@ function AjanAyarlari({ ajan }: { ajan: Ajan }) {
           </select>
         </div>
       </div>
-      {!listede || ozelModel ? (
+      {(!listede && !seviyeyeBagli) || ozelModel ? (
         <div className="ayar-satir ayar-satir-tek">
           <input
             className="girdi"

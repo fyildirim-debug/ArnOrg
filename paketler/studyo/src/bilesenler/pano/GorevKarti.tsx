@@ -1,9 +1,10 @@
 // Pano kartı. data-flip: sütun değiştirince eski yerinden kayarak gelir (Pano'daki useFlip); kaydedildi: görev az önce
-// kaydedildiyse birkaç saniye küçük onay işareti
+// kaydedildiyse birkaç saniye küçük onay işareti; görevde token işlendiyse (0.0.10) üst satırda kısa sayısı
 import type { Gorev } from "@arnorg/ortak";
 import { memo } from "react";
 import { useSozluk } from "../../dil";
 import { useVeri } from "../../durum/veri";
+import { kisaToken, sayi } from "../../yardimcilar/bicim";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { AjanAvatar } from "../Kisi";
 import { acikBagimliliklar, durumDegistir, sonrakiDurum } from "./gorevYardimcilari";
@@ -51,7 +52,12 @@ export const GorevKarti = memo(function GorevKarti({
               {s.canli.pano.kaydedildi}
             </span>
           ) : gorev.etiket ? (
-            <span>{gorev.etiket}</span>
+            <span className="tek-satir">{gorev.etiket}</span>
+          ) : null}
+          {gorev.token ? (
+            <span className="bilet-token sayi" title={s.butce.gorev.tokenBaslik(`${sayi(gorev.token)} ${s.genel.tokenBirimi(gorev.token)}`, null)}>
+              {kisaToken(gorev.token)}
+            </span>
           ) : null}
         </span>
         <b>{gorev.baslik}</b>

@@ -200,8 +200,13 @@ function depoyaUygula(olay: SunucuOlayi) {
               ),
             }
           : s.kullanim;
-        const projeler = s.projeler.map((p) => (p.id === pid ? { ...p, bugunToken: Math.max(0, p.bugunToken + fark.bugunToken) } : p));
-        return { ajanlar, kullanim, projeler };
+        const projeler = s.projeler.map((p) =>
+          p.id === pid ? { ...p, bugunToken: Math.max(0, p.bugunToken + fark.bugunToken), toplamToken: Math.max(0, (p.toplamToken ?? 0) + fark.toplamToken) } : p,
+        );
+        // 0.0.10: token yazılan görevin yeni toplamı (Pano ve harcama listesi)
+        const g = olay.gorev;
+        const gorevler = g ? s.gorevler.map((x) => (x.id === g.id ? { ...x, token: g.token } : x)) : s.gorevler;
+        return { ajanlar, kullanim, projeler, gorevler };
       });
       return;
     }

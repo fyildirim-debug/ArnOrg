@@ -1,5 +1,6 @@
 // Proje açma: yeni proje (konum kendiliğinden, klasör seçicili; çalışma dalı; GitHub'da da depo), GitHub'dan
 // klonlama (depo, dal, konum; canlı ilerleme) ve bilgisayardaki klasörü bağlama. Sihirbaz ve Projeler ortak kullanır.
+// 0.0.10: üç yolda da kullanım seviyesi ve token bütçesi açılışta seçilir (butce/KullanimVeButce.tsx).
 import type { GithubDali, GithubDeposu, KurulumIslemi, ProjeOzeti } from "@arnorg/ortak";
 import { useEffect, useId, useState, type FormEvent, type KeyboardEvent } from "react";
 import { hataMetni } from "../api/istek";
@@ -14,6 +15,8 @@ import { HataKutu, Yukleniyor } from "./Durumlar";
 import { GithubDepoSecici } from "./GithubDepoSecici";
 import { GithubKurulumu } from "./GithubKurulumu";
 import { IslemPaneli } from "./IslemPaneli";
+import { AcilisKullanimAlani } from "./butce/KullanimVeButce";
+import { acilisAlanlari, VARSAYILAN_ACILIS, type AcilisKullanimi } from "./butce/butceYardimcilari";
 import { useKlasorSecici } from "./KlasorSecici";
 import { KonumAlani, konumHatasi, konumYolu, OTOMATIK_KONUM, type KonumDegeri } from "./KonumAlani";
 import { dalAdiGecerliMi, klasorAdiYap, yolAdi } from "./kurulumYardimcilari";
@@ -154,6 +157,7 @@ function YeniProje({ acildi, githubBagla }: { acildi: (p: ProjeOzeti) => void; g
   const [github, setGithub] = useState(false);
   const [ozel, setOzel] = useState(true);
   const [sahip, setSahip] = useState("");
+  const [kullanim, setKullanim] = useState<AcilisKullanimi>(VARSAYILAN_ACILIS);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
 
@@ -162,6 +166,7 @@ function YeniProje({ acildi, githubBagla }: { acildi: (p: ProjeOzeti) => void; g
   }, [bagli]);
 
   const klasorAdi = ad.trim() ? klasorAdiYap(ad) : "";
+  const kullanimAlanlari = acilisAlanlari(kullanim);
   const adHata = !ad.trim() ? t.adGerekli : null;
   const dalHata = !dalAdiGecerliMi(dal) ? t.dalGecersiz : null;
   const konumHata = konumHatasi(konum, s);
@@ -170,7 +175,7 @@ function YeniProje({ acildi, githubBagla }: { acildi: (p: ProjeOzeti) => void; g
   const gonder = (e: FormEvent) => {
     e.preventDefault();
     setDenendi(true);
-    if (adHata || dalHata || konumHata) return;
+    if (adHata || dalHata || konumHata || !kullanimAlanlari) return;
     void calistir(
       "olustur",
       async () => {
@@ -181,6 +186,7 @@ function YeniProje({ acildi, githubBagla }: { acildi: (p: ProjeOzeti) => void; g
           yol: konumYolu(konum, klasorAdi),
           dal: dal.trim(),
           github: githubAcik ? { ozel, sahip: sahip || undefined } : null,
+          ...kullanimAlanlari,
         });
         projeUygula(p);
         projeyiSec(p.id);
@@ -262,6 +268,7 @@ function YeniProje({ acildi, githubBagla }: { acildi: (p: ProjeOzeti) => void; g
           <span className="alan-ipucu">{t.githubIpucu}</span>
         )}
       </div>
+      <AcilisKullanimAlani deger={kullanim} degisti={setKullanim} kilitli={suruyor !== null} />
       {hata ? (
         <div className="tam">
           <HataKutu baslik={t.acilamadi} metin={hata} />
@@ -305,6 +312,7 @@ function DepoKlonla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
   const [dal, setDal] = useState("");
   const [ad, setAd] = useState("");
   const [konum, setKonum] = useState<KonumDegeri>(OTOMATIK_KONUM);
+  const [kullanim, setKullanim] = useState<AcilisKullanimi>(VARSAYILAN_ACILIS);
   const [denendi, setDenendi] = useState(false);
   const [baslatHata, setBaslatHata] = useState<string | null>(null);
   const [baslatiliyor, setBaslatiliyor] = useState(false);
@@ -361,7 +369,8 @@ function DepoKlonla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
     e?.preventDefault();
     if (!depo) return;
     setDenendi(true);
-    if (dalHatasi || konumHata) return;
+    const kullanimAlanlari = acilisAlanlari(kullanim);
+    if (dalHatasi || konumHata || !kullanimAlanlari) return;
     setBaslatiliyor(true);
     setBaslatHata(null);
     try {
@@ -372,6 +381,7 @@ function DepoKlonla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
           yol: konumYolu(konum, klasorAdi),
           ad: ad.trim() || undefined,
           aciklama: depo.aciklama || undefined,
+          ...kullanimAlanlari,
         }),
       );
     } catch (h) {
@@ -417,6 +427,7 @@ function DepoKlonla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
             hata={denendi ? konumHata : null}
             kilitli={kilitli}
           />
+          <AcilisKullanimAlani deger={kullanim} degisti={setKullanim} kilitli={kilitli} />
           {baslatHata ? (
             <div className="tam">
               <HataKutu baslik={s.kurulum.ac.acilamadi} metin={baslatHata} />
@@ -451,6 +462,7 @@ function KlasorBagla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
   const [denetleniyor, setDenetleniyor] = useState(false);
   const [denetimHata, setDenetimHata] = useState<string | null>(null);
   const [ad, setAd] = useState("");
+  const [kullanim, setKullanim] = useState<AcilisKullanimi>(VARSAYILAN_ACILIS);
   const [denendi, setDenendi] = useState(false);
   const { suruyor, hata, calistir } = useIslem();
 
@@ -476,13 +488,14 @@ function KlasorBagla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
   const bagla = (e: FormEvent) => {
     e.preventDefault();
     setDenendi(true);
-    if (!secilen || adHata || denetleniyor) return;
+    const kullanimAlanlari = acilisAlanlari(kullanim);
+    if (!secilen || adHata || denetleniyor || !kullanimAlanlari) return;
     // Denetlenemediyse (repo bilinmiyor) var olan repo olarak bağlanır; değilse çekirdek söyler
     const olustur = secilen.repo === false;
     void calistir(
       "bagla",
       async () => {
-        const p = await api.projeOlustur({ ad: ad.trim(), yol: secilen.yol, olustur });
+        const p = await api.projeOlustur({ ad: ad.trim(), yol: secilen.yol, olustur, ...kullanimAlanlari });
         projeUygula(p);
         projeyiSec(p.id);
         bildir("basari", sozluk().kurulum.ac.acildi(p.ad));
@@ -550,6 +563,7 @@ function KlasorBagla({ acildi }: { acildi: (p: ProjeOzeti) => void }) {
           ) : !denetleniyor ? (
             <p className="alan-ipucu tam">{t.dalNotu}</p>
           ) : null}
+          <AcilisKullanimAlani deger={kullanim} degisti={setKullanim} kilitli={suruyor !== null} />
           {hata ? (
             <div className="tam">
               <HataKutu baslik={s.kurulum.ac.acilamadi} metin={hata} />

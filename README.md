@@ -10,7 +10,7 @@ An AI software company built from Claude Code agents. You open a project and tel
 
 - **Desktop app for Windows and Linux**, plus a server mode.
 - **Open source** under the [MIT license](LICENSE). The desktop app updates itself from this repository's releases.
-- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage, refreshed every 30 seconds, and the tokens the open project's team has spent. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
+- **Runs on your Claude subscription** (Pro, Max or Team). Agents use the Claude Code sign-in on your machine; ArnOrg never hands them an API key. The top bar shows the 5-hour and weekly window usage, refreshed every 30 seconds, and the open project's tokens against its budget, with its usage level. Agents pause at the threshold the board sets and pick up where they left off when the window reopens.
 - **Guided first run.** A setup assistant walks you through:
   - installing and signing in to Claude Code (browser sign-in, paste the code back if asked);
   - git and your git identity;
@@ -54,14 +54,19 @@ An AI software company built from Claude Code agents. You open a project and tel
   - Each one shows its reasoning, who decided and what happens if it's approved.
   - When the board decides, an **Auto-approve** checkbox approves for you, limited to the types you choose.
 - **Showcase.** The project's README.md on its own page, second in the menu. A product marketer writes it from what the team has actually built and updates it after each delivery; their edits show as a draft until the task is saved. **Request an update** asks for a refresh.
+- **Usage levels and token budgets.** Every project has a usage level and an optional token budget. You pick them when you open it and can change them any time from the top bar or Project settings:
+  - **Smart**, **Normal** or **Economy** sets the model for each group of roles, how deeply agents think, the token ceiling per task and how many employees work at once. On Normal, the CEO, CTO and code reviewer use Opus 5.5, developers Sonnet 5.5, and testing, docs and promotion Haiku 4.5. A model you pick for an employee by hand stays.
+  - A total and a daily budget. At 80% you, the CEO and #general are warned. When it runs out the team stops and picks up where it left off once you **Raise the budget**; a daily budget renews at midnight. The top bar shows spent / budget and when it runs out at the current pace.
+  - **Automatic step-down:** when the budget or a weekly subscription window passes 80%, the level drops one notch and comes back once that clears.
+  - Tokens per task and per employee on Board cards, in the task drawer and under **Spending** in Headquarters, with the most expensive tasks.
 - **Tested as it lands.** After every task save, the project's test command runs in a separate copy. A failing save goes back to its owner with the output, and #general hears when the branch is green again.
-- **Work within your limits.** A ceiling on how many agents work at once (the CEO sets the pace within it), a token ceiling per task, and agents that pick up where they left off when ArnOrg restarts. **Stop work** holds until you write to the team again; ArnOrg doesn't restart anything by itself.
+- **Work within your limits.** A ceiling on how many agents work at once (the CEO sets the pace within it), a token ceiling per task, a token budget per project, and agents that pick up where they left off when ArnOrg restarts. **Stop work** holds until you write to the team again; ArnOrg doesn't restart anything by itself.
 - **Agents that research.** A built-in meta search, like SearXNG, queries Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv and more at once. A built-in page reader, like r.jina.ai, turns web pages, PDFs and JSON into clean Markdown. Agents save what they find as research notes with sources. Each employee's abilities can be switched on and off, and a Researcher role is ready to hire.
 - **Briefings on demand.** **Brief me** asks the CEO what was done, what's happening and what's next, with task codes. A daily briefing arrives at the time you choose.
 - **Your own channels.** Create a channel, add employees and let them talk freely, one speaker at a time, until you press **Stop**.
 - **Point at what's wrong.** In the desktop app's browser, pick an element on your project's page and leave a note; it keeps a screenshot. **Get it all done** sends every note to the CEO, who turns them into tasks. The Browser's **Links** keep every address of your project one click away: the dev server, API, preview, staging or live site, admin panel. The CEO adds and updates them, employees register the servers they start, and you can add your own or **Ask the CEO** to bring them up to date.
 - **The Office comes alive.** A library, a lab and a studio join the floor: agents walk to the library to research, to the lab to run tests and to the studio to present their work. They walk over to ask a teammate, wait at the CEO's desk for a decision and take short breaks. Click a person for a card with what they're doing. Speech bubbles, celebrations, a live camera and an event ticker make it something to watch.
-- **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code; new CEOs use Fable.
+- **Model versions, and Fable.** Models show their versions (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5), read from Claude Code. The usage level picks them by role; on Smart the CEO uses Fable.
 - **Updates itself** from this repository's releases.
 - **Important moments reach you anywhere.** A pop-up appears on whichever screen you're on. When the window is in the background, you also get a desktop notification and the taskbar flashes.
 - **A team that changes over time.** The CEO can hire or let someone go later in the project; when the board decides, both need your approval. A departing employee's work and knowledge pass to a successor.
@@ -84,6 +89,7 @@ An AI software company built from Claude Code agents. You open a project and tel
 | First run | ![First run](docs/gorseller/en/ilk-kurulum.png) |
 | Office | ![Office](docs/gorseller/en/ofis.png) |
 | Shared work | ![Shared work](docs/gorseller/en/ortak-calisma.png) |
+| Usage and budget | ![Usage and budget](docs/gorseller/en/kullanim-butce.png) |
 | Images and files in the CEO chat | ![Images and files](docs/gorseller/en/ekler.png) |
 | Channels | ![Channels](docs/gorseller/en/kanallar.png) |
 | Showcase | ![Showcase](docs/gorseller/en/tanitim.png) |
@@ -131,13 +137,13 @@ Release packages are built on GitHub Actions for Windows and Linux and published
 Cutting a release (notes live in [`docs/surumler/`](docs/surumler)):
 
 ```bash
-npm run surum -- 0.0.8                 # root and all packages, lock file, ARNORG_SURUMU
-# write the notes to docs/surumler/v0.0.8.md and commit
-git tag -a v0.0.8 -m "ArnOrg 0.0.8"
-git push origin main v0.0.8            # surum.yml builds the packages and publishes the release
+npm run surum -- 0.0.10                # root and all packages, lock file, ARNORG_SURUMU
+# write the notes to docs/surumler/v0.0.10.md and commit
+git tag -a v0.0.10 -m "ArnOrg 0.0.10"
+git push origin main v0.0.10           # surum.yml builds the packages and publishes the release
 ```
 
-Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.9` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
+Instead of pushing a tag you can run **Actions → Sürüm → Run workflow** on GitHub with `v0.0.10` in the `surum` field; the tag is placed on the latest commit of main. If the tag doesn't match the package versions, or the notes are missing, the workflow stops before packaging.
 
 The workflow publishes the release in this repository, which is also where installed apps look for updates. Windows packages are signed when the `WIN_IMZA` Actions variable and the signing provider's secrets are set (SSL.com eSigner, DigiCert KeyLocker or any other tool); otherwise they're published unsigned.
 

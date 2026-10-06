@@ -21,7 +21,7 @@ describe("abonelik göçü", () => {
     const ilk = new Depo(dosya);
     const p = ilk.projeEkle({ ad: "Eski", yol: path.join(dizin, "repo"), aciklama: "", varsayilanDal: "main" });
     const a = ilk.ajanEkle({
-      projeId: p.id, ad: "Deniz", rol: "backend", rolAdi: "Backend", model: "sonnet", yoneticiId: null, durum: "kapali",
+      projeId: p.id, ad: "Deniz", rol: "backend", rolAdi: "Backend", model: "sonnet", modelSabit: false, yoneticiId: null, durum: "kapali",
       isAciklamasi: "", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", talimatEki: "", karakter: null,
     });
     ilk.kapat();
@@ -57,7 +57,7 @@ describe("abonelik göçü", () => {
       // Yeni ajan eklemek eski veritabanında da çalışır
       expect(() =>
         depo.ajanEkle({
-          projeId: p.id, ad: "Elif", rol: "frontend", rolAdi: "Frontend", model: "sonnet", yoneticiId: null, durum: "kapali",
+          projeId: p.id, ad: "Elif", rol: "frontend", rolAdi: "Frontend", model: "sonnet", modelSabit: false, yoneticiId: null, durum: "kapali",
           isAciklamasi: "", gorevId: null, oturumId: null, calismaAlani: null, dal: null, izinModu: "default", talimatEki: "", karakter: null,
         }),
       ).not.toThrow();

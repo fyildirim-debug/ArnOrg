@@ -65,6 +65,8 @@ export interface TalimatBaglami {
   dil: Dil;
   /** 0.0.8 · ekip temposu (CEO'nun ortak çalışma bölümü için) */
   tempo?: EkipTemposu;
+  /** 0.0.10 · bütçe ve seviye özeti (CEO'nun ortak çalışma bölümü için): "bütçe 9,6 M / 20 M (%48) · seviye Normal" */
+  butce?: string;
 }
 
 /** Rolün seçilen dildeki adı (kayıtlı rolAdi işe alındığı dildedir) */
@@ -160,7 +162,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
       ...ekTalimati(ceo, "en"),
       yonetici ? `- As the project evolves, propose hiring with ise_al_teklif when the team is short and propose letting someone go with isten_cikar_teklif when a role is no longer needed; ${teklifSonu}` : "",
       ...(kararBolumu.length ? ["", ...kararBolumu] : []),
-      ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo }, "en")] : []),
+      ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo, butce: b.butce }, "en")] : []),
       "",
       "## Remembering and thinking together",
       "- You have your own lasting intelligence. Never forget your assigned work, your promises or who you are. ArnOrg reminds you of these from time to time; act on the reminders.",
@@ -229,7 +231,7 @@ export function talimatOlustur(b: TalimatBaglami): string {
     ...ekTalimati(ceo, "tr"),
     yonetici ? `- Proje ilerledikçe ekip yetmiyorsa ise_al_teklif ile işe alım, bir role artık gerek kalmadıysa isten_cikar_teklif ile işten çıkarma öner; ${teklifSonu}` : "",
     ...(kararBolumu.length ? ["", ...kararBolumu] : []),
-    ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo }, "tr")] : []),
+    ...(ceo && b.tempo ? ["", ...ortakCeoTalimati({ proje, tempo: b.tempo, butce: b.butce }, "tr")] : []),
     "",
     "## Unutmamak ve birlikte düşünmek",
     "- Kendine ait kalıcı bir zekân var. Sana verilen işleri, verdiğin sözleri ve kim olduğunu asla unutma. ArnOrg bunları ara ara hatırlatır; hatırlatmalara göre davran.",

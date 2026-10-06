@@ -1,5 +1,5 @@
-// 0.0.8 arayüz: Tarayıcı'da proje adresleri (0.0.9'da Linkler) ve web kipindeki çerçeve, üst çubukta açık projenin
-// toplam tokenı, işe alım formunda adla uyumlu karakter önerisi
+// 0.0.8 arayüz: Tarayıcı'da proje adresleri (0.0.9'da Linkler) ve web kipindeki çerçeve, işe alım formunda adla uyumlu
+// karakter önerisi (üst çubuktaki toplam token 0.0.10'da bütçe göstergesine geçti: butce.ts)
 export const arayuz = {
   adresler: {
     baslik: "Linkler",
@@ -44,11 +44,6 @@ export const arayuz = {
     notEkle: "Not ekle",
     kapat: "Çerçeveyi kapat",
     ipucu: "Sayfa açılmazsa sunucu çerçevede gösterilmeyi reddediyor olabilir; yeni sekmede açın.",
-  },
-  toplam: {
-    etiket: "Toplam",
-    birim: "token",
-    baslik: (toplam: string, bugun: string) => `Açık projede bütün çalışanların harcadığı toplam token: ${toplam}. Bugün: ${bugun}. Ayrıntı Karargâh'ta.`,
   },
   karakter: {
     digerleri: "Diğer karakterler",

@@ -250,32 +250,39 @@ describe("Şirket: işe alımda rol modeli", () => {
     fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
-  it("CEO Fable'la işe alınır; hesabın kataloğunda Fable yoksa Opus'la; var olan ajanın modeli değişmez", () => {
+  it("model seviyenin kademesinden gelir (Zeki'de CEO Fable; katalogda Fable yoksa Opus); elle seçilen model sabittir; var olan ajanın modeli değişmez", () => {
     const s = ac();
     expect(s.modelKatalogu.mevcut.kaynak).toBe("yedek");
-    const p1 = depo.projeEkle({ ad: "Bir", yol: path.join(gecici, "bir"), aciklama: "", varsayilanDal: "main" }).id;
-    expect(s.iseAl(p1, { ad: "Ada", rol: "ceo" }).model).toBe("fable");
-    expect(s.iseAl(p1, { ad: "Deniz", rol: "backend" }).model).toBe("sonnet");
-    expect(s.iseAl(p1, { ad: "Onur", rol: "inceleme", model: "haiku" }).model).toBe("haiku");
+    const p1 = depo.projeEkle({ ad: "Bir", yol: path.join(gecici, "bir"), aciklama: "", varsayilanDal: "main", seviye: "zeki" }).id;
+    expect(s.iseAl(p1, { ad: "Ada", rol: "ceo" })).toMatchObject({ model: "fable", modelSabit: false });
+    expect(s.iseAl(p1, { ad: "Deniz", rol: "backend" }).model).toBe("opus");
+    expect(s.iseAl(p1, { ad: "Onur", rol: "inceleme", model: "haiku" })).toMatchObject({ model: "haiku", modelSabit: true });
+
+    // Normal (varsayılan): yönetim Opus, geliştirme Sonnet, destek Haiku
+    const pn = depo.projeEkle({ ad: "Normal", yol: path.join(gecici, "normal"), aciklama: "", varsayilanDal: "main" }).id;
+    expect(s.iseAl(pn, { ad: "Ada", rol: "ceo" }).model).toBe("opus");
+    expect(s.iseAl(pn, { ad: "Deniz", rol: "backend" }).model).toBe("sonnet");
+    expect(s.iseAl(pn, { ad: "Yasemin", rol: "yazar" }).model).toBe("haiku");
 
     // Hesabın planı Fable sunmuyor (son okunan liste): yeni CEO Opus'la başlar, eski CEO Fable'da kalır
     depo.degerYaz(KATALOG_ANAHTARI, JSON.stringify({ modeller: FABLESIZ, guncelleme: new Date().toISOString() }));
     const yeni = ac();
     expect(yeni.modelKatalogu.mevcut.kaynak).toBe("onbellek");
-    const p2 = depo.projeEkle({ ad: "İki", yol: path.join(gecici, "iki"), aciklama: "", varsayilanDal: "main" }).id;
+    const p2 = depo.projeEkle({ ad: "İki", yol: path.join(gecici, "iki"), aciklama: "", varsayilanDal: "main", seviye: "zeki" }).id;
     expect(yeni.iseAl(p2, { ad: "Ada", rol: "ceo" }).model).toBe("opus");
     expect(yeni.iseAl(p2, { ad: "Kerem", rol: "cto" }).model).toBe("opus");
     expect(depo.ajanAdla(p1, "Ada")?.model).toBe("fable");
   });
 
-  it("zorlanan model (ARNORG_MODEL_ZORLA) kayıtlı modeli değiştirmez: ajan rolün modeliyle kaydedilir", () => {
+  it("zorlanan model (ARNORG_MODEL_ZORLA) kayıtlı modeli değiştirmez: ajan seviyenin modeliyle kaydedilir", () => {
     depo.degerYaz(KATALOG_ANAHTARI, JSON.stringify({ modeller: YEDEK_MODELLER, guncelleme: new Date().toISOString() }));
     const eski = process.env.ARNORG_MODEL_ZORLA;
     process.env.ARNORG_MODEL_ZORLA = "haiku";
     try {
       const s = ac();
       const p = depo.projeEkle({ ad: "Üç", yol: path.join(gecici, "uc"), aciklama: "", varsayilanDal: "main" }).id;
-      expect(s.iseAl(p, { ad: "Ada", rol: "ceo" }).model).toBe("fable");
+      // Normal seviyede CEO'nun modeli Opus'tur; zorlanan model kayda geçmez
+      expect(s.iseAl(p, { ad: "Ada", rol: "ceo" }).model).toBe("opus");
     } finally {
       if (eski === undefined) delete process.env.ARNORG_MODEL_ZORLA;
       else process.env.ARNORG_MODEL_ZORLA = eski;

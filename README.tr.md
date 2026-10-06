@@ -10,7 +10,7 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
 
 - **Windows ve Linux'ta masaüstü uygulaması**, ayrıca sunucu modu.
 - **Açık kaynak**, [MIT lisansıyla](LICENSE). Masaüstü uygulaması kendini bu deponun sürümlerinden günceller.
-- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 30 saniyede bir tazelenen 5 saatlik ve haftalık pencere kullanımı ile açık projede ekibin harcadığı token görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
+- **Claude aboneliğinizle çalışır** (Pro, Max ya da Team). Ajanlar makinedeki Claude Code girişini kullanır; ArnOrg onlara API anahtarı vermez. Üst çubukta 30 saniyede bir tazelenen 5 saatlik ve haftalık pencere kullanımı ile açık projenin bütçesine göre harcadığı token ve kullanım seviyesi görünür. Ajanlar kurulun belirlediği yüzdede durur, pencere açılınca kaldıkları yerden sürer.
 - **Yönlendirmeli ilk açılış.** Kurulum asistanı sizi adım adım götürür:
   - Claude Code kurulumu ve girişi (tarayıcıdan giriş; istenirse kodu yapıştırma);
   - git ve git kimliğiniz;
@@ -54,14 +54,19 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
   - Her onay gerekçesini, kimin karar verdiğini ve onaylanırsa ne olacağını gösterir.
   - Kurul karar verirken **Otomatik onay** kutusu, seçtiğiniz türlerle sınırlı olarak onayı sizin yerinize verir.
 - **Tanıtım.** Projenin README.md'si menünün ikinci sırasında kendi sayfasında. Tanıtım uzmanı onu ekibin gerçekten yaptıklarından yazar ve her teslimden sonra günceller; görevi kaydedilene dek düzenlemeleri taslak olarak görünür. **Güncellenmesini iste** yenilenmesini ister.
+- **Kullanım seviyesi ve token bütçesi.** Her projenin bir kullanım seviyesi ve isteğe bağlı bir token bütçesi vardır. Projeyi açarken seçersiniz, sonra üst çubuktan ya da Proje ayarlarından istediğiniz an değiştirirsiniz:
+  - **Zeki**, **Normal** ya da **Tasarruflu**; rol gruplarının modelini, ajanların ne kadar derin düşüneceğini, görev başına token tavanını ve aynı anda kaç çalışanın çalışacağını belirler. Normal'de CEO, CTO ve kod inceleyici Opus 5.5, geliştiriciler Sonnet 5.5; test, doküman ve tanıtım Haiku 4.5 kullanır. Bir çalışana elle seçtiğiniz model korunur.
+  - Toplam ve günlük bütçe. %80'de siz, CEO ve #genel uyarılırsınız. Bütçe dolunca ekip durur, **Bütçeyi artır** ile kaldığı yerden sürer; günlük bütçe gece yarısı yenilenir. Üst çubuk harcananı, bütçeyi ve bu hızla ne zaman dolacağını gösterir.
+  - **Otomatik kademe düşürme:** bütçe ya da haftalık bir abonelik penceresi %80'i geçince seviye bir kademe iner, koşul kalkınca geri çıkar.
+  - Görev ve çalışan başına token: Pano kartlarında, görev çekmecesinde ve Karargâh'taki **Harcama** bölümünde en pahalı görevlerle.
 - **Girerken test.** Her görev kaydından sonra projenin test komutu ayrı bir kopyada koşar. Geçmeyen kayıt çıktısıyla sahibine döner; dal yeniden yeşillenince #genel'e duyurulur.
-- **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına üst sınır (tempoyu bu sınır içinde CEO belirler), görev başına token tavanı; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer. **Mesaiyi durdur** siz ekibe yeniden yazana dek geçerlidir; ArnOrg hiçbir işi kendiliğinden yeniden başlatmaz.
+- **Sınırlarınız içinde çalışma.** Aynı anda çalışan ajan sayısına üst sınır (tempoyu bu sınır içinde CEO belirler), görev başına token tavanı, proje başına token bütçesi; ArnOrg yeniden açılınca ajanlar kaldıkları yerden sürer. **Mesaiyi durdur** siz ekibe yeniden yazana dek geçerlidir; ArnOrg hiçbir işi kendiliğinden yeniden başlatmaz.
 - **Araştıran ajanlar.** SearXNG gibi yerleşik bir meta arama Bing, DuckDuckGo, Brave, Wikipedia, Stack Overflow, GitHub, npm, MDN, Hacker News, arXiv ve diğerlerini aynı anda sorgular. r.jina.ai gibi yerleşik bir okuyucu web sayfalarını, PDF'leri ve JSON'u temiz Markdown'a çevirir. Ajanlar bulduklarını kaynaklı araştırma notu olarak kaydeder. Her çalışanın yetenekleri açılıp kapanır; Araştırmacı rolü işe alınmaya hazırdır.
 - **İstediğinizde brifing.** **Brifing ver**, CEO'ya ne yapıldığını, ne olduğunu ve sırada ne olduğunu görev kodlarıyla yazdırır. Her gün seçtiğiniz saatte de brifing gelir.
 - **Kendi kanallarınız.** Kanal kurun, çalışanları ekleyin ve siz **Durdur** diyene kadar sırayla, serbestçe konuşsunlar.
 - **Olmayan yeri gösterin.** Masaüstü uygulamasının tarayıcısında projenizin sayfasından bir öğe seçip not bırakın; not ekran görüntüsünü saklar. **Hepsini yaptır** bütün notları CEO'ya gönderir, CEO onları göreve çevirir. Tarayıcı'daki **Linkler** projenin bütün adreslerini tek tık uzakta tutar: geliştirme sunucusu, API, önizleme, test ya da canlı yayın, yönetim paneli. CEO ekler ve güncel tutar, çalışanlar başlattıkları sunucuları bildirir; siz de ekleyebilir ya da **CEO'dan iste** ile güncelletebilirsiniz.
 - **Ofis canlanıyor.** Kata bir kütüphane, bir laboratuvar ve bir stüdyo eklendi: ajanlar araştırmak için kütüphaneye, test koşmak için laboratuvara, işini sunmak için stüdyoya yürür. Bir ekip arkadaşına sormak için masasına gider, karar için CEO'nun masasında bekler, arada kısa mola verir. Bir kişiye tıklayınca ne yaptığını gösteren kart açılır. Konuşma balonları, kutlamalar, canlı yayın kamerası ve olay şeridiyle izlemesi keyifli.
-- **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5); yeni CEO'lar Fable kullanır.
+- **Model sürümleri ve Fable.** Modeller Claude Code'dan okunan sürümleriyle görünür (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5). Kullanım seviyesi onları role göre seçer; Zeki'de CEO Fable kullanır.
 - **Kendini günceller:** bu deponun sürümlerinden.
 - **Önemli anlar her ekranda.** Hangi ekranda olursanız olun açılır pencere gelir. Pencere arkadaysa masaüstü bildirimi de gelir ve görev çubuğu yanıp söner.
 - **Zamanla değişen ekip.** CEO projenin ilerleyen döneminde işe alım yapabilir ya da birini işten çıkarabilir; kurul karar verirken ikisi de sizin onayınızla olur. Ayrılanın işleri ve bildikleri devralana geçer.
@@ -84,6 +89,7 @@ Claude Code ajanlarından kurulan bir yapay zekâ yazılım şirketi. Projeyi si
 | İlk açılış | ![İlk açılış](docs/gorseller/tr/ilk-kurulum.png) |
 | Ofis | ![Ofis](docs/gorseller/tr/ofis.png) |
 | Ortak çalışma | ![Ortak çalışma](docs/gorseller/tr/ortak-calisma.png) |
+| Kullanım ve bütçe | ![Kullanım ve bütçe](docs/gorseller/tr/kullanim-butce.png) |
 | CEO sohbetinde görsel ve dosya | ![Görsel ve dosya](docs/gorseller/tr/ekler.png) |
 | Kanallar | ![Kanallar](docs/gorseller/tr/kanallar.png) |
 | Tanıtım | ![Tanıtım](docs/gorseller/tr/tanitim.png) |
@@ -131,13 +137,13 @@ Sürüm paketleri GitHub Actions'ta Windows ve Linux için üretilir ve GitHub s
 Sürüm çıkarma (sürüm notları [`docs/surumler/`](docs/surumler) altında):
 
 ```bash
-npm run surum -- 0.0.8                 # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
-# docs/surumler/v0.0.8.md dosyasına sürüm notlarını yazın, commit edin
-git tag -a v0.0.8 -m "ArnOrg 0.0.8"
-git push origin main v0.0.8            # surum.yml paketleri üretir ve sürümü yayınlar
+npm run surum -- 0.0.10                # kök ve tüm paketler, kilit dosyası, ARNORG_SURUMU
+# docs/surumler/v0.0.10.md dosyasına sürüm notlarını yazın, commit edin
+git tag -a v0.0.10 -m "ArnOrg 0.0.10"
+git push origin main v0.0.10           # surum.yml paketleri üretir ve sürümü yayınlar
 ```
 
-Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.9` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
+Etiket göndermek yerine GitHub'da **Actions → Sürüm → Run workflow** ile `surum` alanına `v0.0.10` yazılabilir; etiket main'in son commit'ine konur. Etiket paket sürümleriyle uyuşmazsa ya da sürüm notları yoksa iş akışı paketlemeye başlamadan durur.
 
 İş akışı sürümü bu depoda yayınlar; kurulu uygulamalar da güncellemeyi burada arar. `WIN_IMZA` Actions değişkeni ve imza sağlayıcısının sırları tanımlıysa Windows paketleri imzalanır (SSL.com eSigner, DigiCert KeyLocker ya da başka bir araç); değilse imzasız yayınlanır.
 

@@ -119,7 +119,8 @@ describe("tanıtım durumu", () => {
 
   it("ortak projede henüz kaydedilmemiş README.md taslak görünür; yazanı kiracısıdır; görev kaydedilince yayına geçer", async () => {
     const tuna = sirket.iseAl(pid, { ad: "Tuna", rol: "tanitim" });
-    expect(tuna).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "sonnet" });
+    // Tanıtım destek kademesindedir: Normal seviyede Haiku
+    expect(tuna).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "haiku", modelSabit: false });
     expect(tuna.yetenekler).toEqual(expect.arrayContaining(["web_arama", "web_okuma", "github_arastirma"]));
     // Çalışma kopyası çalışma dalıyla aynı: taslak yok
     expect(await durum()).toMatchObject({ icerik: ILK, taslak: null, uzman: { id: tuna.id, ad: "Tuna", durum: "kapali" } });
@@ -339,7 +340,7 @@ describe("rol ve talimat", () => {
     const teklif = depo.onaylar(p4.id, "bekliyor").find((o) => o.tur === "ise_alim")!;
     expect(teklif.baslik).toBe("İşe alım: Lale · Tanıtım uzmanı");
     await sirket.onayKarari(teklif.id, "onayla");
-    expect(depo.ajanAdla(p4.id, "Lale")).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "sonnet" });
+    expect(depo.ajanAdla(p4.id, "Lale")).toMatchObject({ rol: "tanitim", rolAdi: "Tanıtım uzmanı", model: "haiku" });
     expect((await durum(p4.id)).uzman).toMatchObject({ ad: "Lale" });
   });
 

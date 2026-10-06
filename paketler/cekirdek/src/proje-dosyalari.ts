@@ -74,6 +74,8 @@ export function ekipDosyasiYaz(kok: string, ajan: Ajan, yoneticiAd: string | nul
     ad: ajan.ad,
     rol: ajan.rol,
     model: ajan.model,
+    // 0.0.10: false ise model projenin kullanım seviyesine bağlıdır (model satırı yazıldığı anki modeldir)
+    model_sabit: ajan.modelSabit,
     yonetici: yoneticiAd,
     izin_modu: ajan.izinModu,
     dal: ajan.dal,
@@ -93,6 +95,8 @@ export interface EkipKaydi {
   ad: string;
   rol: string;
   model: string;
+  /** 0.0.10 · Model sabit mi; 0.0.10 öncesinin dosyasında null */
+  modelSabit: boolean | null;
   yonetici: string | null;
   talimatEki: string;
   karakter: string | null;
@@ -114,6 +118,7 @@ export function ekipDosyalariniOku(kok: string): EkipKaydi[] {
         ad: on.ad,
         rol: on.rol,
         model: typeof on.model === "string" ? on.model : "sonnet",
+        modelSabit: typeof on.model_sabit === "boolean" ? on.model_sabit : null,
         yonetici: typeof on.yonetici === "string" ? on.yonetici : null,
         talimatEki: (m[2] ?? "").trim(),
         karakter: typeof on.karakter === "string" && /^(k\d{2}|u-[a-z0-9-]{4,64})$/.test(on.karakter) ? on.karakter : null,

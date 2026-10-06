@@ -13,7 +13,11 @@ import {
   KURUL,
   kanalGorunenAdi,
   kanalKimligi,
+  rolKademesi,
   rolMetni,
+  SEVIYE_DERINLIGI,
+  SEVIYE_MODELLERI,
+  seviyeMi,
   type Ajan,
   type AjanBaslatIstegi,
   type AjanDurumu,
@@ -36,6 +40,7 @@ import {
   type KararKaynagi,
   type KararVeren,
   type KullanimOzeti,
+  type KullanimSeviyesi,
   type KurulBildirimi,
   type Mesaj,
   type MesajEki,
@@ -68,7 +73,8 @@ import { adCinsiyeti } from "@arnorg/ortak/cinsiyet";
 import { iseAlimKarakteri, karakterUyumuGocu } from "./karakter-uyumu.js";
 import { Hatirlatici, oncekiYanit, tercihGibi, uzmanBul, uzmanlariSirala } from "./hatirlatici.js";
 import { calisanMi, EsZamanlilik, siraAciklamasi, siraAciklamasiMi, type SiradakiMesaj } from "./es-zamanlilik.js";
-import { GorevTavani } from "./gorev-tavani.js";
+import { GorevTavani, kisaToken } from "./gorev-tavani.js";
+import { ProjeButceleri, seviyeAdi, seviyeTavani } from "./butce.js";
 import {
   ceoKarari,
   ceoKendiNotu,
@@ -122,7 +128,7 @@ export interface ToplantiSonucu {
 export type SoruSonucu = AjanSorusu & { onceki?: boolean; yonlendirme?: string };
 import { arnorgAraclari } from "./arnorg-araclari.js";
 import { kaliteAyarlari, kaliteDuyurusu } from "./birlestirme-kuyrugu.js";
-import { KARAR_YETKISI_GOCU, type Depo } from "./depo.js";
+import { butceTemizle, KARAR_YETKISI_GOCU, type Depo } from "./depo.js";
 import * as gitIslemleri from "./git.js";
 import { KodZekasi, konumListesi } from "./kod-zekasi/index.js";
 import { OrtakCalisma } from "./ortak-calisma/index.js";
@@ -263,6 +269,8 @@ export class Sirket {
   readonly esZamanlilik: EsZamanlilik<MesajKaynagi>;
   /** Görev token tavanı (aşınca ajan durur, kurula sorulur) ve tur tavanı bildirimi */
   readonly gorevTavani: GorevTavani;
+  /** 0.0.10 · Proje token bütçesi (%80 uyarı, dolunca ekip durur) ve geçerli kullanım seviyesi (otomatik kademe) (butce.ts) */
+  readonly butce: ProjeButceleri;
   /** Açılışta mesaiye dönüş: kapanışta ya da çökmede çalışan ajanlar kaldıkları yerden sürer */
   readonly mesai: MesaiyeDonus;
   /** Kurulun kurduğu kanallar ve üyelerinin serbest konuşması (ozel-kanallar.ts, kanal-konusmasi.ts) */
@@ -355,13 +363,34 @@ export class Sirket {
       },
       duyur: (pid, kanal, metin) => this.duyur(pid, metin, kanal),
       sinirda: () => Boolean(this.hesap.sinir),
+      butceDolu: (pid) => this.butce.doluMu(pid),
       siradaMi: (id) => this.esZamanlilik.siradaMi(id),
       kurulMesaji: (pid, kanal, metin) => this.mesajGonder(pid, kanal, KURUL, metin),
     });
     olaylar.dinle((o) => this.kanallar.olay(o));
+    // Bütçe ve seviye: doluluk ve tahmin kullanımdan, kademe düşürme haftalık pencerelerden; seviye değişince modeller,
+    // düşünme derinliği ve tempo uygulanır
+    this.butce = new ProjeButceleri({
+      depo,
+      hesap: () => this.hesap.mevcut,
+      ekibiDurdur: (pid) => this.butceyleDurdur(pid),
+      surdur: (id, metin) => void this.uyandir(id, metin, null),
+      seviyeDegisti: (pid, _onceki, yeni) => void this.seviyeUygula(pid, yeni),
+      duyur: (pid, metin) => this.duyur(pid, metin),
+      kurulaBildir: (pid, baslik, metin) => void this.kurulaBildir(null, pid, "uyari", baslik, metin, null, "butce"),
+      ceoyaHaber: (pid, metin) => {
+        const ceo = this.ceoBul(pid);
+        if (ceo) this.zeka.haberEkle(ceo.id, metin);
+      },
+      yayinla: (pid) => this.projeYayinla(pid),
+    });
+    olaylar.dinle((o) => {
+      if (o.tur === "hesap.guncellendi") this.butce.pencereGuncellendi();
+    });
     this.gorevTavani = new GorevTavani({
       depo,
-      temelTavan: () => this.yapilandirma.ayarlar.gorevTokenTavani,
+      // Ayardaki tavan × projenin geçerli seviyesinin katsayısı (Zeki 2, Normal 1, Tasarruflu 0,5)
+      temelTavan: (pid) => seviyeTavani(this.yapilandirma.ayarlar.gorevTokenTavani, this.butce.etkinSeviye(pid)),
       duraklat: (id, aciklama) => {
         const o = this.oturumlar.get(id);
         if (o?.acik) o.duraklat(aciklama);
@@ -403,6 +432,8 @@ export class Sirket {
         if (!calisanMi(this.depo.ajan(ceo.id)?.durum)) this.yaziyorBitir(ceo.id);
       },
       erisilebilir: (p) => fs.existsSync(p.yol),
+      // 0.0.10: bütçesi dolan projede günlük brifing bütçe açılınca (aynı gün) verilir
+      butceDolu: (pid) => this.butce.doluMu(pid),
       // 0.0.8: aralıktaki görev kayıtları ve testleri
       kayitlar: (pid, baslangic, kesim) => this.ortak.defter.aralikta(pid, baslangic, kesim),
       hata: (p, h) =>
@@ -415,6 +446,113 @@ export class Sirket {
     // Yarım kalan ajanlar açılıştan ~30 sn sonra eşzamanlı tavana uyarak uyandırılır
     if (!oturumlarKapali) this.mesai.planla(() => void this.mesaiyeDon());
     this.kararYetkisiGocunuDuyur();
+    // 0.0.10: model sabitliği göçü, bütçe ve seviye kayıtları; ilk açılışta seviyeye bağlanan modeller uygulanır
+    this.seviyeGocu();
+  }
+
+  /**
+   * 0.0.10 göçü: sabitliği bilinmeyen (eski) çalışanlardan rolünün varsayılan modelinde kalanlar projenin kullanım
+   * seviyesine bağlanır, modeli değiştirilmiş olanlar sabit sayılır. Bütçe ve seviye kayıtları okunur; göç olduysa
+   * seviyeye bağlananların modeli projenin seviyesine geçer ve her projeye bir kez duyurulur.
+   */
+  private seviyeGocu(): void {
+    const belirsiz = this.depo.modelSabitiBelirsizler();
+    const projeler = new Set<string>();
+    for (const x of belirsiz) {
+      const varsayilan = rolBul(x.rol)?.varsayilanModel ?? "sonnet";
+      const rolde = x.model === varsayilan || x.model === this.modelKatalogu.rolModeli(varsayilan);
+      this.depo.ajanGuncelle(x.id, { modelSabit: !rolde });
+      projeler.add(x.projeId);
+    }
+    this.butce.baslat();
+    for (const pid of projeler) {
+      void this.seviyeUygula(pid).then(
+        (degisen) => this.duyur(pid, this.seviyeGocuMetni(pid, degisen)),
+        () => undefined,
+      );
+    }
+  }
+
+  /** Göç duyurusu: projenin seviyesi, kademe modelleri ve modeli değişen çalışanlar */
+  private seviyeGocuMetni(projeId: string, degisen: { ajan: Ajan; onceki: string }[]): string {
+    const s = this.butce.etkinSeviye(projeId);
+    const liste = degisen.map((d) => `${d.ajan.ad} (${rolAdiDilde(d.ajan)}) ${this.modelAdi(d.onceki)} → ${this.modelAdi(d.ajan.model)}`).join(", ");
+    return iki(
+      `ArnOrg 0.0.10: kullanım seviyesi ve token bütçesi geldi. Bu proje ${seviyeAdi(s)} seviyede: ${this.seviyeOzeti(s)}.${liste ? ` Modeli seviyeye göre değişenler: ${liste}.` : ""} Seviyeyi ve bütçeyi Proje ayarları → Kullanım ve bütçe'den seçebilirsiniz; bir çalışana elle seçtiğiniz model korunur.`,
+      `ArnOrg 0.0.10: usage levels and token budgets are here. This project is on ${seviyeAdi(s)}: ${this.seviyeOzeti(s)}.${liste ? ` Models changed to fit the level: ${liste}.` : ""} Pick the level and the budget under Project settings → Usage and budget; a model you chose for an employee by hand stays as it is.`,
+    );
+  }
+
+  /** "CEO, CTO ve kod inceleme Opus 5.5; geliştirme Sonnet 5.5; test, doküman ve tanıtım Haiku 4.5; orta düşünme" */
+  seviyeOzeti(s: KullanimSeviyesi): string {
+    const m = SEVIYE_MODELLERI[s];
+    const derinlik = SEVIYE_DERINLIGI[s];
+    const dusunme = derinlik === "high" ? iki("derin düşünme", "deep thinking") : derinlik === "medium" ? iki("orta düşünme", "medium thinking") : iki("kısa düşünme", "short thinking");
+    return iki(
+      `CEO, CTO ve kod inceleme ${this.modelAdi(this.modelKatalogu.rolModeli(m.yonetim))}; geliştirme ${this.modelAdi(this.modelKatalogu.rolModeli(m.gelistirme))}; test, doküman ve tanıtım ${this.modelAdi(this.modelKatalogu.rolModeli(m.destek))}; ${dusunme}`,
+      `CEO, CTO and code review ${this.modelAdi(this.modelKatalogu.rolModeli(m.yonetim))}; development ${this.modelAdi(this.modelKatalogu.rolModeli(m.gelistirme))}; testing, docs and promotion ${this.modelAdi(this.modelKatalogu.rolModeli(m.destek))}; ${dusunme}`,
+    );
+  }
+
+  /** Modelin sürümlü görünen adı ("Opus 5.5"); katalogda yoksa olduğu gibi */
+  modelAdi(model: string): string {
+    const m = model.trim().toLowerCase();
+    return this.modelKatalogu.mevcut.modeller.find((x) => x.deger.toLowerCase() === m || x.kimlik?.toLowerCase() === m)?.ad ?? model;
+  }
+
+  /** Rolün projenin geçerli seviyesindeki modeli (hesabın kataloğunda yoksa zincirde bir sonraki) */
+  seviyeModeli(projeId: string, rol: string, seviye: KullanimSeviyesi = this.butce.etkinSeviye(projeId)): string {
+    return this.modelKatalogu.rolModeli(SEVIYE_MODELLERI[seviye][rolKademesi(rol)]);
+  }
+
+  /**
+   * Geçerli seviyeyi uygular: seviyeye bağlı çalışanların modeli değişir (açık oturumda hemen), herkesin düşünme
+   * derinliği açık oturumda hemen değişir, tempo ve iş dağıtımı yeniden işlenir. Modeli değişenler döner.
+   */
+  async seviyeUygula(projeId: string, seviye: KullanimSeviyesi = this.butce.etkinSeviye(projeId)): Promise<{ ajan: Ajan; onceki: string }[]> {
+    const degisen: { ajan: Ajan; onceki: string }[] = [];
+    const derinlik = SEVIYE_DERINLIGI[seviye];
+    for (const a of this.depo.ajanlar(projeId)) {
+      const o = this.oturumlar.get(a.id);
+      if (!a.modelSabit) {
+        const model = this.seviyeModeli(projeId, a.rol, seviye);
+        if (model !== a.model) {
+          const yeni = this.depo.ajanGuncelle(a.id, { model });
+          degisen.push({ ajan: yeni, onceki: a.model });
+          if (o?.acik) await o.modelDegistir(this.modelSec(model)).catch(() => undefined);
+          this.ajanYayinla(a.id);
+        }
+      }
+      if (o?.acik) await o.derinlikDegistir(derinlik).catch(() => undefined);
+    }
+    this.esZamanlilik.planla();
+    this.ortak.tempoBildir(projeId);
+    this.ortak.dagitimPlanla(projeId);
+    this.projeYayinla(projeId);
+    return degisen;
+  }
+
+  /** Bütçe doldu: projenin turu süren çalışanları kesilir, kurulun kanallarındaki konuşmalar durur; kesilenler döner */
+  private butceyleDurdur(projeId: string): string[] {
+    const kesilen: string[] = [];
+    for (const a of this.depo.ajanlar(projeId)) {
+      const o = this.oturumlar.get(a.id);
+      if (!o?.acik || !calisanMi(a.durum)) continue;
+      kesilen.push(a.id);
+      void o.kes(iki("Proje bütçesi doldu; tur kesildi.", "The project budget is used up; the turn was cut.")).catch(() => undefined);
+    }
+    this.kanallar.konusmalariDurdur(projeId, "butce");
+    return kesilen;
+  }
+
+  /** Bütçe ve seviye özeti (ekip_listele ve CEO bağlamı): "Bütçe 9,6 M / 20 M (%48) · seviye Normal" */
+  butceOzeti(projeId: string): string {
+    const d = this.butce.durum(projeId);
+    const kalem = (k: typeof d.toplam, ad: string) => (k ? `${ad} ${kisaToken(k.harcanan)} / ${kisaToken(k.sinir)} (${iki(`%${Math.floor(k.yuzde)}`, `${Math.floor(k.yuzde)}%`)})` : null);
+    const butce = [kalem(d.toplam, iki("bütçe", "budget")), kalem(d.gunluk, iki("bugün", "today"))].filter(Boolean).join(", ") || iki("bütçe sınırsız", "no budget limit");
+    const seviye = d.etkinSeviye !== d.seviye ? `${seviyeAdi(d.etkinSeviye)} (${iki("kurulun seçimi", "board's choice")} ${seviyeAdi(d.seviye)})` : seviyeAdi(d.etkinSeviye);
+    const dolu = d.durum === "doldu" ? iki(" · BÜTÇE DOLDU, ekip duruyor", " · BUDGET USED UP, the team is stopped") : "";
+    return `${butce} · ${iki("seviye", "level")} ${seviye}${dolu}`;
   }
 
   /** 0.0.7 güncellemesiyle karar yetkisi CEO'ya geçen projeler: #genel'e ve CEO sohbetine bir kez duyurulur */
@@ -613,6 +751,8 @@ export class Sirket {
       // Kurulun kararını bekleyenler: tam otonomda CEO'nun kararındakiler kurulun işi değildir
       bekleyenOnay: this.depo.onaylar(id, "bekliyor").filter((o) => o.muhatap !== "ceo").length,
       bugunToken: this.depo.projeTokeni(id, bugun()),
+      toplamToken: this.depo.projeTokeni(id),
+      butceDurumu: this.butce.durum(id),
     };
   }
 
@@ -676,14 +816,21 @@ export class Sirket {
       otomatikGonder: true,
       hazirlik: "bekliyor",
       kararVeren: istek.kararVeren === "kurul" ? "kurul" : "ceo",
+      // 0.0.10: açılışta seçilen bütçe ve seviye; verilmezse sınırsız bütçe, Normal seviye, otomatik kademe açık
+      butce: butceTemizle(istek.butce),
+      seviye: seviyeMi(istek.seviye) ? istek.seviye : undefined,
+      otomatikKademe: istek.otomatikKademe !== false,
     });
     this.depo.politikaYaz(proje.id, varsayilanKurallar());
 
     // Repo içinde kayıtlı ekip varsa geri yükle
     const kayitlar = ekipDosyalariniOku(kok);
     for (const k of kayitlar) {
-      if (!rolBul(k.rol)) continue;
-      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: k.model, talimatEki: k.talimatEki, karakter: k.karakter }, false);
+      const rol = rolBul(k.rol);
+      if (!rol) continue;
+      // Sabit model korunur; seviyeye bağlı (ya da 0.0.10 öncesinden rolün varsayılanında kalan) çalışan seviyeye bağlanır
+      const sabit = k.modelSabit ?? (k.model !== rol.varsayilanModel && k.model !== this.modelKatalogu.rolModeli(rol.varsayilanModel));
+      this.iseAl(proje.id, { ad: k.ad, rol: k.rol, model: sabit ? k.model : undefined, talimatEki: k.talimatEki, karakter: k.karakter }, false);
     }
     for (const k of kayitlar) {
       if (!k.yonetici) continue;
@@ -712,15 +859,26 @@ export class Sirket {
       "genel",
       { id: ARNORG_GONDEREN, ad: "ArnOrg" },
       iki(
-        `${ad} projesi açıldı. Çalışma dalı ${son.varsayilanDal}${son.github ? `, GitHub deposu ${son.github}` : ""}. CEO hazır: hazırlık görüşmesi için #yonetim kanalını kullanın ya da brief'inizi buraya yazın.`,
-        `${ad} is open. Working branch ${son.varsayilanDal}${son.github ? `, GitHub repository ${son.github}` : ""}. The CEO is ready: use #ceo for the kickoff conversation or write your brief here.`,
+        `${ad} projesi açıldı. Çalışma dalı ${son.varsayilanDal}${son.github ? `, GitHub deposu ${son.github}` : ""}. ${this.acilisButceMetni(son)} CEO hazır: hazırlık görüşmesi için #yonetim kanalını kullanın ya da brief'inizi buraya yazın.`,
+        `${ad} is open. Working branch ${son.varsayilanDal}${son.github ? `, GitHub repository ${son.github}` : ""}. ${this.acilisButceMetni(son)} The CEO is ready: use #ceo for the kickoff conversation or write your brief here.`,
       ),
     );
     this.projeYayinla(proje.id);
     return this.projeOzeti(proje.id);
   }
 
-  /** Proje ayarları: ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık durumu, otomatik onay, karar yetkisi */
+  /** Proje açılış duyurusunun bütçe ve seviye cümlesi */
+  private acilisButceMetni(p: Proje): string {
+    return iki(`Kullanım seviyesi ${seviyeAdi(p.seviye)}; token bütçesi ${this.butceMetni(p.butce)}.`, `Usage level ${seviyeAdi(p.seviye)}; token budget ${this.butceMetni(p.butce)}.`);
+  }
+
+  /** Bütçenin kısa metni: "toplam 20 M, günde 5 M" ya da "sınırsız" */
+  private butceMetni(b: Proje["butce"]): string {
+    const parcalar = [b.toplam ? iki(`toplam ${kisaToken(b.toplam)}`, `${kisaToken(b.toplam)} in total`) : null, b.gunluk ? iki(`günde ${kisaToken(b.gunluk)}`, `${kisaToken(b.gunluk)} a day`) : null].filter(Boolean);
+    return parcalar.join(", ") || iki("sınırsız", "unlimited");
+  }
+
+  /** Proje ayarları: ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık durumu, otomatik onay, karar yetkisi, bütçe ve seviye */
   async projeGuncelle(id: string, istek: ProjeGuncelleIstegi): Promise<ProjeOzeti> {
     const p = this.proje(id);
     const alanlar: Parameters<Depo["projeGuncelle"]>[1] = {};
@@ -734,6 +892,13 @@ export class Sirket {
     if (istek.hazirlik !== undefined) alanlar.hazirlik = istek.hazirlik;
     // Kalite kapısı: test ve hazırlık komutu, süre sınırı (birlestirme-kuyrugu.ts)
     Object.assign(alanlar, kaliteAyarlari(istek));
+    // 0.0.10: bütçe, seviye ve otomatik kademe; değişince bütçe ve seviye yeniden değerlendirilir
+    if (istek.butce !== undefined) alanlar.butce = butceTemizle(istek.butce);
+    if (istek.seviye !== undefined && seviyeMi(istek.seviye)) alanlar.seviye = istek.seviye;
+    if (istek.otomatikKademe !== undefined) alanlar.otomatikKademe = Boolean(istek.otomatikKademe);
+    const butceDegisti = !!alanlar.butce && (alanlar.butce.toplam !== p.butce.toplam || alanlar.butce.gunluk !== p.butce.gunluk);
+    const seviyeDegisti = !!alanlar.seviye && alanlar.seviye !== p.seviye;
+    const kademeDegisti = alanlar.otomatikKademe !== undefined && alanlar.otomatikKademe !== p.otomatikKademe;
     let bekleyenleriOnayla = false;
     if (istek.otomatikOnay !== undefined) {
       const turler = [...new Set(istek.otomatikOnay.turler.filter((t) => ONAY_TURLERI.includes(t)))];
@@ -766,6 +931,7 @@ export class Sirket {
     const yeni = this.depo.projeGuncelle(id, alanlar);
     const kalite = kaliteDuyurusu(p, yeni);
     if (kalite) this.duyur(id, kalite);
+    if (butceDegisti || seviyeDegisti || kademeDegisti) this.butceAyariDegisti(p, yeni, { butceDegisti, seviyeDegisti, kademeDegisti });
     if (kipDegisti) await this.kararKipiDegisti(id, yeni.kararVeren);
     // Otomatik onay (yalnız kurul kipinde) açıkken kurulu bekleyen uygun onaylar da verilir
     else if (bekleyenleriOnayla && alanlar.otomatikOnay && yeni.kararVeren === "kurul") {
@@ -775,6 +941,35 @@ export class Sirket {
     }
     this.projeYayinla(id);
     return this.projeOzeti(id);
+  }
+
+  /**
+   * Kurul bütçeyi, seviyeyi ya da otomatik kademeyi değiştirdi: duyurulur, bütçe ve seviye yeniden değerlendirilir
+   * (dolu bütçe artınca ekip sürer; seviye değişince modeller ve düşünme derinliği uygulanır)
+   */
+  private butceAyariDegisti(p: Proje, yeni: Proje, d: { butceDegisti: boolean; seviyeDegisti: boolean; kademeDegisti: boolean }): void {
+    const id = p.id;
+    if (d.butceDegisti) this.duyur(id, iki(`Kurul token bütçesini ${this.butceMetni(yeni.butce)} yaptı.`, `The board set the token budget to ${this.butceMetni(yeni.butce)}.`));
+    this.butce.ayarDegisti(id);
+    const durum = this.butce.durum(id);
+    if (d.seviyeDegisti) {
+      const etkin = durum.etkinSeviye !== yeni.seviye ? iki(` Bütçe ya da abonelik penceresi yüzünden geçerli seviye şimdilik ${seviyeAdi(durum.etkinSeviye)}.`, ` Because of the budget or the subscription window, the level in effect is ${seviyeAdi(durum.etkinSeviye)} for now.`) : "";
+      const metin = iki(
+        `Kurul kullanım seviyesini ${seviyeAdi(yeni.seviye)} yaptı: ${this.seviyeOzeti(yeni.seviye)}.${etkin}`,
+        `The board set the usage level to ${seviyeAdi(yeni.seviye)}: ${this.seviyeOzeti(yeni.seviye)}.${etkin}`,
+      );
+      this.duyur(id, metin);
+      const ceo = this.ceoBul(id);
+      if (ceo) this.zeka.haberEkle(ceo.id, iki(`${metin} Seviyeye bağlı çalışanların modeli ve herkesin düşünme derinliği buna göre değişti.`, `${metin} The models of employees who follow the level and everyone's thinking depth changed accordingly.`));
+    }
+    if (d.kademeDegisti) {
+      this.duyur(
+        id,
+        yeni.otomatikKademe
+          ? iki("Kurul otomatik kademe düşürmeyi açtı: bütçe ya da haftalık abonelik penceresi %80'i geçince seviye bir kademe iner.", "The board turned on automatic step-down: when the budget or the weekly subscription window passes 80%, the level steps down one notch.")
+          : iki("Kurul otomatik kademe düşürmeyi kapattı; seviye kurulun seçtiği gibi kalır.", "The board turned off automatic step-down; the level stays as the board chose."),
+      );
+    }
   }
 
   /** Var olan projeyi GitHub'da yeni depo olarak açar ve bağlar */
@@ -823,6 +1018,7 @@ export class Sirket {
     for (const a of this.depo.ajanlar(id)) this.oturumlar.get(a.id)?.kapat();
     this.kanallar.projeKaldir(id);
     this.kodZekasi.projeKaldir(id);
+    this.butce.projeKaldir(id);
     const p = this.depo.proje(id);
     if (p) this.ortak.projeKaldir(p);
     this.depo.projeSil(id);
@@ -863,8 +1059,10 @@ export class Sirket {
       rol: rol.kimlik,
       // Kayıtlı rol adı işe alındığı dildedir (talimat ve metinler rolü kimliğinden geçerli dilde anar)
       rolAdi: rolMetni(rol, dil()).ad,
-      // Model verilmezse rolün varsayılanı; hesabın kataloğunda yoksa zincirde bir sonraki (CEO: fable yoksa opus)
-      model: istek.model?.trim() || this.modelKatalogu.rolModeli(rol.varsayilanModel),
+      // 0.0.10: model verilirse sabittir; verilmezse projenin geçerli kullanım seviyesinin bu rolün kademesindeki modeli
+      // (hesabın kataloğunda yoksa zincirde bir sonraki) ve seviye değişince değişir
+      model: istek.model?.trim() || this.seviyeModeli(projeId, rol.kimlik),
+      modelSabit: Boolean(istek.model?.trim()),
       yoneticiId,
       durum: "kapali",
       isAciklamasi: "",
@@ -915,7 +1113,14 @@ export class Sirket {
   async ajanGuncelle(id: string, istek: AjanGuncelleIstegi): Promise<Ajan> {
     const a = this.ajan(id);
     const alanlar: Partial<Ajan> = {};
-    if (istek.model) alanlar.model = istek.model;
+    // 0.0.10: elle seçilen model sabittir; null modeli projenin kullanım seviyesine bağlar
+    if (istek.model === null) {
+      alanlar.modelSabit = false;
+      alanlar.model = this.seviyeModeli(a.projeId, a.rol);
+    } else if (istek.model?.trim()) {
+      alanlar.model = istek.model.trim();
+      alanlar.modelSabit = true;
+    }
     if (istek.izinModu) alanlar.izinModu = istek.izinModu;
     if (istek.yoneticiId !== undefined) {
       if (istek.yoneticiId === id) throw new ArnorgHatasi(iki("Ajan kendi yöneticisi olamaz.", "An agent cannot be their own manager."));
@@ -930,7 +1135,7 @@ export class Sirket {
     const yeni = this.depo.ajanGuncelle(id, alanlar);
     const oturum = this.oturumlar.get(id);
     if (oturum?.acik) {
-      if (istek.model && istek.model !== a.model) await oturum.modelDegistir(this.modelSec(istek.model));
+      if (alanlar.model && alanlar.model !== a.model) await oturum.modelDegistir(this.modelSec(alanlar.model));
       if (istek.izinModu && istek.izinModu !== a.izinModu) await oturum.modDegistir(istek.izinModu);
     }
     this.kimlikDosyasiYaz(yeni, this.proje(yeni.projeId));
@@ -1075,6 +1280,7 @@ export class Sirket {
       hafizaBaglami,
       dil: dil(),
       tempo: this.ortak.tempo(ajan.projeId),
+      butce: rol?.kimlik === "ceo" ? this.butceOzeti(ajan.projeId) : undefined,
     });
   }
 
@@ -1134,6 +1340,8 @@ export class Sirket {
       yasakAraclar: () => [...(rolBul(this.ajan(id).rol)?.kimlik === "ceo" ? ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Monitor", "Agent", "Task", "Skill"] : []), ...kapaliClaudeAraclari(this.ajan(id))],
       // Atanan skiller veri dizinindeki yerel eklentiyle yüklenir (skill-eklentisi.ts); repoya bir şey yazılmaz
       eklentiler: () => skillEklentileri(this.yapilandirma.veriDizini, this.ajan(id), (h) => this.olaylar.yayinla({ tur: "bildirim", seviye: "uyari", metin: iki(`Skiller yüklenemedi: ${h.message}`, `Could not load the skills: ${h.message}`), projeId: ajan.projeId })),
+      // 0.0.10: düşünme derinliği projenin geçerli kullanım seviyesinden
+      derinlik: () => SEVIYE_DERINLIGI[this.butce.etkinSeviye(ajan.projeId)],
       onaySuresiSn: () => this.yapilandirma.ayarlar.onaySuresiSn,
       kapi: (arac, girdi, aracKimligi, altAjan) => this.kapi(id, arac, girdi, aracKimligi, altAjan),
       izinSor,
@@ -1154,7 +1362,10 @@ export class Sirket {
         this.depo.ajanGuncelle(id, { oturumId: oid || null });
       },
       kullanim: (delta) => this.kullanimEkle(id, delta),
-      turKullanimi: (tahmin) => this.gorevTavani.turSuruyor(id, tahmin),
+      turKullanimi: (tahmin) => {
+        this.gorevTavani.turSuruyor(id, tahmin);
+        this.butce.turSuruyor(ajan.projeId, id, tahmin);
+      },
       turTavaniAsildi: (adim) => this.gorevTavani.turSiniri(id, adim),
       pencere: (p) => {
         this.pencere = { tur: p.tur, durum: p.durum, sifirlanma: p.sifirlanma };
@@ -1217,6 +1428,8 @@ export class Sirket {
         429,
       );
     }
+    // Proje bütçesi doldu: kurul dışından gelen mesaj saklanır, bütçe açılınca iletilir (kurulun kendi mesajı geçer)
+    if (kaynak.tur !== "kurul" && this.butce.tut(a.projeId, id, metin)) return;
     // Görev token tavanı aşıldı, kurul kararı bekleniyor: mesaj kararla birlikte iletilir (kurul ve soru yanıtı geçer)
     const muaf = this.tavandanMuaf(a, kaynak);
     if (!muaf && this.gorevTavani.tut(id, metin)) return;
@@ -1276,6 +1489,10 @@ export class Sirket {
     if (!a) return;
     if (this.hesap.sinir) {
       for (const m of mesajlar) this.sinirdaSakla(ajanId, m.metin);
+      return;
+    }
+    if (this.butce.doluMu(a.projeId)) {
+      for (const m of mesajlar) this.butce.tut(a.projeId, ajanId, m.metin);
       return;
     }
     if (this.gorevTavani.duraklatmaAciklamasi(ajanId)) {
@@ -1375,9 +1592,10 @@ export class Sirket {
     return this.ajanGuncelle(id, { izinModu: mod });
   }
 
-  async ajanModel(id: string, model: string): Promise<Ajan> {
-    if (!model.trim()) throw new ArnorgHatasi(iki("Model adı gerekli.", "A model name is required."));
-    return this.ajanGuncelle(id, { model: model.trim() });
+  /** Modeli sabitler; null modeli projenin kullanım seviyesine bağlar (0.0.10) */
+  async ajanModel(id: string, model: string | null): Promise<Ajan> {
+    if (model !== null && !model.trim()) throw new ArnorgHatasi(iki("Model adı gerekli.", "A model name is required."));
+    return this.ajanGuncelle(id, { model: model === null ? null : model.trim() });
   }
 
   akis(id: string, sinir = 300): AkisOgesi[] {
@@ -1477,11 +1695,14 @@ export class Sirket {
     const a = this.depo.ajan(ajanId);
     if (!a) return;
     this.depo.kullanimEkle(a.projeId, ajanId, delta.token);
+    // Görev token tavanı: token ajanın o anki görevine yazılır; aşıldıysa ajan durur, kurula sorulur. Görevin yeni
+    // toplamı kullanım olayıyla Stüdyo'ya gider (Pano'daki token)
+    const gorev = this.gorevTavani.tokenEkle(ajanId, delta.token);
     const y = this.depo.ajan(ajanId)!;
-    this.olaylar.yayinla({ tur: "kullanim", projeId: a.projeId, ajanId, bugunToken: y.bugunToken, toplamToken: y.toplamToken });
+    this.olaylar.yayinla({ tur: "kullanim", projeId: a.projeId, ajanId, bugunToken: y.bugunToken, toplamToken: y.toplamToken, ...(gorev ? { gorev } : {}) });
     this.ajanYayinla(ajanId);
-    // Görev token tavanı: token ajanın o anki görevine yazılır; aşıldıysa ajan durur, kurula sorulur
-    this.gorevTavani.tokenEkle(ajanId, delta.token);
+    // Proje bütçesi: %80 uyarı, dolunca ekip durur; geçerli seviye (kademe) yeniden bulunur
+    this.butce.kullanimEklendi(a.projeId, ajanId, delta.token);
   }
 
   // ===================================================================
@@ -2830,6 +3051,8 @@ export class Sirket {
       toplamToken: this.depo.projeTokeni(projeId),
       ajanlar: ajanlar.map((a) => ({ ajanId: a.id, ad: a.ad, bugunToken: a.bugunToken, toplamToken: a.toplamToken })),
       pencere: this.pencere,
+      butce: this.butce.durum(projeId),
+      gorevler: this.gorevTavani.harcamalar(projeId, 10),
     };
   }
 
@@ -2881,13 +3104,21 @@ export class Sirket {
         this.depo
           .projeler()
           .flatMap((p) => this.depo.ajanlar(p.id))
-          .filter((a) => (calisanMi(a.durum) && !this.oturumlar.get(a.id)?.kapaniyor) || this.esZamanlilik.siradaMi(a.id) || this.sinirdaBekleyenler.has(a.id) || this.kimlikBekleyenler.has(a.id))
+          .filter(
+            (a) =>
+              (calisanMi(a.durum) && !this.oturumlar.get(a.id)?.kapaniyor) ||
+              this.esZamanlilik.siradaMi(a.id) ||
+              this.sinirdaBekleyenler.has(a.id) ||
+              this.kimlikBekleyenler.has(a.id) ||
+              this.butce.bekletiliyorMu(a.projeId, a.id),
+          )
           .map((a) => a.id),
       );
     } catch {
       // Depo kapanmışsa kayıt yazılamaz; açılışta çalışan durumda kalanlar yine okunur
     }
     this.esZamanlilik.kapat();
+    this.butce.durdur();
     this.kanallar.kapat();
     this.ortak.kapat();
     this.hesap.durdur();

@@ -34,6 +34,7 @@ import { tanitim } from "./tanitim";
 import { ortakCalisma } from "./ortakCalisma";
 import { skiller } from "./skiller";
 import { arayuz } from "./arayuz";
+import { butce } from "./butce";
 
 export const tr = {
   genel,
@@ -71,6 +72,7 @@ export const tr = {
   ortakCalisma,
   skiller,
   arayuz,
+  butce,
 };
 
 export type Sozluk = typeof tr;

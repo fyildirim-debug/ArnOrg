@@ -25,7 +25,7 @@ export const YANITSIZ_BITIS_MS = 15_000;
 const SON_MESAJ = 10;
 
 /** kurul ve mesai: kurulun eylemi (duyuru yok); diğerleri kendiliğinden durmadır ve kanala duyurulur */
-export type DurmaNedeni = "kurul" | "mesai" | "sinir" | "uye_yok" | "sessiz";
+export type DurmaNedeni = "kurul" | "mesai" | "sinir" | "butce" | "uye_yok" | "sessiz";
 
 export interface KonusmaBaglami {
   kanal(projeId: string, ad: string): Kanal | null;
@@ -38,6 +38,8 @@ export interface KonusmaBaglami {
   mesajlar(projeId: string, kanal: string, sinir: number): Mesaj[];
   /** Abonelik kullanım sınırı aşıldı mı */
   sinirda(): boolean;
+  /** 0.0.10 · Projenin token bütçesi doldu mu */
+  butceDolu?(projeId: string): boolean;
   /** Ajan eşzamanlı tavan yüzünden sırada mı */
   siradaMi(ajanId: string): boolean;
   /** Ajanı uyandırır: kurul=true kurulun mesajına yanıttır (tavandan muaf), değilse ArnOrg kaynaklıdır ve tavana uyar; uyanamazsa false */
@@ -108,6 +110,8 @@ function durmaDuyurusu(neden: DurmaNedeni): string | null {
   switch (neden) {
     case "sinir":
       return iki("Abonelik kullanım sınırına gelindi; konuşma durdu. Pencere açılınca yeniden başlatabilirsiniz.", "The subscription usage limit was reached, so the conversation stopped. You can start it again when the window opens.");
+    case "butce":
+      return iki("Proje token bütçesi doldu; konuşma durdu. Bütçe artınca yeniden başlatabilirsiniz.", "The project's token budget is used up, so the conversation stopped. You can start it again once the budget is raised.");
     case "uye_yok":
       return iki("Konuşmayı sürdürecek üye kalmadı; konuşma durdu.", "No member is left to carry on, so the conversation stopped.");
     case "sessiz":
@@ -327,6 +331,7 @@ export class KanalKonusmasi {
     const k = this.b.kanal(iz.projeId, iz.kanal);
     if (!k?.ozel || k.konusma !== "suruyor") return this.siraBitir(iz);
     if (this.b.sinirda()) return this.durdur(iz.projeId, iz.kanal, "sinir");
+    if (this.b.butceDolu?.(iz.projeId)) return this.durdur(iz.projeId, iz.kanal, "butce");
     if (!uyelerOf(k).includes(sira.ajanId) || !this.uygun(iz, sira.ajanId)) return this.uyelerDegisti(iz.projeId, iz.kanal);
     this.yanitBekle(iz, sira);
     this.b.yaziyor(sira.ajanId, iz.projeId, iz.kanal, true);

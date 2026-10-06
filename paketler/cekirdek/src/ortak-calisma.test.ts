@@ -489,6 +489,8 @@ describe("yaşam döngüsü", () => {
 
 describe("ekip temposu", () => {
   it("CEO ekip_temposu ile aynı anda kaç çalışanın çalışacağını belirler; üst sınırı geçemez; kurul kipinde kurulun ayarı geçerli", async () => {
+    // Zeki seviyenin tempo sınırı yoktur: yalnız kurulun üst sınırı geçerli
+    await sirket.projeGuncelle(pid, { seviye: "zeki" });
     const yuksek = await arac(ceo().id, "ekip_temposu", { es_zamanli: 12, gerekce: "Bağımsız iş çok" });
     expect(yuksek.metin).toContain("Ekip temposu 8 oldu (kurulun üst sınırı 8; daha fazlası için kurula sor)");
     const r = await arac(ceo().id, "ekip_temposu", { es_zamanli: 2, gerekce: "İşler aynı dosyalarda" });
@@ -515,9 +517,22 @@ describe("ekip temposu", () => {
     const kurulda = await arac(ceo().id, "ekip_temposu", { es_zamanli: 3, gerekce: "Deneme yazısı" });
     expect(kurulda).toMatchObject({ hata: true });
     expect(kurulda.metin).toContain("kurul Ayarlar'dan belirler");
-    await sirket.projeGuncelle(pid, { kararVeren: "ceo" });
+    await sirket.projeGuncelle(pid, { kararVeren: "ceo", seviye: "normal" });
     depo.ajanGuncelle(d!.id, { durum: "bosta" });
     depo.ajanGuncelle(e!.id, { durum: "bosta" });
+  });
+
+  it("kullanım seviyesi tempoyu sınırlar: Normal en çok 6, Tasarruflu en çok 3; kurul kipinde de geçerli", async () => {
+    const r = await arac(ceo().id, "ekip_temposu", { es_zamanli: 8, gerekce: "Bağımsız iş çok" });
+    expect(r.metin).toContain("Ekip temposu 6 oldu (projenin kullanım seviyesi en çok 6 çalışana izin veriyor; seviyeyi kurul seçer)");
+    expect(sirket.ortak.tempo(pid)).toMatchObject({ secim: 8, seviyeSiniri: 6, gecerli: 6, ustSinir: 8 });
+    expect((await arac(ceo().id, "calisma_durumu", {})).metin).toContain("kullanım seviyesi en çok 6");
+    await sirket.projeGuncelle(pid, { seviye: "tasarruflu" });
+    expect(sirket.ortak.tempo(pid)).toMatchObject({ seviyeSiniri: 3, gecerli: 3 });
+    await sirket.projeGuncelle(pid, { kararVeren: "kurul" });
+    expect(sirket.ortak.tempo(pid)).toMatchObject({ belirleyen: "kurul", seviyeSiniri: 3, gecerli: 3 });
+    await sirket.projeGuncelle(pid, { kararVeren: "ceo", seviye: "normal" });
+    expect(sirket.ortak.tempo(pid)).toMatchObject({ seviyeSiniri: 6 });
   });
 
   it("0.0.7'nin varsayılan üst sınırı (3) açılışta bir kez 8'e çıkar", () => {

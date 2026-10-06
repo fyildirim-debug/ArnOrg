@@ -55,6 +55,9 @@ function proje(p: Partial<Proje> = {}): Proje {
     testKomutu: null,
     hazirlikKomutu: null,
     testZamanAsimiDk: 20,
+    butce: { toplam: null, gunluk: null },
+    seviye: "normal",
+    otomatikKademe: true,
     ...p,
   };
 }
@@ -64,6 +67,7 @@ function ajan(a: Partial<Ajan> & Pick<Ajan, "id" | "ad" | "rol">): Ajan {
     projeId: PID,
     rolAdi: a.rol,
     model: "sonnet",
+    modelSabit: false,
     yoneticiId: null,
     durum: "kapali",
     isAciklamasi: "",

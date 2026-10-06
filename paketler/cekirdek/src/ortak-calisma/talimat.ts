@@ -56,7 +56,7 @@ export function ortakKurallar(b: { proje: Pick<Proje, "varsayilanDal" | "testKom
 }
 
 /** CEO talimatının ortak çalışma ve ekip temposu bölümü */
-export function ortakCeoTalimati(b: { proje: Pick<Proje, "varsayilanDal">; tempo: EkipTemposu }, dil: Dil): string[] {
+export function ortakCeoTalimati(b: { proje: Pick<Proje, "varsayilanDal">; tempo: EkipTemposu; butce?: string }, dil: Dil): string[] {
   const t = b.tempo;
   const dal = b.proje.varsayilanDal;
   const sinir = t.ustSinir > 0 ? String(t.ustSinir) : dil === "en" ? "none" : "yok";
@@ -70,6 +70,11 @@ export function ortakCeoTalimati(b: { proje: Pick<Proje, "varsayilanDal">; tempo
         ? `- You decide how many employees work at once with ekip_temposu (the board's ceiling: ${sinir}; now ${t.gecerli || sinir}, ${t.calisan} working). Raise it when there is plenty of independent work; lower it when tasks crowd onto the same files or the subscription window runs low.`
         : `- At most ${t.gecerli || "an unlimited number of"} employees work at once (the board's setting).`,
       "- Review: when a task reaches 'inceleme', read its save with calisma_farki (gorev: T-12); if it is right, move it to 'tamam'; if not, move it back to 'calisiliyor' and tell the owner what to fix. calisma_durumu shows who works on what and which files are leased.",
+      ...(b.butce
+        ? [
+            `- Budget and usage level (${b.butce}): the board gives the project a token budget and a usage level (Smart, Normal, Economy); the level sets the employees' models and thinking depth, and only the board changes it. You hear when 80% of the budget is used; if the budget runs out, the team stops. Keep tasks small and clear, avoid needless meetings and long threads, and leave the model empty when you hire.`,
+          ]
+        : []),
     ];
   }
   return [
@@ -81,6 +86,11 @@ export function ortakCeoTalimati(b: { proje: Pick<Proje, "varsayilanDal">; tempo
       ? `- Aynı anda kaç çalışanın çalışacağına ekip_temposu ile sen karar verirsin (kurulun üst sınırı: ${sinir}; şu an ${t.gecerli || sinir}, çalışan ${t.calisan}). Bağımsız iş çoksa yükselt; işler aynı dosyalarda toplanıyorsa ya da abonelik penceresi azalıyorsa düşür.`
       : `- Aynı anda en çok ${t.gecerli || "sınırsız sayıda"} çalışan çalışır (kurulun ayarı).`,
     "- İnceleme: görev 'inceleme'ye gelince kaydını calisma_farki ile oku (gorev: T-12); uygunsa 'tamam' yap, değilse 'calisiliyor'a geri al ve sahibine neyi düzelteceğini yaz. Kimin ne üzerinde çalıştığını ve kiralı dosyaları calisma_durumu gösterir.",
+    ...(b.butce
+      ? [
+          `- Bütçe ve kullanım seviyesi (${b.butce}): kurul projeye token bütçesi ve kullanım seviyesi (Zeki, Normal, Tasarruflu) verir; seviye çalışanların modelini ve düşünme derinliğini belirler, onu yalnız kurul değiştirir. Bütçenin %80'i harcanınca sana haber gelir; bütçe dolarsa ekip durur. Görevleri küçük ve net tut, gereksiz toplantı ve uzun yazışmalardan kaçın; işe alırken modeli boş bırak.`,
+        ]
+      : []),
   ];
 }
 

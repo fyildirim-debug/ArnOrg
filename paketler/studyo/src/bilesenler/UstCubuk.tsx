@@ -1,4 +1,5 @@
-// Üst çubuk: şirket / proje seçici, ekip sayacı, abonelik kullanımı, bağlantı durumu, mesaiyi durdur
+// Üst çubuk: şirket / proje seçici, ekip sayacı, abonelik kullanımı, projenin bütçesi ve seviyesi (0.0.10), bağlantı
+// durumu, mesaiyi durdur
 import { useRef, useState } from "react";
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
@@ -6,7 +7,7 @@ import { bildir, git, hataBildir, yeniProjeIste } from "../durum/arayuz";
 import { simdiYenidenBaglan } from "../durum/olaylar";
 import { aktifMi, ajanUygula, oturumAcikMi, projeyiSec, useVeri } from "../durum/veri";
 import { UstKullanim } from "./Kullanim";
-import { ToplamToken } from "./ToplamToken";
+import { ButceGostergesi } from "./butce/ButceGostergesi";
 import { useDisariTik } from "../yardimcilar/kancalar";
 import { useTercihler } from "../yardimcilar/tercihler";
 import { OnaySor } from "./OnaySor";
@@ -44,7 +45,7 @@ export function UstCubuk({ rayDugmesi }: { rayDugmesi: React.ReactNode }) {
             </span>
             <span className="metre-ayrac ust-gizle-dar" aria-hidden="true" />
             <UstKullanim />
-            <ToplamToken />
+            <ButceGostergesi />
           </>
         ) : null}
         {wsDurumu === "kopuk" ? (

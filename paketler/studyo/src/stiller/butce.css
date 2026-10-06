@@ -1,0 +1,517 @@
+/* Kullanım seviyesi ve proje bütçesi (0.0.10): seviye seçimi, bütçe alanları, üst çubuk göstergesi ve paneli, harcama
+   listeleri, Pano'da görev tokenı. Kart ve gölge yok; ayrım kıl çizgi, boşluk ve yazıyla. Doluluk sarıyla (uyarı) ve
+   mercanla (doldu) söylenir. */
+
+/* ---------- seviye seçimi ---------- */
+.seviye-secim {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--b-2);
+  min-width: 0;
+}
+.seviye-secenek {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  cursor: pointer;
+  transition: border-color var(--hiz) ease, background-color var(--hiz) ease;
+}
+.seviye-secenek:hover {
+  border-color: var(--line-hover);
+}
+.seviye-secenek[data-secili] {
+  border-color: var(--coral-cizgi);
+  background: var(--ink-3);
+}
+.seviye-secenek:has(input:disabled) {
+  cursor: progress;
+}
+.seviye-secenek:has(input:focus-visible) {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.seviye-secenek input {
+  transform: translateY(1px);
+}
+.seviye-metin {
+  display: grid;
+  gap: 0.3125rem;
+  min-width: 0;
+}
+.seviye-metin b {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--bone);
+  font-size: var(--t-s);
+  font-weight: 500;
+}
+.seviye-secenek[data-secili] .seviye-metin b {
+  color: var(--paper);
+}
+.seviye-metin small {
+  font-family: var(--font-govde);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.seviye-modeller {
+  display: grid;
+  gap: 0.125rem;
+  padding-top: 0.3125rem;
+  border-top: 1px solid var(--line-soft);
+  color: var(--paper);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.seviye-modeller > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.seviye-modeller i {
+  font-style: normal;
+  color: var(--muted-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seviye-kural {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+@media (max-width: 860px) {
+  .seviye-secim {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- bütçe alanları ---------- */
+.butce-alanlari {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--b-3) var(--b-5);
+  min-width: 0;
+  max-width: 46rem;
+}
+.butce-girdi {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.butce-girdi .girdi {
+  width: 7rem;
+  font-variant-numeric: tabular-nums;
+}
+.butce-birim {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  white-space: nowrap;
+}
+.butce-hazir {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.butce-hazir button {
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: color var(--hiz) ease, border-color var(--hiz) ease;
+}
+.butce-hazir button:hover {
+  color: var(--paper);
+  border-color: var(--line-hover);
+}
+.butce-hazir button[aria-pressed="true"] {
+  color: var(--paper);
+  border-color: var(--coral-cizgi);
+  background: var(--ink-3);
+}
+.butce-hazir button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+@media (max-width: 520px) {
+  .butce-alanlari {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- proje açılışı ve proje ayarları ---------- */
+.kullanim-acilis {
+  gap: var(--b-3);
+  margin: 0;
+  padding: var(--b-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.kullanim-acilis-baslik {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.125rem;
+  padding: 0;
+  color: var(--paper);
+  font-size: var(--t-xs);
+  font-weight: 500;
+}
+.kullanim-acilis-baslik + .alan-ipucu {
+  clear: both;
+}
+.kullanim-kademe {
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+.kullanim-kademe input {
+  margin-top: 0.1875rem;
+}
+.kullanim-kademe > span {
+  display: grid;
+  gap: 0.1875rem;
+}
+.kullanim-ayar {
+  gap: var(--b-3);
+}
+.kullanim-ayar .seviye-secim {
+  max-width: 60rem;
+}
+.kullanim-ayar-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-4);
+}
+
+/* ---------- üst çubuk: bütçe ve seviye ---------- */
+.ust-butce {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--hiz) ease;
+}
+.ust-butce:hover,
+.ust-butce[aria-expanded="true"] {
+  border-color: var(--line);
+}
+.ust-butce:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 1px;
+}
+.ust-butce small {
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.ust-butce b {
+  color: var(--paper);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ust-butce .kullanim-cubuk {
+  width: 2.75rem;
+}
+.ust-butce[data-durum="uyari"] b {
+  color: var(--warn);
+}
+.ust-butce[data-durum="doldu"] {
+  border-color: var(--coral-cizgi);
+}
+.ust-butce[data-durum="doldu"] b {
+  color: var(--coral-hi);
+}
+.ust-seviye {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  margin-left: 0.125rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  color: var(--bone);
+  font-size: var(--t-2xs);
+  line-height: 1.125rem;
+  letter-spacing: 0.02em;
+}
+.ust-seviye[data-kademe] {
+  border-color: oklch(0.84 0.13 85 / 0.45);
+  color: var(--warn);
+}
+.ust-seviye svg {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+@media (max-width: 1180px) {
+  .ust-butce {
+    margin-left: -0.375rem;
+    padding: 0 0.25rem;
+  }
+  .ust-butce-etiket,
+  .ust-butce .kullanim-cubuk {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .ust-butce {
+    margin-left: 0;
+  }
+}
+
+/* ---------- bütçe paneli ---------- */
+.butce-acilir {
+  width: 24rem;
+  max-width: min(24rem, calc(100vw - 1.5rem));
+  padding: var(--b-4);
+  max-height: calc(100vh - var(--ust-yukseklik) - 1.5rem);
+  overflow-y: auto;
+}
+/* Dar ekranda üst çubuk sarılır ve düğme sola düşer; panel ekranın altına oturur, kenardan taşmaz */
+@media (max-width: 640px) {
+  .butce-acilir {
+    position: fixed;
+    top: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    max-width: none;
+    max-height: 80vh;
+  }
+}
+.butce-panel {
+  display: grid;
+  gap: var(--b-3);
+  min-width: 0;
+}
+.butce-panel-ust {
+  display: flex;
+  align-items: center;
+  gap: var(--b-2);
+}
+.butce-panel-ust h2 {
+  flex: 1;
+  font-size: var(--t-s);
+  font-weight: 600;
+}
+.butce-panel-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--b-2) var(--b-3);
+}
+.butce-panel-ad {
+  min-width: 3.5rem;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.seviye-dugmeleri button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.butce-panel-not {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.butce-panel-sari {
+  color: var(--warn);
+}
+.butce-panel-uyari {
+  padding: var(--b-2) var(--b-3);
+  border: 1px solid var(--coral-cizgi);
+  border-radius: var(--r-2);
+  background: var(--coral-zemin);
+  color: var(--paper);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+}
+.butce-kalemler {
+  display: grid;
+  gap: 0.5rem;
+}
+.butce-kalem {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto 2.75rem;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.butce-kalem-ad {
+  color: var(--muted);
+}
+.butce-kalem-sayi {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.butce-kalem-sayi b {
+  color: var(--paper);
+  font-weight: 600;
+}
+.butce-kalem-yuzde {
+  color: var(--bone);
+  text-align: right;
+}
+.butce-panel-form {
+  display: grid;
+  gap: var(--b-3);
+  padding-top: var(--b-3);
+  border-top: 1px solid var(--line);
+}
+.butce-panel-form .butce-alanlari {
+  grid-template-columns: minmax(0, 1fr);
+}
+.butce-panel-form .alan-ipucu {
+  font-size: var(--t-2xs);
+}
+.butce-panel-pahali {
+  display: grid;
+  gap: var(--b-2);
+  padding-top: var(--b-3);
+  border-top: 1px solid var(--line);
+}
+.butce-panel-pahali .metin-dugme {
+  justify-self: start;
+}
+
+/* ---------- harcama ---------- */
+.harcama {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--b-4) var(--b-8);
+  margin-bottom: var(--b-6);
+}
+.harcama > section {
+  display: grid;
+  align-content: start;
+  gap: var(--b-2);
+  min-width: 0;
+}
+.harcama-ara {
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.harcama-liste {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line-soft);
+}
+.harcama-liste > li {
+  border-bottom: 1px solid var(--line-soft);
+}
+.harcama-satir {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "kod baslik token"
+    "alt alt alt"
+    "pay pay pay";
+  align-items: baseline;
+  gap: 0.1875rem 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--hiz) ease;
+}
+.harcama-satir:hover {
+  background: var(--ink-3);
+}
+.harcama-satir code {
+  grid-area: kod;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+}
+.harcama-baslik {
+  grid-area: baslik;
+  color: var(--paper);
+  font-size: var(--t-xs);
+}
+.harcama-satir b {
+  grid-area: token;
+  color: var(--paper);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+.harcama-alt {
+  grid-area: alt;
+  color: var(--muted-2);
+  font-size: var(--t-2xs);
+}
+.harcama-pay {
+  grid-area: pay;
+  display: block;
+  height: 2px;
+  margin-top: 0.1875rem;
+  background: var(--ink-4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.harcama-pay > span {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+}
+.harcama-pay > span[data-asim] {
+  background: var(--coral);
+}
+.harcama-bos {
+  font-size: var(--t-2xs);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.harcama-calisanlar li {
+  font-size: var(--t-xs);
+}
+@media (max-width: 860px) {
+  .harcama {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Pano: görevde işlenen token (kartın üst satırında, kodun karşısında) ---------- */
+.bilet-ust > code {
+  flex: none;
+  margin-right: auto;
+}
+.bilet-token {
+  flex: none;
+  color: var(--bone);
+  white-space: nowrap;
+}

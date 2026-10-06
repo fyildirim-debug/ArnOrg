@@ -103,6 +103,7 @@ function TempoSatiri({ tempo, calisan }: { tempo: EkipTemposu; calisan: number }
           {gecerli > 0 ? <b className="sayi">{gecerli}</b> : <b>{t.sinirsiz}</b>}
           {gecerli > 0 ? <span className="tempo-birim">{t.birim(gecerli)}</span> : null}
           {ustSinir > 0 && gecerli !== ustSinir ? <span className="tempo-ust-sinir sayi">{t.ustSinir(ustSinir)}</span> : null}
+          {tempo.seviyeSiniri > 0 && (!ustSinir || tempo.seviyeSiniri < ustSinir) ? <span className="tempo-ust-sinir sayi">{t.seviyeSiniri(tempo.seviyeSiniri)}</span> : null}
         </span>
         <span className="tempo-kim">{kim}</span>
       </div>

@@ -19,7 +19,7 @@ import type { OlayYolu } from "./olaylar.js";
 import { ArnorgHatasi, bulunamadi } from "./yardimci.js";
 
 /** Şirket'ten gelenler: uyandırma, yazıyor göstergesi, duyuru, abonelik sınırı, tavan sırası ve kurulun mesajı */
-export type SirketBaglami = Pick<KonusmaBaglami, "uyandir" | "yaziyor" | "duyur" | "sinirda" | "siradaMi" | "bekleme"> & {
+export type SirketBaglami = Pick<KonusmaBaglami, "uyandir" | "yaziyor" | "duyur" | "sinirda" | "butceDolu" | "siradaMi" | "bekleme"> & {
   /** Kurulun kanala yazdığı mesaj (Şirket.mesajGonder) */
   kurulMesaji(projeId: string, kanal: string, metin: string): Promise<Mesaj>;
 };
@@ -40,6 +40,7 @@ export class OzelKanallar {
       yaziyor: (id, pid, kanal, acik) => s.yaziyor(id, pid, kanal, acik),
       duyur: (pid, kanal, metin) => s.duyur(pid, kanal, metin),
       sinirda: () => s.sinirda(),
+      butceDolu: (pid) => s.butceDolu?.(pid) ?? false,
       siradaMi: (id) => s.siradaMi(id),
       bekleme: s.bekleme ? () => s.bekleme!() : undefined,
       kanal: (pid, ad) => depo.kanal(pid, ad),
@@ -100,6 +101,9 @@ export class OzelKanallar {
     if (uygun.length < 2) throw new ArnorgHatasi(iki("Serbest konuşma için kanalda en az iki üye olmalı.", "An open conversation needs at least two members in the channel."), 409);
     if (this.s.sinirda()) {
       throw new ArnorgHatasi(iki("Abonelik kullanımı sınırda; konuşmayı pencere açılınca başlatabilirsiniz.", "Subscription usage is at the limit; you can start the conversation when the window opens."), 429);
+    }
+    if (this.s.butceDolu?.(projeId)) {
+      throw new ArnorgHatasi(iki("Proje token bütçesi doldu; konuşmayı bütçeyi artırınca başlatabilirsiniz.", "The project's token budget is used up; you can start the conversation once you raise the budget."), 429);
     }
     const konu = istek.konu?.trim() || null;
     this.konusma.baslat(projeId, k.ad, konu);

@@ -35,6 +35,7 @@ import { tanitim } from "./tanitim";
 import { ortakCalisma } from "./ortakCalisma";
 import { skiller } from "./skiller";
 import { arayuz } from "./arayuz";
+import { butce } from "./butce";
 
 export const en: Sozluk = {
   genel,
@@ -72,4 +73,5 @@ export const en: Sozluk = {
   ortakCalisma,
   skiller,
   arayuz,
+  butce,
 };

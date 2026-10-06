@@ -61,7 +61,7 @@
 | GET | `/api/github/hesap` | — | `GithubHesabi` (giriş yapan hesap ve kuruluşları) |
 | GET | `/api/github/depolar?q=` | — | `GithubDeposu[]` (hesabın ve kuruluşlarının depoları; `q` ada göre süzer) |
 | GET | `/api/github/dallar?depo=sahip/ad` | — | `GithubDali[]` (varsayılan dal işaretli) |
-| POST | `/api/github/klonla` | `KlonlaIstegi` | `KurulumIslemi`: klonlama arka planda; bitince proje açılır (`proje.guncellendi`) ve işlemin `sonuc` alanı `projeId` taşır |
+| POST | `/api/github/klonla` | `KlonlaIstegi` | `KurulumIslemi`: klonlama arka planda; bitince proje açılır (`proje.guncellendi`) ve işlemin `sonuc` alanı `projeId` taşır; `butce`, `seviye`, `otomatikKademe` yeni projedeki gibi |
 | GET | `/api/dizinler?yol=` | — | `DizinListesi` (tarayıcıdaki Stüdyo için klasör gezgini; kısayollar ve git deposu işaretleri) |
 | POST | `/api/dizinler` | `{ust, ad}` | `{yol}` (yeni klasör) |
 
@@ -72,9 +72,9 @@ Masaüstü uygulamasında klasör seçimi sistemin penceresiyle yapılır (`wind
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
 | GET | `/api/projeler` | — | `ProjeOzeti[]` |
-| POST | `/api/projeler` | `ProjeOlusturIstegi` | `ProjeOzeti` (yol verilmezse `~/ArnOrg/<ad>`; `dal` çalışma dalı; `github` verilirse GitHub'da depo da açılır) |
+| POST | `/api/projeler` | `ProjeOlusturIstegi` | `ProjeOzeti` (yol verilmezse `~/ArnOrg/<ad>`; `dal` çalışma dalı; `github` verilirse GitHub'da depo da açılır; `butce`, `seviye`, `otomatikKademe` bkz. "Bütçe ve kullanım seviyesi") |
 | GET | `/api/projeler/:pid` | — | `ProjeOzeti` (`bekleyenOnay` kurulun kararını bekleyenleri sayar; tam otonomda CEO'nun kararındakiler sayılmaz) |
-| PATCH | `/api/projeler/:pid` | `ProjeGuncelleIstegi` | `ProjeOzeti` (ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık, otomatik onay, karar yetkisi `kararVeren`) |
+| PATCH | `/api/projeler/:pid` | `ProjeGuncelleIstegi` | `ProjeOzeti` (ad, açıklama, çalışma dalı, otomatik gönderim, hazırlık, otomatik onay, karar yetkisi `kararVeren`, token bütçesi `butce`, kullanım seviyesi `seviye`, `otomatikKademe`) |
 | GET | `/api/projeler/:pid/dallar` | — | `ProjeDallari` (yerel ve uzak dallar, çalışma dalı) |
 | POST | `/api/projeler/:pid/esitle` | `{gonder?}` | `EsitlemeSonucu` (uzaktan getirir; ağaç temizse ileri sarar, `gonder` ya da otomatik gönderimde yerel commit'leri gönderir; ayrışmada dokunmaz) |
 | POST | `/api/projeler/:pid/github` | `{ozel, sahip?}` | `ProjeOzeti` (GitHub'da depo açar, `origin` yapar ve gönderir) |
@@ -98,7 +98,7 @@ Uzak deposu olan projeler 10 dakikada bir eşitlenir (`EsitlemeSonucu`; ayrışm
 | POST | `/api/ajanlar/:aid/kes` | — | `{tamam:true}` |
 | POST | `/api/ajanlar/:aid/durdur` | — | `Ajan` (oturumu kapatır, oturum kimliği saklanır) |
 | POST | `/api/ajanlar/:aid/mod` | `{mod: IzinModu}` | `Ajan` |
-| POST | `/api/ajanlar/:aid/model` | `{model: ModelAdi}` | `Ajan` |
+| POST | `/api/ajanlar/:aid/model` | `{model: ModelAdi \| null}` | `Ajan` (`null` çalışanı yeniden kullanım seviyesine bağlar; 0.0.10) |
 | GET | `/api/ajanlar/:aid/akis?sinir=300` | — | `AkisOgesi[]` (eskiden yeniye) |
 
 Ajan oturumu kurallarla açılır: temiz ortam, ortak proje (0.0.8: herkes projenin kökünde, çalışma dalında; bkz. "Ortak çalışma"), Claude Code sistem talimatı + rol metni, `PreToolUse` denetim kapısı, ArnOrg MCP araçları (`mcp__arnorg__*`).
@@ -115,7 +115,7 @@ Ajan oturumu kurallarla açılır: temiz ortam, ortak proje (0.0.8: herkes proje
 | POST | `/api/projeler/:pid/gorevler` | `GorevOlusturIstegi` | `Gorev` |
 | PATCH | `/api/gorevler/:gid` | `GorevGuncelleIstegi` | `Gorev`; geçersiz durum geçişi 409 |
 
-Durum geçişleri `GOREV_GECISLERI` tablosuna uyar. Bağımlılığı bitmemiş görev `calisiliyor` durumuna geçemez (409). Atanmış görev `calisiliyor` olunca ajan kapalıysa başlatılır.
+`Gorev.token` (0.0.10): görevde işlenen token (görev token tavanının saydığı; işlenmediyse yok). Durum geçişleri `GOREV_GECISLERI` tablosuna uyar. Bağımlılığı bitmemiş görev `calisiliyor` durumuna geçemez (409). Atanmış görev `calisiliyor` olunca ajan kapalıysa başlatılır.
 
 ## Kanallar
 
@@ -276,7 +276,7 @@ Ekip tek projede, projenin çalışma dalında (`varsayilanDal`) görev bazlı v
 
 **Uzak depo.** `otomatikGonder` açık ve uzak depo bağlıysa kayıtlardan sonra (20 sn toplanarak) çalışma dalı git sırasında gönderilir; başarısızlık bir kez duyurulur. Eşitleme (`POST /api/projeler/:pid/esitle`, ve 10 dakikada bir) git sırasındadır; uzaktaki yeni commit'ler çalışma kopyası kirliyken de ileri sarılır, yeter ki çalışanların kaydedilmemiş dosyalarına dokunmasın (dokunuyorsa hiçbir şey değişmez, `durum: "kirli"`).
 
-**Ekip temposu.** Tam otonom kipte aynı anda kaç çalışanın (CEO hariç) tur işleyeceğine CEO `ekip_temposu` aracıyla karar verir (`es_zamanli` 1–50, `gerekce` 5–500 karakter); seçim kurulun `Ayarlar.esZamanliAjan` üst sınırına kırpılır, #genel'e "Ada (CEO) ekip temposunu N kişi yaptı (kurulun üst sınırı M): …" yazılır, `tempo.guncellendi` (`{projeId, tempo}`) yayınlanır ve sıra hemen işlenir. Kurul kipinde araç reddeder (409); tempo kurulun üst sınırıdır. `EkipTemposu`: `secim`, `gerekce`, `zaman`, `ustSinir`, `gecerli`, `calisan`, `sirada`, `belirleyen` (`ceo` \| `kurul`). Sıradaki sayısı değişince de `tempo.guncellendi` gelir. Seçilmemişse üst sınır geçerlidir. CEO talimatına "Ortak çalışma ve ekip temposu" bölümü girer (bağımsız, küçük, dosyaları adlandırılmış görevler; paralel dağıtım; tempoyu işe göre ayarlama).
+**Ekip temposu.** Tam otonom kipte aynı anda kaç çalışanın (CEO hariç) tur işleyeceğine CEO `ekip_temposu` aracıyla karar verir (`es_zamanli` 1–50, `gerekce` 5–500 karakter); seçim kurulun `Ayarlar.esZamanliAjan` üst sınırına kırpılır, #genel'e "Ada (CEO) ekip temposunu N kişi yaptı (kurulun üst sınırı M): …" yazılır, `tempo.guncellendi` (`{projeId, tempo}`) yayınlanır ve sıra hemen işlenir. Kurul kipinde araç reddeder (409); tempo kurulun üst sınırıdır. `EkipTemposu`: `secim`, `gerekce`, `zaman`, `ustSinir`, `seviyeSiniri` (0.0.10: kullanım seviyesinin sınırı, Normal 6, Tasarruflu 3; 0 yok), `gecerli` (seviye sınırını da geçmez), `calisan`, `sirada`, `belirleyen` (`ceo` \| `kurul`). Sıradaki sayısı değişince de `tempo.guncellendi` gelir. Seçilmemişse üst sınır geçerlidir. CEO talimatına "Ortak çalışma ve ekip temposu" bölümü girer (bağımsız, küçük, dosyaları adlandırılmış görevler; paralel dağıtım; tempoyu işe göre ayarlama).
 
 **Boşa çıkana iş.** Bir çalışan boşa çıkınca (ya da görev, proje güncellenince; dakikada bir de bakılır) tempo ve küresel tavan elverdikçe ArnOrg ona önce kendisine atanmış planlı işi, yoksa rolüne uyan atanmamış ve bağımlılığı bitmiş işi başlatır; CEO'ya kısa haber düşer (uyandırılmaz). CEO, CTO ve kod inceleyiciye iş dağıtılmaz.
 
@@ -340,9 +340,9 @@ Stüdyo sayfası (API ve WebSocket dışındaki yanıtlar) `Cross-Origin-Opener-
 
 | Yöntem | Yol | Yanıt |
 |---|---|---|
-| GET | `/api/projeler/:pid/kullanim` | `KullanimOzeti` (bugünkü ve toplam token, ajan başına, son abonelik penceresi olayı) |
+| GET | `/api/projeler/:pid/kullanim` | `KullanimOzeti` (bugünkü ve toplam token, ajan başına, son abonelik penceresi olayı; 0.0.10: `butce` bütçe durumu, `gorevler` en çok token işleyen 10 görev) |
 
-Stüdyo'nun üst çubuğu pencere göstergelerinin yanında açık projenin `toplamToken`'ını (ayrılanlar dahil bütün çalışanlar, bütün zamanlar) kısa biçimde gösterir, bugünkü sayı ipucundadır; `kullanim` olaylarıyla canlı güncellenir.
+`ProjeOzeti.toplamToken` projenin bütün zamanlardaki tokenıdır (ayrılanlar dahil bütün çalışanlar), `bugunToken` bugünkü. Stüdyo'nun üst çubuğu pencere göstergelerinin yanında bütçe varsa harcananı ve bütçeyi doluluk çubuğu ve seviyeyle, yoksa toplam tokenı gösterir (bkz. "Bütçe ve kullanım seviyesi"); `kullanim` olaylarıyla canlı güncellenir.
 
 ### Yalnız Claude aboneliği
 
@@ -356,6 +356,50 @@ Eski sürümden gelen veritabanında token sayıları `kullanim` tablosuna taş�
 
 Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek yazımı; önbellekten okuma hariç). Sürdürülen oturumda Claude Code toplamı önceki turlardan devam ettirdiği için oturum başına son toplam saklanır, yalnız fark sayılır.
 
+## Bütçe ve kullanım seviyesi (0.0.10)
+
+Kurul proje başına token bütçesi ve kullanım seviyesi seçer: projeyi açarken (`POST /api/projeler`, `POST /api/github/klonla`) ve sonra `PATCH /api/projeler/:pid` ile. `Proje` ve istek gövdeleri:
+
+| Alan | Varsayılan | Anlamı |
+|---|---|---|
+| `butce` | `{toplam: null, gunluk: null}` | `ProjeButcesi`, token. `toplam` projenin bütün kullanımı (`kullanim` tablosu, ayrılanlar dahil), `gunluk` yerel günün kullanımı (gece yarısı yenilenir). `null` ya da 0 sınırsız; tam sayı, en çok 10¹² |
+| `seviye` | `"normal"` | `KullanimSeviyesi`: `zeki` \| `normal` \| `tasarruflu`; başka değer 400 |
+| `otomatikKademe` | `true` | Bütçe ya da haftalık abonelik penceresi %80'i geçince seviye bir kademe iner, koşul kalkınca geri çıkar |
+
+Kodu `paketler/cekirdek/src/butce.ts` (izleyici) ve `sirket.ts` (`seviyeUygula`, `butceyleDurdur`); sabitler `@arnorg/ortak` içinde ("Kullanım seviyesi ve proje bütçesi").
+
+**Seviye.** Rolün kademesine göre modeli, herkesin düşünme derinliğini, görev token tavanını ve aynı anda çalışanların sınırını belirler (`SEVIYE_MODELLERI`, `SEVIYE_DERINLIGI`, `SEVIYE_TAVAN_KATSAYISI`, `SEVIYE_TEMPO_SINIRI`):
+
+| | Zeki | Normal | Tasarruflu |
+|---|---|---|---|
+| Yönetim kademesi: `ceo`, `cto`, `inceleme` | fable | opus | sonnet |
+| Geliştirme kademesi: öteki roller | opus | sonnet | haiku |
+| Destek kademesi: `test`, `yazar`, `tanitim` | sonnet | haiku | haiku |
+| Düşünme derinliği (Claude Code `effort`) | `high` | `medium` | `low` |
+| Görev token tavanı | `gorevTokenTavani` × 2 | × 1 | × 0,5 |
+| Aynı anda çalışan (CEO hariç) | yalnız kurulun üst sınırı | en çok 6 | en çok 3 |
+
+- Model hesabın kataloğunda yoksa zincirde bir sonrakine düşülür (fable → opus → sonnet → haiku). Tempo sınırı kurulun üst sınırıyla (`Ayarlar.esZamanliAjan`) birlikte işler, küçüğü geçerlidir; CEO'nun seçtiği ekip temposu da onu geçemez. `gorevTokenTavani` 0 ise görev tavanı kapalı kalır.
+- **Seviyeye bağlı model** (`Ajan.modelSabit: false`): işe alımda model verilmezse (Stüdyo'da "Seviyeye göre"; CEO'nun `ise_al_teklif` aracında boş) çalışanın modeli seviyeden gelir ve seviye değişince değişir, açık oturumda hemen (`setModel`). Model verilerek işe alınan ya da modelini kurulun seçtiği çalışan sabittir (`modelSabit: true`). `PATCH /api/ajanlar/:aid` ve `POST /api/ajanlar/:aid/model` gövdesinde `model: null` çalışanı yeniden seviyeye bağlar. Ekip dosyası `model_sabit` alanını taşır; içe aktarılan ekipte alan yoksa model rolün varsayılanındaysa seviyeye bağlanır.
+- **Düşünme derinliği** herkes için seviyeden gelir: oturum `effort` ile açılır, açık oturumda `applyFlagSettings({effortLevel})` ile hemen değişir; desteklemeyen modelde yok sayılır.
+- Seviye değişince (kurul ya da otomatik kademe) modeller ve derinlik uygulanır, tempo ve iş dağıtımı yeniden işlenir, `proje.guncellendi` ve `tempo.guncellendi` yayınlanır. Kurulun değişikliği #genel'e kademe modelleriyle duyurulur ve CEO'ya haber düşer.
+
+**Bütçe.** Ölçü `kullanim` tablosudur (bkz. "Kullanım"); tur sürerken asistan mesajlarındaki kullanımla da tahmin edilir.
+
+- **%80 (`BUTCE_UYARI_YUZDE`):** #genel'e ArnOrg duyurusu, kurula `kurul.bildirimi` (`tur: "uyari"`, `eylem: "butce"`) ve CEO'ya haber ("kalan bütçeyle en önemli işleri bitir; gerekmeyen işleri ertele") bir kez gider.
+- **%100:** projenin turu süren çalışanları "Proje bütçesi doldu; tur kesildi." notuyla kesilir; kurulun kanallarındaki serbest konuşmalar durur. Duyuru ve kurula pencere aynı biçimde gider. Bütçe doluyken kurul dışından gelen mesajlar çalışan başına saklanır (en çok 20, her biri en çok 1500 karakter), ArnOrg kendiliğinden iş başlatmaz (boşa çıkana iş, tıkanma koruması, günlük brifing, serbest konuşma atlanır); serbest konuşma başlatmak 429 döner. Kurulun kendi mesajı geçer.
+- **Açılma:** dolu bütçe kurul bütçeyi değiştirince yeniden ölçülür; günlük bütçenin doluluğu gece yarısı da açılır. Tur sürerken tahminle dolan bütçe, tur sonundaki kesin sayı altında kalsa da ancak böyle açılır (dur-kalk olmasın). Açılınca #genel'e duyurulur, kesilen ve mesajı saklanan çalışanlar "Kurul token bütçesini artırdı. Kaldığın yerden devam et." (günlükte "Günlük token bütçesi yenilendi") ve saklanan mesajlarla uyanır. Durum ArnOrg yeniden açılınca korunur (`butce-durumu:<pid>`); bekletilen çalışanlar açılışta yine bekletilir.
+- **Bitiş tahmini:** son bir saatteki hızla (ArnOrg açılalı bir saat olmadıysa o süreyle, en az 10 dakika) kalan bütçenin ne zaman biteceği; günlük bütçe gece yarısından önce dolmuyorsa sayılmaz, 30 günden uzak tahmin verilmez.
+- `ButceDurumu` (`ProjeOzeti.butceDurumu`, `KullanimOzeti.butce`): `toplam` ve `gunluk` (`ButceKalemi`: `sinir`, `harcanan`, `yuzde`; bütçe yoksa `null`), `durum` (`normal` \| `uyari` \| `doldu`), `neden` (`toplam` \| `gunluk`), `tahminiBitis`, `seviye` (kurulun), `etkinSeviye` (kademeden sonra), `kademe` (`{neden: "butce" \| "pencere", pencere}`; inmediyse `null`).
+
+**Otomatik kademe.** `otomatikKademe` açıkken bütçe uyarıda ya da doluyken veya haftalık bir abonelik penceresi (5 saatlik hariç) %80'i (`KADEME_ESIGI_YUZDE`) geçince geçerli seviye kurulunkinin bir altıdır (Tasarruflu'nun altı yok). Koşul kalkınca (bütçe artınca, gün dönünce, pencere sıfırlanınca) yeniden kurulunkidir. İnip çıkış #genel'e nedeniyle duyurulur ve CEO'ya haber düşer. Abonelik pencereleri henüz okunmadıysa son bilinen pencere koşulu geçerlidir (`kademe-penceresi`), açılışta seviye inip çıkmasın.
+
+**Görev ve çalışan harcaması.** `Gorev.token`, `kullanim` olayının `gorev` alanı ve `KullanimOzeti.gorevler` (`GorevHarcamasi[]`: `gorevId`, `kod`, `baslik`, `durum`, `atananId`, `atananAd`, `token`, `tavan`; tokenı çoktan aza, en çok 10). Stüdyo'da Pano kartı, görev çekmecesi, Karargâh'ta "Harcama" (en pahalı görevler ve çalışanlar) ve bütçe paneli bunları gösterir.
+
+**CEO ve ekip.** CEO talimatında bütçe ve seviye özeti vardır ("Bütçe 9,6 M / 20 M (%48) · seviye Normal"); `ekip_listele` aynı satırla başlar ve sabit modelleri "(sabit)" diye işaretler.
+
+**0.0.10 göçü.** Var olan projeler Normal seviyede, bütçesiz ve otomatik kademe açık başlar. Sabitliği bilinmeyen çalışanlardan modeli rolünün varsayılanında olanlar seviyeye bağlanır, öteki modeller sabit sayılır; ilk açılışta bağlananların modeli seviyeye geçer (ör. CEO Fable → Opus, test ve tanıtım → Haiku) ve her projenin #genel'ine bir kez duyurulur.
+
 ## Çalışma düzeni: eşzamanlı tavan, açılışta sürdürme, görev ve tur tavanı
 
 0.0.4 ile `Ayarlar`'a gelenler (Stüdyo'da Ayarlar › Çalışma düzeni):
@@ -364,7 +408,7 @@ Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek y
 |---|---|---|
 | `esZamanliAjan` | 8 | Bütün projelerde aynı anda tur işleyen en çok ajan; 0 sınırsız (0–50). 0.0.8'de kurulun üst sınırıdır: tam otonom projede CEO ekip temposunu bunun altında seçer (CEO sayılmaz); 0.0.7 varsayılanı 3 bir kez 8'e çıkarılır |
 | `acilistaSurdur` | `true` | ArnOrg yeniden açılınca yarım kalan ajanlar kaldıkları yerden sürer |
-| `gorevTokenTavani` | 2000000 | Bir görevin işleyebileceği token; aşılınca ajan durur, kurula sorulur. 0 kapalı |
+| `gorevTokenTavani` | 2000000 | Bir görevin işleyebileceği token; aşılınca ajan durur, kurula sorulur. 0 kapalı. 0.0.10'da projenin seviyesiyle çarpılır: Zeki ×2, Normal ×1, Tasarruflu ×0,5 |
 
 | Yöntem | Yol | Yanıt |
 |---|---|---|
@@ -372,7 +416,7 @@ Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek y
 
 - **Eşzamanlı tavan ve sıra:** durumu `calisiyor` ya da `karar_bekliyor` olan ajan çalışan sayılır. Turu sürmeyen ajana mesaj gelince çalışan sayısı tavandaysa (ya da önünde bekleyen varsa) mesaj sıraya girer (FIFO); çağıran hata almaz. Ajanın `isAciklamasi` "Sırada: aynı anda en çok N ajan çalışır" olur ve `proje.guncellendi` yayınlanır. Bir ajan çalışan durumdan çıkınca (`bosta`, `kapali`, `hata`, `duraklatildi`) sıradakiler tavan izin verdikçe teslim edilir; aynı ajanın mesajları geliş sırasıyla birlikte gider. Turu süren ajana gelen mesaj doğrudan iletilir. Kurulun mesajı ve yanıt bekleyen sorunun sorulan ajanı (`ajana_sor`, toplantı) muaftır: soran beklerken çalışan sayılır, sorulan sırada kalsa ikisi kilitlenirdi. Teslim anında abonelik sınırı varsa mesaj sınırda bekleyenlere eklenir. Tıkanma koruması sıradaki ajanı dürtmez.
 - **Açılışta mesaiye dönüş:** çekirdek kapanırken (oturumlar kapanmadan önce) çalışan ajanları, sıradakileri, abonelik ve giriş bekleyenleri anahtar-değer kaydına yazar; kurulun durdurduğu oturum yazılmaz. Çökmede kayıt güncellenmez ama veritabanında çalışan durumda kalan ajanlar durumlar sıfırlanmadan okunur; açılış kümesi ikisinin birleşimidir. `acilistaSurdur` açıksa açılıştan ~30 sn sonra bu ajanlar eşzamanlı tavana uyarak "ArnOrg yeniden başlatıldı; yarım kalan işine kaldığın yerden devam et" mesajıyla uyandırılır; saklı oturum kimliğiyle aynı konuşma sürer. Abonelik sınırındaysa sessizce sınırda bekleyenlere eklenir. Mesaiyi durdur ve ajanın tek tek durdurulması kaydı temizler.
-- **Görev token tavanı:** ajanın işlediği token (`kullanim` ile aynı ölçü) o anki görevine (`Ajan.gorevId`, ajana atanmış ve bitmemiş görev) eklenir; tur sürerken asistan mesajlarındaki kullanımla da denetlenir. Toplam görevin tavanını (kurulun yükselttiği tavan, yoksa `gorevTokenTavani`) aşınca tur kesilir, ajan `duraklatildi` ("Görev token tavanı aşıldı") olur ve kurula `genel` onay açılır: başlık "T-12 görevi token tavanını aştı (2,1 M / 2 M). Sürsün mü?", veri `GorevTavaniOnayVerisi` (`altTur: "gorev_token_tavani"`, `gorevId`, `gorevKodu`, `toplam`, `tavan`, `yeniTavan`). Karar beklerken denetim kapısı iş araçlarını "Görev token tavanı" kuralıyla reddeder (ArnOrg araçları açık), ajana gelen mesajlar tutulur; kurulun mesajı ve soru yanıtı geçer. Onaylanırsa görevin tavanı bir kat artar (2 M → 4 M) ve ajan tutulan mesajlarla kaldığı yerden sürer; reddedilirse ajan durur, yöneticisine (yoksa CEO'ya) görevi bölmesi ya da yeniden planlaması için sistem mesajı gider.
+- **Görev token tavanı:** ajanın işlediği token (`kullanim` ile aynı ölçü) o anki görevine (`Ajan.gorevId`, ajana atanmış ve bitmemiş görev) eklenir; tur sürerken asistan mesajlarındaki kullanımla da denetlenir. Toplam görevin tavanını (kurulun yükselttiği tavanla seviyedeki tavanın büyüğü; seviyedeki tavan `gorevTokenTavani` × seviye katsayısı) aşınca tur kesilir, ajan `duraklatildi` ("Görev token tavanı aşıldı") olur ve kurula `genel` onay açılır: başlık "T-12 görevi token tavanını aştı (2,1 M / 2 M). Sürsün mü?", veri `GorevTavaniOnayVerisi` (`altTur: "gorev_token_tavani"`, `gorevId`, `gorevKodu`, `toplam`, `tavan`, `yeniTavan`). Karar beklerken denetim kapısı iş araçlarını "Görev token tavanı" kuralıyla reddeder (ArnOrg araçları açık), ajana gelen mesajlar tutulur; kurulun mesajı ve soru yanıtı geçer. Onaylanırsa görevin tavanı bir kat artar (2 M → 4 M) ve ajan tutulan mesajlarla kaldığı yerden sürer; reddedilirse ajan durur, yöneticisine (yoksa CEO'ya) görevi bölmesi ya da yeniden planlaması için sistem mesajı gider.
 - **Tur tavanı ve yedek model:** oturum `maxTurns: 200` ile açılır. Claude Code akış kipinde bu sayaç her kullanıcı turunda sıfırlanır (tek turdaki API gidiş-dönüşü), uzun yaşayan oturumu durdurmaz. `error_max_turns` sonucunda ajan boşa çıkar, akışa not düşülür, yöneticisine sistem mesajı gider. `fallbackModel` birincil model aşırı yüklü ya da erişilemezken kullanılır: fable → opus, opus → sonnet, sonnet → haiku, haiku için yok (tam kimlikte, ör. `claude-fable-5-1`, aile adına bakılır); `ARNORG_MODEL_ZORLA` ile zorlanan model birincil sayılır (SDK yedeğin birincille aynı olmasını kabul etmez).
 
 ## Model kataloğu (0.0.5)
@@ -382,7 +426,7 @@ Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek y
 | GET | `/api/modeller` | `ModelKatalogu`: `modeller` (`ModelBilgisi`: `deger` takma ad, sürümlü `ad` ör. "Fable 5.1", tam `kimlik` ör. `claude-fable-5-1`, kısa `aciklama`), `kaynak` (`claude`, `onbellek` ya da `yedek`), `guncelleme` |
 
 - Çekirdek açılıştan birkaç saniye sonra ve Claude Code'un kurulumu ya da girişi değişince (`kurulum.durum`, `hesap.guncellendi`) desteklenen modelleri Claude Code'a mesaj göndermeden sorar (SDK `supportedModels()`; token harcanmaz, 30 sn zaman aşımı, hata yutulur). `default` satırı atılır. Sonuç anahtar-değer kaydında (`model-katalogu`) saklanır ve sonraki açılışta önce o gösterilir; hiç okunamadıysa sabit yedek liste döner. Katalog değişince projesiz `modeller.guncellendi` olayı (`katalog`) her istemciye gider.
-- `ModelAdi`: `fable`, `opus`, `sonnet`, `haiku` ya da tam model kimliği. CEO'nun varsayılan modeli `fable`. İşe alımda (ilk kurulumdaki CEO dahil) model verilmemişse rolün modeli kullanılır; hesabın kataloğunda yoksa zincirde bir sonrakine düşülür: fable → opus → sonnet → haiku. Var olan ajanların modeli kendiliğinden değişmez. `ARNORG_MODEL_ZORLA` oturumları zorlanan modelle açar, kayıtlı model değişmez.
+- `ModelAdi`: `fable`, `opus`, `sonnet`, `haiku` ya da tam model kimliği. İşe alımda (ilk kurulumdaki CEO dahil) model verilmemişse 0.0.10'dan beri rolün kademesinin projenin geçerli kullanım seviyesindeki modeli kullanılır (Normal'de CEO `opus`; bkz. "Bütçe ve kullanım seviyesi"); hesabın kataloğunda yoksa zincirde bir sonrakine düşülür: fable → opus → sonnet → haiku. Böyle işe alınan çalışanın modeli seviye değişince değişir; model verilerek işe alınanınki ya da kurulun seçtiği model değişmez. `ARNORG_MODEL_ZORLA` oturumları zorlanan modelle açar, kayıtlı model değişmez.
 
 ## CEO brifingi (0.0.5)
 
@@ -396,7 +440,7 @@ Token: sonuç mesajındaki `modelUsage` toplamı (girdi + çıktı + önbellek y
 
 ## Tanıtım (0.0.7)
 
-Projenin kök `README.md`'si kurulun Stüdyo'nun Tanıtım alanında okuduğu vitrin sayfasıdır. Tanıtım uzmanı (rol `tanitim`, varsayılan model `sonnet`; yetenekleri web araması, sayfa okuma, GitHub araştırması) README.md'yi ortak projede yazar (0.0.8); görevini 'inceleme'ye alınca ya da `isi_kaydet` ile ArnOrg commit'ler.
+Projenin kök `README.md`'si kurulun Stüdyo'nun Tanıtım alanında okuduğu vitrin sayfasıdır. Tanıtım uzmanı (rol `tanitim`, modeli kullanım seviyesinden: Normal'de `haiku`; yetenekleri web araması, sayfa okuma, GitHub araştırması) README.md'yi ortak projede yazar (0.0.8); görevini 'inceleme'ye alınca ya da `isi_kaydet` ile ArnOrg commit'ler.
 
 | Yöntem | Yol | Gövde | Yanıt |
 |---|---|---|---|
@@ -536,7 +580,7 @@ Ajan araçları (`mcp__arnorg__*`, her çağrı denetim kaydına düşer):
 | `paket_bilgisi` | `{ad, ekosistem: npm \| pypi \| crates}` son sürüm, lisans, indirme sayısı, depo |
 | `github_ara` | `{sorgu, tur: repo \| issue \| kod, sayfa?}` GitHub araması (kod araması `gh` girişi ister) |
 
-Rol `arastirmaci` (Araştırmacı, varsayılan model sonnet) bütün web yetenekleriyle başlar; kod yazmaz, kaynaklı araştırma notu yazar.
+Rol `arastirmaci` (Araştırmacı, Normal seviyede model sonnet) bütün web yetenekleriyle başlar; kod yazmaz, kaynaklı araştırma notu yazar.
 
 ## Skiller (0.0.8)
 
@@ -601,7 +645,7 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 - **Otomatik onay:** projede `otomatikOnay.etkin` açıkken türü `otomatikOnay.turler` içinde olan onaylar bekletilmeden verilir ve "Otomatik onay" notuyla kaydedilir; açıldığı anda bekleyen uygun onaylar da verilir. Varsayılan türler: `arac`, `ise_alim`, `anayasa`, `isten_cikarma` (`birlestirme`, `genel` ve `teslim` kurulun kendisine kalır). 0.0.4'te `birlestirme` varsayılandan çıktı; projede kaydedilmiş bir seçim varsa olduğu gibi kalır.
 - **İşten çıkarma:** CEO ya da CTO `isten_cikar_teklif` ile gerekçe ve devralanla önerir; kurul onaylarsa işler, sözler ve defter devralana geçer.
 - **Teslim:** CEO `teslim_et` ile test adımlarını, çalıştırma komutunu ve adresi verir (`teslim` türünde onay). Kurul test edip kabul eder ya da geri bildirim yazar; geri bildirim CEO'ya iş olarak döner.
-- **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar.
+- **Kurula bildirim:** yeni onay, CEO önerisi, istek, yetki ve teslim `kurul.bildirimi` olayıyla gelir; Stüdyo her ekranda açılır pencere, pencere arkadaysa masaüstü bildirimi gösterir. `KurulBildirimi.eylem` doluysa pencerede ona özel bir düğme çıkar: `claude_giris` Claude Code giriş asistanını açar, `butce` (0.0.10) bütçe panelini artırma formuyla ("Bütçeyi artır").
 - **Karar yetkisi (0.0.7):** tam otonom kipte (`Proje.kararVeren: "ceo"`) onaylar kurula pencere açmaz, CEO'ya gider; ayrıntı aşağıda.
 - **Kanal olayları:** `kanal.yaziyor` (ajan bir kanala yazarken ya da serbest konuşmada sırası geldiğinde; yazıyor göstergesi), `kanal.guncellendi` (`{projeId, kanal}`: kurulun kanalı kuruldu, üyeleri ya da konuşma durumu değişti), `kanal.silindi` (`{projeId, kanal}`).
 
@@ -629,4 +673,4 @@ Projelerden bağımsız, sürekli öğrenen kural deposu (`<veri>/arnorg.db`; ok
 
 ## Canlı olaylar
 
-`WS /ws?anahtar=<anahtar>`: sunucu `SunucuOlayi` JSON'ları gönderir. İstemci `{"tur":"abone","projeId":"…"}` gönderince yalnız o projenin olaylarını alır (`proje.guncellendi`, `hesap.guncellendi` ve projesiz `bildirim` her zaman gelir). Bağlantı açılınca ilk mesaj `{"tur":"merhaba"}`. 0.0.8 ortak çalışma olayları: `gorev.kaydedildi`, `kayit.guncellendi`, `kira.guncellendi`, `tempo.guncellendi` (bkz. "Ortak çalışma").
+`WS /ws?anahtar=<anahtar>`: sunucu `SunucuOlayi` JSON'ları gönderir. İstemci `{"tur":"abone","projeId":"…"}` gönderince yalnız o projenin olaylarını alır (`proje.guncellendi`, `hesap.guncellendi` ve projesiz `bildirim` her zaman gelir). Bağlantı açılınca ilk mesaj `{"tur":"merhaba"}`. 0.0.8 ortak çalışma olayları: `gorev.kaydedildi`, `kayit.guncellendi`, `kira.guncellendi`, `tempo.guncellendi` (bkz. "Ortak çalışma"). `kullanim` (`{projeId, ajanId, bugunToken, toplamToken}`, ajanın sayıları) 0.0.10'da ajanın o anki görevine işlendiyse `gorev: {id, token}` (görevin toplamı) da taşır.

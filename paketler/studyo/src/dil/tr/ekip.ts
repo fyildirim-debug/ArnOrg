@@ -28,7 +28,6 @@ export const ekip = {
     adOrnek: "Aras",
     rol: "Rol",
     model: "Model",
-    rolOnerisi: " · rol önerisi",
     yonetici: "Yönetici",
     karakter: "Karakter",
     talimat: "Ek talimat (isteğe bağlı)",

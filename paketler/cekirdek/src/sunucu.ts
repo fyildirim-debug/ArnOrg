@@ -70,6 +70,10 @@ const hafizaTuru = z.enum(["olgu", "karar", "tercih", "ogrenilen", "uzmanlik", "
 /** Ofis karakteri: hazır kütüphane (k01) ya da üretilmiş (u-<kimlik>) */
 const karakterSemasi = z.string().regex(/^(k\d{2}|u-[a-z0-9-]{4,64})$/, { error: () => iki("Geçersiz karakter kimliği.", "Invalid character id.") });
 
+/** 0.0.10 · Proje token bütçesi (0 ya da null sınırsız) ve kullanım seviyesi */
+const butceSemasi = z.object({ toplam: z.number().int().min(0).max(1_000_000_000_000).nullable(), gunluk: z.number().int().min(0).max(1_000_000_000_000).nullable() });
+const seviyeSemasi = z.enum(["zeki", "normal", "tasarruflu"]);
+
 const semalar = {
   hafizaYaz: z.object({
     tur: hafizaTuru,
@@ -89,6 +93,10 @@ const semalar = {
   }),
   proje: z.object({
     ad: z.string().min(1).max(80),
+    // 0.0.10: açılışta bütçe ve kullanım seviyesi
+    butce: butceSemasi.optional(),
+    seviye: seviyeSemasi.optional(),
+    otomatikKademe: z.boolean().optional(),
     yol: z.string().max(1000).optional(),
     olustur: z.boolean(),
     aciklama: z.string().max(2000).optional(),
@@ -108,6 +116,9 @@ const semalar = {
     testKomutu: z.string().max(2000).nullable().optional(),
     hazirlikKomutu: z.string().max(2000).nullable().optional(),
     testZamanAsimiDk: z.number().int().min(1).max(240).optional(),
+    butce: butceSemasi.optional(),
+    seviye: seviyeSemasi.optional(),
+    otomatikKademe: z.boolean().optional(),
   }),
   klonla: z.object({
     depo: z.string().min(3).max(220),
@@ -115,6 +126,9 @@ const semalar = {
     yol: z.string().max(1000).optional(),
     ad: z.string().min(1).max(80).optional(),
     aciklama: z.string().max(2000).optional(),
+    butce: butceSemasi.optional(),
+    seviye: seviyeSemasi.optional(),
+    otomatikKademe: z.boolean().optional(),
   }),
   githubDeposu: z.object({ ozel: z.boolean(), sahip: z.string().max(100).optional() }),
   iseAl: z.object({
@@ -127,7 +141,8 @@ const semalar = {
     skiller: skillListesiSemasi.nullable().optional(),
   }),
   ajanGuncelle: z.object({
-    model: z.string().max(80).optional(),
+    // 0.0.10: null modeli projenin kullanım seviyesine bağlar
+    model: z.string().max(80).nullable().optional(),
     izinModu: izinModu.optional(),
     yoneticiId: z.string().nullable().optional(),
     talimatEki: z.string().max(8000).optional(),
@@ -441,7 +456,8 @@ export async function sunucuKur(s: SunucuSecenekleri): Promise<FastifyInstance> 
     return tamam;
   });
   app.post("/api/ajanlar/:aid/mod", async (i) => sirket.ajanMod(param(i, "aid"), z.object({ mod: izinModu }).parse(i.body ?? {}).mod));
-  app.post("/api/ajanlar/:aid/model", async (i) => sirket.ajanModel(param(i, "aid"), z.object({ model: z.string().min(1) }).parse(i.body ?? {}).model));
+  // Modeli sabitler; model: null projenin kullanım seviyesine bağlar (0.0.10)
+  app.post("/api/ajanlar/:aid/model", async (i) => sirket.ajanModel(param(i, "aid"), z.object({ model: z.string().min(1).nullable() }).parse(i.body ?? {}).model));
   app.get("/api/ajanlar/:aid/akis", async (i) => sirket.akis(param(i, "aid"), sayi(sorgu(i, "sinir"), 300)));
 
   // ---------------- görevler ----------------

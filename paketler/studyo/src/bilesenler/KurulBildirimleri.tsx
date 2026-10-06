@@ -9,6 +9,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { api } from "../api/uclar";
 import { sozluk, useSozluk } from "../dil";
 import { bildir, git } from "../durum/arayuz";
+import { butcePaneliniAc } from "../durum/butce";
 import { claudeAsistaniniAc } from "../durum/kurulum";
 import {
   ceoyaYanitYaz,
@@ -303,6 +304,18 @@ function KurulPenceresi({ bildirim: k, ilk }: { bildirim: KurulBildirimi; ilk: b
               }}
             >
               {b.claudeGiris}
+            </button>
+          ) : null}
+          {k.eylem === "butce" ? (
+            <button
+              type="button"
+              className="dugme dugme-ana dugme-kucuk"
+              onClick={() => {
+                butcePaneliniAc(true);
+                kapat();
+              }}
+            >
+              {s.butce.bildirim.artir}
             </button>
           ) : null}
           {k.onayId ? (

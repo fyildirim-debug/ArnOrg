@@ -26,7 +26,6 @@ export const ekip: typeof tr = {
     adOrnek: "Alex",
     rol: "Role",
     model: "Model",
-    rolOnerisi: " · suggested for the role",
     yonetici: "Manager",
     karakter: "Character",
     talimat: "Extra instructions (optional)",

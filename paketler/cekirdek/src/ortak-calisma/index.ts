@@ -29,6 +29,7 @@ import { komutuCoz, kokte, type GitKarari } from "./kabuk.js";
 import { KaliteDenetimi, kaldiMi } from "./kalite.js";
 import { bosKalite, KayitDefteri } from "./kayitlar.js";
 import { kiraAnahtari, KiraDefteri } from "./kiralar.js";
+import { seviyeTempoSiniri } from "../butce.js";
 import { gecerliTempo, siradakiIs, TEMPO_ONEKI, tempoKaydi } from "./tempo.js";
 import { gitIciReddi, gitReddi, kiraReddi } from "./talimat.js";
 
@@ -645,14 +646,20 @@ export class OrtakCalisma {
     return p.kararVeren === "ceo" && this.s.ceoBul(p.id) ? "ceo" : "kurul";
   }
 
-  /** Projenin tavanı (CEO'nun temposu); kurul kipinde, CEO seçmediyse ya da ajan CEO ise 0 (yalnız genel tavan) */
+  /**
+   * Projenin tavanı: tam otonom kipte CEO'nun temposu; projenin kullanım seviyesinin sınırı (Normal 6, Tasarruflu 3)
+   * de geçilemez. Sınır yoksa ya da ajan CEO ise 0 (yalnız genel tavan)
+   */
   projeTavani(ajanId: string): number {
     const a = this.s.depo.ajan(ajanId);
     if (!a || a.rol === "ceo") return 0;
     const p = this.s.depo.proje(a.projeId);
-    if (!p || this.belirleyen(p) !== "ceo") return 0;
-    const secim = tempoKaydi(this.s.depo.deger(TEMPO_ONEKI + p.id))?.esZamanli ?? null;
-    return secim ? gecerliTempo(secim, tavanDegeri(this.s.yapilandirma.ayarlar.esZamanliAjan)) : 0;
+    if (!p) return 0;
+    const ust = tavanDegeri(this.s.yapilandirma.ayarlar.esZamanliAjan);
+    const secim = this.belirleyen(p) === "ceo" ? (tempoKaydi(this.s.depo.deger(TEMPO_ONEKI + p.id))?.esZamanli ?? null) : null;
+    const tempo = secim ? gecerliTempo(secim, ust) : 0;
+    const seviye = seviyeTempoSiniri(this.s.butce.etkinSeviye(p.id), ust);
+    return tempo && seviye ? Math.min(tempo, seviye) : tempo || seviye;
   }
 
   /** Ajanın projesinde tempoya sayılan (CEO dışı) çalışan sayısı */
@@ -672,12 +679,16 @@ export class OrtakCalisma {
     const belirleyen = this.belirleyen(p);
     const kayit = belirleyen === "ceo" ? tempoKaydi(this.s.depo.deger(TEMPO_ONEKI + p.id)) : null;
     const ekip = this.s.depo.ajanlar(p.id).filter((a) => a.rol !== "ceo");
+    // 0.0.10: kullanım seviyesinin sınırı da geçilemez
+    const seviyeSiniri = seviyeTempoSiniri(this.s.butce.etkinSeviye(p.id), ust);
+    const gecerli = gecerliTempo(kayit?.esZamanli ?? null, ust);
     return {
       secim: kayit?.esZamanli ?? null,
       gerekce: kayit?.gerekce || null,
       zaman: kayit?.zaman || null,
       ustSinir: ust,
-      gecerli: gecerliTempo(kayit?.esZamanli ?? null, ust),
+      seviyeSiniri,
+      gecerli: seviyeSiniri && (!gecerli || gecerli > seviyeSiniri) ? seviyeSiniri : gecerli,
       calisan: ekip.filter((a) => calisanMi(a.durum)).length,
       sirada: ekip.filter((a) => this.s.siradaMi(a.id)).length,
       belirleyen,
@@ -757,7 +768,8 @@ export class OrtakCalisma {
   async isDagit(projeId: string): Promise<string[]> {
     // Kurul mesaiyi durdurduysa ArnOrg işi kendiliğinden yeniden başlatmaz (kurul yazınca sürer); uykudaki proje de
     // kendiliğinden uyanmaz (açılışta, güncellemeden sonra)
-    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir || this.s.mesaiDurduMu(projeId) || !this.s.projeEtkinMi(projeId)) return [];
+    // Proje bütçesi dolduysa da (0.0.10) iş başlamaz; bütçe açılınca dağıtım yeniden işlenir
+    if (this.dagitiliyor.has(projeId) || this.kapali || this.s.hesap.sinir || this.s.butce.doluMu(projeId) || this.s.mesaiDurduMu(projeId) || !this.s.projeEtkinMi(projeId)) return [];
     const p = this.s.depo.proje(projeId);
     if (!p || !fs.existsSync(p.yol)) return [];
     this.dagitiliyor.add(projeId);

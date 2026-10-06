@@ -27,6 +27,7 @@ import type {
   KureselKural,
   OtomatikOnay,
   Proje,
+  ProjeButcesi,
   Soz,
   SozDurumu,
   SoruDurumu,
@@ -34,13 +35,16 @@ import type {
   ZekaGunlukTuru,
   YetenekKimligi,
 } from "@arnorg/ortak";
-import { VARSAYILAN_KARAR_VEREN, VARSAYILAN_OTOMATIK_ONAY_TURLERI } from "@arnorg/ortak";
+import { seviyeMi, VARSAYILAN_KARAR_VEREN, VARSAYILAN_OTOMATIK_ONAY_TURLERI, VARSAYILAN_SEVIYE } from "@arnorg/ortak";
 import { iki } from "./dil.js";
 import { duzeltmeGocu } from "./duzeltmeler.js";
 import { ekGocu } from "./mesaj-ekleri/index.js";
 import { aramaMetni, bugun, jsonOku, kimlik, simdi } from "./yardimci.js";
 import { rolYetenekleri } from "./yetenekler.js";
 import { skillGocu, skillListesi } from "./skiller.js";
+
+/** Görev başına işlenen token ve yükseltilmiş tavanın anahtar-değer kaydı (gorev-tavani.ts yazar; görev satırı okur) */
+export const GOREV_TOKEN_ONEKI = "gorev-token:";
 
 /** 0.0.7 güncellemesiyle karar yetkisi CEO'ya geçen projeler (anahtar-değer; Şirket açılışta duyurup boşaltır) */
 export const KARAR_YETKISI_GOCU = "karar-yetkisi-gocu";
@@ -50,6 +54,17 @@ export function githubDeposu(adres: string | null | undefined): string | null {
   if (!adres) return null;
   const m = adres.trim().match(/^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
   return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/** Bütçe sütunu: pozitif tam sayı; NULL, sıfır ya da bozuk değer sınırsız (null) */
+function butceDegeri(v: unknown): number | null {
+  const n = typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
+/** Bütçeyi temizler: pozitif tam sayılar kalır, öteki değerler sınırsız olur */
+export function butceTemizle(b: Partial<ProjeButcesi> | null | undefined): ProjeButcesi {
+  return { toplam: butceDegeri(b?.toplam ?? null), gunluk: butceDegeri(b?.gunluk ?? null) };
 }
 
 const SEMA = `
@@ -257,6 +272,15 @@ export interface DenetimImleci {
 
 const AKIS_SINIRI = 3000;
 
+/** Görev ve görevin token kaydı (gorev-tavani.ts); WHERE ve ORDER BY çağıran yerde eklenir */
+const GOREV_SORGUSU = `SELECT g.*, (SELECT d.deger FROM anahtar_deger d WHERE d.anahtar = '${GOREV_TOKEN_ONEKI}' || g.id) token_kaydi FROM gorevler g`;
+
+/** Görevin token kaydından işlenen token (kayıt yoksa ya da bozuksa 0) */
+function gorevTokeni(kayit: unknown): number {
+  const v = jsonOku<{ token?: unknown } | null>(typeof kayit === "string" ? kayit : null, null);
+  return typeof v?.token === "number" && Number.isFinite(v.token) && v.token > 0 ? Math.round(v.token) : 0;
+}
+
 /** Kanal ve mesaj sayısı; WHERE ve ORDER BY çağıran yerde eklenir */
 const KANAL_SORGUSU = "SELECT k.*, (SELECT count(*) FROM mesajlar m WHERE m.proje_id = k.proje_id AND m.kanal = k.ad) sayi FROM kanallar k";
 
@@ -302,6 +326,11 @@ export class Depo {
       const gecenler = (this.db.prepare("SELECT id FROM projeler").all() as Satir[]).map((s) => String(s.id));
       if (gecenler.length) this.degerYaz(KARAR_YETKISI_GOCU, JSON.stringify(gecenler));
     }
+    // 0.0.10: proje token bütçesi (NULL sınırsız), kullanım seviyesi ve otomatik kademe düşürme
+    if (!projeSutunlari.includes("butce_toplam")) this.db.exec("ALTER TABLE projeler ADD COLUMN butce_toplam INTEGER");
+    if (!projeSutunlari.includes("butce_gunluk")) this.db.exec("ALTER TABLE projeler ADD COLUMN butce_gunluk INTEGER");
+    if (!projeSutunlari.includes("seviye")) this.db.exec(`ALTER TABLE projeler ADD COLUMN seviye TEXT NOT NULL DEFAULT '${VARSAYILAN_SEVIYE}'`);
+    if (!projeSutunlari.includes("otomatik_kademe")) this.db.exec("ALTER TABLE projeler ADD COLUMN otomatik_kademe INTEGER NOT NULL DEFAULT 1");
     // 0.0.7: onayı kimin karara bağladığı (kurul, otomatik, ceo) ve adı; bekleyen onayın muhatabı (ceo ya da kurul)
     const onaySutunlari = (this.db.prepare("PRAGMA table_info(onaylar)").all() as Satir[]).map((s) => String(s.name));
     if (!onaySutunlari.includes("karar_kaynagi")) this.db.exec("ALTER TABLE onaylar ADD COLUMN karar_kaynagi TEXT");
@@ -323,6 +352,9 @@ export class Depo {
     const ajanSutunlari = (this.db.prepare("PRAGMA table_info(ajanlar)").all() as Satir[]).map((s) => String(s.name));
     if (!ajanSutunlari.includes("karakter")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN karakter TEXT");
     if (ajanSutunlari.includes("gunluk_butce")) this.db.exec("ALTER TABLE ajanlar DROP COLUMN gunluk_butce");
+    // 0.0.10: model kurulca sabitlendi mi (1) ya da projenin kullanım seviyesine mi bağlı (0); NULL: eski kayıt, Şirket
+    // açılışta rolün varsayılan modelinde kalanları seviyeye bağlar, değiştirilmiş olanları sabit sayar
+    if (!ajanSutunlari.includes("model_sabit")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN model_sabit INTEGER");
     // 0.0.5: çalışan başına yetenekler (JSON); kaydı olmayan ajanlar rollerinin varsayılanlarını alır
     if (!ajanSutunlari.includes("yetenekler")) this.db.exec("ALTER TABLE ajanlar ADD COLUMN yetenekler TEXT");
     const yeteneksiz = this.db.prepare("SELECT id, rol FROM ajanlar WHERE yetenekler IS NULL").all() as Satir[];
@@ -357,12 +389,20 @@ export class Depo {
 
   // ---------------- projeler ----------------
 
-  projeEkle(p: Pick<Proje, "ad" | "yol" | "aciklama" | "varsayilanDal"> & Partial<Pick<Proje, "uzakAdres" | "otomatikGonder" | "hazirlik" | "kararVeren">>): Proje {
+  projeEkle(
+    p: Pick<Proje, "ad" | "yol" | "aciklama" | "varsayilanDal"> & Partial<Pick<Proje, "uzakAdres" | "otomatikGonder" | "hazirlik" | "kararVeren" | "butce" | "seviye" | "otomatikKademe">>,
+  ): Proje {
     const id = kimlik();
     const olusturma = simdi();
     this.db
-      .prepare("INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik, karar_veren) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam", p.kararVeren ?? VARSAYILAN_KARAR_VEREN);
+      .prepare(
+        `INSERT INTO projeler (id, ad, yol, aciklama, varsayilan_dal, olusturma, uzak_adres, otomatik_gonder, hazirlik, karar_veren, butce_toplam,
+          butce_gunluk, seviye, otomatik_kademe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id, p.ad, p.yol, p.aciklama, p.varsayilanDal, olusturma, p.uzakAdres ?? null, p.otomatikGonder === false ? 0 : 1, p.hazirlik ?? "tamam",
+        p.kararVeren ?? VARSAYILAN_KARAR_VEREN, p.butce?.toplam ?? null, p.butce?.gunluk ?? null, p.seviye ?? VARSAYILAN_SEVIYE, p.otomatikKademe === false ? 0 : 1,
+      );
     // Kanal açıklaması proje açıldığı andaki dilde yazılır (API sistem kanallarını geçerli dilde gösterir)
     for (const [ad, aciklama] of [
       ["genel", iki("Şirket geneli: brief, rapor, duyuru", "Company-wide: brief, reports, announcements")],
@@ -376,8 +416,16 @@ export class Depo {
 
   projeGuncelle(
     id: string,
-    alanlar: Partial<Pick<Proje, "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay" | "kararVeren" | "testKomutu" | "hazirlikKomutu" | "testZamanAsimiDk">>,
+    alanlar: Partial<
+      Pick<
+        Proje,
+        "ad" | "aciklama" | "varsayilanDal" | "uzakAdres" | "otomatikGonder" | "hazirlik" | "otomatikOnay" | "kararVeren" | "testKomutu" | "hazirlikKomutu" | "testZamanAsimiDk" | "butce" | "seviye" | "otomatikKademe"
+      >
+    >,
   ): Proje {
+    // Bütçe iki sütundur (toplam, günlük)
+    const { butce, ...digerleri } = alanlar;
+    const duz: Record<string, unknown> = { ...digerleri, ...(butce ? { butceToplam: butce.toplam, butceGunluk: butce.gunluk } : {}) };
     const sutunlar: Record<string, string> = {
       ad: "ad",
       aciklama: "aciklama",
@@ -390,10 +438,14 @@ export class Depo {
       testKomutu: "test_komutu",
       hazirlikKomutu: "hazirlik_komutu",
       testZamanAsimiDk: "test_zaman_asimi_dk",
+      butceToplam: "butce_toplam",
+      butceGunluk: "butce_gunluk",
+      seviye: "seviye",
+      otomatikKademe: "otomatik_kademe",
     };
     const atamalar: string[] = [];
     const degerler: unknown[] = [];
-    for (const [k, v] of Object.entries(alanlar)) {
+    for (const [k, v] of Object.entries(duz)) {
       if (v === undefined || !sutunlar[k]) continue;
       atamalar.push(`${sutunlar[k]} = ?`);
       degerler.push(typeof v === "boolean" ? (v ? 1 : 0) : v !== null && typeof v === "object" ? JSON.stringify(v) : v);
@@ -423,6 +475,9 @@ export class Depo {
       testKomutu: (s.test_komutu as string | null) ?? null,
       hazirlikKomutu: (s.hazirlik_komutu as string | null) ?? null,
       testZamanAsimiDk: Number(s.test_zaman_asimi_dk ?? 20) || 20,
+      butce: { toplam: butceDegeri(s.butce_toplam), gunluk: butceDegeri(s.butce_gunluk) },
+      seviye: seviyeMi(s.seviye) ? s.seviye : VARSAYILAN_SEVIYE,
+      otomatikKademe: Number(s.otomatik_kademe ?? 1) === 1,
     };
   }
 
@@ -462,6 +517,7 @@ export class Depo {
       rol: String(s.rol),
       rolAdi: String(s.rol_adi),
       model: String(s.model),
+      modelSabit: Number(s.model_sabit ?? 0) === 1,
       yoneticiId: (s.yonetici_id as string | null) ?? null,
       durum: String(s.durum) as AjanDurumu,
       isAciklamasi: String(s.is_aciklamasi),
@@ -485,12 +541,12 @@ export class Depo {
     this.db
       .prepare(
         `INSERT INTO ajanlar (id, proje_id, ad, rol, rol_adi, model, yonetici_id, durum, is_aciklamasi, gorev_id, oturum_id,
-          calisma_alani, dal, izin_modu, talimat_eki, karakter, olusturma, yetenekler)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          calisma_alani, dal, izin_modu, talimat_eki, karakter, olusturma, yetenekler, model_sabit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, a.projeId, a.ad, a.rol, a.rolAdi, a.model, a.yoneticiId, a.durum, a.isAciklamasi, a.gorevId, a.oturumId,
-        a.calismaAlani, a.dal, a.izinModu, a.talimatEki, a.karakter ?? null, simdi(), JSON.stringify(a.yetenekler ?? rolYetenekleri(a.rol)),
+        a.calismaAlani, a.dal, a.izinModu, a.talimatEki, a.karakter ?? null, simdi(), JSON.stringify(a.yetenekler ?? rolYetenekleri(a.rol)), a.modelSabit ? 1 : 0,
       );
     return this.ajan(id)!;
   }
@@ -528,6 +584,7 @@ export class Depo {
       talimatEki: "talimat_eki",
       karakter: "karakter",
       yetenekler: "yetenekler",
+      modelSabit: "model_sabit",
     };
     const parcalar: string[] = [];
     const degerler: unknown[] = [];
@@ -535,10 +592,20 @@ export class Depo {
       const sutun = harita[k as keyof Ajan];
       if (!sutun || v === undefined) continue;
       parcalar.push(`${sutun} = ?`);
-      degerler.push(k === "yetenekler" ? JSON.stringify(v) : v);
+      degerler.push(k === "yetenekler" ? JSON.stringify(v) : typeof v === "boolean" ? (v ? 1 : 0) : v);
     }
     if (parcalar.length) this.db.prepare(`UPDATE ajanlar SET ${parcalar.join(", ")} WHERE id = ?`).run(...degerler, id);
     return this.ajan(id)!;
+  }
+
+  /** 0.0.10 göçü: model sabitliğine henüz karar verilmemiş (eski) çalışanlar */
+  modelSabitiBelirsizler(): { id: string; projeId: string; rol: string; model: string }[] {
+    return (this.db.prepare("SELECT id, proje_id, rol, model FROM ajanlar WHERE model_sabit IS NULL AND silindi = 0").all() as Satir[]).map((s) => ({
+      id: String(s.id),
+      projeId: String(s.proje_id),
+      rol: String(s.rol),
+      model: String(s.model),
+    }));
   }
 
   /** Çalışanın skilleri (skiller.ts doğrular); null kaydı siler, rolün varsayılanları geçerli olur */
@@ -574,6 +641,7 @@ export class Depo {
       olusturanId: (s.olusturan_id as string | null) ?? null,
       olusturma: String(s.olusturma),
       guncelleme: String(s.guncelleme),
+      token: gorevTokeni(s.token_kaydi),
     };
   }
 
@@ -591,7 +659,7 @@ export class Depo {
   }
 
   gorev(id: string): Gorev | null {
-    const s = this.db.prepare("SELECT * FROM gorevler WHERE id = ?").get(id) as Satir | undefined;
+    const s = this.db.prepare(`${GOREV_SORGUSU} WHERE g.id = ?`).get(id) as Satir | undefined;
     return s ? this.gorevSatiri(s) : null;
   }
 
@@ -599,7 +667,7 @@ export class Depo {
   gorevKoduyla(projeId: string, kod: string): Gorev | null {
     const m = /^(?:T-)?(\d+)$/i.exec(kod.trim());
     if (m) {
-      const s = this.db.prepare("SELECT * FROM gorevler WHERE proje_id = ? AND no = ?").get(projeId, Number(m[1])) as Satir | undefined;
+      const s = this.db.prepare(`${GOREV_SORGUSU} WHERE g.proje_id = ? AND g.no = ?`).get(projeId, Number(m[1])) as Satir | undefined;
       return s ? this.gorevSatiri(s) : null;
     }
     const g = this.gorev(kod);
@@ -607,7 +675,7 @@ export class Depo {
   }
 
   gorevler(projeId: string): Gorev[] {
-    return (this.db.prepare("SELECT * FROM gorevler WHERE proje_id = ? ORDER BY no").all(projeId) as Satir[]).map((s) => this.gorevSatiri(s));
+    return (this.db.prepare(`${GOREV_SORGUSU} WHERE g.proje_id = ? ORDER BY g.no`).all(projeId) as Satir[]).map((s) => this.gorevSatiri(s));
   }
 
   gorevGuncelle(id: string, alanlar: Partial<Gorev>): Gorev {

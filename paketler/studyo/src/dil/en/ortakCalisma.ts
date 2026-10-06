@@ -21,6 +21,7 @@ export const ortakCalisma: typeof tr = {
     etiket: "Team pace",
     sinirsiz: "Unlimited",
     ustSinir: (n: number) => `ceiling ${n}`,
+    seviyeSiniri: (n: number) => `level limit ${n}`,
     birim: (n: number) => (n === 1 ? "person" : "people"),
     ceoBelirledi: (ad: string, zaman: string) => `Set by ${ad} · ${zaman}`,
     ceoBelirlemedi: (ad: string) => `${ad} has not set it yet; the board's ceiling applies`,

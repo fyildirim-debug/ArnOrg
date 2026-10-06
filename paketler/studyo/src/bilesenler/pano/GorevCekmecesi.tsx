@@ -5,7 +5,8 @@ import { api } from "../../api/uclar";
 import { sozluk, useSozluk } from "../../dil";
 import { ajanaGit, bildir } from "../../durum/arayuz";
 import { gorevUygula, useVeri } from "../../durum/veri";
-import { akilliZaman, tarih } from "../../yardimcilar/bicim";
+import { akilliZaman, kisaToken, sayi, tarih } from "../../yardimcilar/bicim";
+import { useGorevHarcamalari } from "../butce/Harcama";
 import { useIslem } from "../../yardimcilar/kancalar";
 import { Cekmece } from "../Cekmece";
 import { HataKutu } from "../Durumlar";
@@ -153,8 +154,26 @@ export function GorevCekmecesi({ gorev, kapat }: { gorev: Gorev; kapat: () => vo
             <dd>{bagimlilar.map((b) => b.kod).join(", ")}</dd>
           </>
         ) : null}
+        <GorevTokeni gorev={gorev} />
       </dl>
       <GorevKayitlari gorevId={gorev.id} />
     </Cekmece>
+  );
+}
+
+/** 0.0.10 · Görevde işlenen token ve görevin tavanı (künye satırı) */
+function GorevTokeni({ gorev }: { gorev: Gorev }) {
+  const s = useSozluk();
+  const t = s.butce.gorev;
+  const token = gorev.token ?? 0;
+  const tavan = useGorevHarcamalari(50).find((g) => g.gorevId === gorev.id)?.tavan ?? 0;
+  if (!token) return null;
+  return (
+    <>
+      <dt>{t.harcanan}</dt>
+      <dd className="sayi" title={`${sayi(token)} ${s.genel.tokenBirimi(token)}`}>
+        {tavan ? t.tavanli(kisaToken(token), kisaToken(tavan)) : kisaToken(token)}
+      </dd>
+    </>
   );
 }

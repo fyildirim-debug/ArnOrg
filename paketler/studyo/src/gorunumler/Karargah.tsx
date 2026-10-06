@@ -1,5 +1,6 @@
 // Karargâh: ekranın kalbinde CEO ile bire bir akan sohbet ve kanallardan canlı akış; altında CEO'nun son raporu,
-// kullanım ve onay özeti, brief kutusu, görev dağılımı, hafıza nabzı ve ekip
+// kullanım ve onay özeti, brief kutusu, görev dağılımı, harcama (en pahalı görevler, çalışan başına; 0.0.10), hafıza
+// nabzı ve ekip
 import { GOREV_DURUMLARI, kanalGorunenAdi, type GorevDurumu } from "@arnorg/ortak";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api/uclar";
@@ -15,6 +16,7 @@ import { ajanaGit, bildir, git } from "../durum/arayuz";
 import { HafizaNabzi } from "../bilesenler/HafizaNabzi";
 import { KanalAkisi } from "../bilesenler/KanalAkisi";
 import { KullanimPaneli } from "../bilesenler/Kullanim";
+import { HarcamaBolumu } from "../bilesenler/butce/Harcama";
 import { ajanAkisiniYukle, ceoBul, kanalMesajlariniYukle, mesajUygula, projeVerisiniYukle, useVeri } from "../durum/veri";
 import { akilliZaman } from "../yardimcilar/bicim";
 import { useIslem } from "../yardimcilar/kancalar";
@@ -105,6 +107,9 @@ export function Karargah() {
         </span>
       </h2>
       <GorevDagilimi sayilar={sayilar} />
+
+      <h2 className="ara-baslik">{s.butce.harcama.baslik}</h2>
+      <HarcamaBolumu />
 
       <HafizaNabzi />
 

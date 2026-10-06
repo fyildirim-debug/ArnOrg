@@ -49,10 +49,10 @@ export const ayarlar = {
     baslik: "Çalışma düzeni",
     esZamanli: "Aynı anda çalışan ajan (üst sınır)",
     esZamanliIpucu:
-      "Bütün projelerde aynı anda iş yapan en çok ajan. Tam otonom projede ekip temposunu CEO bu sınırın altında kendisi belirler; kurul kipinde bu sınır geçerlidir. Sınır doluyken gelen iş sıraya girer, yer açılınca sırayla başlar. 0 sınırsız.",
+      "Bütün projelerde aynı anda iş yapan en çok ajan. Tam otonom projede ekip temposunu CEO bu sınırın altında kendisi belirler; kurul kipinde bu sınır geçerlidir. Projenin kullanım seviyesi de sınırlar (Normal 6, Tasarruflu 3). Sınır doluyken gelen iş sıraya girer, yer açılınca sırayla başlar. 0 sınırsız.",
     esZamanliHata: "0 ile 50 arasında bir tam sayı olmalı.",
     tavan: "Görev token tavanı (milyon)",
-    tavanIpucu: "Bir görev bu kadar token işleyince ajanı durur ve sürmesi için onayınız istenir; onaylarsanız tavan bir kat artar. 0 kapalı.",
+    tavanIpucu: "Normal seviyede bir görev bu kadar token işleyince ajanı durur ve sürmesi için onay istenir; onaylanırsa tavan bir kat artar. Zeki seviyede iki katı, Tasarruflu'da yarısı geçerlidir. 0 kapalı.",
     tavanHata: "0 ile 1000 arasında olmalı.",
     surdur: "Açılışta yarım kalan işe dön",
     surdurIpucu: "ArnOrg yeniden açılınca, kapanırken çalışan ajanlar aynı konuşmayla kaldıkları yerden sürer. Mesaiyi durdur ile durdurulanlar uyanmaz.",

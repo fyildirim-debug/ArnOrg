@@ -22,6 +22,8 @@ export const ortakCalisma = {
     etiket: "Ekip temposu",
     sinirsiz: "Sınırsız",
     ustSinir: (n: number) => `üst sınır ${n}`,
+    /** 0.0.10 · Projenin kullanım seviyesinin sınırı (Normal 6, Tasarruflu 3) */
+    seviyeSiniri: (n: number) => `seviye sınırı ${n}`,
     /** Sayının yanındaki birim */
     birim: (_n: number) => "kişi",
     ceoBelirledi: (ad: string, zaman: string) => `${ad} belirledi · ${zaman}`,
